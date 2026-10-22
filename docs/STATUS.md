@@ -7,7 +7,7 @@
 ## Start here (next session)
 
 1. Read `docs/ROADMAP.md` §M0 (M0.2–M0.5), `docs/dev/BUILD.md` and `docs/dev/CONVENTIONS.md`.
-2. Implement M0.2 → M0.5 in order. Checkpoint after each WP; M0.2 and M0.3 may share a session.
+2. Implement M0.2 → M0.5 in order. At each WP end, directive 2 decides whether to stop for a `/clear` or continue into the next WP.
 3. Goal of M0: every push to `main` builds, tests and releases a 4-arch scratch image plus binaries.
 
 ## Open questions for the owner
@@ -25,4 +25,5 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
+- 2026-10-22 — Checkpoints made prompt-cache aware for Opus 5.5 (D-024): stop for a `/clear` only when it pays off, otherwise continue into the next WP (owner's choice).
 - 2026-10-21 — M0.1: plan, directives, feature specs, decisions, roadmap; repo created at github.com/robertzas/uniwrt. Owner chose SSH + ephemeral ucode agent, observe-first roadmap, home-server host, MIT OR Apache-2.0.

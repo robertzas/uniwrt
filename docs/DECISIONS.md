@@ -29,6 +29,7 @@ This is the index of accepted decisions (lightweight ADRs) and the open options 
 | D-021 | Controller TLS: self-signed by default, custom certificates supported, ACME DNS-01 later | HTTP only |
 | D-022 | ZTP images never contain secrets (ASU is a public service); adopting a device needs the owner's approval | a token in the image for auto-adoption |
 | D-023 | Trunk-based development: commit directly to `main` (owner's directive); `main` must stay green | PR flow |
+| D-024 | **Prompt-cache-aware checkpoints.** At a WP end the agent stops for a `/clear` only when clearing pays off ("Clear or keep" in AGENTS.md); otherwise it continues into the next WP. Basis, checked 2026-10-22: Claude Code on Opus 5.5 with a 1-hour cache TTL; per MTok, input $4, cache write $5 (5 min) or $8 (1 h), cache read $0.20 (0.05×), output $20. Re-derive the thresholds when the model or prices change. *Owner's directive; continuing is the owner's choice.* | always clear at a WP end (the old rule); stop at every WP end with a keep/clear line; continue only within a milestone |
 
 ## Open (awaiting the owner's choice; the default applies until decided)
 
