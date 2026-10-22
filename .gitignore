@@ -1,0 +1,27 @@
+# Rust
+/target/
+
+# Web
+**/node_modules/
+/web/dist/
+
+# Build outputs
+/dist/
+
+# Local runtime data and secrets
+/data/
+*.db
+*.db-shm
+*.db-wal
+master.key
+.env
+.env.*
+*.pcap
+
+# Local-only notes (never committed)
+/.local/
+
+# OS / editors
+.DS_Store
+.idea/
+*.swp

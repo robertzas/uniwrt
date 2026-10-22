@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# Generated files: collapsed in GitHub diffs, excluded from language stats
+Cargo.lock linguist-generated=true
+web/bun.lock linguist-generated=true
+web/src/api/gen/** linguist-generated=true
+docs/MAP.md linguist-generated=true
+
+*.png binary
+*.jpg binary
+*.woff2 binary
