@@ -1,7 +1,7 @@
 # The uniwrt image: one static binary on scratch (docs/dev/BUILD.md, Runtime contract). It packages
 # the prebuilt dist/uniwrt-<arch> binaries from `just cross` or CI, so no stage runs under emulation.
 
-FROM --platform=$BUILDPLATFORM busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e AS prep
+FROM --platform=$BUILDPLATFORM busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e AS prep
 ARG TARGETARCH
 ARG TARGETVARIANT
 COPY dist/ /dist/
