@@ -47,7 +47,7 @@ lto = "fat"
 codegen-units = 1
 strip = true
 panic = "unwind" # one task's panic must not take down the server
-opt-level = 3    # compared against "s" in M0.4
+opt-level = 3    # vs "s": 13-25 % less CPU per request for 0.5 MB more binary (D-028)
 
 # build.rs precompresses the UI; unoptimized compressors would take minutes.
 # Named packages take precedence over build-override, which defaults to opt-level 0.

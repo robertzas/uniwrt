@@ -90,9 +90,9 @@ scripts/     versioning, map generation, helpers
 docs/        plan, specs, decisions, status
 ```
 
-## Commands (justfile, from M0.4)
+## Commands (justfile)
 
-`just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on) · `just test` · `just gen` (TypeScript types from Rust) · `just build` · `just cross <target>` · `just image` · `just map` · `just demo`
+`just setup` (cargo tools, web deps) · `just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on, one line per step) · `just test` · `just fmt` · `just lint` · `just gen` (TypeScript types from Rust) · `just build` · `just cross [target…]` · `just image` · `just map` · `just demo` (stub until M1.5)
 
 ## Conventions (summary; details in docs/dev/CONVENTIONS.md)
 

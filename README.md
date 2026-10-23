@@ -64,7 +64,7 @@ docker run -d --name uniwrt --restart unless-stopped \
   ghcr.io/robertzas/uniwrt:latest
 ```
 
-Then open `https://<host>:8443`. Host networking is recommended because it makes discovery and log ingest simple. With bridge networking, publish `8443/tcp` and `5514/tcp+udp` instead.
+Then open `https://<host>:8443`. Host networking is recommended because it makes discovery and log ingest simple. With bridge networking, publish `8443/tcp` and `5514/tcp+udp` instead. To keep the data in a host directory rather than the named volume, make that directory writable by UID 65532 first (`chown 65532:65532 <dir>`).
 
 ## Compatibility
 
@@ -88,7 +88,7 @@ Then open `https://<host>:8443`. Host networking is recommended because it makes
 
 ## Contributing
 
-uniwrt is in early development, and issues and ideas are welcome. Start with [docs/dev/CONVENTIONS.md](docs/dev/CONVENTIONS.md). Commits follow [Conventional Commits](https://www.conventionalcommits.org/), and every push to `main` ships a release.
+uniwrt is in early development, and issues and ideas are welcome. Start with [docs/dev/CONVENTIONS.md](docs/dev/CONVENTIONS.md). Commits follow [Conventional Commits](https://www.conventionalcommits.org/), and every push to `main` ships a release. Building from source needs rustup, bun, just and Docker: `just setup` installs the cargo tools, `just dev` runs the backend with a live-reloading UI, and `just check` runs everything CI gates on. Details are in [docs/dev/BUILD.md](docs/dev/BUILD.md).
 
 ## License
 

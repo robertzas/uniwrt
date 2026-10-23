@@ -18,7 +18,7 @@ Goal: a real (if empty) product ships. Every push to `main` builds, tests and re
   - Placeholder app shell (wordmark, sidebar skeleton, a health badge fed by `/api/v1/health`) and a Vite proxy to the backend.
   - At least one component test. The build writes hashed assets to `web/dist/assets/` (BUILD.md, Embedded UI) and uses no inline scripts or styles (the CSP in security.md).
   - The health badge's type is generated from the Rust DTO (`crates/server/src/http/health.rs`) with ts-rs (D-017); M0.4 wraps the export in `just gen`.
-- [ ] **M0.4 Build tooling & image** (M) → M0.2, M0.3
+- [x] **M0.4 Build tooling & image** (M) → M0.2, M0.3
   - justfile (dev, check, test, fmt, lint, build, cross, image, map, plus a demo stub) and `scripts/gen-map.sh` → `docs/MAP.md`.
   - Cross builds for the 4 musl targets with cargo-zigbuild; locally they run inside the cargo-zigbuild container image.
   - `FROM scratch` Dockerfile per BUILD.md: prebuilt binary chosen by TARGETARCH/TARGETVARIANT, UID 65532, `/data`, HEALTHCHECK.
