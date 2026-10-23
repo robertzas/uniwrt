@@ -1,0 +1,5 @@
+[env]
+# ts-rs: `cargo test` writes the TypeScript types of API DTOs into the web app (D-017).
+TS_RS_EXPORT_DIR = { value = "web/src/api/gen", relative = true }
+# JSON numbers are doubles in the browser, so 64-bit integers map to `number`, not `bigint`.
+TS_RS_LARGE_INT = "number"

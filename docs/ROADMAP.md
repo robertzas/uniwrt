@@ -13,7 +13,7 @@ Goal: a real (if empty) product ships. Every push to `main` builds, tests and re
   - `uniwrt serve` (axum): `GET /api/v1/health` returns `{status, version, commit, built_at}`. Serves the embedded UI with precompressed assets and an SPA fallback. When `web/dist` is absent, a placeholder page is embedded instead, so the backend builds without Node.
   - `uniwrt healthcheck` (exit code 0/1, for Docker) and `uniwrt version`. Config through flags or env: `UNIWRT_HTTP_LISTEN` (default `0.0.0.0:8080`) and `UNIWRT_DATA_DIR` (default `./data`). Tracing, and graceful shutdown on SIGTERM/SIGINT.
   - Tests: the health handler, asset serving (content-encoding negotiation, cache headers) and the SPA fallback.
-- [ ] **M0.3 Web skeleton** (M) → M0.1
+- [x] **M0.3 Web skeleton** (M) → M0.1
   - `web/`: bun, Vite, Solid 1.9, strict TypeScript, Tailwind v4 (`tokens.css` with dark and light themes), Biome, Vitest with Testing Library.
   - Placeholder app shell (wordmark, sidebar skeleton, a health badge fed by `/api/v1/health`) and a Vite proxy to the backend.
   - At least one component test. The build writes hashed assets to `web/dist/assets/` (BUILD.md, Embedded UI) and uses no inline scripts or styles (the CSP in security.md).

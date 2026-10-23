@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./ui/tokens.css";
+
+@layer base {
+  html {
+    @apply bg-canvas font-sans text-fg antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      /* biome-ignore lint/complexity/noImportantStyles: only !important lets a base-layer rule beat utility transitions */
+      transition-duration: 0.01ms !important;
+      /* biome-ignore lint/complexity/noImportantStyles: as above, for animations */
+      animation-duration: 0.01ms !important;
+    }
+  }
+}

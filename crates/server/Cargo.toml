@@ -23,6 +23,7 @@ tokio = { workspace = true, features = ["fs", "macros", "net", "rt-multi-thread"
 tower-http = { workspace = true, features = ["catch-panic", "trace"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+ts-rs.workspace = true
 
 [build-dependencies]
 brotli.workspace = true

@@ -63,6 +63,7 @@ Runs as UID/GID 65532 and works with a read-only root filesystem (it writes only
 ## Supply chain & releases
 
 - `Cargo.lock` and `bun.lock` are committed.
+- npm dependencies are pinned to exact versions, and bun resolves only versions published at least 7 days ago, transitive ones included (`web/bunfig.toml`, D-027).
 - cargo-deny (advisories, licenses, bans, sources) runs in CI.
 - Dependabot covers cargo, npm and GitHub Actions; actions are pinned by commit SHA.
 - Images ship with SBOM and provenance attestations and cosign keyless signatures; binaries ship with SHA256SUMS.

@@ -24,9 +24,10 @@ These apply to humans and agents alike. Read only the section you need.
 
 - Strict TypeScript and no `any` (enforced by Biome). Named exports. Components go in PascalCase files, one per file in `features/`; primitives go in `ui/`.
 - Fetch data only through `lib/api` (the typed client) with solid-query. Live updates come through `lib/ws` subscriptions.
-- Styling: Tailwind utilities plus tokens. No ad-hoc colors, and no inline styles except for dynamic geometry.
+- Styling: Tailwind utilities plus tokens. No ad-hoc colors: Tailwind's default palette is removed, so only the tokens in `ui/tokens.css` exist. No inline styles except dynamic geometry set through the CSSOM (style props); the CSP blocks style attributes in markup.
+- User-facing strings live in `lib/strings.ts`, so the UI is ready for translation. Icons come from lucide-solid; interactive primitives (dialogs, radio groups, menus) come from Kobalte.
 - Features never import other features.
-- Tests: Vitest + Testing Library for components that contain logic; Playwright for user flows (against demo mode).
+- Tests: Vitest + Testing Library for components that contain logic; Playwright for user flows (against demo mode). jsdom has no layout, so `src/test/setup.ts` stubs what Kobalte needs; components that use the router are tested inside a `MemoryRouter`.
 
 ## ucode / shell (node-agent)
 
@@ -42,7 +43,7 @@ These apply to humans and agents alike. Read only the section you need.
 3. **Render:** a module in `crates/render/src/<package>/` with golden tests (fixtures in `crates/render/tests/fixtures/`).
 4. **Telemetry** (if needed): a collector in `node-agent/collect/<name>.uc`, a parser in `crates/node/src/collect/<name>.rs`, and a fixture JSON file.
 5. **API:** routes in `crates/api/src/routes/<area>.rs` with DTOs that derive `TS`, then run `just gen`.
-6. **UI:** `web/src/features/<area>/` (page plus components) built from `ui/` primitives, with its route registered in `app/routes.ts`.
+6. **UI:** `web/src/features/<area>/` (page plus components) built from `ui/` primitives, with its lazy-loaded route registered in `app/routes.tsx`.
 7. **Docs:** tick the WP in ROADMAP and update STATUS. `docs/MAP.md` regenerates automatically.
 
 From M1.9, `just new-feature <area>` scaffolds steps 2–6.

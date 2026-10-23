@@ -21,6 +21,8 @@ tower = "0.5.3"
 tower-http = "0.7.1"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# TypeScript types for API DTOs (D-017); exported into web/src/api/gen by `cargo test`.
+ts-rs = { version = "12.0.1", default-features = false, features = ["serde-compat"] }
 # Build-time asset compression (crates/server/build)
 brotli = "9.0.0"
 flate2 = "1.1.10"

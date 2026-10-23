@@ -23,6 +23,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 ## Visual language
 
 - **Themes:** dark-first plus a light theme; follows the system setting, with a toggle.
+- **Token implementation:** `web/src/ui/tokens.css` defines each color once with `light-dark()`. `<html data-theme>` forces a theme, saved per browser and applied before the first paint by `public/theme-init.js`. Text tiers and the accent meet WCAG AA (4.5:1) on every surface; status, band and link colors meet 3:1 and are always paired with text or an icon.
 - **Tokens:** surface levels, borders, text tiers, accent, and status (ok/warn/crit/info). Two token families are used identically in every chart, graph and legend:
   - **band colors:** 2.4 GHz amber, 5 GHz cyan, 6 GHz violet
   - **link-quality ramp**

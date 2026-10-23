@@ -42,6 +42,14 @@ Values must be at most 64 printable ASCII characters. While `web/dist` is missin
 - **Caching:** files under `assets/` are `public, max-age=31536000, immutable`, because Vite writes content-hashed names there (keep `build.assetsDir` at its default). Everything else, including `index.html`, is `no-cache` and revalidated by `ETag`.
 - **SPA fallback** (like Vite's dev server, so dev and production route alike): a GET/HEAD miss that accepts HTML, or sends no `Accept`, gets `index.html`. Misses under `assets/` and `favicon.ico` stay 404, so a stale chunk never turns into HTML. Misses under `/api` are RFC 9457 problem+json 404s.
 
+## Web build
+
+- `web/` uses bun for installs and scripts. `bun run check` runs what CI gates on: `biome ci`, `tsc` (TypeScript 7) for the app and for the Vite config, `vitest run` and `vite build`.
+- Dependencies are pinned to exact versions, and bun resolves only versions published at least 7 days ago, transitive ones included (`web/bunfig.toml`, D-027).
+- `bun run dev` serves the UI with live reload and proxies `/api`, WebSockets included, to `UNIWRT_DEV_API` (default `http://127.0.0.1:8080`, where `uniwrt serve` listens).
+- `cargo test` regenerates the TypeScript types of API DTOs in `web/src/api/gen/` (ts-rs; the export directory is set in `.cargo/config.toml`). Commit them together with the Rust change.
+- Fonts are never inlined as `data:` URIs, because the CSP allows fonts only from `'self'`.
+
 ## Runtime contract
 
 | Item | Value |

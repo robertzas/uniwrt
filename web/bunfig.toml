@@ -1,0 +1,5 @@
+[install]
+# Supply-chain guard (security.md): resolve only versions published at least 7 days ago,
+# transitive dependencies included, and record exact versions on `bun add`.
+minimumReleaseAge = 604800
+exact = true

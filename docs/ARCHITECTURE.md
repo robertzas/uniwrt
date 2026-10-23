@@ -129,7 +129,7 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 - Errors use RFC 9457 problem+json. Pagination is cursor-based.
 - Auth: a session cookie for the UI, or a bearer API token for scripts.
 - WebSocket `/api/v1/ws`: the client sends `{"sub":["fleet","node:<id>","topology","logs?node=<id>&min=warning"]}`. The server answers with a snapshot, then batched deltas. Viewing an entity raises its telemetry rate (adaptive polling).
-- Types: Rust DTOs derive `TS` and are exported to `web/src/api/gen/` by `just gen`.
+- Types: Rust DTOs derive `TS` with `#[ts(export)]`, and `cargo test` (or `just gen`) writes them to `web/src/api/gen/`. JSON keeps the Rust field names (snake_case).
 
 ## Performance budgets
 
