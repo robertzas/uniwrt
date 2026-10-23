@@ -14,11 +14,10 @@
 
 - Router models and current OpenWrt versions of the gateway and the 3 nodes, and the current mesh/backhaul setup (batman? 802.11s? wired?). These shape the M1.3 fixtures and the test matrix.
 - Open options O-1 … O-9 in `docs/DECISIONS.md`. Defaults apply until the owner decides.
-- A permanent fix for the broken Arch Rust linker default: a `linker = "cc"` entry in `~/.cargo/config.toml`, a symlink, or switching to rustup (which also honors the pinned toolchain).
 
 ## Environment notes (owner's machine)
 
-- Rust 1.99.1 from the Arch package (no rustup). **Arch's `rust 1:1.99.1-1` defaults to the linker `x86_64-linux-gnu-gcc`, which doesn't exist, so every build fails.** Until it is fixed, run cargo with `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc` (a permanent fix is an open question).
+- **Rust: switching to rustup (D-026).** The owner runs `sudo pacman -S rustup && rustup default stable`; `rust-toolchain.toml` then installs the pinned 1.99.1 with clippy and rustfmt. Until then the Arch package is active, and its default linker (`x86_64-linux-gnu-gcc`) doesn't exist: run cargo with `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc`. Check with `rustup --version`.
 - Cross builds run in the cargo-zigbuild container (`just cross`); CI uses rustup with the pinned 1.99.1.
 - `just`, bun 1.4.3, node 26 and Docker 29 are installed; there is no pnpm and no buildx (`pacman -S docker-buildx`). Not installed: cargo-nextest, cargo-deny, cargo-zigbuild (M0.4/M0.5 need them).
 - `gh` is authenticated as `robertzas` with `repo` and `workflow` scopes.
@@ -29,6 +28,6 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
-- 2026-10-22 — M0.2: workspace (toolchain pinned to 1.99.1, pedantic clippy, release profile); `uniwrt serve|healthcheck|version`; embedded UI precompressed at build time with ETags, negotiation and an SPA fallback; security headers; graceful shutdown; 34 tests. D-025: datasets live in their crate.
+- 2026-10-22 — M0.2: workspace (toolchain pinned to 1.99.1, pedantic clippy, release profile); `uniwrt serve|healthcheck|version`; embedded UI precompressed at build time with ETags, negotiation and an SPA fallback; security headers; graceful shutdown; 34 tests. D-025: datasets live in their crate. D-026: the owner moves to rustup (Arch's rust package has a broken default linker).
 - 2026-10-22 — Checkpoints made prompt-cache aware for Opus 5.5 (D-024): stop for a `/clear` only when it pays off, otherwise continue into the next WP (owner's choice).
 - 2026-10-21 — M0.1: plan, directives, feature specs, decisions, roadmap; repo created at github.com/robertzas/uniwrt. Owner chose SSH + ephemeral ucode agent, observe-first roadmap, home-server host, MIT OR Apache-2.0.
