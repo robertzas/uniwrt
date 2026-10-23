@@ -1,13 +1,18 @@
 # Status
 
 **Milestone:** M0 — Foundation
-**Next WP:** M0.3 — Web skeleton
-**Last done:** M0.2 — Rust workspace + server skeleton (2026-10-22)
+**Next WP:** M0.4 — Build tooling & image
+**Last done:** M0.3 — Web skeleton (2026-10-22)
 
 ## Start here (next session)
 
-1. Read `docs/ROADMAP.md` §M0 (M0.3–M0.5), `docs/features/ui.md`, the "Embedded UI" section of `docs/dev/BUILD.md`, and the TypeScript section of `docs/dev/CONVENTIONS.md`.
-2. Constraints that M0.2 sets for M0.3: Vite's hashed output stays under `assets/` (immutable caching and the SPA 404 rule depend on it); no inline scripts or styles (the CSP in security.md); the badge reads `GET /api/v1/health` → `{status, version, commit, built_at}`. Add ts-rs to the DTO in `crates/server/src/http/health.rs` (D-017).
+1. Read `docs/ROADMAP.md` §M0 (M0.4–M0.5) and `docs/dev/BUILD.md` (Dockerfile shape, cross-compilation, local commands, web build).
+2. Inputs for the justfile:
+   - `just check`: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, the Rust tests (nextest), then `bun run check` in `web/`.
+   - `just gen`: `cargo test export_bindings`.
+   - `just dev`: `uniwrt serve` on 127.0.0.1:8080, plus `bun run dev`, which proxies `/api` to it.
+   - `just build`: the web build, then the release binary with `UNIWRT_WEB_DIST=web/dist`, so a missing UI fails the build.
+   - `scripts/gen-map.sh` reads the first `//!` line of each crate's `lib.rs` or `main.rs`.
 3. Goal of M0: every push to `main` builds, tests and releases a 4-arch scratch image plus binaries.
 
 ## Open questions for the owner
@@ -17,17 +22,19 @@
 
 ## Environment notes (owner's machine)
 
-- **Rust: switching to rustup (D-026).** The owner runs `sudo pacman -S rustup && rustup default stable`; `rust-toolchain.toml` then installs the pinned 1.99.1 with clippy and rustfmt. Until then the Arch package is active, and its default linker (`x86_64-linux-gnu-gcc`) doesn't exist: run cargo with `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc`. Check with `rustup --version`.
-- Cross builds run in the cargo-zigbuild container (`just cross`); CI uses rustup with the pinned 1.99.1.
-- `just`, bun 1.4.3, node 26 and Docker 29 are installed; there is no pnpm and no buildx (`pacman -S docker-buildx`). Not installed: cargo-nextest, cargo-deny, cargo-zigbuild (M0.4/M0.5 need them).
+- Rust comes from rustup (D-026), so `rust-toolchain.toml` (1.99.1) applies locally, as in CI. Cross builds run in the cargo-zigbuild container (`just cross`).
+- Installed: `just`, bun 1.4.4, node 26, Docker 29 and Google Chrome. Missing: buildx (`pacman -S docker-buildx`), cargo-nextest, cargo-deny and cargo-zigbuild (`cargo install --locked` works without sudo).
+- UI check without a browser window: `google-chrome-stable --headless=new --screenshot=<png> --window-size=1280,800 [--force-dark-mode] <url>`. With `--enable-logging=stderr`, CSP violations show up as `CONSOLE` lines.
 - `gh` is authenticated as `robertzas` with `repo` and `workflow` scopes.
 
-## Measurements (native x86_64 gnu release, M0.2)
+## Measurements
 
-- Binary 4.4 MB with a 1.5 MB sample UI embedded; idle RSS 5 MB; `version` 1 ms; `healthcheck` 5 ms; release build 35 s (fat LTO).
+- M0.2, native x86_64 release: binary 4.4 MB with a 1.5 MB sample UI; idle RSS 5 MB; `version` 1 ms; `healthcheck` 5 ms; release build 35 s.
+- M0.3, web: initial JS 132.7 KB (44.9 KB gzip; budget 150 KB); CSS 5.3 KB gzip; fonts are woff2 subsets loaded on demand. Headless Chrome shows no CSP violations.
 
 ## Session log (newest first; keep ≤ 5 entries)
 
-- 2026-10-22 — M0.2: workspace (toolchain pinned to 1.99.1, pedantic clippy, release profile); `uniwrt serve|healthcheck|version`; embedded UI precompressed at build time with ETags, negotiation and an SPA fallback; security headers; graceful shutdown; 34 tests. D-025: datasets live in their crate. D-026: the owner moves to rustup (Arch's rust package has a broken default linker).
+- 2026-10-22 — M0.3: web skeleton (Vite 8, Solid 1.9, TypeScript 7, Tailwind 4 tokens with `light-dark()`, Biome, Vitest); a shell with sidebar, mobile drawer, theme toggle and a health badge typed by ts-rs; 8 web tests. D-027: npm 7-day minimum release age.
+- 2026-10-22 — M0.2: Rust workspace, `uniwrt serve|healthcheck|version`, precompressed embedded UI, security headers, graceful shutdown. D-025: datasets live in their crate. D-026: rustup.
 - 2026-10-22 — Checkpoints made prompt-cache aware for Opus 5.5 (D-024): stop for a `/clear` only when it pays off, otherwise continue into the next WP (owner's choice).
 - 2026-10-21 — M0.1: plan, directives, feature specs, decisions, roadmap; repo created at github.com/robertzas/uniwrt. Owner chose SSH + ephemeral ucode agent, observe-first roadmap, home-server host, MIT OR Apache-2.0.
