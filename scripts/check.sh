@@ -47,6 +47,10 @@ elif need 'rust tests' cargo-nextest cargo nextest --version; then
     cargo nextest run --workspace --locked --status-level fail --final-status-level fail
 fi
 step 'code map' 'regenerated .*' scripts/gen-map.sh
+if need cargo-deny cargo-deny cargo deny --version; then
+  step cargo-deny '' cargo deny check
+fi
+step scripts '' scripts/next-version.test.sh
 if need web bun bun --version; then
   # The last "N passed" is vitest's test count (after its file count).
   step web '[0-9]+ passed' \

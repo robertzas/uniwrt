@@ -6,6 +6,8 @@
 
 Adopt, configure, visualize, troubleshoot and upgrade every OpenWrt router in your home from one fast, modern web app.
 
+[![CI](https://github.com/robertzas/uniwrt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/robertzas/uniwrt/actions/workflows/ci.yml?query=branch%3Amain)
+[![Release](https://img.shields.io/github/v/release/robertzas/uniwrt?sort=semver)](https://github.com/robertzas/uniwrt/releases/latest)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 </div>

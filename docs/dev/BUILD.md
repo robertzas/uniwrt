@@ -80,22 +80,24 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 
 ## CI/CD: `.github/workflows/ci.yml`
 
-**Triggers:** push (all branches), pull_request, workflow_dispatch.
+**Triggers:** pushes to any branch except Dependabot's (those get CI through their pull requests), pull requests, and workflow_dispatch.
 **Concurrency:** one group per ref. On `main`, runs queue instead of cancelling, so releases stay in order. GitHub keeps only the newest pending run, so several rapid pushes can coalesce into one release.
 
 | Job | Runs for | What it does |
 |---|---|---|
-| version | all | On `main`: the next semver from commits (`scripts/next-version.sh`). Otherwise: `0.0.0-dev.<run>+<sha7>`. |
-| web | all | `bun install --frozen-lockfile`, `biome ci`, `tsc --noEmit`, `vitest run`, `vite build` → artifact |
-| rust | all | `cargo fmt --check`, `clippy -D warnings`, `cargo nextest run`, `cargo deny check`, MAP.md freshness check |
+| version | all | On a push to `main`: the next version from the commits (`scripts/next-version.sh`), or no release if HEAD is already tagged. Otherwise: `0.0.0-dev.<run>+<sha7>`. |
+| web | all | `bun install --frozen-lockfile`, `biome ci` (with annotations), `tsc`, `vitest run`, `vite build` → artifact `web-dist` |
+| rust | all | `cargo fmt --check`, MAP.md freshness, shellcheck and the script tests, `clippy -D warnings`, `cargo nextest run`, committed ts-rs types, `cargo deny check` |
 | agent (M1.3+) | all | node-agent tests inside OpenWrt rootfs containers (24.10, 25.12) |
-| build ×4 | all | zigbuild with the embedded UI and version → smoke-test `uniwrt version` under qemu-user → artifact |
-| image | pushes to `main` | buildx 4-platform image from the artifacts → GHCR; SBOM + provenance; cosign keyless signing |
-| release | pushes to `main` | tag `vX.Y.Z`; GitHub Release with tarballs, SHA256SUMS and generated notes |
+| build ×4 | all | `cargo auditable zigbuild` with the embedded UI, version and commit → smoke test: the embedded dependency list, `version --json`, and `serve` answering `healthcheck` (arm under qemu-user) → the binary and a reproducible tarball as artifacts |
+| image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version` from the registry |
+| release | pushes to `main` | SHA256SUMS and build provenance attestations for the tarballs; GitHub Release `vX.Y.Z` (creating the tag) with generated notes |
 
-- **Permissions:** least privilege per job: `contents: write` only for release, `packages: write` for image, `id-token: write` and `attestations: write` for signing.
+- **Permissions:** none at the workflow level and read-only per job, except `packages: write` and `id-token: write` (cosign) for image, and `contents: write`, `id-token: write` and `attestations: write` for release.
 - **Secrets:** none beyond `GITHUB_TOKEN`.
-- **Hygiene:** actions are pinned by SHA (Dependabot updates them). Caches: Swatinem/rust-cache per target, plus the bun cache.
+- **Hygiene:** actions are pinned by SHA to releases at least 7 days old, and Dependabot updates them. Tools are pinned as well: bun 1.4.4 and zig 0.16.0 in the workflow's `env`; cargo-nextest 0.9.148, cargo-deny 0.20.2, cargo-zigbuild 0.23.4 and cargo-auditable 0.7.7 through taiki-e/install-action, which verifies checksums. Keep them in line with `just setup` and `scripts/cross.sh`. `run` steps use bash with `pipefail`. Caches: Swatinem/rust-cache per job and target, plus bun's install cache.
+- **SBOM:** release binaries embed their dependency list (cargo-auditable, D-029), so the image SBOM lists every crate and `cargo audit bin` can scan a binary. The web UI's npm packages are not listed yet.
+- **Verifying a release:** for the image, `cosign verify ghcr.io/robertzas/uniwrt:<version> --certificate-identity https://github.com/robertzas/uniwrt/.github/workflows/ci.yml@refs/heads/main --certificate-oidc-issuer https://token.actions.githubusercontent.com`; for a tarball, `gh attestation verify <file> --repo robertzas/uniwrt` and `sha256sum -c SHA256SUMS`.
 - **One-time manual step:** after the first image push, make the GHCR package public if it didn't inherit the repo's visibility.
 
 ## Versioning (D-008)
@@ -106,14 +108,15 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
   - `feat` → minor
   - anything else → patch
 - Release notes are GitHub's generated notes.
+- `scripts/next-version.sh` starts from the highest `vX.Y.Z` tag reachable from HEAD (other tags don't count), and refuses a shallow clone. `scripts/next-version.test.sh` covers the rules.
 
 ## Local commands (justfile)
 
 | Recipe | What it does |
 |---|---|
-| `just setup` | Install cargo-nextest and cargo-deny, plus the web dependencies |
+| `just setup` | Install cargo-nextest and cargo-deny at the versions CI pins, plus the web dependencies |
 | `just dev` | `uniwrt serve` on 127.0.0.1:8080 plus the Vite dev server, which proxies `/api` to it; Ctrl-C stops both |
-| `just check` | Everything CI gates on, one line per step (`scripts/check.sh`): rustfmt, clippy, the Rust tests (nextest; they also refresh `web/src/api/gen`), the code map (regenerated when stale), the web check, and shellcheck when installed. A failing step prints the first 150 lines of its output; full logs stay in `target/check/`. |
+| `just check` | Everything CI gates on, one line per step (`scripts/check.sh`): rustfmt, clippy, the Rust tests (nextest; they also refresh `web/src/api/gen`), the code map (regenerated when stale), cargo-deny, the script tests, the web check, and shellcheck when installed. A failing step prints the first 150 lines of its output; full logs stay in `target/check/`. |
 | `just test` | Rust and web tests, with full output |
 | `just fmt` · `just lint` | rustfmt and Biome, writing fixes · clippy and Biome |
 | `just gen` | Regenerate TypeScript types from Rust |

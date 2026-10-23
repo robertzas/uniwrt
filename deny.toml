@@ -1,0 +1,47 @@
+# cargo-deny (features/security.md, Supply chain): advisories, licenses, bans and sources.
+# CI and `just check` run `cargo deny check`.
+
+[graph]
+# The release targets plus the CI host; dependencies of other platforms are irrelevant.
+targets = [
+  "x86_64-unknown-linux-musl",
+  "i686-unknown-linux-musl",
+  "armv7-unknown-linux-musleabihf",
+  "aarch64-unknown-linux-musl",
+  "x86_64-unknown-linux-gnu",
+]
+all-features = true
+
+[advisories]
+# Every RustSec advisory fails the check, unmaintained and unsound crates included. Ignore one only
+# after review, with the reason next to its ID.
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Licenses compatible with shipping uniwrt as MIT OR Apache-2.0.
+allow = [
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "MIT",
+  "Unicode-3.0",
+]
+confidence-threshold = 0.93
+
+[licenses.private]
+# Workspace crates are `publish = false`.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+deny = [
+  { crate = "openssl-sys", reason = "rustls only (D-001): a static scratch binary has no system OpenSSL" },
+  { crate = "native-tls", reason = "rustls only (D-001)" },
+  { crate = "aws-lc-sys", reason = "rustls uses the ring provider, which cross-compiles cleanly to i686 and armv7 (BUILD.md)" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

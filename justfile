@@ -73,9 +73,9 @@ map:
 demo:
     @echo "just demo arrives with the simulated fleet in M1.5" >&2; exit 1
 
-# Install the cargo tools and web dependencies the recipes use
+# Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
-    cargo install --locked cargo-nextest cargo-deny
+    cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2
     cd web && bun install --frozen-lockfile
 
 [private]
