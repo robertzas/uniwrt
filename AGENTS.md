@@ -31,7 +31,7 @@ This is the entry point for AI coding agents working on **uniwrt**. Claude Code 
 
 - Load docs progressively: AGENTS.md (automatic) → STATUS.md → the WP's section → only the feature and dev docs the WP lists.
 - Prefer contracts, maps and specs over implementation. Grep for symbols, and read line ranges instead of whole large files.
-- Never read generated or bulky files: `Cargo.lock`, `web/bun.lock`, `web/src/api/gen/**`, `web/dist/**`, `target/**`, `data/oui*`, and `**/*.snap` unless you are reviewing that snapshot.
+- Never read generated or bulky files: `Cargo.lock`, `web/bun.lock`, `web/src/api/gen/**`, `web/dist/**`, `target/**`, `crates/*/data/oui*`, and `**/*.snap` unless you are reviewing that snapshot.
 - Use quiet commands: `just check` (summarized output), `cargo nextest run --status-level fail`, `gh run view --log-failed`.
 - Don't re-read what is already in context and unchanged, including files you just wrote: a re-read is paid again. Batch independent tool calls. Write new files in one pass.
 - Keep source files to about 400 lines or fewer, with one concept per file, so targeted reads stay cheap.
@@ -85,7 +85,7 @@ crates/      Rust workspace. Pure: core, model, uci, render, topo, rf, isp · ad
              · services: engine, jobs · interface: api, server (bin "uniwrt") · test support: sim
 node-agent/  ucode agent and transaction guard, pushed to nodes over SSH
 web/         SolidJS app: app/, ui/, lib/, api/gen/, features/<area>/, viz/<kind>/
-data/        embedded data: ISP presets, log patterns, OUI subset
+data/        local runtime data of dev runs (gitignored); embedded datasets live in crates/<crate>/data/ (D-025)
 scripts/     versioning, map generation, helpers
 docs/        plan, specs, decisions, status
 ```

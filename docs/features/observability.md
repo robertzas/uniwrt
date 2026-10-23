@@ -93,7 +93,7 @@ The inventory is keyed by MAC. Randomized MACs are flagged and grouped by hostna
 - jump to context: ± N lines across all nodes
 - correlation: click an event to see the logs around it
 
-**Annotations:** `data/log-patterns.toml` maps a regex to a meaning, severity, hint and link. Examples: hostapd deauth reasons, DFS radar, netifd link flaps, dnsmasq DHCP pool exhaustion, kernel OOM, mt76 firmware errors.
+**Annotations:** `log-patterns.toml`, embedded in the crate that annotates logs (D-025), maps a regex to a meaning, severity, hint and link. Examples: hostapd deauth reasons, DFS radar, netifd link flaps, dnsmasq DHCP pool exhaustion, kernel OOM, mt76 firmware errors.
 
 ## Events, alerts, notifications [M2.6]
 

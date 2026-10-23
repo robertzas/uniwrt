@@ -8,7 +8,7 @@ Legend: `[x]` done · `[ ]` to do · (S/M/L) size · → dependencies
 Goal: a real (if empty) product ships. Every push to `main` builds, tests and releases binaries plus a scratch image for 4 architectures.
 
 - [x] **M0.1 Plan & directives** (M): README, AGENTS/CLAUDE, docs, license, GitHub repo.
-- [ ] **M0.2 Rust workspace + server skeleton** (M) → M0.1
+- [x] **M0.2 Rust workspace + server skeleton** (M) → M0.1
   - Cargo workspace with `crates/server` (package `uniwrt`, bin `uniwrt`), `rust-toolchain.toml` pinned to stable, workspace lints, and the release profile from BUILD.md.
   - `uniwrt serve` (axum): `GET /api/v1/health` returns `{status, version, commit, built_at}`. Serves the embedded UI with precompressed assets and an SPA fallback. When `web/dist` is absent, a placeholder page is embedded instead, so the backend builds without Node.
   - `uniwrt healthcheck` (exit code 0/1, for Docker) and `uniwrt version`. Config through flags or env: `UNIWRT_HTTP_LISTEN` (default `0.0.0.0:8080`) and `UNIWRT_DATA_DIR` (default `./data`). Tracing, and graceful shutdown on SIGTERM/SIGINT.
@@ -16,7 +16,8 @@ Goal: a real (if empty) product ships. Every push to `main` builds, tests and re
 - [ ] **M0.3 Web skeleton** (M) → M0.1
   - `web/`: bun, Vite, Solid 1.9, strict TypeScript, Tailwind v4 (`tokens.css` with dark and light themes), Biome, Vitest with Testing Library.
   - Placeholder app shell (wordmark, sidebar skeleton, a health badge fed by `/api/v1/health`) and a Vite proxy to the backend.
-  - At least one component test. The build writes hashed assets to `web/dist`.
+  - At least one component test. The build writes hashed assets to `web/dist/assets/` (BUILD.md, Embedded UI) and uses no inline scripts or styles (the CSP in security.md).
+  - The health badge's type is generated from the Rust DTO (`crates/server/src/http/health.rs`) with ts-rs (D-017); M0.4 wraps the export in `just gen`.
 - [ ] **M0.4 Build tooling & image** (M) → M0.2, M0.3
   - justfile (dev, check, test, fmt, lint, build, cross, image, map, plus a demo stub) and `scripts/gen-map.sh` → `docs/MAP.md`.
   - Cross builds for the 4 musl targets with cargo-zigbuild; locally they run inside the cargo-zigbuild container image.
@@ -62,7 +63,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [ ] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
 - [ ] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, actions (rename, kick, block).
 - [ ] **M2.4 Metrics & dashboard** (M): rollups, retention, LTTB downsampling, uPlot charts, dashboard v1.
-- [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`data/log-patterns.toml`).
+- [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`).
 - [ ] **M2.6 Events & alerts** (M): event timeline, alert rules, notifiers (ntfy, webhook and email first).
 - [ ] **M2.7 RF insight** (M): channel surveys, scheduled scans, the inter-node RSSI matrix, DFS events, spectrum view.
 

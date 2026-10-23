@@ -15,10 +15,32 @@ This is the source of truth for how uniwrt is built and shipped. It is implement
 - **TLS:** rustls with the `ring` provider, which cross-compiles cleanly to i686 and armv7. Mozilla CA roots are embedded (webpki-roots).
 - **Time zones:** an embedded tzdb, because scratch has no `/usr/share/zoneinfo`.
 - **SSH:** the client is in-process (russh); uploads stream over exec channels.
-- **UI assets:** embedded and precompressed (brotli + gzip) at build time. Hashed filenames are served with `Cache-Control: immutable`. If `web/dist` is missing, a placeholder page is embedded, so Rust-only work never needs Node.
-- **Subcommands:** `serve` (default), `healthcheck` (for Docker HEALTHCHECK, since scratch has no curl), `version`; later `reset-admin` and `backup`.
-- **Release profile:** `lto = "fat"`, `codegen-units = 1`, `strip = true`. Keep `panic = "unwind"` so one task's panic can't take down the server. Compare `opt-level` 3 against `"s"` in M0.4.
-- **Version:** CI injects `UNIWRT_VERSION` and `UNIWRT_COMMIT` at build time. Versions in Cargo.toml stay `0.0.0`, so nothing is committed back.
+- **UI assets:** embedded and precompressed (brotli + gzip) at build time; see [Embedded UI](#embedded-ui). If `web/dist` is missing, a placeholder page is embedded, so Rust-only work never needs Node.
+- **Subcommands:** `serve` (default), `healthcheck` (for Docker HEALTHCHECK, since scratch has no curl; it starts no async runtime), `version` (`--json` for scripts); later `reset-admin` and `backup`.
+- **Release profile:** `lto = "fat"`, `codegen-units = 1`, `strip = true`. Keep `panic = "unwind"` so one task's panic can't take down the server. Compare `opt-level` 3 against `"s"` in M0.4. The compressors used by the build script (`brotli`, `miniz_oxide`) are built at `opt-level = 3` in every profile; unoptimized, they would take minutes.
+- **Version:** CI injects `UNIWRT_VERSION` and `UNIWRT_COMMIT` at build time (see [Build inputs](#build-inputs)). Versions in Cargo.toml stay `0.0.0`, so nothing is committed back.
+- **Toolchain:** `rust-toolchain.toml` pins an exact stable release with clippy and rustfmt, so a new Rust release can't break `main` through new lints. Bump it deliberately. A system Rust without rustup ignores the file.
+
+## Build inputs
+
+The build script (`crates/server/build/`) reads these environment variables. All are optional for local builds.
+
+| Variable | Effect | Default |
+|---|---|---|
+| `UNIWRT_VERSION` | Reported by `version`, `--version` and `/api/v1/health` | `0.0.0-dev` |
+| `UNIWRT_COMMIT` | The commit SHA, reported alongside the version | `unknown` |
+| `SOURCE_DATE_EPOCH` | The build time (`built_at`), for reproducible builds | the time the build script last ran |
+| `UNIWRT_WEB_DIST` | The web build to embed, relative to the workspace root. Without `index.html` the build fails, so CI sets it and a release can never ship the placeholder. | `web/dist` if it has `index.html`, else the placeholder |
+
+Values must be at most 64 printable ASCII characters. While `web/dist` is missing, cargo reruns the build script on every build (about 0.4 s), so the first web build is always picked up.
+
+## Embedded UI
+
+- **Files:** everything in the web build except dotfiles (such as `.vite/`) and `.br`/`.gz` copies. Text-like files (HTML, JS, CSS, JSON, SVG, ICO, TTF/OTF) also get a brotli (quality 11) and a gzip (level 9) variant, each kept only if it saves at least 10%. Bytes are served from the binary without copying.
+- **Negotiation:** `Accept-Encoding` q-values decide, with br > gzip > identity on ties; identity ranks last unless the client lists it. Compressible files carry `Vary: Accept-Encoding`. Browsers offer `br` only over HTTPS, so plain HTTP gets gzip.
+- **Validation:** each variant has a strong `ETag` derived from the SHA-256 of the original (`"<16 hex>"`, `"…-br"`, `"…-gz"`), and a matching `If-None-Match` gets a 304.
+- **Caching:** files under `assets/` are `public, max-age=31536000, immutable`, because Vite writes content-hashed names there (keep `build.assetsDir` at its default). Everything else, including `index.html`, is `no-cache` and revalidated by `ETag`.
+- **SPA fallback** (like Vite's dev server, so dev and production route alike): a GET/HEAD miss that accepts HTML, or sends no `Accept`, gets `index.html`. Misses under `assets/` and `favicon.ico` stay 404, so a stale chunk never turns into HTML. Misses under `/api` are RFC 9457 problem+json 404s.
 
 ## Runtime contract
 
@@ -28,7 +50,9 @@ This is the source of truth for how uniwrt is built and shipped. It is implement
 | Data | `/data` volume (`UNIWRT_DATA_DIR`) |
 | Ports | 8443/tcp HTTPS UI and API (from M1.6) · 8080/tcp HTTP (serves the UI in M0, redirects later) · 5514/tcp+udp syslog |
 | Networking | `--network host` is recommended (L2 discovery, simple syslog). Bridge mode works with published ports. |
-| Health | `HEALTHCHECK CMD ["/uniwrt","healthcheck"]` |
+| Health | `HEALTHCHECK CMD ["/uniwrt","healthcheck"]`: `GET /api/v1/health` on loopback must answer 200 within 3 s |
+| Config | Flag or env: `--http-listen`/`UNIWRT_HTTP_LISTEN` (default `0.0.0.0:8080`), `--data-dir`/`UNIWRT_DATA_DIR` (default `./data`, created at start), `--log`/`UNIWRT_LOG` (tracing `EnvFilter` syntax, default `info`; logs go to stderr) |
+| Shutdown | SIGTERM or SIGINT: stop accepting, let in-flight requests finish for up to 5 s, then exit 0. A second signal closes everything at once. |
 
 Dockerfile shape (prebuilt binaries, no emulation):
 

@@ -58,7 +58,7 @@ flowchart TB
 | L0 | `render` | (SiteConfig, facts) → per-node UCI packages | core, model, uci |
 | L0 | `topo` | facts → topology graph | core, model |
 | L0 | `rf` | channel/width/power planner | core, model |
-| L0 | `isp` | ISP preset schema and embedded presets (`data/isp`) | core, model |
+| L0 | `isp` | ISP preset schema and embedded presets (`crates/isp/data/`) | core, model |
 | L1 adapters | `store` | SQLite: revisions, inventory, events, jobs, metrics, logs (FTS5), vault | core, model |
 | L1 | `node` | SSH transport (russh), agent protocol, `NodeLink` trait, embedded agent bundle | core, model |
 | L1 | `syslog` | RFC 3164/5424 receiver and parser | core |

@@ -10,7 +10,7 @@ An advanced drawer exposes every field (VLAN, priority, MTU, MAC clone, DHCP opt
 
 ## Preset format
 
-One file per preset at `data/isp/<country>-<isp>-<variant>.toml`. Adding a preset needs no code change; `cargo test` loads and validates every file.
+One file per preset at `crates/isp/data/<country>-<isp>-<variant>.toml` (D-025). Adding a preset needs no code change; `cargo test` loads and validates every file.
 
 ```toml
 id = "us-lumen-ipoe"

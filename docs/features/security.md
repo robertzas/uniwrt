@@ -28,6 +28,14 @@ Milestones: M1.6 (auth, TLS, vault), M3.1 (vault for config secrets), M9.3 (revi
 - **2FA:** TOTP (M9). Passkeys (WebAuthn) once the controller is served with a trusted certificate.
 - **Audit log:** every login, change, apply, terminal session and secret view.
 
+## HTTP response headers
+
+Every response carries these headers (`crates/server/src/http/security.rs`); a handler that needs a different value sets it first.
+
+- `Content-Security-Policy: default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`. There are no inline scripts or styles: the UI sets dynamic geometry through the CSSOM, which the policy allows.
+- `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Resource-Policy: same-origin`.
+- API responses are `Cache-Control: no-store`, and API errors are RFC 9457 problem+json.
+
 ## TLS
 
 - First run generates a self-signed ECDSA certificate (SANs: hostname, `uniwrt.lan`, IPs). It can be downloaded so devices can trust it.
