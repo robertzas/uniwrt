@@ -2,7 +2,8 @@
 //!
 //! - **API:** [`facts`] holds the observed state of one node ([`facts::NodeFacts`]: board, system,
 //!   capabilities, interfaces, devices, radios, stations), which the `node` crate parses agent
-//!   output into. [`node`] is the inventory record ([`node::Node`]: identity, address, role, mode).
+//!   output into. [`node`] is the inventory record ([`node::Node`]: identity, address, role, mode)
+//!   and the pinned SSH host key ([`node::HostKeyPin`]).
 //!   [`wifi`] is the Wi-Fi vocabulary shared by facts and, later, desired state (`SiteConfig`).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.

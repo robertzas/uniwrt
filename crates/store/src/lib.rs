@@ -2,8 +2,9 @@
 //!
 //! - **API:** [`Store::open`] creates or migrates the database and returns a cloneable handle;
 //!   [`Store::close`] commits what is queued and checkpoints. Repositories are traits that `Store`
-//!   implements: [`NodeRepo`] (the node inventory) and [`FactsRepo`] (the latest facts snapshot of
-//!   each node). Errors are [`Error`].
+//!   implements: [`NodeRepo`] (the node inventory), [`FactsRepo`] (the latest facts snapshot of
+//!   each node), [`HostKeyRepo`] (the SSH host key pinned for each node) and [`VaultRepo`]
+//!   (secrets by name; a stub that stores them unencrypted until M1.6). Errors are [`Error`].
 //! - **Writes** go to one thread that owns the only write connection. It takes every queued
 //!   operation (up to 256) into one transaction and runs each in its own savepoint, so an operation
 //!   that fails or panics rolls back alone. Callers hear back once the batch has committed; under
@@ -17,7 +18,7 @@
 //!   (SQLite gives the WAL the same mode). Foreign keys are enforced. `synchronous=NORMAL`: a
 //!   power loss may lose the last commits but never corrupts the database.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, rusqlite with bundled SQLite (FTS5 included),
-//!   tokio (sync and the blocking pool), `serde_json` for JSON columns.
+//!   tokio (sync and the blocking pool), `serde_json` for JSON columns, `zeroize` for secrets.
 //! - **Tests:** each test opens a fresh database in a temporary directory
 //!   (`cargo nextest run -p uniwrt-store`).
 
@@ -33,5 +34,5 @@ mod testing;
 mod writer;
 
 pub use error::{Error, Result};
-pub use repo::{FactsRepo, NodeRepo};
+pub use repo::{FactsRepo, HostKeyRepo, NodeRepo, Secret, VaultRepo};
 pub use store::Store;

@@ -92,7 +92,7 @@ docs/        plan, specs, decisions, status
 
 ## Commands (justfile)
 
-`just setup` (cargo tools, web deps) · `just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on, one line per step) · `just test` · `just fmt` · `just lint` · `just gen` (TypeScript types from Rust) · `just build` · `just cross [target…]` · `just image` · `just map` · `just crate-age` (the 7-day cooldown for new crates) · `just demo` (stub until M1.5)
+`just setup` (cargo tools, web deps) · `just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on, one line per step) · `just test` · `just test-dropbear` (transport tests against OpenWrt containers) · `just fmt` · `just lint` · `just gen` (TypeScript types from Rust) · `just build` · `just cross [target…]` · `just image` · `just map` · `just crate-age` (the 7-day cooldown for new crates) · `just demo` (stub until M1.5)
 
 ## Conventions (summary; details in docs/dev/CONVENTIONS.md)
 

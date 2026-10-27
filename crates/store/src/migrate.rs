@@ -17,7 +17,7 @@ macro_rules! migrations {
 }
 
 /// Migration N (1-based) brings the schema from version N-1 to N. Append only.
-const MIGRATIONS: &[Migration] = migrations!["0001_nodes"];
+const MIGRATIONS: &[Migration] = migrations!["0001_nodes", "0002_vault_host_keys"];
 
 /// Applies the migrations the database lacks, each in its own transaction.
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {

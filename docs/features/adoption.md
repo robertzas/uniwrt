@@ -18,7 +18,7 @@ The firewall on factory-default OpenWrt rejects input on WAN, so a fresh device 
 ## Path A: adopt existing (observe first) [M1.7]
 
 1. In Devices → Adopt → "Existing OpenWrt device", enter the IP or hostname and the root password (or skip the password if the controller's key is already installed).
-2. The controller connects. It pins the host key on first use (trust on first use) and shows the fingerprint, then checks the OpenWrt version (≥ 24.10), ucode modules, free RAM and flash, architecture and board.
+2. The controller reads the node's host key without logging in and shows its fingerprint. Once the user confirms it, the key is pinned (trust on first use, D-032), and every later connection must present it. The controller then logs in and checks the OpenWrt version (≥ 24.10), ucode modules, free RAM and flash, architecture and board.
 3. It installs the controller's public key in `/etc/dropbear/authorized_keys`, tagged `uniwrt-controller`. In observe mode, this is the only change it makes. The password is stored (in the vault) only if the user opts in.
 4. It pulls an inventory: `board.json`, `/etc/config/*`, the package list, radio capabilities, and a `sysupgrade -b` backup kept on the controller.
 5. It starts the ephemeral agent, and live telemetry begins. The node shows an **Observed** badge.

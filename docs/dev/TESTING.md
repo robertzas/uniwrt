@@ -5,7 +5,7 @@
 | Unit | Pure crates (uci, render, model, rf, topo, isp) | cargo nextest, proptest | `crates/*/src` | every commit |
 | Golden | Rendered UCI per role × feature × capability set | insta snapshots | `crates/render/tests` | every commit |
 | Agent | ucode collectors, transaction/rollback, protocol | OpenWrt rootfs containers (real ucode/uci; ubus where it can run) | `node-agent/tests` | every commit (M1.3+) |
-| Transport | SSH exec/stream/upload/jump | russh test server; dropbear in an OpenWrt container | `crates/node/tests` | every commit |
+| Transport | SSH exec/stream/upload/jump, links (reconnect, quarantine, agent restarts) | an in-process russh server on loopback that runs commands with the local `sh`; dropbear in OpenWrt rootfs containers (`just test-dropbear`, the CI job `transport`) | `crates/node/tests` | every commit |
 | Engine/API | Telemetry ingest, jobs, routes | sim fleet, axum test client | `crates/*/tests` | every commit |
 | UI | Components with logic, stores | Vitest + Testing Library | `web/src/**/*.test.tsx` | every commit |
 | E2E | User flows | Playwright against `uniwrt serve --demo --seed 42` | `web/e2e` | `main` + nightly |
@@ -23,5 +23,6 @@
 
 - Every bug fix comes with a regression test.
 - Review snapshot changes; never accept them blindly.
-- Unit tests have no network access. Randomness uses fixed seeds.
+- Tests reach no network beyond loopback. Randomness that a test depends on uses fixed seeds.
 - A test that needs real hardware gets a sim or fixture equivalent, so CI covers it.
+- Tests against dropbear run at most two at a time: dropbear drops a client's sixth concurrent unauthenticated connection (`MAX_UNAUTH_PER_IP`), and all tests connect from one address.

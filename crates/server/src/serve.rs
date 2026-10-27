@@ -16,12 +16,13 @@ use tokio::{
 };
 use tracing::{info, warn};
 use uniwrt_core::SystemClock;
+use uniwrt_node::ControllerKey;
 use uniwrt_store::Store;
 
 use crate::{
     build_info,
     cli::ServeArgs,
-    http, logging,
+    controller_key, http, logging,
     ui::{self, Source},
 };
 
@@ -51,10 +52,12 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .await
         .context("cannot open the database")?;
     let served = async {
+        // Nodes trust this key; the engine (M1.4) connects with it.
+        let controller_key = controller_key::load_or_generate(&store).await?;
         let listener = TcpListener::bind(args.http_listen)
             .await
             .with_context(|| format!("cannot listen on {}", args.http_listen))?;
-        log_start(&listener, &data_dir)?;
+        log_start(&listener, &data_dir, &controller_key)?;
         serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await?;
         anyhow::Ok(())
     }
@@ -65,12 +68,13 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn log_start(listener: &TcpListener, data_dir: &Path) -> io::Result<()> {
+fn log_start(listener: &TcpListener, data_dir: &Path, key: &ControllerKey) -> io::Result<()> {
     info!(
         version = build_info::VERSION,
         commit = build_info::COMMIT,
         http = %listener.local_addr()?,
         data_dir = %data_dir.display(),
+        controller_key = %key.fingerprint(),
         "uniwrt is serving"
     );
     if ui::EMBEDDED.source == Source::Placeholder {

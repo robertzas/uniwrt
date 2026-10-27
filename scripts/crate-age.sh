@@ -8,6 +8,13 @@ cd "$(dirname "$0")/.."
 rev=${1:-HEAD}
 min_age_days=7
 
+# Security-fix exception (D-033): the lowest release that fixes a RustSec advisory may be younger
+# than the cooldown. One "name version advisory" per entry; drop an entry once it has aged out.
+allowed=(
+  "crypto-bigint 0.7.9 RUSTSEC-2026-0387" # until 2026-11-01
+  "ctutils 0.4.6 RUSTSEC-2026-0385"       # until 2026-11-01; crypto-bigint 0.7.9 needs ^0.4.6
+)
+
 # "name version" for every package in a lockfile, read from stdin.
 packages() { awk -F'"' '/^name = / { name = $2 } /^version = / { print name, $2 }'; }
 
@@ -27,8 +34,13 @@ while read -r name version; do
     python3 -c 'import json, sys; print(json.load(sys.stdin)["version"]["created_at"][:10])')
   flag=''
   if [[ $published > $cutoff ]]; then
-    flag="  ← younger than $min_age_days days"
-    young=$((young + 1))
+    advisory=$(printf '%s\n' "${allowed[@]}" | awk -v n="$name" -v v="$version" '$1 == n && $2 == v { print $3 }')
+    if [[ -n $advisory ]]; then
+      flag="  ← younger than $min_age_days days, allowed: fixes $advisory"
+    else
+      flag="  ← younger than $min_age_days days"
+      young=$((young + 1))
+    fi
   fi
   printf '%s  %s %s%s\n' "$published" "$name" "$version" "$flag"
 done <<<"$added"

@@ -39,6 +39,10 @@ test:
     cargo nextest run --workspace --locked
     cd web && bun run test
 
+# The transport tests against dropbear in OpenWrt rootfs containers (needs Docker)
+test-dropbear *images:
+    @scripts/test-dropbear.sh {{ images }}
+
 # Format Rust and web code in place
 fmt:
     cargo fmt --all

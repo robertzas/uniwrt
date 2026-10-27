@@ -12,6 +12,7 @@
 
 mod build_info;
 mod cli;
+mod controller_key;
 mod healthcheck;
 mod http;
 mod logging;

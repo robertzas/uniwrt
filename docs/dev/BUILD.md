@@ -88,6 +88,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | version | all | On a push to `main`: the next version from the commits (`scripts/next-version.sh`), or no release if HEAD is already tagged. Otherwise: `0.0.0-dev.<run>+<sha7>`. |
 | web | all | `bun install --frozen-lockfile`, `biome ci` (with annotations), `tsc`, `vitest run`, `vite build` → artifact `web-dist` |
 | rust | all | `cargo fmt --check`, MAP.md freshness, shellcheck and the script tests, `clippy -D warnings`, `cargo nextest run`, committed ts-rs types, `cargo deny check` |
+| transport | all | `scripts/test-dropbear.sh`: the `node` crate against dropbear in OpenWrt rootfs containers (24.10.8, 25.12.6): adoption with a password, key login, quoting through busybox ash, stdin, uploads, a jump host, keepalives and a ucode agent. The image waits for it. |
 | agent (M1.3+) | all | node-agent tests inside OpenWrt rootfs containers (24.10, 25.12) |
 | build ×4 | all | `cargo auditable zigbuild` with the embedded UI, version and commit → smoke test: the embedded dependency list, `version --json`, and `serve` answering `healthcheck` (arm under qemu-user) → the binary and a reproducible tarball as artifacts |
 | image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version --json` from the registry, pulled by its own manifest digest (the runner's classic image store can't hold two platforms of one index digest), and must report its target and version |
@@ -118,6 +119,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | `just dev` | `uniwrt serve` on 127.0.0.1:8080 plus the Vite dev server, which proxies `/api` to it; Ctrl-C stops both |
 | `just check` | Everything CI gates on, one line per step (`scripts/check.sh`): rustfmt, clippy, the Rust tests (nextest; they also refresh `web/src/api/gen`), the code map (regenerated when stale), cargo-deny, the script tests, the web check, and shellcheck when installed. A failing step prints the first 150 lines of its output; full logs stay in `target/check/`. |
 | `just test` | Rust and web tests, with full output |
+| `just test-dropbear [image…]` | The transport tests against dropbear in OpenWrt rootfs containers (needs Docker); the CI job `transport` runs the same script |
 | `just fmt` · `just lint` | rustfmt and Biome, writing fixes · clippy and Biome |
 | `just gen` | Regenerate TypeScript types from Rust |
 | `just build` | Web build plus a native release binary (`target/release/uniwrt`) |

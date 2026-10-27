@@ -35,11 +35,12 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.1 core, model (facts), store** (M) → M0
   - `core`: IDs, MacAddr, network types, error conventions, a `Clock` trait. `model::facts`: NodeFacts, Capabilities, RadioFacts, StationFacts and InterfaceFacts (serde, with fixtures).
   - `store`: SQLite in WAL mode, embedded migrations, a batching writer actor and repository traits. Tests use a temporary DB.
-- [ ] **M1.2 SSH transport** (L) → M1.1
+- [x] **M1.2 SSH transport** (L) → M1.1
   - `node` crate: russh client; a controller ed25519 key (generated and kept in a vault stub); TOFU host-key pinning; a `NodeLink` trait (call/exec/stream/upload/events); a connection actor with keepalive and jittered backoff; jump hosts through `direct-tcpip`.
   - Tests against an in-process russh server, plus dropbear in an OpenWrt rootfs container (CI job).
+  - Also done here (D-032): the agent envelope in `proto.rs` (requests, answers, events, ticks, hello, the protocol range) and the RPC multiplexer, which `NodeLink::call` needs.
 - [ ] **M1.3 node-agent v0** (L) → M1.2
-  - ucode agent: hello/caps; collect sets (system, board, interfaces, radios, stations, DHCP leases, neighbors, batman); `ubus` calls; `exec` with argv; subscriptions (hostapd, netifd); log follow. JSON lines, with protocol v1 defined in `proto.rs` and mirrored in `proto.uc`.
+  - ucode agent: hello/caps; collect sets (system, board, interfaces, radios, stations, DHCP leases, neighbors, batman); `ubus` calls; `exec` with argv; subscriptions (hostapd, netifd); log follow. JSON lines: the ops and their arguments join the envelope in `proto.rs` (M1.2), mirrored in `proto.uc`; the agent exits when its stdin closes.
   - Upload-by-hash bootstrap into `/tmp/uniwrt`; parsing into `model::facts`, tested with fixtures captured from real outputs (sanitized, from the owner's nodes).
   - Agent tests run in OpenWrt rootfs containers (24.10 and 25.12) where possible.
 - [ ] **M1.4 engine** (M) → M1.3
@@ -47,7 +48,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [ ] **M1.5 Simulator + demo mode** (M) → M1.4
   - `sim` crate implementing `NodeLink`: a gateway, 3 APs and about 30 clients, with roaming, signal drift, events and logs. Deterministic seed. `uniwrt serve --demo`.
 - [ ] **M1.6 API foundation, auth, TLS** (M) → M1.4
-  - axum route skeleton, problem+json errors, a WS hub with topics and deltas, ts-rs codegen (`just gen`), first-run admin setup, login and sessions (Argon2id), and a self-signed TLS certificate (rcgen) on 8443 that the user can download.
+  - axum route skeleton, problem+json errors, a WS hub with topics and deltas, ts-rs codegen (`just gen`), first-run admin setup, login and sessions (Argon2id), a self-signed TLS certificate (rcgen) on 8443 that the user can download, and the real vault: XChaCha20-Poly1305 under the master key, resealing the stub's `alg = 'plain'` rows (D-032).
 - [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6
   - API and UI wizard: IP + root password → confirm the host-key fingerprint → install the key → inventory and config backup → live view. Batch-adopt the rest from the gateway's DHCP leases.
   - Acceptance: the owner's 4 nodes are adopted, with zero config changes other than `authorized_keys`.

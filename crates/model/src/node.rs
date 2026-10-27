@@ -1,4 +1,5 @@
-//! The inventory record of an adopted node: identity, management address, role and mode.
+//! The inventory record of an adopted node: identity, management address, role and mode, plus
+//! the host key pinned for it.
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
@@ -54,6 +55,17 @@ pub enum NodeMode {
     Observe,
     /// The controller owns the node's managed packages and applies changes as transactions.
     Managed,
+}
+
+/// The SSH host key a node must present, pinned when the user confirmed its fingerprint at
+/// adoption (trust on first use). The `node` crate parses and checks it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostKeyPin {
+    /// OpenSSH form without a comment, such as `ssh-ed25519 AAAAC3Nz…`.
+    pub public_key: String,
+    /// SHA-256 fingerprint as OpenSSH shows it, such as `SHA256:b4fj9Kwr…`.
+    pub fingerprint: String,
+    pub pinned_at: Timestamp,
 }
 
 #[cfg(test)]

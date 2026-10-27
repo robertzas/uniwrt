@@ -23,6 +23,7 @@ ignore = []
 allow = [
   "Apache-2.0",
   "BSD-3-Clause",
+  "ISC", # ring and untrusted, through russh (D-032)
   "MIT",
   "Unicode-3.0",
   "Zlib", # foldhash, through rusqlite's statement cache (D-031)

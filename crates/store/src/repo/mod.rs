@@ -2,13 +2,16 @@
 //! traits, so their tests can substitute fakes.
 
 mod facts;
+mod host_keys;
 mod nodes;
+mod vault;
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
     facts::NodeFacts,
-    node::{NewNode, Node},
+    node::{HostKeyPin, NewNode, Node},
 };
+use zeroize::Zeroizing;
 
 use crate::Result;
 
@@ -38,4 +41,32 @@ pub trait FactsRepo: Send + Sync {
     ) -> impl Future<Output = Result<()>> + Send;
 
     fn latest_facts(&self, node: NodeId) -> impl Future<Output = Result<Option<NodeFacts>>> + Send;
+}
+
+/// The SSH host key pinned for each node.
+pub trait HostKeyRepo: Send + Sync {
+    /// Pins the node's host key, replacing the previous pin (an admin re-trusts a reflashed
+    /// node). An unknown node is an [`Error::NotFound`](crate::Error::NotFound).
+    fn pin_host_key(
+        &self,
+        node: NodeId,
+        pin: HostKeyPin,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn host_key(&self, node: NodeId) -> impl Future<Output = Result<Option<HostKeyPin>>> + Send;
+}
+
+/// A secret's bytes, wiped from memory when dropped.
+pub type Secret = Zeroizing<Vec<u8>>;
+
+/// Secrets by name, such as `controller/ssh_key`. **A stub until M1.6:** values are stored
+/// unencrypted; the vault then seals them with XChaCha20-Poly1305 (features/security.md).
+pub trait VaultRepo: Send + Sync {
+    /// Stores a secret, replacing any with the same name.
+    fn put_secret(&self, name: &str, value: Secret) -> impl Future<Output = Result<()>> + Send;
+
+    fn secret(&self, name: &str) -> impl Future<Output = Result<Option<Secret>>> + Send;
+
+    /// Removes a secret; false when there was no such secret.
+    fn delete_secret(&self, name: &str) -> impl Future<Output = Result<bool>> + Send;
 }

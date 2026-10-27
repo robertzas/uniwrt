@@ -45,6 +45,7 @@ Every response carries these headers (`crates/server/src/http/security.rs`); a h
 ## Secrets vault
 
 - Each secret is encrypted with XChaCha20-Poly1305. The master key is `/data/master.key` (mode 0600) or `UNIWRT_MASTER_KEY`.
+- Until M1.6, the vault is a stub (D-032): the `vault` table stores values unencrypted, marked `alg = 'plain'`, and M1.6 reseals those rows when it opens. The first secret is the controller's SSH key (`controller/ssh_key`), generated on the first run.
 - It holds: the controller SSH private key, node root passwords, Wi-Fi passphrases, mesh and FT keys, PPPoE credentials, WireGuard keys and notifier tokens.
 - Config revisions store only references. Viewing a secret is admin-only and audited.
 

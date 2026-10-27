@@ -29,8 +29,34 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
-- `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode.
+- `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
+
+### `uniwrt-node` (crates/node)
+
+The node transport: SSH to OpenWrt nodes (russh), the agent protocol's envelope, and the [`NodeLink`] trait through which the engine talks to a node.
+
+- `src/agent.rs`: The agent's RPC multiplexer: requests go to the agent's stdin with an id, and answers, events and ticks come back on its stdout (see [`proto`](crate::proto)).
+- `src/agent/tests.rs`: The multiplexer against an in-memory fake agent.
+- `src/backoff.rs`: Jittered exponential backoff for reconnects (ARCHITECTURE.md, Node protocol: 1 s doubling to 60 s).
+- `src/error.rs`: Errors of the node transport.
+- `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
+- `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
+- `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
+- `src/key.rs`: The controller's SSH identity: one ed25519 key that every adopted node trusts.
+- `src/lib.rs`: The node transport: SSH to OpenWrt nodes (russh), the agent protocol's envelope, and the [`NodeLink`] trait through which the engine talks to a node.
+- `src/lines.rs`: Splits a byte stream into lines, bounded in length so a broken peer cannot exhaust memory.
+- `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
+- `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
+- `src/shell.rs`: Argv to a command line for the node's shell.
+- `src/ssh/channel.rs`: Commands on session channels.
+- `src/ssh/client.rs`: The russh client handler: checks the host key against the pin and reports why a session ended.
+- `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
+- `src/supervisor.rs`: [`SshLink`]: one node's connection, kept up by a task that reconnects with jittered backoff and restarts the agent, and that serves [`NodeLink`] from whatever session is current.
+- `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
+- `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
+- `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
+- `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 
 ### `uniwrt` (crates/server)
 
@@ -42,6 +68,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `build/ui.rs`: Embeds the web UI: every file plus brotli and gzip variants, and a lookup table sorted by path (`$OUT_DIR/ui.rs`, included by `src/ui/assets.rs`).
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
+- `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/http/mod.rs`: The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share.
@@ -67,8 +94,10 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/migrate.rs`: Forward-only schema migrations, embedded at build time and tracked in `PRAGMA user_version`.
 - `src/readers.rs`: The read pool: read-only connections, opened on demand, used on tokio's blocking pool.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
+- `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
+- `src/repo/vault.rs`: [`VaultRepo`] on SQLite: the `vault` table.
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/writer.rs`: The writer: one thread owns the only write connection and commits queued operations in batches.
@@ -91,3 +120,4 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
+- `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.

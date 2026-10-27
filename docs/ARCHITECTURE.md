@@ -77,7 +77,7 @@ Rules:
 
 ## Node protocol (D-003: SSH + ephemeral ucode agent)
 
-**Transport.** A russh client with an ed25519 controller key. The node's host key is pinned at adoption. Keepalive every 15 s; on disconnect, reconnect with jittered exponential backoff (1 s → 60 s). One connection per node carries multiplexed channels: the agent, ad-hoc exec, uploads and the browser terminal.
+**Transport.** A russh client with an ed25519 controller key. The node's host key is pinned at adoption: `probe` reads it, the user confirms the fingerprint, and every connection checks the pin (D-032). Keepalive every 15 s, and 3 unanswered ones end the session; on disconnect, reconnect with jittered exponential backoff (1 s → 60 s). One connection per node carries multiplexed channels: the agent, ad-hoc exec, uploads and the browser terminal. Each channel is drained by its own task, so a slow reader cannot stall the others. Commands are argv arrays, quoted for the node's shell.
 
 **Bootstrap on every connection:**
 1. Run `cat /tmp/uniwrt/VERSION`. If the output doesn't match the embedded bundle hash, stream the bundle through stdin (`mkdir -p /tmp/uniwrt && cd /tmp/uniwrt && tar xzf -`) and verify it with `sha256sum`. Nothing depends on sftp or scp.
@@ -120,7 +120,7 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 ## Persistence
 
 - One SQLite database in WAL mode at `/data/uniwrt.db` (mode 0600), owned by the `store` crate (D-031). One writer thread holds the only write connection and commits queued operations in batches of up to 256, each in its own savepoint so that a failing one rolls back alone; callers get their result once the batch commits. Reads use up to 4 read-only connections on tokio's blocking pool. With `synchronous=NORMAL`, a power loss may drop the last commits but never corrupts the database.
-- Tables (sketch; ✓ = exists): `users`, `sessions`, `api_tokens`, `settings`, `vault` (encrypted secrets), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
+- Tables (sketch; ✓ = exists): `users`, `sessions`, `api_tokens`, `settings`, `vault` ✓ (secrets; unencrypted `alg = 'plain'` rows until M1.6 seals them, D-032), `node_host_keys` ✓ (the pinned SSH host key per node), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
 - Migrations are embedded from `crates/store/migrations/NNNN_name.sql`, forward-only (tracked in `PRAGMA user_version`; a database from a newer uniwrt is refused) and tested. A released migration is never edited.
 - Files: `/data/backups/`, `/data/firmware/`, `/data/tls/`, `/data/master.key` (mode 0600).
 
