@@ -9,8 +9,8 @@
         "@fontsource-variable/jetbrains-mono": "5.3.0",
         "@kobalte/core": "0.13.14",
         "@solidjs/router": "1.0.0",
-        "@tanstack/solid-query": "5.104.3",
-        "lucide-solid": "1.58.0",
+        "@tanstack/solid-query": "5.104.5",
+        "lucide-solid": "1.60.0",
         "solid-js": "1.9.17",
       },
       "devDependencies": {
@@ -229,9 +229,9 @@
 
     "@tailwindcss/vite": ["@tailwindcss/vite@4.3.3", "", { "dependencies": { "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "tailwindcss": "4.3.3" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw=="],
 
-    "@tanstack/query-core": ["@tanstack/query-core@5.104.3", "", {}, "sha512-DZY9TuJAOgU3UyHUhXb4CcTYEHNZszlwkPg4VViIwTxOKzLprPUU+rbaPZQd3srqkGOtpaDdKpW972UV/LKlcg=="],
+    "@tanstack/query-core": ["@tanstack/query-core@5.104.5", "", {}, "sha512-Q94gI8Opd+CbdVNOdj8ZCyV8WqLYitrDq1t96Xc8WZT6lY0r5iRnJLXYDxMex7EEf2v+mXvn4FcjaBKSxXZQ9A=="],
 
-    "@tanstack/solid-query": ["@tanstack/solid-query@5.104.3", "", { "dependencies": { "@tanstack/query-core": "5.104.3" }, "peerDependencies": { "solid-js": "^1.6.0" } }, "sha512-Q3HcngsnDPYy0ycX6b6mlRhjl/dVQ5d8U9BKzI7z0jiZeRxgagKgjOpPcAMGReReJdli+7cMDb6PqqBr18l+fQ=="],
+    "@tanstack/solid-query": ["@tanstack/solid-query@5.104.5", "", { "dependencies": { "@tanstack/query-core": "5.104.5" }, "peerDependencies": { "solid-js": "^1.6.0" } }, "sha512-O0YK8SSV5rxE7Q6sZcOo8bFCpQwf/vY7QKsGHKlQYibXS3sVYavj+xwpZK+BGCBw9Mi8OivaFQcV6/QDA/ovCw=="],
 
     "@testing-library/dom": ["@testing-library/dom@10.4.2", "", { "dependencies": { "@babel/code-frame": "^7.10.4", "@babel/runtime": "^7.12.5", "@types/aria-query": "^5.0.1", "aria-query": "5.3.0", "dom-accessibility-api": "^0.5.9", "lz-string": "^1.5.0", "picocolors": "1.1.1", "pretty-format": "^27.0.2" } }, "sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q=="],
 
@@ -411,7 +411,7 @@
 
     "lru-cache": ["lru-cache@11.5.3", "", {}, "sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg=="],
 
-    "lucide-solid": ["lucide-solid@1.58.0", "", { "peerDependencies": { "solid-js": "^1.4.7" } }, "sha512-C2+ehdiMtq6OQ2ZMtX0Y32d5lhqjoNkZO62udhFea+UN7FiKbhvhtQ2VDX1R4WWROfzAm6rdP0oSkcd3wJICLg=="],
+    "lucide-solid": ["lucide-solid@1.60.0", "", { "peerDependencies": { "solid-js": "^1.4.7" } }, "sha512-NA9D6z5B7MsKgAtJrzgaQ6pJPM+HU+S3yscS3pl4C5SEA76LOQKZIQ24dHpJKmtrZWZ/NOvDpcjA0J//aqrPYQ=="],
 
     "lz-string": ["lz-string@1.5.0", "", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 
