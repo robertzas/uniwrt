@@ -14,7 +14,6 @@
 
 - Router models and current OpenWrt versions of the gateway and the 3 nodes, and the current mesh/backhaul setup (batman? 802.11s? wired?). These shape the M1.3 fixtures and the test matrix.
 - Open options O-1 … O-9 in `docs/DECISIONS.md`. Defaults apply until the owner decides.
-- Five Dependabot PRs (#1–#5) are open; how to handle them is to be settled with the owner.
 
 ## Environment notes (owner's machine)
 
@@ -33,7 +32,7 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
-- 2026-10-27 — M0.5 done: the first main run failed the image smoke test (the runner's classic image store rejects a second platform pulled by the same index digest); each platform now runs by its own manifest digest and must report its target.
+- 2026-10-27 — M0.5 done: the first main run failed the image smoke test (the runner's classic image store rejects a second platform pulled by the same index digest); each platform now runs by its own manifest digest and must report its target. v0.1.0 released and verified (tarball attestation, cosign v3 signature). D-030: the agent batches Dependabot updates; the first batch (busybox 1.38, actions/cache v6, install-action, lucide-solid, @types/node 26) is in.
 - 2026-10-22 — M0.5: ci.yml (version → web, rust → build ×4 → image → release), `scripts/next-version.sh` with tests, deny.toml, Dependabot with a 7-day cooldown (D-029), cargo-auditable binaries.
 - 2026-10-22 — M0.4: justfile, `scripts/{check,cross,gen-map}.sh`, docs/MAP.md, the scratch Dockerfile; the local 4-arch image verified (amd64 and 386 natively, arm under qemu-user). D-028: opt-level 3 with musl's malloc.
 - 2026-10-22 — M0.3: web skeleton (Vite 8, Solid 1.9, TypeScript 7, Tailwind 4 tokens with `light-dark()`, Biome, Vitest); a shell with sidebar, mobile drawer, theme toggle and a health badge typed by ts-rs; 8 web tests. D-027: npm 7-day minimum release age.

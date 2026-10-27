@@ -1,6 +1,7 @@
 # Dependency updates (features/security.md, Supply chain): one grouped pull request per ecosystem
 # a week for minor and patch updates, majors on their own. Like bun (D-027), Dependabot proposes
-# only releases at least 7 days old; security updates skip the wait.
+# only releases at least 7 days old; security updates skip the wait. The agent folds the open
+# updates into one commit per checkpoint (D-030), so the pull requests are rarely merged directly.
 version: 2
 updates:
   - package-ecosystem: cargo
