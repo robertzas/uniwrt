@@ -2,7 +2,7 @@
 //!
 //! - **Commands:** `serve` (the default), `healthcheck` (exit code 0/1 for Docker) and `version`.
 //!   Every flag has a `UNIWRT_*` environment equivalent (`cli`). Only `serve` starts a runtime.
-//! - **Modules:** `serve` (runtime, listener, graceful shutdown) → `http` (router: `/api`,
+//! - **Modules:** `serve` (runtime, database, listener, graceful shutdown) → `http` (router: `/api`,
 //!   security headers) → `ui` (embedded assets, content negotiation, SPA fallback). `build_info`
 //!   and the build script in `build/` provide the version, commit and the embedded UI.
 //! - **Invariants:** no `unsafe`; files are written only under the data dir; release builds embed

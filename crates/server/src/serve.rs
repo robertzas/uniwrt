@@ -1,8 +1,9 @@
-//! `uniwrt serve`: starts the runtime, binds the listener and serves until SIGTERM or SIGINT.
+//! `uniwrt serve`: starts the runtime, opens the database, binds the listener and serves until
+//! SIGTERM or SIGINT.
 //!
 //! Shutdown is graceful: stop accepting, let in-flight requests finish for up to `DRAIN_TIMEOUT`
 //! (inside Docker's default 10 s stop grace period), then close what is left. A second signal
-//! closes everything at once.
+//! closes everything at once. The database closes last, after committing queued writes.
 
 use std::{future::IntoFuture as _, io, path::Path, sync::Arc, time::Duration};
 
@@ -14,6 +15,8 @@ use tokio::{
     sync::{Notify, mpsc},
 };
 use tracing::{info, warn};
+use uniwrt_core::SystemClock;
+use uniwrt_store::Store;
 
 use crate::{
     build_info,
@@ -23,6 +26,8 @@ use crate::{
 };
 
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+/// The database file inside the data directory.
+const DATABASE: &str = "uniwrt.db";
 
 pub(crate) fn run(args: ServeArgs) -> anyhow::Result<()> {
     logging::init(&args.log)?;
@@ -42,11 +47,20 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .with_context(|| format!("cannot create the data directory {}", data_dir.display()))?;
     // Registered before binding, so an early signal is not lost.
     let stop = forward_signals().context("cannot install signal handlers")?;
-    let listener = TcpListener::bind(args.http_listen)
+    let store = Store::open(data_dir.join(DATABASE), Arc::new(SystemClock))
         .await
-        .with_context(|| format!("cannot listen on {}", args.http_listen))?;
-    log_start(&listener, &data_dir)?;
-    serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await?;
+        .context("cannot open the database")?;
+    let served = async {
+        let listener = TcpListener::bind(args.http_listen)
+            .await
+            .with_context(|| format!("cannot listen on {}", args.http_listen))?;
+        log_start(&listener, &data_dir)?;
+        serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await?;
+        anyhow::Ok(())
+    }
+    .await;
+    store.close().await;
+    served?;
     info!("uniwrt stopped");
     Ok(())
 }

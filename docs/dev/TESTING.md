@@ -17,6 +17,7 @@
 
 - Real OpenWrt configs and agent outputs, collected per device family and OpenWrt version under `testdata/openwrt/<version>/<device>/`.
 - They are collected from the owner's nodes in observe mode (with consent) and anonymized by a script that rewrites MACs, SSIDs, keys and public IPs.
+- Canonical model fixtures, written from the specs, live in `crates/model/fixtures/facts/*.json`. Each must round-trip through `NodeFacts` without losing a field, and they double as wire-format examples for the simulator and the UI.
 
 ## Rules
 

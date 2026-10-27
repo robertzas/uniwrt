@@ -53,7 +53,7 @@ flowchart TB
 | Layer | Crate | Responsibility | May depend on |
 |---|---|---|---|
 | L0 pure | `core` | IDs, MAC/IP/prefix types, error conventions, `Clock` trait | — |
-| L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), validation, schema migrations | core |
+| L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), the node record, validation, schema migrations | core |
 | L0 | `uci` | UCI AST, parser, serializer, semantic diff | core |
 | L0 | `render` | (SiteConfig, facts) → per-node UCI packages | core, model, uci |
 | L0 | `topo` | facts → topology graph | core, model |
@@ -73,6 +73,7 @@ Rules:
 - Dependencies point only to the same layer or a lower one.
 - L0 crates do not depend on tokio and perform no IO. `just arch-check` enforces this (M1.9).
 - A crate is created when its first WP starts, not before.
+- Packages are named `uniwrt-<crate>` (a library named `core` would shadow Rust's `core`); directories keep the short name.
 
 ## Node protocol (D-003: SSH + ephemeral ucode agent)
 
@@ -118,9 +119,9 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 
 ## Persistence
 
-- One SQLite database in WAL mode at `/data/uniwrt.db`, with a single writer task (batched) and a read pool.
-- Tables (sketch): `users`, `sessions`, `api_tokens`, `settings`, `vault` (encrypted secrets), `revisions` (SiteConfig JSON + metadata), `nodes`, `node_facts`, `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
-- Migrations are embedded, forward-only and tested.
+- One SQLite database in WAL mode at `/data/uniwrt.db` (mode 0600), owned by the `store` crate (D-031). One writer thread holds the only write connection and commits queued operations in batches of up to 256, each in its own savepoint so that a failing one rolls back alone; callers get their result once the batch commits. Reads use up to 4 read-only connections on tokio's blocking pool. With `synchronous=NORMAL`, a power loss may drop the last commits but never corrupts the database.
+- Tables (sketch; ✓ = exists): `users`, `sessions`, `api_tokens`, `settings`, `vault` (encrypted secrets), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
+- Migrations are embedded from `crates/store/migrations/NNNN_name.sql`, forward-only (tracked in `PRAGMA user_version`; a database from a newer uniwrt is refused) and tested. A released migration is never edited.
 - Files: `/data/backups/`, `/data/firmware/`, `/data/tls/`, `/data/master.key` (mode 0600).
 
 ## API

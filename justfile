@@ -69,6 +69,10 @@ image tag="uniwrt:dev": cross
 map:
     @scripts/gen-map.sh
 
+# Publish dates of the crates Cargo.lock adds against a revision; fails inside the 7-day cooldown
+crate-age rev="HEAD":
+    @scripts/crate-age.sh {{ rev }}
+
 # Run against the simulated fleet (arrives with it in M1.5)
 demo:
     @echo "just demo arrives with the simulated fleet in M1.5" >&2; exit 1

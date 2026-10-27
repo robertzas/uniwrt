@@ -11,11 +11,19 @@ repository = "https://github.com/robertzas/uniwrt"
 publish = false
 
 [workspace.dependencies]
+uniwrt-core = { path = "crates/core" }
+uniwrt-model = { path = "crates/model" }
+uniwrt-store = { path = "crates/store" }
+
 anyhow = "1.0.104"
 axum = "0.8.9"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+ipnet = { version = "2.12.2", features = ["serde"] }
+# SQLite compiled in (D-001, D-009): a static binary has no system library to link.
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled", "cache"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+thiserror = "2.0.21"
 tokio = "1.54.1"
 tower = "0.5.3"
 tower-http = "0.7.1"
@@ -27,6 +35,9 @@ ts-rs = { version = "12.0.1", default-features = false, features = ["serde-compa
 brotli = "9.0.0"
 flate2 = "1.1.10"
 sha2 = "0.11.1"
+# Tests
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+tempfile = "3.27.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

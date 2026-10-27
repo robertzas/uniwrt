@@ -32,7 +32,7 @@ Goal: a real (if empty) product ships. Every push to `main` builds, tests and re
 
 Goal: adopt the owner's existing nodes read-only and watch them live in a polished app shell.
 
-- [ ] **M1.1 core, model (facts), store** (M) → M0
+- [x] **M1.1 core, model (facts), store** (M) → M0
   - `core`: IDs, MacAddr, network types, error conventions, a `Clock` trait. `model::facts`: NodeFacts, Capabilities, RadioFacts, StationFacts and InterfaceFacts (serde, with fixtures).
   - `store`: SQLite in WAL mode, embedded migrations, a batching writer actor and repository traits. Tests use a temporary DB.
 - [ ] **M1.2 SSH transport** (L) → M1.1
