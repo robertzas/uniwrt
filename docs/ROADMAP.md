@@ -23,7 +23,7 @@ Goal: a real (if empty) product ships. Every push to `main` builds, tests and re
   - Cross builds for the 4 musl targets with cargo-zigbuild; locally they run inside the cargo-zigbuild container image.
   - `FROM scratch` Dockerfile per BUILD.md: prebuilt binary chosen by TARGETARCH/TARGETVARIANT, UID 65532, `/data`, HEALTHCHECK.
   - Local verification: the image runs and `/api/v1/health` answers. Record binary sizes in STATUS.
-- [ ] **M0.5 CI/CD** (M) → M0.4
+- [x] **M0.5 CI/CD** (M) → M0.4
   - `.github/workflows/ci.yml` per BUILD.md: version → web → rust → build ×4 (with qemu smoke tests) → image (GHCR, SBOM and provenance, cosign) → release (tag, assets, notes) on `main`. PRs only build and test. CI fails if `docs/MAP.md` is stale.
   - `scripts/next-version.sh` with a test script, cargo-deny config, Dependabot (cargo, npm, actions), and CI/release badges in the README.
   - Acceptance: a push to `main` produces release v0.1.0 with 4 tarballs and SHA256SUMS plus a 4-platform image, and `docker run --platform linux/arm/v7 ghcr.io/robertzas/uniwrt:latest version` works.

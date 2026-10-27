@@ -90,7 +90,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | rust | all | `cargo fmt --check`, MAP.md freshness, shellcheck and the script tests, `clippy -D warnings`, `cargo nextest run`, committed ts-rs types, `cargo deny check` |
 | agent (M1.3+) | all | node-agent tests inside OpenWrt rootfs containers (24.10, 25.12) |
 | build ×4 | all | `cargo auditable zigbuild` with the embedded UI, version and commit → smoke test: the embedded dependency list, `version --json`, and `serve` answering `healthcheck` (arm under qemu-user) → the binary and a reproducible tarball as artifacts |
-| image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version` from the registry |
+| image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version --json` from the registry, pulled by its own manifest digest (the runner's classic image store can't hold two platforms of one index digest), and must report its target and version |
 | release | pushes to `main` | SHA256SUMS and build provenance attestations for the tarballs; GitHub Release `vX.Y.Z` (creating the tag) with generated notes |
 
 - **Permissions:** none at the workflow level and read-only per job, except `packages: write` and `id-token: write` (cosign) for image, and `contents: write`, `id-token: write` and `attestations: write` for release.

@@ -278,9 +278,22 @@ jobs:
       - name: Smoke-test every platform
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
+        # Each platform runs by its own manifest digest: the runner's classic image store can't
+        # hold two platforms pulled through the same index digest ("can not overwrite digest").
         run: |
-          for platform in linux/amd64 linux/386 linux/arm/v7 linux/arm64; do
-            docker run --rm --platform "$platform" "$IMAGE@$DIGEST" version --json
+          index=$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Manifest}}')
+          declare -A targets=(
+            [linux/amd64]=x86_64-unknown-linux-musl [linux/386]=i686-unknown-linux-musl
+            [linux/arm/v7]=armv7-unknown-linux-musleabihf [linux/arm64]=aarch64-unknown-linux-musl
+          )
+          for platform in "${!targets[@]}"; do
+            IFS=/ read -r os arch variant <<<"$platform"
+            digest=$(jq -er --arg os "$os" --arg arch "$arch" --arg variant "$variant" '
+              [.manifests[] | select(.platform.os == $os and .platform.architecture == $arch
+                and ($variant == "" or .platform.variant == $variant))] | .[0].digest' <<<"$index")
+            docker run --rm --platform "$platform" "$IMAGE@$digest" version --json | tee version.json
+            jq -e --arg target "${targets[$platform]}" --arg version "$VERSION" \
+              '.target == $target and .version == $version and .ui == "embedded"' version.json
           done
 
   release:
