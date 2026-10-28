@@ -12,6 +12,8 @@ use uniwrt_model::facts::{
 use super::{FactsError, SetFacts, apply};
 use crate::proto::ops::{Collected, Set};
 
+mod hwsim;
+
 /// Captured from OpenWrt rootfs containers booted with procd (sanitized: host model, CPU and
 /// kernel), and the raw output for the canonical model fixture `gateway.json`.
 const CONTAINERS: [(&str, &str); 2] = [
@@ -48,18 +50,14 @@ fn device(raw: Value) -> DeviceFacts {
     devices.remove(0)
 }
 
-/// Parsing the agent's output for the canonical gateway gives the canonical facts: every part
-/// that the M1.3 sets cover.
+/// Parsing the agent's output for the canonical gateway gives the canonical facts, whole.
 #[test]
 fn the_gateway_fixture_parses_into_the_canonical_facts() {
-    let parsed = facts_of(GATEWAY);
+    let mut parsed = facts_of(GATEWAY);
     let mut canonical: NodeFacts = serde_json::from_str(GATEWAY_FACTS).unwrap();
     canonical.devices.sort_by(|a, b| a.name.cmp(&b.name));
-    assert_eq!(parsed.board, canonical.board);
-    assert_eq!(parsed.system, canonical.system);
-    assert_eq!(parsed.capabilities, canonical.capabilities);
-    assert_eq!(parsed.interfaces, canonical.interfaces);
-    assert_eq!(parsed.devices, canonical.devices);
+    parsed.collected_at = canonical.collected_at;
+    assert_eq!(parsed, canonical);
 }
 
 #[test]
@@ -154,9 +152,10 @@ fn device_kinds() {
         kind(json!({"type": "1", "uevent": "DEVTYPE=wlan"})),
         DeviceKind::Wireless
     );
+    // A batman-adv mesh device has no DEVTYPE; the `batman` set marks it (see the gateway).
     assert_eq!(
-        kind(json!({"type": "1", "uevent": "DEVTYPE=batman"})),
-        DeviceKind::Batman
+        kind(json!({"type": "1", "uevent": "INTERFACE=bat0"})),
+        DeviceKind::Other
     );
     assert_eq!(
         kind(json!({"type": "65534", "uevent": "DEVTYPE=wireguard"})),

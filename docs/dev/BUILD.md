@@ -121,6 +121,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | `just test` | Rust and web tests, with full output |
 | `just test-dropbear [image…]` | The transport tests against dropbear in OpenWrt rootfs containers (needs Docker); the CI job `transport` runs the same script |
 | `just test-agent [image…]` | The agent tests in OpenWrt rootfs containers booted with procd (needs Docker); the CI job `agent` runs the same script |
+| `just test-wifi [nextest args…]` | The Wi-Fi and mesh tests in the hwsim lab (`scripts/wifi-lab.sh test`; needs Docker and a kernel with mac80211_hwsim and batman-adv, which it loads through a privileged container). It starts the lab unless one runs, and stops it after; local only (D-035) |
 | `just fmt` · `just lint` | rustfmt and Biome, writing fixes · clippy and Biome |
 | `just gen` | Regenerate TypeScript types from Rust |
 | `just build` | Web build plus a native release binary (`target/release/uniwrt`) |

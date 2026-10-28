@@ -1,18 +1,17 @@
-//! Radios (UCI `wifi-device`, kernel phy), what their hardware supports, and their interfaces.
-
-use std::collections::BTreeSet;
+//! Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they
+//! operate. Their hardware is a [`PhyFacts`](super::PhyFacts), named by [`RadioFacts::phy`].
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::MacAddr;
 
 use crate::wifi::{Band, ChannelWidth, WifiStandard};
 
-/// One radio: its current operating state, its hardware limits and its interfaces.
+/// One radio: its configuration, its current operating state and its interfaces.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RadioFacts {
     /// UCI section, such as `radio0`.
     pub name: String,
-    /// Kernel phy, such as `phy0`.
+    /// Kernel phy, such as `phy0`; unknown while a radio without interfaces is down.
     pub phy: Option<String>,
     pub band: Band,
     pub up: bool,
@@ -21,7 +20,10 @@ pub struct RadioFacts {
     /// The operating channel; unknown while the radio is down.
     pub channel: Option<u16>,
     pub frequency_mhz: Option<u32>,
+    /// The center of the whole channel, which differs from `frequency_mhz` above 20 MHz.
+    pub center_frequency_mhz: Option<u32>,
     pub width: Option<ChannelWidth>,
+    /// The configured standard (the PHY of UCI `htmode`).
     pub standard: Option<WifiStandard>,
     pub tx_power_dbm: Option<i16>,
     pub noise_dbm: Option<i16>,
@@ -29,39 +31,14 @@ pub struct RadioFacts {
     pub channel_busy_percent: Option<f32>,
     /// Regulatory country code, such as `US`.
     pub country: Option<String>,
-    pub capabilities: RadioCapabilities,
     pub ifaces: Vec<WifiIfaceFacts>,
-}
-
-/// What the radio hardware and the regulatory domain allow.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct RadioCapabilities {
-    pub bands: BTreeSet<Band>,
-    pub standards: BTreeSet<WifiStandard>,
-    pub widths: BTreeSet<ChannelWidth>,
-    /// Usable channels; channels the regulatory domain disables are left out.
-    pub channels: Vec<Channel>,
-    pub max_tx_power_dbm: Option<i16>,
-    pub spatial_streams: Option<u8>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Channel {
-    pub band: Band,
-    pub number: u16,
-    pub frequency_mhz: u32,
-    /// Radar detection required before use.
-    pub dfs: bool,
-    /// No initiating radiation: the radio may not start a BSS on this channel.
-    pub no_ir: bool,
-    pub max_tx_power_dbm: Option<i16>,
 }
 
 /// A Wi-Fi interface (UCI `wifi-iface`): an AP's BSS, a station uplink or a mesh point.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WifiIfaceFacts {
-    /// Kernel device, such as `phy1-ap0`.
-    pub name: String,
+    /// Kernel device, such as `phy1-ap0`; unknown while it is down.
+    pub name: Option<String>,
     /// UCI section, such as `default_radio1`.
     pub section: Option<String>,
     pub mode: WifiIfaceMode,

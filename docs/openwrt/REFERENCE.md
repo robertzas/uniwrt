@@ -53,17 +53,19 @@ Detect which one is present by trying `command -v apk` first.
 | `system` | board, info, validate_firmware_image, reboot |
 | `network.interface`, `network.interface.{name}` | dump, status, up, down |
 | `network.device` | status |
-| `network.wireless` | status |
+| `network.wireless` | status ✅: per radio `up`, `disabled`, `config` (UCI options, the Wi-Fi keys included) and `interfaces` (`section`, `ifname`, `config`). 25.12 images without wifi-scripts have no such object |
 | `iwinfo` (rpcd-mod-iwinfo) | devices, info, assoclist, scan, freqlist, txpowerlist |
-| `hostapd.{ifname}` | get_clients, get_status, del_client, bss_transition_request, rrm_nr_get_own, rrm_nr_set, rrm_nr_list, rrm_beacon_req, switch_chan, notify_response; probe/auth/assoc/disassoc events via subscribe |
+| `hostapd.{ifname}` | get_clients ✅ (`clients.<mac>`: `authorized`, `wmm`, `ht`, `vht`, `he`, `mfp`, `rrm` (5 bytes of RRM capabilities), `extended_capabilities` (bit 19: BSS transition), `aid`, `bytes`, `packets`, `rate`, `signal`; nothing says whether FT was used), get_status ✅ (`freq`, `channel`, `op_class`, `airtime`, `dfs`),  get_status, del_client, bss_transition_request, rrm_nr_get_own, rrm_nr_set, rrm_nr_list, rrm_beacon_req, switch_chan, notify_response; probe/auth/assoc/disassoc events via subscribe |
 | `service` (procd) | list, set, delete |
 | `uci` (rpcd) | get, set, commit, apply, confirm, rollback |
 | `luci-rpc` (only with LuCI) | getHostHints, getDHCPLeases, getBoardJSON |
-| `dnsmasq` | lease events (availability unverified) |
+| `dnsmasq` | lease events (availability unverified); its only method is `metrics` ✅ |
+| `dhcp` (odhcpd) ✅ | `ipv6leases` (`device.<dev>.leases[]`: `duid`, `iaid`, `hostname`, `ipv6-addr[]` with `valid-lifetime`, `valid`); `ipv4leases` only where odhcpd may serve DHCPv4 (in 24.10, not in 25.12); `add_lease`, `ipv6ra` |
+| `log` (logd) ✅ | `read` with `{"lines":N,"stream":false}`: `log[]` entries with `id` (a sequence), `priority`, `source`, `time` (ms) and `msg` (`program[pid]: text`) |
 
 ## CLI
 
-`uci` · `ubus call|listen|subscribe` · `iw dev|phy|station dump|survey dump|scan` · `iwinfo` · `batctl o|n|tg|gwl|s|tp` · `logread [-f] [-e regex]` · `sysupgrade -T|-b|-n|-k` · `firstboot` · `reload_config` · `wifi reload|up|down|status` · `fw4 check|print|reload` · `jsonfilter` · `uclient-fetch` · `owut` · `apk` / `opkg`
+`uci` · `ubus call|listen|subscribe` · `batctl meshif <dev> mj|hj|oj|nj|gwj|tgj|tlj` (JSON ✅: throughputs and gateway bandwidths in 100 kbit/s, translation-table VLAN -1 for untagged; `batctl s` has no JSON) · `iw dev|phy|station dump|survey dump|scan` · `iwinfo` · `batctl o|n|tg|gwl|s|tp` · `logread [-f] [-e regex]` · `sysupgrade -T|-b|-n|-k` · `firstboot` · `reload_config` · `wifi reload|up|down|status` · `fw4 check|print|reload` · `jsonfilter` · `uclient-fetch` · `owut` · `apk` / `opkg`
 
 ## ucode ✅
 
@@ -75,21 +77,27 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - `system(argv, timeout_ms)` runs without a shell. On timeout it kills with SIGKILL and returns -9, and a process ended by a signal returns `-signal`. The child inherits stdout, so redirect it.
 - `fs.readfile(path, limit)`, `fs.readlink`, `fs.lsdir`, `fs.glob`, `fs.access`, `b64enc` and `clock()` (`[s, ns]`; `clock(true)` is monotonic) exist in both.
 - uloop: a buffered `read()` on a non-blocking descriptor drops data at EAGAIN, so stdin needs blocking reads in a forked `uloop.task`. A task's stdio is `/dev/null`; it reads the pipe through `/proc/self/fd/0`, reopened before the fork. `uloop.process` reports `WEXITSTATUS` (0 after a signal) and has no `kill()`.
+- nl80211 and rtnl (ucode-mod-nl80211 and ucode-mod-rtnl, which hostapd depends on, so on Wi-Fi images only) ✅: attributes are named in lower case without their prefix (`wiphy_freq`, `channel_width`, `wiphy_tx_power_level`, `sta_info.signal_avg`, `plink_state`). Bitrates are in 100 kbit/s, with the flags `width_40|80|160|320`, `40_mhz_width`, `short_gi`, and `he_gi`/`eht_gi`; powers are in mBm; `sta_flags` is `[mask, set]`. The survey has no `in_use`, so match the interface's frequency. A split `GET_WIPHY` dump starts with a null entry, and `wiphy_bands` is indexed by `enum nl80211_band`. An `AF_UNSPEC` neighbor dump has no bridge FDB; ask with `family: AF_BRIDGE`.
+- `fs.realpath` exists in both releases ✅.
 - ubus: `conn.call()` returns null both for a failure and for an empty reply. `conn.error()` returns the last error and clears it; messages start with the `ubus_strerror()` text, such as `Not found: …` or `Method not found: …`.
 
 ## Containers as test nodes ✅
 
-- An `openwrt/rootfs` image boots with `/sbin/init` as PID 1 in an unprivileged container: procd, ubusd, rpcd, logd, netifd, dnsmasq, odhcpd, uhttpd and dropbear run. With `--cap-add NET_ADMIN`, netifd builds `br-lan` from eth0.
+- An `openwrt/rootfs` image boots with `/sbin/init` as PID 1 in an unprivileged container: procd, ubusd, rpcd, logd, netifd, odhcpd, uhttpd and dropbear run. dnsmasq crash-loops: procd jails it with ujail, which cannot make namespaces in a container ✅. With `--cap-add NET_ADMIN`, netifd builds `br-lan` from eth0.
 - The first boot generates `/etc/config/network` (`config_generate`) and then runs `/etc/uci-defaults/*`. Change the network config there, not before boot.
 - BusyBox has `tar`, `sha256sum -c -s`, `flock`, `ulimit -f` (512-byte blocks) and `set -o pipefail`. It lacks `timeout`, `stat`, `od` and fractional `sleep`.
 - The 24.10 rootfs has opkg (`/bin/opkg`), and the 25.12 one has apk (`/usr/bin/apk`).
 
+- ✅ Wi-Fi in containers (the hwsim lab, D-035): radios moved into a container's network namespace (`iw phy <phy> set netns <pid>`) appear in its `/sys/class/ieee80211`. netifd checks the Wi-Fi daemons it starts through `/proc/<pid>/exe`, which needs `--cap-add SYS_PTRACE`. hostapd and wpa_supplicant log harmless errors writing `/proc/sys`, which is read-only. A container's interfaces come in no fixed order when several Docker networks are attached before it starts, so the lab links nodes with a veth pair instead. hwsim radios are tri-band (2g, 5g, 6g, with EHT) and hear each other across namespaces.
+
 ## procd, netifd and sysfs
 
+- ✅ batman-adv's mesh device has no DEVTYPE, and batman-adv has no sysfs or debugfs tables any more; its hard interfaces are its `lower_*` links, rtnetlink's link kind is `batadv`, and netifd names the device after its `proto batadv` interface.
+- ✅ A phy's `device` link resolves (`fs.realpath`) to `/sys/devices/<path>`, and OpenWrt's radio `path` is that `<path>` (`virtual/mac80211_hwsim/hwsim0`); ⚠️ later phys of one device get `+1`, `+2`.
 - ✅ `system info`: memory in bytes, `root` and `tmp` in KiB, and `load` scaled by 65536.
 - ✅ `network.interface dump`: addresses are `{address, mask}`. A LAN's IPv6 addresses are the `local-address` of each `ipv6-prefix-assignment`, and delegated prefixes are under `ipv6-prefix`. Default routes have target `0.0.0.0` or `::` with mask 0.
 - ✅ `/sys/class/net`: `DEVTYPE` is in `uevent` (`bridge`, `vlan`, `wlan`). `carrier` and `speed` can't be read while a device is down, and bridges and VLANs report their ports' speed. `master` links to the bridge or batman device, and `bonding_masters` may sit beside the devices.
-- ⚠️ DSA user ports have `DEVTYPE=dsa`. batman-adv's mesh device has `DEVTYPE=batman`; the parser also accepts `batadv`.
+- ⚠️ DSA user ports have `DEVTYPE=dsa`.
 - ⚠️ `hostapd -v<feature>` and `wpa_supplicant -v<feature>` exit 0 when the feature is built in (LuCI checks it the same way).
 
 ## UCI snippets ⚠️

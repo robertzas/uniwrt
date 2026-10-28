@@ -70,6 +70,8 @@ impl Op for Collect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Set {
+    /// batman-adv meshes: originators, neighbors, gateways, translation tables.
+    Batman,
     /// What the node is: model, firmware release, kernel.
     Board,
     /// Detected features: package manager, optional software, hostapd build, switch kind.
@@ -78,25 +80,48 @@ pub enum Set {
     Devices,
     /// netifd's logical interfaces.
     Interfaces,
+    /// DHCP leases (dnsmasq, odhcpd).
+    Leases,
+    /// The ARP and NDP caches and the bridges' forwarding databases.
+    Neighbors,
+    /// Radio hardware: bands, standards, widths, channels. Large and rarely changing, so it is
+    /// collected seldom.
+    Phys,
+    /// Radios and their interfaces: configuration, channel, power, noise, utilization.
+    Radios,
+    /// Wi-Fi clients and mesh peers: signal, rates, counters, capabilities.
+    Stations,
     /// Resource usage, the node's clock and temperatures.
     System,
 }
 
 impl Set {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 11] = [
+        Self::Batman,
         Self::Board,
         Self::Capabilities,
         Self::Devices,
         Self::Interfaces,
+        Self::Leases,
+        Self::Neighbors,
+        Self::Phys,
+        Self::Radios,
+        Self::Stations,
         Self::System,
     ];
 
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Batman => "batman",
             Self::Board => "board",
             Self::Capabilities => "capabilities",
             Self::Devices => "devices",
             Self::Interfaces => "interfaces",
+            Self::Leases => "leases",
+            Self::Neighbors => "neighbors",
+            Self::Phys => "phys",
+            Self::Radios => "radios",
+            Self::Stations => "stations",
             Self::System => "system",
         }
     }
@@ -230,7 +255,10 @@ mod tests {
         assert_eq!(serde_json::to_value(Ping {}).unwrap(), json!({}));
         assert_eq!(
             serde_json::to_value(Collect::all()).unwrap(),
-            json!({"sets": ["board", "capabilities", "devices", "interfaces", "system"]})
+            json!({"sets": [
+                "batman", "board", "capabilities", "devices", "interfaces", "leases", "neighbors",
+                "phys", "radios", "stations", "system"
+            ]})
         );
         assert_eq!(
             serde_json::to_value(Ubus::new("system", "board")).unwrap(),

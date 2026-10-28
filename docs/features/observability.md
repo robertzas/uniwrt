@@ -16,15 +16,16 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 - 2 s for entities currently open in the UI (driven by subscriptions).
 - Push events go out immediately: association, disassociation and roams; link up/down; DHCP leases; DFS; netifd ifup/ifdown.
 
-**Collectors** (one small module each, in `node-agent/collect/`, parsed by `crates/node/src/facts/`). The first five ship with M1.3; the rest come with M1.3b and later:
+**Collectors** (one small module each, in `node-agent/collect/`, parsed by `crates/node/src/facts/`). The first five shipped with M1.3, phys through batman with M1.3b (D-035); the rest come later:
 - system: uptime, load, memory, CPU %, temperature, flash
 - board and release
 - capabilities: package manager, optional software, hostapd and wpa_supplicant build features, switch kind
 - interfaces (netifd) and devices (sysfs): addresses, gateways, counters, carrier, link speed
-- radios: channel, width, tx power, noise, survey
-- stations per BSS: MAC, signal, SNR, rx/tx rate, MCS/NSS/width, airtime, inactivity, capabilities
-- DHCP leases (gateway), ARP/NDP neighbors, bridge FDB
-- batman: o, n, tg, gwl, s
+- phys (nl80211, collected rarely): per band, the standards, widths, spatial streams, and channels with their DFS state and power limits
+- radios (netifd and nl80211): configuration, channel, width, center frequency, tx power, noise, and the busy share from the survey
+- stations per interface (nl80211 and hostapd): MAC, signal, rx/tx rate (MCS/NSS/width/GI), counters, retries, airtime, inactivity, expected throughput, capabilities (11k, 11v, 11w, WMM), and a mesh peer's link state; SNR is the signal over the radio's noise
+- DHCP leases (dnsmasq, odhcpd), ARP/NDP neighbors and the bridge FDB (rtnetlink, or /proc and `brforward`)
+- batman (batctl's JSON queries): the mesh, hard interfaces, originators, neighbors, gateways and both translation tables; the `batctl s` counters later
 - WAN: addresses, routes, delegated prefix
 - conntrack count
 - per-host usage from nlbwmon (gateway, if installed)

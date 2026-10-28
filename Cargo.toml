@@ -20,6 +20,8 @@ anyhow = "1.0.104"
 axum = "0.8.9"
 bytes = "1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+# Base64 of binary agent output (bridge FDBs); already in the tree through russh.
+data-encoding = "2.11.1"
 ipnet = { version = "2.12.2", features = ["serde"] }
 # SQLite compiled in (D-001, D-009): a static binary has no system library to link.
 rusqlite = { version = "0.40.2", default-features = false, features = ["bundled", "cache"] }

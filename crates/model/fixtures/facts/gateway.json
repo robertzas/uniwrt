@@ -19,7 +19,11 @@
   "system": {
     "uptime_s": 864000,
     "node_time": 1792828799000,
-    "load": [0.12, 0.08, 0.05],
+    "load": [
+      0.12,
+      0.08,
+      0.05
+    ],
     "cpu_percent": 3.5,
     "memory": {
       "total_bytes": 1031790592,
@@ -28,15 +32,39 @@
       "cached_bytes": 98304000,
       "buffered_bytes": 4096000
     },
-    "root": { "total_bytes": 7234150400, "used_bytes": 23068672, "available_bytes": 7211081728 },
-    "tmp": { "total_bytes": 515895296, "used_bytes": 1167360, "available_bytes": 514727936 },
+    "root": {
+      "total_bytes": 7234150400,
+      "used_bytes": 23068672,
+      "available_bytes": 7211081728
+    },
+    "tmp": {
+      "total_bytes": 515895296,
+      "used_bytes": 1167360,
+      "available_bytes": 514727936
+    },
     "temperature_c": 51.5
   },
   "capabilities": {
     "package_manager": "apk",
     "switch": "dsa",
-    "wifi": ["sae", "owe", "eap", "mesh", "11r", "11k", "11v", "11w", "acs"],
-    "software": ["batman-adv", "batctl", "iw", "rpcd-mod-iwinfo", "luci"]
+    "wifi": [
+      "sae",
+      "owe",
+      "eap",
+      "mesh",
+      "11r",
+      "11k",
+      "11v",
+      "11w",
+      "acs"
+    ],
+    "software": [
+      "batman-adv",
+      "batctl",
+      "iw",
+      "rpcd-mod-iwinfo",
+      "luci"
+    ]
   },
   "interfaces": [
     {
@@ -45,8 +73,13 @@
       "up": true,
       "device": "br-lan",
       "uptime_s": 863990,
-      "ipv4": ["10.0.0.1/24"],
-      "ipv6": ["2001:db8:4a::1/64", "fd4e:5a6b:7c8d::1/60"],
+      "ipv4": [
+        "10.0.0.1/24"
+      ],
+      "ipv6": [
+        "2001:db8:4a::1/64",
+        "fd4e:5a6b:7c8d::1/60"
+      ],
       "delegated_prefixes": [],
       "ipv4_gateway": null,
       "ipv6_gateway": null,
@@ -59,7 +92,9 @@
       "up": true,
       "device": "lo",
       "uptime_s": 863995,
-      "ipv4": ["127.0.0.1/8"],
+      "ipv4": [
+        "127.0.0.1/8"
+      ],
       "ipv6": [],
       "delegated_prefixes": [],
       "ipv4_gateway": null,
@@ -73,12 +108,17 @@
       "up": true,
       "device": "eth1.201",
       "uptime_s": 863950,
-      "ipv4": ["203.0.113.45/24"],
+      "ipv4": [
+        "203.0.113.45/24"
+      ],
       "ipv6": [],
       "delegated_prefixes": [],
       "ipv4_gateway": "203.0.113.1",
       "ipv6_gateway": null,
-      "dns_servers": ["203.0.113.53", "198.51.100.53"],
+      "dns_servers": [
+        "203.0.113.53",
+        "198.51.100.53"
+      ],
       "errors": []
     },
     {
@@ -88,11 +128,17 @@
       "device": "eth1.201",
       "uptime_s": 863940,
       "ipv4": [],
-      "ipv6": ["2001:db8:0:5::1a2b/128"],
-      "delegated_prefixes": ["2001:db8:4a::/56"],
+      "ipv6": [
+        "2001:db8:0:5::1a2b/128"
+      ],
+      "delegated_prefixes": [
+        "2001:db8:4a::/56"
+      ],
       "ipv4_gateway": null,
       "ipv6_gateway": "fe80::1",
-      "dns_servers": ["2001:db8::53"],
+      "dns_servers": [
+        "2001:db8::53"
+      ],
       "errors": []
     }
   ],
@@ -107,7 +153,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": null,
-      "counters": { "rx_bytes": 3120494592, "tx_bytes": 41286311936, "rx_packets": 9512338, "tx_packets": 31876210, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 112, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 3120494592,
+        "tx_bytes": 41286311936,
+        "rx_packets": 9512338,
+        "tx_packets": 31876210,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 112,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "lo",
@@ -119,7 +174,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": null,
-      "counters": { "rx_bytes": 81920, "tx_bytes": 81920, "rx_packets": 1200, "tx_packets": 1200, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 81920,
+        "tx_bytes": 81920,
+        "rx_packets": 1200,
+        "tx_packets": 1200,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "lan1",
@@ -131,7 +195,16 @@
       "speed_mbps": 1000,
       "full_duplex": true,
       "master": "br-lan",
-      "counters": { "rx_bytes": 1210119168, "tx_bytes": 20118450176, "rx_packets": 4100223, "tx_packets": 15002117, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 1210119168,
+        "tx_bytes": 20118450176,
+        "rx_packets": 4100223,
+        "tx_packets": 15002117,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "lan2",
@@ -143,7 +216,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": "br-lan",
-      "counters": { "rx_bytes": 0, "tx_bytes": 0, "rx_packets": 0, "tx_packets": 0, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 0,
+        "tx_bytes": 0,
+        "rx_packets": 0,
+        "tx_packets": 0,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "eth1",
@@ -155,7 +237,16 @@
       "speed_mbps": 2500,
       "full_duplex": true,
       "master": null,
-      "counters": { "rx_bytes": 44017123328, "tx_bytes": 3402117120, "rx_packets": 33019876, "tx_packets": 10233415, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 44017123328,
+        "tx_bytes": 3402117120,
+        "rx_packets": 33019876,
+        "tx_packets": 10233415,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "eth1.201",
@@ -167,7 +258,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": null,
-      "counters": { "rx_bytes": 43890221056, "tx_bytes": 3380117504, "rx_packets": 32998113, "tx_packets": 10230977, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 43890221056,
+        "tx_bytes": 3380117504,
+        "rx_packets": 32998113,
+        "tx_packets": 10230977,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "phy0-ap0",
@@ -179,7 +279,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": "br-lan",
-      "counters": { "rx_bytes": 88112640, "tx_bytes": 412118016, "rx_packets": 610447, "tx_packets": 1020338, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 3 }
+      "counters": {
+        "rx_bytes": 88112640,
+        "tx_bytes": 412118016,
+        "rx_packets": 610447,
+        "tx_packets": 1020338,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 3
+      }
     },
     {
       "name": "phy1-ap0",
@@ -191,7 +300,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": "br-lan",
-      "counters": { "rx_bytes": 1501224960, "tx_bytes": 17311275008, "rx_packets": 3901225, "tx_packets": 12877409, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 17 }
+      "counters": {
+        "rx_bytes": 1501224960,
+        "tx_bytes": 17311275008,
+        "rx_packets": 3901225,
+        "tx_packets": 12877409,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 17
+      }
     },
     {
       "name": "phy1-mesh0",
@@ -203,7 +321,16 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": "bat0",
-      "counters": { "rx_bytes": 321117184, "tx_bytes": 3445145600, "rx_packets": 900115, "tx_packets": 2955021, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 321117184,
+        "tx_bytes": 3445145600,
+        "rx_packets": 900115,
+        "tx_packets": 2955021,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
     },
     {
       "name": "bat0",
@@ -215,7 +342,109 @@
       "speed_mbps": null,
       "full_duplex": null,
       "master": "br-lan",
-      "counters": { "rx_bytes": 310001664, "tx_bytes": 3401011200, "rx_packets": 880214, "tx_packets": 2910087, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
+      "counters": {
+        "rx_bytes": 310001664,
+        "tx_bytes": 3401011200,
+        "rx_packets": 880214,
+        "tx_packets": 2910087,
+        "rx_errors": 0,
+        "tx_errors": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      }
+    }
+  ],
+  "phys": [
+    {
+      "name": "phy0",
+      "bands": [
+        {
+          "band": "2g",
+          "standards": [
+            "legacy",
+            "ht",
+            "he"
+          ],
+          "widths": [
+            20,
+            40
+          ],
+          "spatial_streams": 4,
+          "channels": [
+            {
+              "number": 1,
+              "frequency_mhz": 2412,
+              "dfs": false,
+              "dfs_state": null,
+              "no_ir": false,
+              "max_tx_power_dbm": 30
+            },
+            {
+              "number": 6,
+              "frequency_mhz": 2437,
+              "dfs": false,
+              "dfs_state": null,
+              "no_ir": false,
+              "max_tx_power_dbm": 30
+            },
+            {
+              "number": 11,
+              "frequency_mhz": 2462,
+              "dfs": false,
+              "dfs_state": null,
+              "no_ir": false,
+              "max_tx_power_dbm": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "phy1",
+      "bands": [
+        {
+          "band": "5g",
+          "standards": [
+            "legacy",
+            "ht",
+            "vht",
+            "he"
+          ],
+          "widths": [
+            20,
+            40,
+            80,
+            160
+          ],
+          "spatial_streams": 4,
+          "channels": [
+            {
+              "number": 36,
+              "frequency_mhz": 5180,
+              "dfs": false,
+              "dfs_state": null,
+              "no_ir": false,
+              "max_tx_power_dbm": 23
+            },
+            {
+              "number": 52,
+              "frequency_mhz": 5260,
+              "dfs": true,
+              "dfs_state": "usable",
+              "no_ir": true,
+              "max_tx_power_dbm": 23
+            },
+            {
+              "number": 149,
+              "frequency_mhz": 5745,
+              "dfs": false,
+              "dfs_state": null,
+              "no_ir": false,
+              "max_tx_power_dbm": 30
+            }
+          ]
+        }
+      ]
     }
   ],
   "radios": [
@@ -227,24 +456,13 @@
       "disabled": false,
       "channel": 6,
       "frequency_mhz": 2437,
+      "center_frequency_mhz": 2437,
       "width": 20,
       "standard": "he",
       "tx_power_dbm": 20,
       "noise_dbm": -92,
       "channel_busy_percent": 23.5,
       "country": "US",
-      "capabilities": {
-        "bands": ["2g"],
-        "standards": ["legacy", "ht", "he"],
-        "widths": [20, 40],
-        "channels": [
-          { "band": "2g", "number": 1, "frequency_mhz": 2412, "dfs": false, "no_ir": false, "max_tx_power_dbm": 30 },
-          { "band": "2g", "number": 6, "frequency_mhz": 2437, "dfs": false, "no_ir": false, "max_tx_power_dbm": 30 },
-          { "band": "2g", "number": 11, "frequency_mhz": 2462, "dfs": false, "no_ir": false, "max_tx_power_dbm": 30 }
-        ],
-        "max_tx_power_dbm": 25,
-        "spatial_streams": 4
-      },
       "ifaces": [
         {
           "name": "phy0-ap0",
@@ -254,7 +472,9 @@
           "mesh_id": null,
           "bssid": "94:83:c4:00:00:12",
           "encryption": "sae-mixed",
-          "networks": ["lan"],
+          "networks": [
+            "lan"
+          ],
           "up": true
         }
       ]
@@ -267,24 +487,13 @@
       "disabled": false,
       "channel": 36,
       "frequency_mhz": 5180,
+      "center_frequency_mhz": 5210,
       "width": 80,
       "standard": "he",
       "tx_power_dbm": 23,
       "noise_dbm": -95,
       "channel_busy_percent": 8.25,
       "country": "US",
-      "capabilities": {
-        "bands": ["5g"],
-        "standards": ["legacy", "ht", "vht", "he"],
-        "widths": [20, 40, 80, 160],
-        "channels": [
-          { "band": "5g", "number": 36, "frequency_mhz": 5180, "dfs": false, "no_ir": false, "max_tx_power_dbm": 23 },
-          { "band": "5g", "number": 52, "frequency_mhz": 5260, "dfs": true, "no_ir": true, "max_tx_power_dbm": 23 },
-          { "band": "5g", "number": 149, "frequency_mhz": 5745, "dfs": false, "no_ir": false, "max_tx_power_dbm": 30 }
-        ],
-        "max_tx_power_dbm": 25,
-        "spatial_streams": 4
-      },
       "ifaces": [
         {
           "name": "phy1-ap0",
@@ -294,7 +503,9 @@
           "mesh_id": null,
           "bssid": "94:83:c4:00:00:13",
           "encryption": "sae-mixed",
-          "networks": ["lan"],
+          "networks": [
+            "lan"
+          ],
           "up": true
         },
         {
@@ -305,7 +516,9 @@
           "mesh_id": "uniwrt-mesh",
           "bssid": "96:83:c4:00:00:13",
           "encryption": "sae",
-          "networks": ["batmesh"],
+          "networks": [
+            "batmesh"
+          ],
           "up": true
         }
       ]
@@ -313,51 +526,27 @@
   ],
   "stations": [
     {
-      "mac": "6a:1f:2c:3d:4e:5f",
-      "iface": "phy1-ap0",
-      "signal_dbm": -52,
-      "connected_s": 5400,
-      "inactive_ms": 120,
-      "rx_rate": { "kbps": 1201000, "standard": "he", "mcs": 11, "nss": 2, "width": 80, "guard_interval_ns": 800 },
-      "tx_rate": { "kbps": 960800, "standard": "he", "mcs": 9, "nss": 2, "width": 80, "guard_interval_ns": 800 },
-      "rx_bytes": 184467440,
-      "tx_bytes": 2958682112,
-      "rx_packets": 402113,
-      "tx_packets": 2140987,
-      "tx_retries": 10922,
-      "tx_failed": 12,
-      "expected_throughput_kbps": 742000,
-      "authorized": true,
-      "standard": "he",
-      "capabilities": ["11k", "11r", "11v", "11w", "wmm"]
-    },
-    {
-      "mac": "3c:22:fb:12:34:56",
-      "iface": "phy1-ap0",
-      "signal_dbm": -61,
-      "connected_s": 28800,
-      "inactive_ms": 950,
-      "rx_rate": { "kbps": 650000, "standard": "vht", "mcs": 7, "nss": 2, "width": 80, "guard_interval_ns": 400 },
-      "tx_rate": { "kbps": 780000, "standard": "vht", "mcs": 8, "nss": 2, "width": 80, "guard_interval_ns": 400 },
-      "rx_bytes": 98112512,
-      "tx_bytes": 1204117504,
-      "rx_packets": 311092,
-      "tx_packets": 990345,
-      "tx_retries": 20511,
-      "tx_failed": 40,
-      "expected_throughput_kbps": 410000,
-      "authorized": true,
-      "standard": "vht",
-      "capabilities": ["11k", "11v", "wmm"]
-    },
-    {
       "mac": "a4:cf:12:ab:cd:ef",
       "iface": "phy0-ap0",
       "signal_dbm": -71,
       "connected_s": 86000,
       "inactive_ms": 4200,
-      "rx_rate": { "kbps": 1000, "standard": "legacy", "mcs": null, "nss": null, "width": null, "guard_interval_ns": null },
-      "tx_rate": { "kbps": 72200, "standard": "ht", "mcs": 7, "nss": 1, "width": 20, "guard_interval_ns": 400 },
+      "rx_rate": {
+        "kbps": 1000,
+        "standard": "legacy",
+        "mcs": null,
+        "nss": null,
+        "width": null,
+        "guard_interval_ns": null
+      },
+      "tx_rate": {
+        "kbps": 72200,
+        "standard": "ht",
+        "mcs": 7,
+        "nss": 1,
+        "width": 20,
+        "guard_interval_ns": 400
+      },
       "rx_bytes": 2211840,
       "tx_bytes": 1048576,
       "rx_packets": 20114,
@@ -365,9 +554,95 @@
       "tx_retries": null,
       "tx_failed": null,
       "expected_throughput_kbps": null,
+      "rx_airtime_us": null,
+      "tx_airtime_us": null,
+      "peer_link": null,
       "authorized": true,
       "standard": "ht",
-      "capabilities": ["wmm"]
+      "capabilities": [
+        "wmm"
+      ]
+    },
+    {
+      "mac": "3c:22:fb:12:34:56",
+      "iface": "phy1-ap0",
+      "signal_dbm": -61,
+      "connected_s": 28800,
+      "inactive_ms": 950,
+      "rx_rate": {
+        "kbps": 650000,
+        "standard": "vht",
+        "mcs": 7,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 400
+      },
+      "tx_rate": {
+        "kbps": 780000,
+        "standard": "vht",
+        "mcs": 8,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 400
+      },
+      "rx_bytes": 98112512,
+      "tx_bytes": 1204117504,
+      "rx_packets": 311092,
+      "tx_packets": 990345,
+      "tx_retries": 20511,
+      "tx_failed": 40,
+      "expected_throughput_kbps": 410000,
+      "rx_airtime_us": 99120400,
+      "tx_airtime_us": 802311700,
+      "peer_link": null,
+      "authorized": true,
+      "standard": "vht",
+      "capabilities": [
+        "11k",
+        "11v",
+        "wmm"
+      ]
+    },
+    {
+      "mac": "6a:1f:2c:3d:4e:5f",
+      "iface": "phy1-ap0",
+      "signal_dbm": -52,
+      "connected_s": 5400,
+      "inactive_ms": 120,
+      "rx_rate": {
+        "kbps": 1201000,
+        "standard": "he",
+        "mcs": 11,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 800
+      },
+      "tx_rate": {
+        "kbps": 960800,
+        "standard": "he",
+        "mcs": 9,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 800
+      },
+      "rx_bytes": 184467440,
+      "tx_bytes": 2958682112,
+      "rx_packets": 402113,
+      "tx_packets": 2140987,
+      "tx_retries": 10922,
+      "tx_failed": 12,
+      "expected_throughput_kbps": 742000,
+      "rx_airtime_us": 210114000,
+      "tx_airtime_us": 1840227000,
+      "peer_link": null,
+      "authorized": true,
+      "standard": "he",
+      "capabilities": [
+        "11k",
+        "11v",
+        "11w",
+        "wmm"
+      ]
     },
     {
       "mac": "96:83:c4:00:00:23",
@@ -375,8 +650,22 @@
       "signal_dbm": -58,
       "connected_s": 863900,
       "inactive_ms": 10,
-      "rx_rate": { "kbps": 1201000, "standard": "he", "mcs": 11, "nss": 2, "width": 80, "guard_interval_ns": 800 },
-      "tx_rate": { "kbps": 1080900, "standard": "he", "mcs": 10, "nss": 2, "width": 80, "guard_interval_ns": 800 },
+      "rx_rate": {
+        "kbps": 1201000,
+        "standard": "he",
+        "mcs": 11,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 800
+      },
+      "tx_rate": {
+        "kbps": 1080900,
+        "standard": "he",
+        "mcs": 10,
+        "nss": 2,
+        "width": 80,
+        "guard_interval_ns": 800
+      },
       "rx_bytes": 321117184,
       "tx_bytes": 3445145600,
       "rx_packets": 900115,
@@ -384,9 +673,206 @@
       "tx_retries": 51022,
       "tx_failed": 9,
       "expected_throughput_kbps": 683000,
+      "rx_airtime_us": 310220100,
+      "tx_airtime_us": 2211804300,
+      "peer_link": "established",
       "authorized": true,
       "standard": "he",
-      "capabilities": ["11w", "wmm"]
+      "capabilities": [
+        "11w",
+        "wmm"
+      ]
+    }
+  ],
+  "leases": [
+    {
+      "ip": "10.0.0.20",
+      "mac": "3c:22:fb:12:34:56",
+      "hostname": "laptop",
+      "client_id": "013c22fb123456",
+      "device": null,
+      "expires_in_s": 43201
+    },
+    {
+      "ip": "10.0.0.21",
+      "mac": "6a:1f:2c:3d:4e:5f",
+      "hostname": null,
+      "client_id": null,
+      "device": null,
+      "expires_in_s": 21601
+    },
+    {
+      "ip": "10.0.0.30",
+      "mac": "a4:cf:12:ab:cd:ef",
+      "hostname": "thermostat",
+      "client_id": "01a4cf12abcdef",
+      "device": null,
+      "expires_in_s": 71201
+    },
+    {
+      "ip": "10.0.0.2",
+      "mac": "96:83:c4:00:00:24",
+      "hostname": "ap-living",
+      "client_id": null,
+      "device": null,
+      "expires_in_s": null
+    },
+    {
+      "ip": "fd4e:5a6b:7c8d::20",
+      "mac": "3c:22:fb:12:34:56",
+      "hostname": "laptop",
+      "client_id": "000100012e3f5a103c22fb123456",
+      "device": "br-lan",
+      "expires_in_s": 3600
+    }
+  ],
+  "neighbors": [
+    {
+      "ip": "10.0.0.20",
+      "mac": "3c:22:fb:12:34:56",
+      "device": "br-lan",
+      "state": "reachable",
+      "router": false
+    },
+    {
+      "ip": "10.0.0.2",
+      "mac": "96:83:c4:00:00:24",
+      "device": "br-lan",
+      "state": "stale",
+      "router": false
+    },
+    {
+      "ip": "203.0.113.1",
+      "mac": "00:25:90:aa:bb:01",
+      "device": "eth1.201",
+      "state": "reachable",
+      "router": false
+    },
+    {
+      "ip": "fe80::1",
+      "mac": "00:25:90:aa:bb:01",
+      "device": "eth1.201",
+      "state": "stale",
+      "router": true
+    },
+    {
+      "ip": "fd4e:5a6b:7c8d::20",
+      "mac": "3c:22:fb:12:34:56",
+      "device": "br-lan",
+      "state": "delay",
+      "router": false
+    }
+  ],
+  "fdb": [
+    {
+      "mac": "3c:22:fb:12:34:56",
+      "bridge": "br-lan",
+      "port": "phy1-ap0",
+      "vlan": null
+    },
+    {
+      "mac": "6a:1f:2c:3d:4e:5f",
+      "bridge": "br-lan",
+      "port": "phy1-ap0",
+      "vlan": null
+    },
+    {
+      "mac": "a4:cf:12:ab:cd:ef",
+      "bridge": "br-lan",
+      "port": "phy0-ap0",
+      "vlan": null
+    },
+    {
+      "mac": "96:83:c4:00:00:24",
+      "bridge": "br-lan",
+      "port": "bat0",
+      "vlan": null
+    },
+    {
+      "mac": "d8:3a:dd:10:20:30",
+      "bridge": "br-lan",
+      "port": "bat0",
+      "vlan": null
+    },
+    {
+      "mac": "00:11:32:aa:bb:cc",
+      "bridge": "br-lan",
+      "port": "lan1",
+      "vlan": 1
+    }
+  ],
+  "batman": [
+    {
+      "mesh_if": "bat0",
+      "mac": "96:83:c4:00:00:14",
+      "algorithm": "BATMAN_IV",
+      "gw_mode": "server",
+      "hard_ifs": [
+        {
+          "name": "phy1-mesh0",
+          "mac": "96:83:c4:00:00:13",
+          "active": true
+        }
+      ],
+      "originators": [
+        {
+          "mac": "96:83:c4:00:00:23",
+          "next_hop": "96:83:c4:00:00:23",
+          "hard_if": "phy1-mesh0",
+          "last_seen_ms": 420,
+          "tq": 238,
+          "throughput_kbps": null,
+          "best": true
+        },
+        {
+          "mac": "96:83:c4:00:00:33",
+          "next_hop": "96:83:c4:00:00:23",
+          "hard_if": "phy1-mesh0",
+          "last_seen_ms": 610,
+          "tq": 201,
+          "throughput_kbps": null,
+          "best": true
+        }
+      ],
+      "neighbors": [
+        {
+          "mac": "96:83:c4:00:00:23",
+          "hard_if": "phy1-mesh0",
+          "last_seen_ms": 420,
+          "throughput_kbps": null
+        }
+      ],
+      "gateways": [],
+      "remote_clients": [
+        {
+          "mac": "96:83:c4:00:00:24",
+          "vid": null,
+          "originator": "96:83:c4:00:00:23",
+          "wifi": false,
+          "roaming": false
+        },
+        {
+          "mac": "d8:3a:dd:10:20:30",
+          "vid": null,
+          "originator": "96:83:c4:00:00:33",
+          "wifi": true,
+          "roaming": false
+        }
+      ],
+      "local_clients": [
+        {
+          "mac": "3c:22:fb:12:34:56",
+          "vid": null,
+          "wifi": true,
+          "last_seen_ms": 1200
+        },
+        {
+          "mac": "a4:cf:12:ab:cd:ef",
+          "vid": null,
+          "wifi": true,
+          "last_seen_ms": 4300
+        }
+      ]
     }
   ]
 }

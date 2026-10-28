@@ -100,8 +100,6 @@ fn kind(sys: &Sys) -> DeviceKind {
         (_, Some("wlan")) => DeviceKind::Wireless,
         (_, Some("bridge")) => DeviceKind::Bridge,
         (_, Some("vlan")) => DeviceKind::Vlan,
-        // ⚠️ batman-adv's device type; both names are accepted until a node confirms one.
-        (_, Some("batman" | "batadv")) => DeviceKind::Batman,
         (_, Some("wireguard")) => DeviceKind::Tunnel,
         (_, Some("dsa")) => DeviceKind::Ethernet,
         (Some(arphrd), _) if arphrd::TUNNELS.contains(&arphrd) => DeviceKind::Tunnel,

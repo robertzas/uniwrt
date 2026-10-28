@@ -1,12 +1,15 @@
-//! Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`): adopting
-//! the node at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD`.
+//! Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`):
+//! adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in
+//! `UNIWRT_NODE_PASSWORD`) and linking to its agent.
 
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used)]
 
-use std::env;
+use std::{env, sync::Arc, time::Duration};
 
+use uniwrt_core::SystemClock;
 use uniwrt_node::{
-    ControllerKey, Credential, ExecRequest, HostKey, Session, SshConfig, Target, probe,
+    AgentLaunch, AgentState, ControllerKey, Credential, ExecRequest, Hello, HostKey, LinkConfig,
+    LinkState, NodeLink as _, Session, SshConfig, SshLink, Target, probe,
 };
 use zeroize::Zeroizing;
 
@@ -20,14 +23,19 @@ pub struct Node {
 /// confirm it), log in with the root password, install the controller key, and log in with it.
 pub async fn adopt() -> (Session, Node) {
     let address = env::var("UNIWRT_NODE").expect("UNIWRT_NODE=<host:port>");
+    let password = env::var("UNIWRT_NODE_PASSWORD").expect("UNIWRT_NODE_PASSWORD");
+    adopt_at(&address, &password).await
+}
+
+/// [`adopt`] for the node at `address` (`<host:port>`) with this root password.
+pub async fn adopt_at(address: &str, password: &str) -> (Session, Node) {
     let (host, port) = address.rsplit_once(':').unwrap();
     let target = Target::new(host, port.parse().unwrap());
     let config = SshConfig::default();
     let host_key = probe(&target, None, &config).await.unwrap();
     assert_eq!(host_key.algorithm(), "ssh-ed25519");
 
-    let password = env::var("UNIWRT_NODE_PASSWORD").expect("UNIWRT_NODE_PASSWORD");
-    let password = Credential::Password(Zeroizing::new(password));
+    let password = Credential::Password(Zeroizing::new(password.to_owned()));
     let session = Session::connect(&target, None, &host_key, &password, &config)
         .await
         .unwrap();
@@ -53,6 +61,40 @@ pub async fn adopt() -> (Session, Node) {
             key,
         },
     )
+}
+
+/// A link to the adopted node that runs `launch`, once its agent has said hello.
+pub async fn link(node: &Node, launch: AgentLaunch) -> (SshLink, Hello) {
+    let credential = Credential::Key(node.key.clone());
+    let mut config = LinkConfig::new(node.target.clone(), node.host_key.clone(), credential);
+    config.agent = Some(launch);
+    let link = SshLink::spawn(config, Arc::new(SystemClock));
+    let mut state = link.state();
+    let up = tokio::time::timeout(Duration::from_secs(20), async {
+        state
+            .wait_for(|state| {
+                matches!(
+                    state,
+                    LinkState::Up {
+                        agent: AgentState::Running(_) | AgentState::Failed { .. },
+                        ..
+                    }
+                )
+            })
+            .await
+            .unwrap()
+            .clone()
+    })
+    .await
+    .unwrap();
+    let LinkState::Up {
+        agent: AgentState::Running(hello),
+        ..
+    } = up
+    else {
+        panic!("{up:?}");
+    };
+    (link, hello)
 }
 
 pub async fn run(session: &Session, argv: &[&str]) -> String {

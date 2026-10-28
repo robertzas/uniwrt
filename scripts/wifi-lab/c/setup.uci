@@ -1,0 +1,14 @@
+set system.@system[0].hostname=lab-client
+set network.wwan=interface
+set network.wwan.proto=dhcp
+set network.wwan5=interface
+set network.wwan5.proto=dhcp
+set network.wwan6=interface
+set network.wwan6.proto=dhcpv6
+set network.wwan6.device=@wwan
+set dhcp.lan.ignore=1
+set dhcp.lan.ra=disabled
+set dhcp.lan.dhcpv6=disabled
+add_list firewall.@zone[1].network=wwan
+add_list firewall.@zone[1].network=wwan5
+add_list firewall.@zone[1].network=wwan6

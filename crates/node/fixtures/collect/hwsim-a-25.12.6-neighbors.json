@@ -1,0 +1,139 @@
+{
+ "rtnl": {
+  "sets": {
+   "neighbors": {
+    "rtnl": {
+     "neigh": [
+      {
+       "family": 2,
+       "dev": "br-lan",
+       "dst": "172.17.0.1",
+       "lladdr": "1e:ef:d5:86:3e:37",
+       "state": 2,
+       "flags": 0
+      },
+      {
+       "family": 2,
+       "dev": "br-mesh",
+       "dst": "10.99.0.108",
+       "lladdr": "02:00:00:00:04:00",
+       "state": 4,
+       "flags": 0
+      },
+      {
+       "family": 2,
+       "dev": "br-mesh",
+       "dst": "10.99.0.107",
+       "lladdr": "02:00:00:00:05:00",
+       "state": 2,
+       "flags": 0
+      },
+      {
+       "family": 10,
+       "dev": "br-mesh",
+       "dst": "fe80::ff:fe00:400",
+       "lladdr": "02:00:00:00:04:00",
+       "state": 4,
+       "flags": 0
+      },
+      {
+       "family": 10,
+       "dev": "br-mesh",
+       "dst": "fe80::d005:1bff:fe3f:255c",
+       "lladdr": "02:00:00:00:02:00",
+       "state": 2,
+       "flags": 0
+      },
+      {
+       "family": 10,
+       "dev": "br-mesh",
+       "dst": "fe80::ff:fe00:500",
+       "lladdr": "02:00:00:00:05:00",
+       "state": 2,
+       "flags": 0
+      }
+     ],
+     "fdb": [
+      {
+       "dev": "eth0",
+       "master": "br-lan",
+       "lladdr": "66:77:a0:16:08:52"
+      },
+      {
+       "dev": "eth0",
+       "master": "br-lan",
+       "lladdr": "36:4a:7b:c7:df:f3"
+      },
+      {
+       "dev": "eth0",
+       "master": "br-lan",
+       "lladdr": "1e:ef:d5:86:3e:37"
+      },
+      {
+       "dev": "eth0",
+       "master": "br-lan",
+       "lladdr": "26:a2:ba:78:12:39"
+      },
+      {
+       "dev": "bat0",
+       "master": "br-mesh",
+       "lladdr": "ba:be:46:34:be:a5"
+      },
+      {
+       "dev": "bat0",
+       "master": "br-mesh",
+       "lladdr": "d2:05:1b:3f:25:5c"
+      },
+      {
+       "dev": "bat0",
+       "master": "br-mesh",
+       "lladdr": "02:00:00:00:05:00"
+      },
+      {
+       "dev": "bat0",
+       "master": "br-mesh",
+       "lladdr": "02:00:00:00:02:00"
+      },
+      {
+       "dev": "bat0",
+       "master": "br-mesh",
+       "lladdr": "66:32:6b:15:fa:96"
+      },
+      {
+       "dev": "phy1-ap0",
+       "master": "br-mesh",
+       "lladdr": "02:00:00:00:04:00"
+      }
+     ]
+    }
+   }
+  },
+  "errors": {}
+ },
+ "proc": {
+  "sets": {
+   "neighbors": {
+    "proc": {
+     "arp": "IP address       HW type     Flags       HW address            Mask     Device\n172.17.0.1       0x1         0x2         1e:ef:d5:86:3e:37     *        br-lan\n10.99.0.108      0x1         0x2         02:00:00:00:04:00     *        br-mesh\n10.99.0.107      0x1         0x2         02:00:00:00:05:00     *        br-mesh\n",
+     "bridges": {
+      "br-lan": {
+       "brforward": "ZnegFghSAQBgBAAAAAAAADZKe8ff8wEAxg0AAAAAAAAe79WGPjcBAOAKAAAAAAAAJqK6eBI5AQBzAwAAAAAAAPbWzmaYAwEBAAAAAAAAAAD21s5mmAMBAQAAAAAAAAAA",
+       "ports": {
+        "eth0": "0x1"
+       }
+      },
+      "br-mesh": {
+       "brforward": "ur5GNL6lAQBgAgAAAAAAANIFGz8lXAEALQMAAAAAAAACAAAABQABACEAAAAAAAAAAgAAAAIAAQAOAwAAAAAAAAIAAAAEAAIACA0AAAAAAABmMmsV+pYBAGACAAAAAAAAAgAAAAEAAwEAAAAAAAAAAAIAAAABAAMBAAAAAAAAAAACAAAAAAACAQAAAAAAAAAAAgAAAAAAAgEAAAAAAAAAAJpoGceCHwEBAAAAAAAAAACaaBnHgh8BAQAAAAAAAAAA",
+       "ports": {
+        "bat0": "0x1",
+        "phy1-ap0": "0x2",
+        "phy2-ap0": "0x3"
+       }
+      }
+     }
+    }
+   }
+  },
+  "errors": {}
+ }
+}

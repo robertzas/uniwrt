@@ -22,10 +22,14 @@ Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and t
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
 
+- `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
 - `src/facts/interface.rs`: Logical interfaces (netifd) and the kernel network devices beneath them.
+- `src/facts/lease.rs`: DHCP leases the node handed out: dnsmasq's for IPv4, odhcpd's for DHCPv6 (and IPv4 where it serves DHCPv4).
 - `src/facts/mod.rs`: Observed facts: everything one collection round of the node agent reports about a node.
-- `src/facts/radio.rs`: Radios (UCI `wifi-device`, kernel phy), what their hardware supports, and their interfaces.
+- `src/facts/neighbor.rs`: Who is next to the node at layers 2 and 3: the ARP and NDP caches, and the MAC addresses the bridges learned on their ports.
+- `src/facts/phy.rs`: Radio hardware (kernel phys): per band, the standards, widths and channels that the hardware and the regulatory domain allow.
+- `src/facts/radio.rs`: Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they operate.
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
@@ -44,13 +48,21 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/error.rs`: Errors of the node transport.
 - `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 - `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
+- `src/facts/batman.rs`: The `batman` set: batctl's JSON queries per mesh device.
 - `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC).
 - `src/facts/capabilities.rs`: The `capabilities` set: binaries and modules found on the node, the build features that hostapd and `wpa_supplicant` report (`-v<feature>`), and how the switch is driven.
 - `src/facts/devices.rs`: The `devices` set: sysfs attributes of each device in /sys/class/net (text, as read) and the counters of /proc/net/dev.
 - `src/facts/interfaces.rs`: The `interfaces` set: `network.interface dump`.
+- `src/facts/leases.rs`: The `leases` set: dnsmasq's lease files and odhcpd's leases over ubus.
 - `src/facts/mod.rs`: Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw sources that `node-agent/collect/<set>.uc` gathers.
+- `src/facts/neighbors.rs`: The `neighbors` set: from rtnetlink (`rtnl`), the agent's selection of neighbor and bridge FDB entries; or else (`proc`) /proc/net/arp and each bridge's `brforward`.
+- `src/facts/phys.rs`: The `phys` set: nl80211's `GET_WIPHY`, trimmed by the agent.
+- `src/facts/radios.rs`: The `radios` set: netifd's `network.wireless status` (each radio's configuration and state), nl80211's interfaces (channel, width, power and addresses) and each phy's channel survey.
+- `src/facts/stations.rs`: The `stations` set: nl80211's station dump of every Wi-Fi interface, and for APs, what hostapd saw in each client's association (`get_clients`).
 - `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
 - `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
+- `src/facts/tests/hwsim.rs`: The parsers against captures from the hwsim lab (`scripts/wifi-lab.sh`, TESTING.md): real hostapd, `wpa_supplicant`, nl80211, netifd, dnsmasq, odhcpd and batman-adv output.
+- `src/facts/wifi.rs`: nl80211's vocabulary, shared by the Wi-Fi parsers: bands, channel numbers, widths and powers.
 - `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
 - `src/key.rs`: The controller's SSH identity: one ed25519 key that every adopted node trusts.
 - `src/lib.rs`: The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, its embedded bundle and the parsers of what it collects), and the [`NodeLink`] trait through which the engine talks to a node.
@@ -66,9 +78,10 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, and collect sets parsed into facts.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
-- `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`): adopting the node at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD`.
+- `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`) and linking to its agent.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
+- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology.
 
 ### `uniwrt` (crates/server)
 
@@ -120,16 +133,23 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 
 - `bus.uc`: ubus calls on one shared connection, with errors mapped to the protocol's codes.
 - `collect.uc`: The collect sets: each gathers the raw sources of one part of the node's facts, which crates/node/src/facts parses.
+- `collect/batman.uc`: The `batman` set: each batman-adv mesh device as batctl's JSON queries report it: the mesh, its hard interfaces, originators, neighbors, gateways and both translation tables.
 - `collect/board.uc`: The `board` set: what the node is (`system board`, the release file and board.json).
 - `collect/capabilities.uc`: The `capabilities` set: features detected on the node, never inferred from its version: the package manager, optional software, what hostapd and wpa_supplicant were built with, and how the switch is driven.
 - `collect/devices.uc`: The `devices` set: every kernel network device, from sysfs, with the counters of /proc/net/dev.
 - `collect/interfaces.uc`: The `interfaces` set: netifd's logical interfaces (`network.interface dump`).
+- `collect/leases.uc`: The `leases` set: DHCP leases from dnsmasq's lease files (each `dnsmasq` section's `leasefile`, /tmp/dhcp.leases by default) and from odhcpd over ubus (`dhcp ipv6leases`, and `ipv4leases` where odhcpd serves DHCPv4), with the node's clock, which dnsmasq's expiry times are on.
+- `collect/neighbors.uc`: The `neighbors` set: the IPv4 and IPv6 neighbor caches and the bridges' forwarding databases.
+- `collect/phys.uc`: The `phys` set: the radio hardware (nl80211 `GET_WIPHY`) per band: its channels with their regulatory flags and power limits, and its HT, VHT, HE and EHT capabilities.
+- `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
+- `collect/stations.uc`: The `stations` set: the stations of every Wi-Fi interface (nl80211 `GET_STATION`): an AP's clients, mesh peers and a station interface's AP, with signal, rates, counters and airtime; and for APs, the capabilities hostapd saw in each client's association (`get_clients`).
 - `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `ops.uc`: The agent's operations (`proto::ops`).
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
-- `util.uc`: Small readers shared by the agent's modules: files, sysfs attributes, shell-variable files and clocks.
+- `util.uc`: Small helpers shared by the agent's modules: readers of files, sysfs attributes and shell-variable files, `pick`, and clocks.
+- `wifi.uc`: Shared by the Wi-Fi sets: the kernel phys from sysfs, and nl80211 (ucode-mod-nl80211, which hostapd depends on), loaded on first use because images without Wi-Fi lack it.
 
 ## Web UI (`web/src`)
 
@@ -151,3 +171,11 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
+- `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
+- `scripts/wifi-lab/a/setup.uci`: (no header comment)
+- `scripts/wifi-lab/a/wireless`: (no header comment)
+- `scripts/wifi-lab/b/setup.uci`: (no header comment)
+- `scripts/wifi-lab/b/wireless`: (no header comment)
+- `scripts/wifi-lab/c/setup.uci`: (no header comment)
+- `scripts/wifi-lab/c/wireless`: (no header comment)
+- `scripts/wifi-node.Dockerfile`: An OpenWrt rootfs with the Wi-Fi and batman-adv user space, for the hwsim lab (scripts/wifi-lab.sh).

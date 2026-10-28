@@ -30,11 +30,30 @@ pub struct StationFacts {
     pub tx_failed: Option<u64>,
     /// The driver's estimate of achievable throughput to the station.
     pub expected_throughput_kbps: Option<u32>,
+    /// Airtime spent receiving from and sending to the station.
+    pub rx_airtime_us: Option<u64>,
+    pub tx_airtime_us: Option<u64>,
+    /// The state of a mesh peer's link; `None` for other stations.
+    pub peer_link: Option<PeerLinkState>,
     /// Passed authentication (802.1X or the 4-way handshake).
     pub authorized: bool,
     /// The newest standard the station supports, which may be newer than its current rate's.
     pub standard: Option<WifiStandard>,
     pub capabilities: BTreeSet<StationCapability>,
+}
+
+/// The 802.11s peer link states (`enum nl80211_plink_state`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PeerLinkState {
+    Listen,
+    OpenSent,
+    OpenReceived,
+    ConfirmReceived,
+    /// Established: the link carries traffic.
+    Established,
+    Holding,
+    Blocked,
 }
 
 /// A PHY rate with the parameters it was sent with.

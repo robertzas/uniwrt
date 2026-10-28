@@ -11,16 +11,14 @@ mod openwrt;
 
 use std::{
     env,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
-use openwrt::{Node, adopt, run};
+use openwrt::{adopt, link, run};
 use uniwrt_core::{Clock as _, SystemClock};
 use uniwrt_model::facts::{DeviceKind, NodeFacts, PackageManager};
 use uniwrt_node::{
-    AgentLaunch, AgentState, Bundle, Credential, Error, Hello, LinkConfig, LinkState,
-    NodeLink as _, Output, SshLink, facts,
+    AgentLaunch, Bundle, Error, NodeLink as _, Output, facts,
     proto::ops::{Collect, Exec, Ping, ReadFile, Set, Ubus, code},
 };
 
@@ -34,40 +32,6 @@ fn release() -> String {
 /// have it, through hostapd), so 24.10 tests the synchronous mode.
 fn has_event_loop() -> bool {
     !release().starts_with("24.")
-}
-
-/// A link to the adopted node that runs `launch`, once its agent has said hello.
-async fn link(node: &Node, launch: AgentLaunch) -> (SshLink, Hello) {
-    let credential = Credential::Key(node.key.clone());
-    let mut config = LinkConfig::new(node.target.clone(), node.host_key.clone(), credential);
-    config.agent = Some(launch);
-    let link = SshLink::spawn(config, Arc::new(SystemClock));
-    let mut state = link.state();
-    let up = tokio::time::timeout(LONG, async {
-        state
-            .wait_for(|state| {
-                matches!(
-                    state,
-                    LinkState::Up {
-                        agent: AgentState::Running(_) | AgentState::Failed { .. },
-                        ..
-                    }
-                )
-            })
-            .await
-            .unwrap()
-            .clone()
-    })
-    .await
-    .unwrap();
-    let LinkState::Up {
-        agent: AgentState::Running(hello),
-        ..
-    } = up
-    else {
-        panic!("{up:?}");
-    };
-    (link, hello)
 }
 
 fn remote_code<T: std::fmt::Debug>(result: Result<T, Error>) -> String {

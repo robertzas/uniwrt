@@ -21,13 +21,14 @@
 //!   whose hash its hello reports. No RSA keys and no SSH certificates (D-032).
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (the host-key pin, the facts), russh with the
 //!   ring provider, tokio, `serde_json` (raw values: answers are parsed once, by whoever wants
-//!   them), `zeroize`.
+//!   them), `zeroize`, `data-encoding` (base64 in agent output).
 //! - **Tests:** unit tests next to the pure parts (quoting through the local `sh`, backoff, line
 //!   framing, the envelope, the multiplexer over an in-memory pipe, the bundle's archive through
 //!   the host's `tar`, the parsers against `fixtures/collect/`); `tests/` runs sessions and links
 //!   against an in-process russh server on loopback. Ignored unless run by their scripts:
 //!   `tests/dropbear.rs` (`just test-dropbear`) against dropbear in OpenWrt rootfs containers, and
-//!   `tests/agent.rs` (`just test-agent`) against the agent on OpenWrt booted with procd.
+//!   `tests/agent.rs` (`just test-agent`) against the agent on OpenWrt booted with procd, and
+//!   `tests/wifi.rs` (`just test-wifi`) against the hwsim lab's radios and mesh.
 
 mod agent;
 mod backoff;

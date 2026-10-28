@@ -1,7 +1,11 @@
 //! Observed facts: everything one collection round of the node agent reports about a node.
 
+mod batman;
 mod capabilities;
 mod interface;
+mod lease;
+mod neighbor;
+mod phy;
 mod radio;
 mod station;
 mod system;
@@ -10,10 +14,17 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::Timestamp;
 
 pub use self::{
+    batman::{
+        BatmanAlgorithm, BatmanFacts, BatmanGateway, BatmanNeighbor, GatewayMode, HardIf,
+        LocalClient, Originator, RemoteClient,
+    },
     capabilities::{Capabilities, PackageManager, Software, SwitchKind, WifiFeature},
     interface::{Counters, DeviceFacts, DeviceKind, InterfaceFacts},
-    radio::{Channel, RadioCapabilities, RadioFacts, WifiIfaceFacts, WifiIfaceMode},
-    station::{Rate, StationCapability, StationFacts},
+    lease::LeaseFacts,
+    neighbor::{FdbEntry, NeighborFacts, NeighborState},
+    phy::{Channel, DfsState, PhyBand, PhyFacts},
+    radio::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
+    station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, Memory, Release, Storage, SystemFacts},
 };
 
@@ -30,9 +41,24 @@ pub struct NodeFacts {
     pub interfaces: Vec<InterfaceFacts>,
     /// Kernel network devices (`lan1`, `br-lan`, `phy1-ap0`, `bat0`).
     pub devices: Vec<DeviceFacts>,
+    /// Radio hardware, which the radios name.
+    #[serde(default)]
+    pub phys: Vec<PhyFacts>,
     pub radios: Vec<RadioFacts>,
     /// Associated Wi-Fi stations and mesh peers of every radio, each naming its interface.
     pub stations: Vec<StationFacts>,
+    /// DHCP leases the node handed out.
+    #[serde(default)]
+    pub leases: Vec<LeaseFacts>,
+    /// The IPv4 and IPv6 neighbor caches.
+    #[serde(default)]
+    pub neighbors: Vec<NeighborFacts>,
+    /// The bridges' forwarding databases: which port each MAC address was learned on.
+    #[serde(default)]
+    pub fdb: Vec<FdbEntry>,
+    /// batman-adv meshes the node is part of.
+    #[serde(default)]
+    pub batman: Vec<BatmanFacts>,
 }
 
 #[cfg(test)]

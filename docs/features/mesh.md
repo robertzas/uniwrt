@@ -61,7 +61,7 @@ config interface 'bat0'
 
 ## Telemetry & health
 
-From the agent:
+From the agent (the `batman` set: batctl's JSON queries `mj`, `hj`, `oj`, `nj`, `gwj`, `tgj` and `tlj`, D-035; the `stations` set for mesh peers):
 - `batctl o`: originators, last seen, best next hop, TQ or throughput
 - `batctl n`: neighbors per hard interface
 - `batctl tg`: the global translation table (client MAC → originator node), which shows which node each wired or wireless client sits behind

@@ -15,36 +15,35 @@ use crate::{Result, Session, exec::ExecRequest};
 /// Where the agent lives on a node.
 pub(crate) const DIR: &str = "/tmp/uniwrt/agent";
 
+/// A file of `node-agent/`, by its path there.
+macro_rules! file {
+    ($path:literal) => {
+        ($path, include_str!(concat!("../../../node-agent/", $path)))
+    };
+}
+
 /// The agent's files, relative to `node-agent/`; a test keeps the list in step with the
 /// directory.
-const FILES: [(&str, &str); 12] = [
-    ("bus.uc", include_str!("../../../node-agent/bus.uc")),
-    ("collect.uc", include_str!("../../../node-agent/collect.uc")),
-    (
-        "collect/board.uc",
-        include_str!("../../../node-agent/collect/board.uc"),
-    ),
-    (
-        "collect/capabilities.uc",
-        include_str!("../../../node-agent/collect/capabilities.uc"),
-    ),
-    (
-        "collect/devices.uc",
-        include_str!("../../../node-agent/collect/devices.uc"),
-    ),
-    (
-        "collect/interfaces.uc",
-        include_str!("../../../node-agent/collect/interfaces.uc"),
-    ),
-    (
-        "collect/system.uc",
-        include_str!("../../../node-agent/collect/system.uc"),
-    ),
-    ("exec.uc", include_str!("../../../node-agent/exec.uc")),
-    ("main.uc", include_str!("../../../node-agent/main.uc")),
-    ("ops.uc", include_str!("../../../node-agent/ops.uc")),
-    ("proto.uc", include_str!("../../../node-agent/proto.uc")),
-    ("util.uc", include_str!("../../../node-agent/util.uc")),
+const FILES: [(&str, &str); 19] = [
+    file!("bus.uc"),
+    file!("collect.uc"),
+    file!("collect/batman.uc"),
+    file!("collect/board.uc"),
+    file!("collect/capabilities.uc"),
+    file!("collect/devices.uc"),
+    file!("collect/interfaces.uc"),
+    file!("collect/leases.uc"),
+    file!("collect/neighbors.uc"),
+    file!("collect/phys.uc"),
+    file!("collect/radios.uc"),
+    file!("collect/stations.uc"),
+    file!("collect/system.uc"),
+    file!("exec.uc"),
+    file!("main.uc"),
+    file!("ops.uc"),
+    file!("proto.uc"),
+    file!("util.uc"),
+    file!("wifi.uc"),
 ];
 
 /// Installs the bundle from stdin: extracts it beside the current one, checks every file
@@ -196,9 +195,7 @@ mod tests {
         assert_eq!(version.trim(), bundle.hash());
         let sums = fs::read(dir.path().join("SHA256SUMS")).unwrap();
         assert_eq!(sha256_hex(&sums), bundle.hash());
-        assert_eq!(
-            fs::read_to_string(dir.path().join("collect/board.uc")).unwrap(),
-            FILES[2].1
-        );
+        let (path, content) = FILES[2];
+        assert_eq!(fs::read_to_string(dir.path().join(path)).unwrap(), content);
     }
 }

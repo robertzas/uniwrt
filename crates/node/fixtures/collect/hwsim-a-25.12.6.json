@@ -1,0 +1,479 @@
+{
+  "sets": {
+    "batman": {
+      "bat0": {
+        "mesh": {
+          "version": "6.12.58",
+          "algo_name": "BATMAN_IV",
+          "mesh_ifindex": 6,
+          "mesh_ifname": "bat0",
+          "mesh_address": "9a:68:19:c7:82:1f",
+          "hard_ifindex": 3,
+          "hard_ifname": "bh0",
+          "hard_address": "66:32:6b:15:fa:96",
+          "tt_ttvn": 1,
+          "bla_crc": 11519,
+          "mcast_flags": {"all_unsnoopables": true, "want_all_ipv4": true, "want_all_ipv6": true, "want_no_rtr_ipv4": false, "want_no_rtr_ipv6": false, "have_mc_ptype_capa": true, "raw": 39},
+          "mcast_flags_priv": {"bridged": true, "querier_ipv4_exists": false, "querier_ipv6_exists": false, "querier_ipv4_shadowing": false, "querier_ipv6_shadowing": false, "raw": 1},
+          "aggregated_ogms_enabled": true,
+          "ap_isolation_enabled": false,
+          "isolation_mark": 0,
+          "isolation_mask": 0,
+          "bonding_enabled": false,
+          "bridge_loop_avoidance_enabled": true,
+          "distributed_arp_table_enabled": true,
+          "fragmentation_enabled": true,
+          "gw_bandwidth_down": 100,
+          "gw_bandwidth_up": 20,
+          "gw_mode": "server",
+          "gw_sel_class": 20,
+          "hop_penalty": 30,
+          "multicast_forceflood_enabled": false,
+          "orig_interval": 1000,
+          "multicast_fanout": 16
+        },
+        "hardifs": [
+          {"mesh_ifindex": 6, "mesh_ifname": "bat0", "hard_ifindex": 3, "hard_ifname": "bh0", "hard_address": "66:32:6b:15:fa:96", "active": true, "hop_penalty": 0, "elp_interval": 500, "throughput_override": 0},
+          {"mesh_ifindex": 6, "mesh_ifname": "bat0", "hard_ifindex": 9, "hard_ifname": "phy2-mesh0", "hard_address": "42:00:00:00:01:00", "active": true, "hop_penalty": 0, "elp_interval": 500, "throughput_override": 0}
+        ],
+        "originators": [
+          {"hard_ifindex": 9, "hard_ifname": "phy2-mesh0", "orig_address": "42:00:00:00:02:00", "best": true, "last_seen_msecs": 220, "neigh_address": "42:00:00:00:02:00", "tq": 252},
+          {"hard_ifindex": 9, "hard_ifname": "phy2-mesh0", "orig_address": "46:bc:23:16:eb:f4", "last_seen_msecs": 220, "neigh_address": "42:00:00:00:02:00", "tq": 252},
+          {"hard_ifindex": 3, "hard_ifname": "bh0", "orig_address": "46:bc:23:16:eb:f4", "best": true, "last_seen_msecs": 220, "neigh_address": "46:bc:23:16:eb:f4", "tq": 253}
+        ],
+        "neighbors": [
+          {"hard_ifindex": 3, "hard_ifname": "bh0", "last_seen_msecs": 221, "neigh_address": "46:bc:23:16:eb:f4"},
+          {"hard_ifindex": 9, "hard_ifname": "phy2-mesh0", "last_seen_msecs": 221, "neigh_address": "42:00:00:00:02:00"}
+        ],
+        "gateways": [],
+        "global": [
+          {"orig_address": "46:bc:23:16:eb:f4", "tt_address": "d2:05:1b:3f:25:5c", "tt_ttvn": 1, "tt_last_ttvn": 3, "tt_crc32": 2685164906, "tt_vid": 1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": false, "new": false, "pending": false, "temp": false, "raw": 0}, "best": true},
+          {"orig_address": "46:bc:23:16:eb:f4", "tt_address": "d2:05:1b:3f:25:5c", "tt_ttvn": 1, "tt_last_ttvn": 3, "tt_crc32": 2842564165, "tt_vid": -1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": false, "new": false, "pending": false, "temp": false, "raw": 0}, "best": true},
+          {"orig_address": "46:bc:23:16:eb:f4", "tt_address": "02:00:00:00:02:00", "tt_ttvn": 2, "tt_last_ttvn": 3, "tt_crc32": 2842564165, "tt_vid": -1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": false, "new": false, "pending": false, "temp": false, "raw": 0}, "best": true},
+          {"orig_address": "46:bc:23:16:eb:f4", "tt_address": "02:00:00:00:05:00", "tt_ttvn": 3, "tt_last_ttvn": 3, "tt_crc32": 2842564165, "tt_vid": -1, "tt_flags": {"del": false, "roam": false, "wifi": true, "isolated": false, "nopurge": false, "new": false, "pending": false, "temp": false, "raw": 16}, "best": true}
+        ],
+        "local": [
+          {"tt_address": "9a:68:19:c7:82:1f", "tt_crc32": 156780892, "tt_vid": 1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": true, "new": false, "pending": false, "temp": false, "raw": 256}},
+          {"tt_address": "02:00:00:00:00:00", "tt_crc32": 1031835987, "tt_vid": -1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": false, "new": false, "pending": false, "temp": false, "raw": 0}, "last_seen_msecs": 2476},
+          {"tt_address": "9a:68:19:c7:82:1f", "tt_crc32": 1031835987, "tt_vid": -1, "tt_flags": {"del": false, "roam": false, "wifi": false, "isolated": false, "nopurge": true, "new": false, "pending": false, "temp": false, "raw": 256}}
+        ]
+      }
+    },
+    "board": {
+      "board": {
+        "kernel": "6.12.58",
+        "hostname": "83aa30050dd9",
+        "system": "Intel(R) Core(TM) CPU",
+        "model": "Container",
+        "board_name": "notebook-n960kx",
+        "release": {
+          "distribution": "OpenWrt",
+          "version": "25.12.6",
+          "firmware_url": "https://downloads.openwrt.org/",
+          "revision": "r33311-981c978eff",
+          "target": "x86/64",
+          "description": "OpenWrt 25.12.6 r33311-981c978eff",
+          "builddate": "1792273538"
+        }
+      },
+      "release": {
+        "DISTRIB_ID": "OpenWrt",
+        "DISTRIB_RELEASE": "25.12.6",
+        "DISTRIB_REVISION": "r33311-981c978eff",
+        "DISTRIB_TARGET": "x86/64",
+        "DISTRIB_ARCH": "x86_64",
+        "DISTRIB_DESCRIPTION": "OpenWrt 25.12.6 r33311-981c978eff",
+        "DISTRIB_TAINTS": ""
+      },
+      "board_json": {
+        "model": {
+          "id": "notebook-n960kx",
+          "name": "Container"
+        },
+        "network": {
+          "lan": {"device": "eth0", "protocol": "static"}
+        },
+        "wlan": {
+          "phy1": {"path": "virtual/mac80211_hwsim/hwsim0", "info": {"antenna_rx": 0, "antenna_tx": 0, "bands": {"2G": {"ht": true, "he": true, "eht": true, "max_width": 40, "modes": ["NOHT", "HT20", "HE20", "EHT20", "HT40", "HE40", "EHT40"], "default_channel": 1}, "5G": {"ht": true, "vht": true, "he": true, "eht": true, "max_width": 160, "modes": ["NOHT", "HT20", "VHT20", "HE20", "EHT20", "HT40", "VHT40", "HE40", "EHT40", "VHT80", "HE80", "EHT80", "VHT160", "HE160", "EHT160"], "default_channel": 36}, "6G": {"he": true, "eht": true, "max_width": 160, "modes": ["NOHT", "HE20", "EHT20", "HE40", "EHT40", "HE80", "EHT80", "HE160", "EHT160", "EHT320"], "default_channel": 1}}, "radios": []}},
+          "phy2": {"path": "virtual/mac80211_hwsim/hwsim1", "info": {"antenna_rx": 0, "antenna_tx": 0, "bands": {"2G": {"ht": true, "he": true, "eht": true, "max_width": 40, "modes": ["NOHT", "HT20", "HE20", "EHT20", "HT40", "HE40", "EHT40"], "default_channel": 1}, "5G": {"ht": true, "vht": true, "he": true, "eht": true, "max_width": 160, "modes": ["NOHT", "HT20", "VHT20", "HE20", "EHT20", "HT40", "VHT40", "HE40", "EHT40", "VHT80", "HE80", "EHT80", "VHT160", "HE160", "EHT160"], "default_channel": 36}, "6G": {"he": true, "eht": true, "max_width": 160, "modes": ["NOHT", "HE20", "EHT20", "HE40", "EHT40", "HE80", "EHT80", "HE160", "EHT160", "EHT320"], "default_channel": 1}}, "radios": []}}
+        }
+      }
+    },
+    "capabilities": {
+      "package_managers": [
+        "apk"
+      ],
+      "software": [
+        "batman-adv",
+        "batctl",
+        "iw",
+        "rpcd-mod-iwinfo",
+        "luci"
+      ],
+      "hostapd": [
+        "eap",
+        "11r",
+        "acs",
+        "sae",
+        "owe",
+        "wps"
+      ],
+      "wpa_supplicant": [
+        "eap",
+        "sae",
+        "owe",
+        "mesh"
+      ],
+      "swconfig": false,
+      "dsa": false
+    },
+    "devices": {
+      "sys": {
+        "bat0": {
+          "type": "1",
+          "address": "9a:68:19:c7:82:1f",
+          "mtu": "1500",
+          "flags": "0x1303",
+          "carrier": "1",
+          "speed": null,
+          "duplex": null,
+          "operstate": "unknown",
+          "uevent": "INTERFACE=bat0\nIFINDEX=6",
+          "master": "br-mesh",
+          "wireless": false,
+          "physical": false
+        },
+        "bh0": {
+          "type": "1",
+          "address": "66:32:6b:15:fa:96",
+          "mtu": "1532",
+          "flags": "0x1003",
+          "carrier": "1",
+          "speed": "10000",
+          "duplex": "full",
+          "operstate": "up",
+          "uevent": "INTERFACE=bh0\nIFINDEX=3",
+          "master": "bat0",
+          "wireless": false,
+          "physical": false
+        },
+        "br-lan": {
+          "type": "1",
+          "address": "f6:d6:ce:66:98:03",
+          "mtu": "1500",
+          "flags": "0x1003",
+          "carrier": "1",
+          "speed": "10000",
+          "duplex": "unknown",
+          "operstate": "up",
+          "uevent": "DEVTYPE=bridge\nINTERFACE=br-lan\nIFINDEX=4",
+          "master": null,
+          "wireless": false,
+          "physical": false
+        },
+        "br-mesh": {
+          "type": "1",
+          "address": "02:00:00:00:00:00",
+          "mtu": "1500",
+          "flags": "0x1003",
+          "carrier": "1",
+          "speed": "-1",
+          "duplex": "unknown",
+          "operstate": "up",
+          "uevent": "DEVTYPE=bridge\nINTERFACE=br-mesh\nIFINDEX=5",
+          "master": null,
+          "wireless": false,
+          "physical": false
+        },
+        "eth0": {
+          "type": "1",
+          "address": "f6:d6:ce:66:98:03",
+          "mtu": "1500",
+          "flags": "0x1303",
+          "carrier": "1",
+          "speed": "10000",
+          "duplex": "full",
+          "operstate": "up",
+          "uevent": "INTERFACE=eth0\nIFINDEX=2",
+          "master": "br-lan",
+          "wireless": false,
+          "physical": false
+        },
+        "lo": {
+          "type": "772",
+          "address": "00:00:00:00:00:00",
+          "mtu": "65536",
+          "flags": "0x9",
+          "carrier": "1",
+          "speed": null,
+          "duplex": null,
+          "operstate": "unknown",
+          "uevent": "INTERFACE=lo\nIFINDEX=1",
+          "master": null,
+          "wireless": false,
+          "physical": false
+        },
+        "phy1-ap0": {
+          "type": "1",
+          "address": "02:00:00:00:00:00",
+          "mtu": "1500",
+          "flags": "0x1303",
+          "carrier": "1",
+          "speed": null,
+          "duplex": null,
+          "operstate": "up",
+          "uevent": "DEVTYPE=wlan\nINTERFACE=phy1-ap0\nIFINDEX=7",
+          "master": "br-mesh",
+          "wireless": true,
+          "physical": true
+        },
+        "phy2-ap0": {
+          "type": "1",
+          "address": "02:00:00:00:01:00",
+          "mtu": "1500",
+          "flags": "0x1303",
+          "carrier": "1",
+          "speed": null,
+          "duplex": null,
+          "operstate": "up",
+          "uevent": "DEVTYPE=wlan\nINTERFACE=phy2-ap0\nIFINDEX=8",
+          "master": "br-mesh",
+          "wireless": true,
+          "physical": true
+        },
+        "phy2-mesh0": {
+          "type": "1",
+          "address": "42:00:00:00:01:00",
+          "mtu": "1500",
+          "flags": "0x1003",
+          "carrier": "1",
+          "speed": null,
+          "duplex": null,
+          "operstate": "up",
+          "uevent": "DEVTYPE=wlan\nINTERFACE=phy2-mesh0\nIFINDEX=9",
+          "master": "bat0",
+          "wireless": true,
+          "physical": true
+        }
+      },
+      "net_dev": "Inter-|   Receive                                                |  Transmit\n face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n    lo:     208       1    0    0    0     0          0         0      208       1    0    0    0     0       0          0\n  eth0:   91495     231    0    0    0     0          0         0   126250      99    0    0    0     0       0          0\n   bh0:   18305     196    0    0    0     0          0         0    15501     169    0    0    0     0       0          0\nbr-lan:   70360     158    0    0    0     0          0        74   121952      92    0    0    0     0       0          0\nbr-mesh:   12807     166    0    0    0     0          0        31    10436      79    0    1    0     0       0          0\n  bat0:    5939      68    0    0    0     0          0         0     3161      25    0   65    0     0       0          0\nphy1-ap0:    9443      99    0    0    0     0          0         0    16078     117    0    0    0     0       0          0\nphy2-ap0:       0       0    0    0    0     0          0         0     8773      71    0    0    0     0       0          0\nphy2-mesh0:   17303     234    0    0    0     0          0         0    26863     271    0    0    0     0       0          0\n"
+    },
+    "interfaces": {
+      "dump": {
+        "interface": [
+          {"interface": "bat0", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 67, "l3_device": "bat0", "proto": "batadv", "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}},
+          {"interface": "batmesh", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 63, "l3_device": "phy2-mesh0", "proto": "batadv_hardif", "device": "phy2-mesh0", "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}},
+          {"interface": "batwired", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 67, "l3_device": "bh0", "proto": "batadv_hardif", "device": "bh0", "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}},
+          {"interface": "lan", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 67, "l3_device": "br-lan", "proto": "static", "device": "br-lan", "updated": ["addresses"], "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [{"address": "172.17.0.2", "mask": 16}], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [{"address": "fd75:7b9a:5001::", "mask": 60, "local-address": {"address": "fd75:7b9a:5001::1", "mask": 60}}], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}},
+          {"interface": "loopback", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 67, "l3_device": "lo", "proto": "static", "device": "lo", "updated": ["addresses"], "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [{"address": "127.0.0.1", "mask": 8}], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}},
+          {"interface": "mesh", "up": true, "pending": false, "available": true, "autostart": true, "dynamic": false, "uptime": 67, "l3_device": "br-mesh", "proto": "static", "device": "br-mesh", "updated": ["addresses"], "metric": 0, "dns_metric": 0, "delegation": true, "ipv4-address": [{"address": "10.99.0.1", "mask": 24}], "ipv6-address": [], "ipv6-prefix": [], "ipv6-prefix-assignment": [{"address": "fd75:7b9a:5001:10::", "mask": 64, "local-address": {"address": "fd75:7b9a:5001:10::1", "mask": 64}}], "route": [], "dns-server": [], "dns-search": [], "neighbors": [], "inactive": {"ipv4-address": [], "ipv6-address": [], "route": [], "dns-server": [], "dns-search": [], "neighbors": []}, "data": {}}
+        ]
+      }
+    },
+    "leases": {
+      "now": 1793161916,
+      "dnsmasq": [
+        {
+          "file": "/tmp/dhcp.leases",
+          "data": "1793165484 02:00:00:00:05:00 10.99.0.107 lab-client ff:27:c5:90:08:00:04:4c:12:cf:fa:6a:ac:4e:16:af:62:d1:fe:a5:89:ca:49\n1793165456 02:00:00:00:04:00 10.99.0.108 * ff:6a:5c:87:6f:00:04:4c:12:cf:fa:6a:ac:4e:16:af:62:d1:fe:a5:89:ca:49\n"
+        }
+      ],
+      "odhcpd": {
+        "ipv4leases": null,
+        "ipv6leases": {
+          "device": {"br-mesh": {"leases": [{"duid": "00044c12cffa6aac4e16af62d1fea589ca49", "iaid": 1784448879, "hostname": "lab-client", "accept-reconf": true, "assigned": 2455, "flags": ["bound"], "ipv6-addr": [{"address": "fd75:7b9a:5001:10::997", "preferred-lifetime": 2642, "valid-lifetime": 3542}], "valid": 3542}]}}
+        }
+      }
+    },
+    "neighbors": {
+      "rtnl": {
+        "neigh": [
+          {"family": 2, "dev": "br-lan", "dst": "172.17.0.1", "lladdr": "1e:ef:d5:86:3e:37", "state": 2, "flags": 0},
+          {"family": 2, "dev": "br-mesh", "dst": "10.99.0.108", "lladdr": "02:00:00:00:04:00", "state": 4, "flags": 0},
+          {"family": 2, "dev": "br-mesh", "dst": "10.99.0.107", "lladdr": "02:00:00:00:05:00", "state": 2, "flags": 0},
+          {"family": 10, "dev": "br-mesh", "dst": "fe80::ff:fe00:400", "lladdr": "02:00:00:00:04:00", "state": 4, "flags": 0},
+          {"family": 10, "dev": "br-mesh", "dst": "fe80::d005:1bff:fe3f:255c", "lladdr": "02:00:00:00:02:00", "state": 2, "flags": 0},
+          {"family": 10, "dev": "br-mesh", "dst": "fe80::ff:fe00:500", "lladdr": "02:00:00:00:05:00", "state": 2, "flags": 0}
+        ],
+        "fdb": [
+          {"dev": "eth0", "master": "br-lan", "lladdr": "66:77:a0:16:08:52"},
+          {"dev": "eth0", "master": "br-lan", "lladdr": "36:4a:7b:c7:df:f3"},
+          {"dev": "eth0", "master": "br-lan", "lladdr": "1e:ef:d5:86:3e:37"},
+          {"dev": "eth0", "master": "br-lan", "lladdr": "26:a2:ba:78:12:39"},
+          {"dev": "bat0", "master": "br-mesh", "lladdr": "ba:be:46:34:be:a5"},
+          {"dev": "bat0", "master": "br-mesh", "lladdr": "d2:05:1b:3f:25:5c"},
+          {"dev": "bat0", "master": "br-mesh", "lladdr": "02:00:00:00:05:00"},
+          {"dev": "bat0", "master": "br-mesh", "lladdr": "02:00:00:00:02:00"},
+          {"dev": "bat0", "master": "br-mesh", "lladdr": "66:32:6b:15:fa:96"},
+          {"dev": "phy1-ap0", "master": "br-mesh", "lladdr": "02:00:00:00:04:00"}
+        ]
+      }
+    },
+    "phys": {
+      "wiphys": [
+        {
+          "wiphy": 1,
+          "name": "phy1",
+          "bands": [{"freqs": [{"freq": 2412, "max_tx_power": 3000}, {"freq": 2417, "max_tx_power": 3000}, {"freq": 2422, "max_tx_power": 3000}, {"freq": 2427, "max_tx_power": 3000}, {"freq": 2432, "max_tx_power": 3000}, {"freq": 2437, "max_tx_power": 3000}, {"freq": 2442, "max_tx_power": 3000}, {"freq": 2447, "max_tx_power": 3000}, {"freq": 2452, "max_tx_power": 3000}, {"freq": 2457, "max_tx_power": 3000}, {"freq": 2462, "max_tx_power": 3000}, {"freq": 2467, "max_tx_power": 2000, "disabled": true, "no_ir": true}, {"freq": 2472, "max_tx_power": 2000, "disabled": true, "no_ir": true}, {"freq": 2484, "max_tx_power": 2000, "disabled": true, "no_ir": true}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": null, "vht_mcs_set": null, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [2, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}], "eht_cap_phy": [124, 0, 0, 254, 255, 255, 127, 1, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [2, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}], "eht_cap_phy": [124, 0, 0, 254, 255, 255, 127, 1, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [2, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}]}]}, {"freqs": [{"freq": 5180, "max_tx_power": 2300}, {"freq": 5200, "max_tx_power": 2300}, {"freq": 5220, "max_tx_power": 2300}, {"freq": 5240, "max_tx_power": 2300}, {"freq": 5260, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5280, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5300, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5320, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5500, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5520, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5540, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5560, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5580, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5600, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5620, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5640, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5660, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5680, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5700, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5745, "max_tx_power": 3000}, {"freq": 5765, "max_tx_power": 3000}, {"freq": 5785, "max_tx_power": 3000}, {"freq": 5805, "max_tx_power": 3000}, {"freq": 5825, "max_tx_power": 3000}, {"freq": 5845, "max_tx_power": 2700, "no_ir": true}, {"freq": 5855, "max_tx_power": 2700, "no_ir": true}, {"freq": 5860, "max_tx_power": 2700, "no_ir": true}, {"freq": 5865, "max_tx_power": 2700, "no_ir": true}, {"freq": 5870, "max_tx_power": 2700, "no_ir": true}, {"freq": 5875, "max_tx_power": 2700, "no_ir": true}, {"freq": 5880, "max_tx_power": 2700, "no_ir": true}, {"freq": 5885, "max_tx_power": 2700, "no_ir": true}, {"freq": 5890, "max_tx_power": 0, "disabled": true}, {"freq": 5895, "max_tx_power": 0, "disabled": true}, {"freq": 5900, "max_tx_power": 0, "disabled": true}, {"freq": 5905, "max_tx_power": 0, "disabled": true}, {"freq": 5910, "max_tx_power": 0, "disabled": true}, {"freq": 5915, "max_tx_power": 0, "disabled": true}, {"freq": 5920, "max_tx_power": 0, "disabled": true}, {"freq": 5925, "max_tx_power": 0, "disabled": true}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": 58721530, "vht_mcs_set": {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 3, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 4, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 5, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 6, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 7, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 8, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}]}, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [252, 31, 63, 254, 255, 255, 127, 55, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [252, 31, 63, 254, 255, 255, 127, 55, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [28, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}]}]}, null, {"freqs": [{"freq": 5955, "max_tx_power": 1200, "no_ir": true}, {"freq": 5975, "max_tx_power": 1200, "no_ir": true}, {"freq": 5995, "max_tx_power": 1200, "no_ir": true}, {"freq": 6015, "max_tx_power": 1200, "no_ir": true}, {"freq": 6035, "max_tx_power": 1200, "no_ir": true}, {"freq": 6055, "max_tx_power": 1200, "no_ir": true}, {"freq": 6075, "max_tx_power": 1200, "no_ir": true}, {"freq": 6095, "max_tx_power": 1200, "no_ir": true}, {"freq": 6115, "max_tx_power": 1200, "no_ir": true}, {"freq": 6135, "max_tx_power": 1200, "no_ir": true}, {"freq": 6155, "max_tx_power": 1200, "no_ir": true}, {"freq": 6175, "max_tx_power": 1200, "no_ir": true}, {"freq": 6195, "max_tx_power": 1200, "no_ir": true}, {"freq": 6215, "max_tx_power": 1200, "no_ir": true}, {"freq": 6235, "max_tx_power": 1200, "no_ir": true}, {"freq": 6255, "max_tx_power": 1200, "no_ir": true}, {"freq": 6275, "max_tx_power": 1200, "no_ir": true}, {"freq": 6295, "max_tx_power": 1200, "no_ir": true}, {"freq": 6315, "max_tx_power": 1200, "no_ir": true}, {"freq": 6335, "max_tx_power": 1200, "no_ir": true}, {"freq": 6355, "max_tx_power": 1200, "no_ir": true}, {"freq": 6375, "max_tx_power": 1200, "no_ir": true}, {"freq": 6395, "max_tx_power": 1200, "no_ir": true}, {"freq": 6415, "max_tx_power": 1200, "no_ir": true}, {"freq": 6435, "max_tx_power": 1200, "no_ir": true}, {"freq": 6455, "max_tx_power": 1200, "no_ir": true}, {"freq": 6475, "max_tx_power": 1200, "no_ir": true}, {"freq": 6495, "max_tx_power": 1200, "no_ir": true}, {"freq": 6515, "max_tx_power": 1200, "no_ir": true}, {"freq": 6535, "max_tx_power": 1200, "no_ir": true}, {"freq": 6555, "max_tx_power": 1200, "no_ir": true}, {"freq": 6575, "max_tx_power": 1200, "no_ir": true}, {"freq": 6595, "max_tx_power": 1200, "no_ir": true}, {"freq": 6615, "max_tx_power": 1200, "no_ir": true}, {"freq": 6635, "max_tx_power": 1200, "no_ir": true}, {"freq": 6655, "max_tx_power": 1200, "no_ir": true}, {"freq": 6675, "max_tx_power": 1200, "no_ir": true}, {"freq": 6695, "max_tx_power": 1200, "no_ir": true}, {"freq": 6715, "max_tx_power": 1200, "no_ir": true}, {"freq": 6735, "max_tx_power": 1200, "no_ir": true}, {"freq": 6755, "max_tx_power": 1200, "no_ir": true}, {"freq": 6775, "max_tx_power": 1200, "no_ir": true}, {"freq": 6795, "max_tx_power": 1200, "no_ir": true}, {"freq": 6815, "max_tx_power": 1200, "no_ir": true}, {"freq": 6835, "max_tx_power": 1200, "no_ir": true}, {"freq": 6855, "max_tx_power": 1200, "no_ir": true}, {"freq": 6875, "max_tx_power": 1200, "no_ir": true}, {"freq": 6895, "max_tx_power": 1200, "no_ir": true}, {"freq": 6915, "max_tx_power": 1200, "no_ir": true}, {"freq": 6935, "max_tx_power": 1200, "no_ir": true}, {"freq": 6955, "max_tx_power": 1200, "no_ir": true}, {"freq": 6975, "max_tx_power": 1200, "no_ir": true}, {"freq": 6995, "max_tx_power": 1200, "no_ir": true}, {"freq": 7015, "max_tx_power": 1200, "no_ir": true}, {"freq": 7035, "max_tx_power": 1200, "no_ir": true}, {"freq": 7055, "max_tx_power": 1200, "no_ir": true}, {"freq": 7075, "max_tx_power": 1200, "no_ir": true}, {"freq": 7095, "max_tx_power": 1200, "no_ir": true}, {"freq": 7115, "max_tx_power": 1200, "no_ir": true}], "ht_capa": null, "ht_mcs_set": null, "vht_capa": null, "vht_mcs_set": null, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [254, 255, 255, 254, 255, 255, 255, 127, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [254, 255, 255, 254, 255, 255, 255, 127, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [28, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [2, 0, 0, 0, 0, 0, 0, 0, 0]}]}, {"freqs": [{"freq": 902, "max_tx_power": 3000}, {"freq": 903, "max_tx_power": 3000}, {"freq": 904, "max_tx_power": 3000}, {"freq": 905, "max_tx_power": 3000}, {"freq": 906, "max_tx_power": 3000}, {"freq": 907, "max_tx_power": 3000}, {"freq": 908, "max_tx_power": 3000}, {"freq": 909, "max_tx_power": 3000}, {"freq": 910, "max_tx_power": 3000}, {"freq": 911, "max_tx_power": 3000}, {"freq": 912, "max_tx_power": 3000}, {"freq": 913, "max_tx_power": 3000}, {"freq": 914, "max_tx_power": 3000}, {"freq": 915, "max_tx_power": 3000}, {"freq": 916, "max_tx_power": 3000}, {"freq": 917, "max_tx_power": 3000}, {"freq": 918, "max_tx_power": 3000}, {"freq": 919, "max_tx_power": 3000}, {"freq": 920, "max_tx_power": 3000}, {"freq": 921, "max_tx_power": 3000}, {"freq": 922, "max_tx_power": 3000}, {"freq": 923, "max_tx_power": 3000}, {"freq": 924, "max_tx_power": 3000}, {"freq": 925, "max_tx_power": 3000}, {"freq": 926, "max_tx_power": 3000}, {"freq": 927, "max_tx_power": 3000}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": null, "vht_mcs_set": null, "iftype_data": []}]
+        },
+        {
+          "wiphy": 2,
+          "name": "phy2",
+          "bands": [{"freqs": [{"freq": 2412, "max_tx_power": 3000}, {"freq": 2417, "max_tx_power": 3000}, {"freq": 2422, "max_tx_power": 3000}, {"freq": 2427, "max_tx_power": 3000}, {"freq": 2432, "max_tx_power": 3000}, {"freq": 2437, "max_tx_power": 3000}, {"freq": 2442, "max_tx_power": 3000}, {"freq": 2447, "max_tx_power": 3000}, {"freq": 2452, "max_tx_power": 3000}, {"freq": 2457, "max_tx_power": 3000}, {"freq": 2462, "max_tx_power": 3000}, {"freq": 2467, "max_tx_power": 2000, "disabled": true, "no_ir": true}, {"freq": 2472, "max_tx_power": 2000, "disabled": true, "no_ir": true}, {"freq": 2484, "max_tx_power": 2000, "disabled": true, "no_ir": true}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": null, "vht_mcs_set": null, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [2, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}], "eht_cap_phy": [124, 0, 0, 254, 255, 255, 127, 1, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [2, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}], "eht_cap_phy": [124, 0, 0, 254, 255, 255, 127, 1, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [2, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}]}]}, {"freqs": [{"freq": 5180, "max_tx_power": 2300}, {"freq": 5200, "max_tx_power": 2300}, {"freq": 5220, "max_tx_power": 2300}, {"freq": 5240, "max_tx_power": 2300}, {"freq": 5260, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5280, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5300, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5320, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5500, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5520, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5540, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5560, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5580, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5600, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5620, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5640, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5660, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5680, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5700, "max_tx_power": 2400, "radar": true, "dfs_state": 0}, {"freq": 5745, "max_tx_power": 3000}, {"freq": 5765, "max_tx_power": 3000}, {"freq": 5785, "max_tx_power": 3000}, {"freq": 5805, "max_tx_power": 3000}, {"freq": 5825, "max_tx_power": 3000}, {"freq": 5845, "max_tx_power": 2700, "no_ir": true}, {"freq": 5855, "max_tx_power": 2700, "no_ir": true}, {"freq": 5860, "max_tx_power": 2700, "no_ir": true}, {"freq": 5865, "max_tx_power": 2700, "no_ir": true}, {"freq": 5870, "max_tx_power": 2700, "no_ir": true}, {"freq": 5875, "max_tx_power": 2700, "no_ir": true}, {"freq": 5880, "max_tx_power": 2700, "no_ir": true}, {"freq": 5885, "max_tx_power": 2700, "no_ir": true}, {"freq": 5890, "max_tx_power": 0, "disabled": true}, {"freq": 5895, "max_tx_power": 0, "disabled": true}, {"freq": 5900, "max_tx_power": 0, "disabled": true}, {"freq": 5905, "max_tx_power": 0, "disabled": true}, {"freq": 5910, "max_tx_power": 0, "disabled": true}, {"freq": 5915, "max_tx_power": 0, "disabled": true}, {"freq": 5920, "max_tx_power": 0, "disabled": true}, {"freq": 5925, "max_tx_power": 0, "disabled": true}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": 58721530, "vht_mcs_set": {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 3, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 4, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 5, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 6, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 7, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}, {"streams": 8, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}]}, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [252, 31, 63, 254, 255, 255, 127, 55, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [252, 31, 63, 254, 255, 255, 127, 55, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [28, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}]}]}, null, {"freqs": [{"freq": 5955, "max_tx_power": 1200, "no_ir": true}, {"freq": 5975, "max_tx_power": 1200, "no_ir": true}, {"freq": 5995, "max_tx_power": 1200, "no_ir": true}, {"freq": 6015, "max_tx_power": 1200, "no_ir": true}, {"freq": 6035, "max_tx_power": 1200, "no_ir": true}, {"freq": 6055, "max_tx_power": 1200, "no_ir": true}, {"freq": 6075, "max_tx_power": 1200, "no_ir": true}, {"freq": 6095, "max_tx_power": 1200, "no_ir": true}, {"freq": 6115, "max_tx_power": 1200, "no_ir": true}, {"freq": 6135, "max_tx_power": 1200, "no_ir": true}, {"freq": 6155, "max_tx_power": 1200, "no_ir": true}, {"freq": 6175, "max_tx_power": 1200, "no_ir": true}, {"freq": 6195, "max_tx_power": 1200, "no_ir": true}, {"freq": 6215, "max_tx_power": 1200, "no_ir": true}, {"freq": 6235, "max_tx_power": 1200, "no_ir": true}, {"freq": 6255, "max_tx_power": 1200, "no_ir": true}, {"freq": 6275, "max_tx_power": 1200, "no_ir": true}, {"freq": 6295, "max_tx_power": 1200, "no_ir": true}, {"freq": 6315, "max_tx_power": 1200, "no_ir": true}, {"freq": 6335, "max_tx_power": 1200, "no_ir": true}, {"freq": 6355, "max_tx_power": 1200, "no_ir": true}, {"freq": 6375, "max_tx_power": 1200, "no_ir": true}, {"freq": 6395, "max_tx_power": 1200, "no_ir": true}, {"freq": 6415, "max_tx_power": 1200, "no_ir": true}, {"freq": 6435, "max_tx_power": 1200, "no_ir": true}, {"freq": 6455, "max_tx_power": 1200, "no_ir": true}, {"freq": 6475, "max_tx_power": 1200, "no_ir": true}, {"freq": 6495, "max_tx_power": 1200, "no_ir": true}, {"freq": 6515, "max_tx_power": 1200, "no_ir": true}, {"freq": 6535, "max_tx_power": 1200, "no_ir": true}, {"freq": 6555, "max_tx_power": 1200, "no_ir": true}, {"freq": 6575, "max_tx_power": 1200, "no_ir": true}, {"freq": 6595, "max_tx_power": 1200, "no_ir": true}, {"freq": 6615, "max_tx_power": 1200, "no_ir": true}, {"freq": 6635, "max_tx_power": 1200, "no_ir": true}, {"freq": 6655, "max_tx_power": 1200, "no_ir": true}, {"freq": 6675, "max_tx_power": 1200, "no_ir": true}, {"freq": 6695, "max_tx_power": 1200, "no_ir": true}, {"freq": 6715, "max_tx_power": 1200, "no_ir": true}, {"freq": 6735, "max_tx_power": 1200, "no_ir": true}, {"freq": 6755, "max_tx_power": 1200, "no_ir": true}, {"freq": 6775, "max_tx_power": 1200, "no_ir": true}, {"freq": 6795, "max_tx_power": 1200, "no_ir": true}, {"freq": 6815, "max_tx_power": 1200, "no_ir": true}, {"freq": 6835, "max_tx_power": 1200, "no_ir": true}, {"freq": 6855, "max_tx_power": 1200, "no_ir": true}, {"freq": 6875, "max_tx_power": 1200, "no_ir": true}, {"freq": 6895, "max_tx_power": 1200, "no_ir": true}, {"freq": 6915, "max_tx_power": 1200, "no_ir": true}, {"freq": 6935, "max_tx_power": 1200, "no_ir": true}, {"freq": 6955, "max_tx_power": 1200, "no_ir": true}, {"freq": 6975, "max_tx_power": 1200, "no_ir": true}, {"freq": 6995, "max_tx_power": 1200, "no_ir": true}, {"freq": 7015, "max_tx_power": 1200, "no_ir": true}, {"freq": 7035, "max_tx_power": 1200, "no_ir": true}, {"freq": 7055, "max_tx_power": 1200, "no_ir": true}, {"freq": 7075, "max_tx_power": 1200, "no_ir": true}, {"freq": 7095, "max_tx_power": 1200, "no_ir": true}, {"freq": 7115, "max_tx_power": 1200, "no_ir": true}], "ht_capa": null, "ht_mcs_set": null, "vht_capa": null, "vht_mcs_set": null, "iftype_data": [{"iftypes": {"managed": true, "p2p_client": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [254, 255, 255, 254, 255, 255, 255, 127, 0]}, {"iftypes": {"ap": true, "p2p_go": true}, "he_cap_phy": [28, 191, 206, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [254, 255, 255, 254, 255, 255, 255, 127, 0]}, {"iftypes": {"mesh_point": true}, "he_cap_phy": [28, 191, 0, 0, 0, 0, 0, 0, 0, 0, 0], "he_cap_mcs_set": [{"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 80}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 160}, {"rx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "tx_mcs_set": [{"streams": 1, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}, {"streams": 2, "mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}], "bandwidth": 8080}], "eht_cap_phy": [2, 0, 0, 0, 0, 0, 0, 0, 0]}]}, {"freqs": [{"freq": 902, "max_tx_power": 3000}, {"freq": 903, "max_tx_power": 3000}, {"freq": 904, "max_tx_power": 3000}, {"freq": 905, "max_tx_power": 3000}, {"freq": 906, "max_tx_power": 3000}, {"freq": 907, "max_tx_power": 3000}, {"freq": 908, "max_tx_power": 3000}, {"freq": 909, "max_tx_power": 3000}, {"freq": 910, "max_tx_power": 3000}, {"freq": 911, "max_tx_power": 3000}, {"freq": 912, "max_tx_power": 3000}, {"freq": 913, "max_tx_power": 3000}, {"freq": 914, "max_tx_power": 3000}, {"freq": 915, "max_tx_power": 3000}, {"freq": 916, "max_tx_power": 3000}, {"freq": 917, "max_tx_power": 3000}, {"freq": 918, "max_tx_power": 3000}, {"freq": 919, "max_tx_power": 3000}, {"freq": 920, "max_tx_power": 3000}, {"freq": 921, "max_tx_power": 3000}, {"freq": 922, "max_tx_power": 3000}, {"freq": 923, "max_tx_power": 3000}, {"freq": 924, "max_tx_power": 3000}, {"freq": 925, "max_tx_power": 3000}, {"freq": 926, "max_tx_power": 3000}, {"freq": 927, "max_tx_power": 3000}], "ht_capa": 5118, "ht_mcs_set": {"rx_mcs_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, "vht_capa": null, "vht_mcs_set": null, "iftype_data": []}]
+        }
+      ]
+    },
+    "radios": {
+      "wireless": {
+        "radio0": {
+          "up": true,
+          "pending": false,
+          "disabled": false,
+          "config": {"band": "2g", "channel": "1", "htmode": "HE20", "country": "US", "path": "virtual/mac80211_hwsim/hwsim0"},
+          "interfaces": [{"section": "default_radio0", "ifname": "phy1-ap0", "config": {"mode": "ap", "ssid": "uniwrt-lab", "encryption": "sae-mixed", "network": ["mesh"]}}]
+        },
+        "radio1": {
+          "up": true,
+          "pending": false,
+          "disabled": false,
+          "config": {"band": "5g", "channel": "36", "htmode": "HE80", "country": "US", "path": "virtual/mac80211_hwsim/hwsim1"},
+          "interfaces": [{"section": "default_radio1", "ifname": "phy2-ap0", "config": {"mode": "ap", "ssid": "uniwrt-lab", "encryption": "sae-mixed", "network": ["mesh"]}}, {"section": "mesh_radio1", "ifname": "phy2-mesh0", "config": {"mode": "mesh", "mesh_id": "uniwrt-lab-mesh", "encryption": "sae", "network": ["batmesh"]}}]
+        }
+      },
+      "phys": [
+        {
+          "name": "phy1",
+          "index": 1,
+          "device": "/sys/devices/virtual/mac80211_hwsim/hwsim0"
+        },
+        {
+          "name": "phy2",
+          "index": 2,
+          "device": "/sys/devices/virtual/mac80211_hwsim/hwsim1"
+        }
+      ],
+      "interfaces": [
+        {
+          "ifname": "phy2-mesh0",
+          "wiphy": 2,
+          "iftype": 7,
+          "mac": "42:00:00:00:01:00",
+          "wiphy_freq": 5180,
+          "channel_width": 3,
+          "center_freq1": 5210,
+          "wiphy_tx_power_level": 2300
+        },
+        {
+          "ifname": "phy2-ap0",
+          "wiphy": 2,
+          "iftype": 3,
+          "mac": "02:00:00:00:01:00",
+          "ssid": "uniwrt-lab",
+          "wiphy_freq": 5180,
+          "channel_width": 3,
+          "center_freq1": 5210,
+          "wiphy_tx_power_level": 2300
+        },
+        {
+          "ifname": "phy1-ap0",
+          "wiphy": 1,
+          "iftype": 3,
+          "mac": "02:00:00:00:00:00",
+          "ssid": "uniwrt-lab",
+          "wiphy_freq": 2412,
+          "channel_width": 1,
+          "center_freq1": 2412,
+          "wiphy_tx_power_level": 3000
+        }
+      ],
+      "surveys": {
+        "phy2": {
+          "frequency": 5180,
+          "noise": -92,
+          "time": 63,
+          "busy": 7,
+          "busy_percent": null
+        },
+        "phy1": {
+          "frequency": 2412,
+          "noise": -92,
+          "time": 0,
+          "busy": 0,
+          "busy_percent": null
+        }
+      }
+    },
+    "stations": {
+      "stations": {
+        "phy2-mesh0": [
+          {"mac": "42:00:00:00:02:00", "info": {"inactive_time": 95, "connected_time": 54, "signal": -27, "signal_avg": -27, "tx_bitrate": {"bitrate": 130, "bitrate32": 130, "vht_mcs": 1, "vht_nss": 1}, "rx_bytes": 144280, "tx_bytes": 860, "rx_bytes64": 144280, "tx_bytes64": 860, "rx_packets": 1305, "tx_packets": 5, "tx_retries": 0, "tx_failed": 0, "expected_throughput": 11576, "sta_flags": [254, 186], "plink_state": 4, "rx_duration": 0, "tx_duration": 0}}
+        ],
+        "phy2-ap0": [],
+        "phy1-ap0": [
+          {"mac": "02:00:00:00:04:00", "info": {"inactive_time": 2993, "connected_time": 65, "signal": -20, "signal_avg": -20, "rx_bitrate": {"bitrate": 65, "bitrate32": 65, "mcs": 0}, "tx_bitrate": {"bitrate": 1444, "bitrate32": 1444, "mcs": 15, "short_gi": true}, "rx_bytes": 13375, "tx_bytes": 5524, "rx_bytes64": 13375, "tx_bytes64": 5524, "rx_packets": 108, "tx_packets": 34, "tx_retries": 0, "tx_failed": 0, "expected_throughput": 48281, "sta_flags": [254, 190], "rx_duration": 0, "tx_duration": 0}}
+        ]
+      },
+      "clients": {
+        "phy2-ap0": {},
+        "phy1-ap0": {
+          "02:00:00:00:04:00": {"authorized": true, "wmm": true, "ht": true, "vht": false, "he": true, "mfp": true, "rrm": [112, 0, 0, 0, 0], "extended_capabilities": [4, 0, 74, 2, 1, 64, 0, 64, 0, 1]}
+        }
+      }
+    },
+    "system": {
+      "info": {
+        "localtime": 1793161916,
+        "uptime": 30278,
+        "load": [
+          48192,
+          43520,
+          41344
+        ],
+        "memory": {
+          "total": 33437077504,
+          "free": 5780889600,
+          "shared": 815276032,
+          "buffered": 32768,
+          "available": 25093812224,
+          "cached": 19499601920
+        },
+        "root": {
+          "total": 1996103988,
+          "free": 878329088,
+          "used": 1117774900,
+          "avail": 873793580
+        },
+        "tmp": {
+          "total": 1996103988,
+          "free": 878329088,
+          "used": 1117774900,
+          "avail": 873793580
+        },
+        "swap": {
+          "total": 50155483136,
+          "free": 48713596928
+        }
+      },
+      "clock": [
+        1793161916,
+        57095691
+      ],
+      "cpu_percent": null,
+      "thermal": [
+        {
+          "type": "acpitz",
+          "temp": 55000
+        },
+        {
+          "type": "iwlwifi_1",
+          "temp": 58000
+        },
+        {
+          "type": "x86_pkg_temp",
+          "temp": 61000
+        }
+      ]
+    }
+  },
+  "errors": {}
+}

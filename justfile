@@ -47,6 +47,10 @@ test-dropbear *images:
 test-agent *images:
     @scripts/test-agent.sh {{ images }}
 
+# The Wi-Fi and mesh tests in the hwsim lab (needs Docker; loads mac80211_hwsim and batman-adv)
+test-wifi *args:
+    @scripts/wifi-lab.sh test {{ args }}
+
 # Format Rust and web code in place
 fmt:
     cargo fmt --all

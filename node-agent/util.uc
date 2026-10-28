@@ -1,5 +1,5 @@
-// Small readers shared by the agent's modules: files, sysfs attributes, shell-variable files and
-// clocks.
+// Small helpers shared by the agent's modules: readers of files, sysfs attributes and
+// shell-variable files, `pick`, and clocks.
 
 import * as fs from "fs";
 
@@ -38,6 +38,17 @@ function shvars(path) {
 	return vars;
 }
 
+// A copy of `obj` with only the `names` it has, or null when it is not an object.
+function pick(obj, names) {
+	if (type(obj) != "object")
+		return null;
+	let out = {};
+	for (let name in names)
+		if (obj[name] != null)
+			out[name] = obj[name];
+	return out;
+}
+
 // The wall clock in Unix milliseconds.
 function now_ms() {
 	let t = clock();
@@ -50,4 +61,4 @@ function mono_ms() {
 	return t[0] * 1000 + int(t[1] / 1000000);
 }
 
-export { read, readjson, shvars, now_ms, mono_ms };
+export { read, readjson, shvars, pick, now_ms, mono_ms };
