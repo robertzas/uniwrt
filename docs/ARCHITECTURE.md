@@ -79,10 +79,12 @@ Rules:
 
 **Transport.** A russh client with an ed25519 controller key. The node's host key is pinned at adoption: `probe` reads it, the user confirms the fingerprint, and every connection checks the pin (D-032). Keepalive every 15 s, and 3 unanswered ones end the session; on disconnect, reconnect with jittered exponential backoff (1 s → 60 s). One connection per node carries multiplexed channels: the agent, ad-hoc exec, uploads and the browser terminal. Each channel is drained by its own task, so a slow reader cannot stall the others. Commands are argv arrays, quoted for the node's shell.
 
-**Bootstrap on every connection:**
-1. Run `cat /tmp/uniwrt/VERSION`. If the output doesn't match the embedded bundle hash, stream the bundle through stdin (`mkdir -p /tmp/uniwrt && cd /tmp/uniwrt && tar xzf -`) and verify it with `sha256sum`. Nothing depends on sftp or scp.
-2. Open a long-lived channel running `ucode /tmp/uniwrt/agent.uc`.
-3. The agent's first line is `{"hello":{"proto":1,"agent":"<hash>","release":"25.12.x","caps":{...}}}`.
+**Bootstrap on every connection** (`crates/node/src/bundle.rs`):
+1. Run `cat /tmp/uniwrt/agent/VERSION`. If it isn't the embedded bundle's hash (the SHA-256 of its SHA256SUMS), stream the bundle, an uncompressed tar, through stdin into a fixed install script. The script makes `/tmp/uniwrt` root's and private, takes a `flock`, extracts into `.new`, checks every file with `sha256sum -c` and swaps the result in. Nothing depends on sftp or scp.
+2. Open a long-lived channel running `ucode /tmp/uniwrt/agent/main.uc`.
+3. The agent's first line is `{"hello":{"proto":1,"agent":"<hash>","release":"25.12.6","caps":{"events":true,"ops":[…],"sets":[…]}}}`. A hash other than the bundle's fails the start.
+
+**Agent runtime (D-034).** With ucode-mod-uloop (in 25.12 images, and in Wi-Fi images since 23.05 through hostapd), a forked reader task feeds requests into an event loop, and each command runs in a task of its own. Without it, requests are served one at a time and the agent pushes no events. A command's output goes to files under `/tmp/uniwrt/run`, never to the agent's stdout. Collect sets return raw sources (ubus replies, sysfs text, `/proc` files), and the `node` crate parses them into `model::facts`.
 
 **Messages** are newline-delimited JSON:
 
@@ -99,8 +101,8 @@ Rules:
 {"tick":{"system":{}}}
 ```
 
-- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (argv array with a timeout), `read_file`, `subscribe`/`unsubscribe`, `log_follow`, `set_interval`, `txn` (delegates to the transaction tool).
-- **Source of truth:** `crates/node/src/proto.rs`, mirrored by `node-agent/proto.uc`. The `proto` integer bumps on breaking changes; the controller supports the current version and the previous one.
+- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3b); `txn`, which delegates to the transaction tool (M3). Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
+- **Source of truth:** `crates/node/src/proto.rs` and `proto/ops.rs`, mirrored by `node-agent/proto.uc` and `ops.uc`. The `proto` integer bumps on breaking changes; the controller supports the current version and the previous one.
 - **Jump hosts:** a `direct-tcpip` channel through an adopted node reaches isolated segments, such as the adoption port described in features/adoption.md.
 
 **Node footprint:**

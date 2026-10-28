@@ -31,7 +31,7 @@ for image in "${images[@]}"; do
   port=$(docker port "$container" 22/tcp | head -n1 | sed 's/.*://')
   # dropbear drops a client's sixth concurrent unauthenticated connection (MAX_UNAUTH_PER_IP),
   # and every test connects from the Docker gateway's address.
-  UNIWRT_DROPBEAR="127.0.0.1:$port" UNIWRT_DROPBEAR_PASSWORD="$password" \
+  UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" \
     cargo nextest run --locked -p uniwrt-node --test dropbear --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
   docker rm -f "$container" >/dev/null

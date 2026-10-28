@@ -29,7 +29,7 @@ pub struct InterfaceFacts {
     pub errors: Vec<String>,
 }
 
-/// A kernel network device (`network.device` status): the layer-2 view.
+/// A kernel network device (sysfs and `/proc/net/dev`): the layer-2 view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceFacts {
     pub name: String,

@@ -13,8 +13,8 @@ use support::{LONG, TestServer, server_with_key};
 use tokio::sync::watch;
 use uniwrt_core::SystemClock;
 use uniwrt_node::{
-    AgentEvent, AgentState, ControllerKey, Credential, Error, ExecRequest, LinkConfig, LinkState,
-    NodeLink as _, RetryConfig, SshLink,
+    AgentEvent, AgentLaunch, AgentState, ControllerKey, Credential, Error, ExecRequest, LinkConfig,
+    LinkState, NodeLink as _, RetryConfig, SshLink,
 };
 
 fn config(server: &TestServer, key: &ControllerKey, agent: Option<&[&str]>) -> LinkConfig {
@@ -23,7 +23,8 @@ fn config(server: &TestServer, key: &ControllerKey, agent: Option<&[&str]>) -> L
         server.host_key(),
         Credential::Key(key.clone()),
     );
-    config.agent = agent.map(|argv| argv.iter().map(|&arg| arg.to_owned()).collect());
+    config.agent =
+        agent.map(|argv| AgentLaunch::Command(argv.iter().map(|&arg| arg.to_owned()).collect()));
     config.retry = RetryConfig {
         min: Duration::from_millis(20),
         max: Duration::from_millis(100),

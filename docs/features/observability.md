@@ -16,10 +16,11 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 - 2 s for entities currently open in the UI (driven by subscriptions).
 - Push events go out immediately: association, disassociation and roams; link up/down; DHCP leases; DFS; netifd ifup/ifdown.
 
-**Collectors** (one small module each, in `node-agent/collect/`):
+**Collectors** (one small module each, in `node-agent/collect/`, parsed by `crates/node/src/facts/`). The first five ship with M1.3; the rest come with M1.3b and later:
 - system: uptime, load, memory, CPU %, temperature, flash
 - board and release
-- interfaces and devices: counters, carrier, link speed
+- capabilities: package manager, optional software, hostapd and wpa_supplicant build features, switch kind
+- interfaces (netifd) and devices (sysfs): addresses, gateways, counters, carrier, link speed
 - radios: channel, width, tx power, noise, survey
 - stations per BSS: MAC, signal, SNR, rx/tx rate, MCS/NSS/width, airtime, inactivity, capabilities
 - DHCP leases (gateway), ARP/NDP neighbors, bridge FDB

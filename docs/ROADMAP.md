@@ -39,11 +39,14 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
   - `node` crate: russh client; a controller ed25519 key (generated and kept in a vault stub); TOFU host-key pinning; a `NodeLink` trait (call/exec/stream/upload/events); a connection actor with keepalive and jittered backoff; jump hosts through `direct-tcpip`.
   - Tests against an in-process russh server, plus dropbear in an OpenWrt rootfs container (CI job).
   - Also done here (D-032): the agent envelope in `proto.rs` (requests, answers, events, ticks, hello, the protocol range) and the RPC multiplexer, which `NodeLink::call` needs.
-- [ ] **M1.3 node-agent v0** (L) → M1.2
-  - ucode agent: hello/caps; collect sets (system, board, interfaces, radios, stations, DHCP leases, neighbors, batman); `ubus` calls; `exec` with argv; subscriptions (hostapd, netifd); log follow. JSON lines: the ops and their arguments join the envelope in `proto.rs` (M1.2), mirrored in `proto.uc`; the agent exits when its stdin closes.
-  - Upload-by-hash bootstrap into `/tmp/uniwrt`; parsing into `model::facts`, tested with fixtures captured from real outputs (sanitized, from the owner's nodes).
-  - Agent tests run in OpenWrt rootfs containers (24.10 and 25.12) where possible.
-- [ ] **M1.4 engine** (M) → M1.3
+- [x] **M1.3 node-agent v0: core, bootstrap, system facts** (L) → M1.2
+  - A ucode agent with two loop modes (D-034): hello and caps, `ping`, `collect` (sets board, system, capabilities, interfaces, devices), `ubus`, `exec` (argv, timeout, bounded output), `read_file`. The ops are typed in `proto/ops.rs` and mirrored in `proto.uc`/`ops.uc`; the agent exits when its stdin closes.
+  - Upload-by-hash bootstrap into `/tmp/uniwrt/agent`; parsing into `model::facts`, tested with fixtures captured from rootfs containers and with the canonical gateway.
+  - Agent tests in OpenWrt rootfs containers booted with procd (24.10 and 25.12; the CI job `agent`).
+- [ ] **M1.3b node-agent: wireless, clients and streams** (L) → M1.3 (split from M1.3)
+  - Collect sets radios, stations, DHCP leases, neighbors and batman, with their model types and parsers (iwinfo and hostapd over ubus, nl80211 where present). Fixtures follow the specs until the owner's nodes are captured (sanitized).
+  - Under the event loop: subscriptions (hostapd, netifd), log follow and `set_interval` ticks. The synchronous mode answers them `unsupported`, and the engine polls instead.
+- [ ] **M1.4 engine** (M) → M1.3b
   - A NodeActor per node, the live state store, the event bus, subscription-driven adaptive intervals, snapshot persistence, and node status (online/degraded/offline) with reasons.
 - [ ] **M1.5 Simulator + demo mode** (M) → M1.4
   - `sim` crate implementing `NodeLink`: a gateway, 3 APs and about 30 clients, with roaming, signal drift, events and logs. Deterministic seed. `uniwrt serve --demo`.

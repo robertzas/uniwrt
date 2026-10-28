@@ -1,0 +1,253 @@
+{
+ "sets": {
+  "board": {
+   "board": {
+    "kernel": "6.12.58",
+    "hostname": "OpenWrt",
+    "system": "Intel(R) Core(TM) CPU",
+    "model": "Container",
+    "board_name": "container",
+    "release": {
+     "distribution": "OpenWrt",
+     "version": "25.12.6",
+     "firmware_url": "https://downloads.openwrt.org/",
+     "revision": "r33311-981c978eff",
+     "target": "x86/64",
+     "description": "OpenWrt 25.12.6 r33311-981c978eff",
+     "builddate": "1792273538"
+    }
+   },
+   "release": {
+    "DISTRIB_ID": "OpenWrt",
+    "DISTRIB_RELEASE": "25.12.6",
+    "DISTRIB_REVISION": "r33311-981c978eff",
+    "DISTRIB_TARGET": "x86/64",
+    "DISTRIB_ARCH": "x86_64",
+    "DISTRIB_DESCRIPTION": "OpenWrt 25.12.6 r33311-981c978eff",
+    "DISTRIB_TAINTS": ""
+   },
+   "board_json": {
+    "model": {
+     "id": "container",
+     "name": "Container"
+    },
+    "network": {
+     "lan": {
+      "device": "eth0",
+      "protocol": "static"
+     }
+    }
+   }
+  },
+  "capabilities": {
+   "package_managers": [
+    "apk"
+   ],
+   "software": [
+    "rpcd-mod-iwinfo",
+    "luci"
+   ],
+   "hostapd": null,
+   "wpa_supplicant": null,
+   "swconfig": false,
+   "dsa": false
+  },
+  "devices": {
+   "sys": {
+    "br-lan": {
+     "type": "1",
+     "address": "8a:4a:94:5d:3f:f7",
+     "mtu": "1500",
+     "flags": "0x1003",
+     "carrier": "1",
+     "speed": "10000",
+     "duplex": "unknown",
+     "operstate": "up",
+     "uevent": "DEVTYPE=bridge\nINTERFACE=br-lan\nIFINDEX=3",
+     "master": null,
+     "wireless": false,
+     "physical": false
+    },
+    "eth0": {
+     "type": "1",
+     "address": "8a:4a:94:5d:3f:f7",
+     "mtu": "1500",
+     "flags": "0x1303",
+     "carrier": "1",
+     "speed": "10000",
+     "duplex": "full",
+     "operstate": "up",
+     "uevent": "INTERFACE=eth0\nIFINDEX=2",
+     "master": "br-lan",
+     "wireless": false,
+     "physical": false
+    },
+    "lo": {
+     "type": "772",
+     "address": "00:00:00:00:00:00",
+     "mtu": "65536",
+     "flags": "0x9",
+     "carrier": "1",
+     "speed": null,
+     "duplex": null,
+     "operstate": "unknown",
+     "uevent": "INTERFACE=lo\nIFINDEX=1",
+     "master": null,
+     "wireless": false,
+     "physical": false
+    }
+   },
+   "net_dev": "Inter-|   Receive                                                |  Transmit\n face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n    lo:     544       2    0    0    0     0          0         0      544       2    0    0    0     0       0          0\n  eth0:   18725     117    0    0    0     0          0         0     6826      27    0    0    0     0       0          0\nbr-lan:    6701      60    0    0    0     0          0        57     2528      20    0    0    0     0       0          0\n"
+  },
+  "interfaces": {
+   "dump": {
+    "interface": [
+     {
+      "interface": "lan",
+      "up": true,
+      "pending": false,
+      "available": true,
+      "autostart": true,
+      "dynamic": false,
+      "uptime": 29,
+      "l3_device": "br-lan",
+      "proto": "static",
+      "device": "br-lan",
+      "updated": [
+       "addresses"
+      ],
+      "metric": 0,
+      "dns_metric": 0,
+      "delegation": true,
+      "ipv4-address": [
+       {
+        "address": "192.168.1.1",
+        "mask": 24
+       }
+      ],
+      "ipv6-address": [],
+      "ipv6-prefix": [],
+      "ipv6-prefix-assignment": [
+       {
+        "address": "fd8d:da64:fa0c::",
+        "mask": 60,
+        "local-address": {
+         "address": "fd8d:da64:fa0c::1",
+         "mask": 60
+        }
+       }
+      ],
+      "route": [],
+      "dns-server": [],
+      "dns-search": [],
+      "neighbors": [],
+      "inactive": {
+       "ipv4-address": [],
+       "ipv6-address": [],
+       "route": [],
+       "dns-server": [],
+       "dns-search": [],
+       "neighbors": []
+      },
+      "data": {}
+     },
+     {
+      "interface": "loopback",
+      "up": true,
+      "pending": false,
+      "available": true,
+      "autostart": true,
+      "dynamic": false,
+      "uptime": 29,
+      "l3_device": "lo",
+      "proto": "static",
+      "device": "lo",
+      "updated": [
+       "addresses"
+      ],
+      "metric": 0,
+      "dns_metric": 0,
+      "delegation": true,
+      "ipv4-address": [
+       {
+        "address": "127.0.0.1",
+        "mask": 8
+       }
+      ],
+      "ipv6-address": [],
+      "ipv6-prefix": [],
+      "ipv6-prefix-assignment": [],
+      "route": [],
+      "dns-server": [],
+      "dns-search": [],
+      "neighbors": [],
+      "inactive": {
+       "ipv4-address": [],
+       "ipv6-address": [],
+       "route": [],
+       "dns-server": [],
+       "dns-search": [],
+       "neighbors": []
+      },
+      "data": {}
+     }
+    ]
+   }
+  },
+  "system": {
+   "info": {
+    "localtime": 1793155723,
+    "uptime": 24086,
+    "load": [
+     25184,
+     29696,
+     32672
+    ],
+    "memory": {
+     "total": 33437077504,
+     "free": 9849524224,
+     "shared": 919150592,
+     "buffered": 40960,
+     "available": 25304641536,
+     "cached": 15817211904
+    },
+    "root": {
+     "total": 1996103988,
+     "free": 882172740,
+     "used": 1113931248,
+     "avail": 877524752
+    },
+    "tmp": {
+     "total": 1996103988,
+     "free": 882172740,
+     "used": 1113931248,
+     "avail": 877524752
+    },
+    "swap": {
+     "total": 50155483136,
+     "free": 48702128128
+    }
+   },
+   "clock": [
+    1793155723,
+    793673839
+   ],
+   "cpu_percent": 2.2459893048128,
+   "thermal": [
+    {
+     "type": "acpitz",
+     "temp": 54000
+    },
+    {
+     "type": "iwlwifi_1",
+     "temp": 59000
+    },
+    {
+     "type": "x86_pkg_temp",
+     "temp": 53000
+    }
+   ]
+  }
+ },
+ "errors": {}
+}

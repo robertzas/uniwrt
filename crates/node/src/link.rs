@@ -9,9 +9,9 @@ use tokio::sync::{broadcast, watch};
 use uniwrt_core::Timestamp;
 
 use crate::{
-    HostKey, Result,
+    Error, HostKey, Result,
     exec::{ExecOutput, ExecRequest, ExecStream},
-    proto::{AgentEvent, Hello},
+    proto::{AgentEvent, Hello, ops::Op},
 };
 
 /// One node's connection. Every operation fails fast while the node is unreachable; nothing
@@ -24,6 +24,22 @@ pub trait NodeLink: Send + Sync + 'static {
         args: &RawValue,
         timeout: Duration,
     ) -> impl Future<Output = Result<Box<RawValue>>> + Send;
+
+    /// Sends a typed request ([`proto::ops`](crate::proto::ops)) and decodes its answer; an
+    /// answer of the wrong shape is [`Error::Protocol`].
+    fn request<O: Op>(
+        &self,
+        op: &O,
+        timeout: Duration,
+    ) -> impl Future<Output = Result<O::Output>> + Send {
+        async move {
+            let args = serde_json::value::to_raw_value(op)
+                .map_err(|err| Error::Protocol(format!("cannot encode {}: {err}", O::NAME)))?;
+            let answer = self.call(O::NAME, &args, timeout).await?;
+            serde_json::from_str(answer.get())
+                .map_err(|err| Error::Protocol(format!("unexpected answer to {}: {err}", O::NAME)))
+        }
+    }
 
     /// Runs a command to completion.
     fn exec(&self, request: ExecRequest) -> impl Future<Output = Result<ExecOutput>> + Send;

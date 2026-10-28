@@ -19,7 +19,7 @@ use tracing::{debug, info, warn};
 use uniwrt_core::Clock;
 
 use crate::{
-    Agent, Credential, Error, HostKey, Result, Session, SshConfig, Target,
+    Agent, Bundle, Credential, Error, HostKey, Result, Session, SshConfig, Target,
     agent::HELLO_TIMEOUT,
     backoff::{Backoff, random_seed},
     exec::{ExecOutput, ExecRequest, ExecStream},
@@ -40,8 +40,8 @@ pub struct LinkConfig {
     pub host_key: HostKey,
     pub credential: Credential,
     pub ssh: SshConfig,
-    /// The agent's argv, started on every connection. None runs no agent: commands only.
-    pub agent: Option<Vec<String>>,
+    /// The agent, started on every connection. None runs no agent: commands only.
+    pub agent: Option<AgentLaunch>,
     pub retry: RetryConfig,
 }
 
@@ -57,6 +57,16 @@ impl LinkConfig {
             retry: RetryConfig::default(),
         }
     }
+}
+
+/// How a link starts its agent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AgentLaunch {
+    /// Installs the embedded [`Bundle`] when the node lacks it, runs it, and checks that its
+    /// hello reports the bundle's hash.
+    Bundle,
+    /// Runs this argv as it is: tests, or an agent installed by other means.
+    Command(Vec<String>),
 }
 
 /// Reconnect and agent restart timing (ARCHITECTURE.md, Node protocol).
@@ -310,7 +320,7 @@ async fn stay_up(
         };
     }
 
-    let Some(argv) = &config.agent else {
+    let Some(launch) = &config.agent else {
         core.set_state(up(AgentState::None));
         let never: Infallible = or_end!(std::future::pending());
         match never {}
@@ -320,7 +330,7 @@ async fn stay_up(
         core.set_state(up(AgentState::Starting));
         let started = or_end!(start_agent(
             session,
-            argv,
+            launch,
             &core.events,
             config.retry.hello_timeout
         ));
@@ -350,12 +360,28 @@ async fn stay_up(
 
 async fn start_agent(
     session: &Session,
-    argv: &[String],
+    launch: &AgentLaunch,
     events: &broadcast::Sender<AgentEvent>,
     hello_timeout: Duration,
 ) -> Result<Agent> {
-    let stream = session.stream(argv).await?;
-    Agent::start(stream, events.clone(), hello_timeout).await
+    let bundle = Bundle::get();
+    let argv = match launch {
+        AgentLaunch::Bundle => {
+            bundle.ensure(session).await?;
+            bundle.argv()
+        }
+        AgentLaunch::Command(argv) => argv.clone(),
+    };
+    let stream = session.stream(&argv).await?;
+    let agent = Agent::start(stream, events.clone(), hello_timeout).await?;
+    if *launch == AgentLaunch::Bundle && agent.hello().agent != bundle.hash() {
+        return Err(Error::Protocol(format!(
+            "the node runs agent {}, not {}",
+            agent.hello().agent,
+            bundle.hash()
+        )));
+    }
+    Ok(agent)
 }
 
 /// Resolves once the link is told to stop (or its last handle is gone).

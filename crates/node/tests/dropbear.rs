@@ -1,21 +1,24 @@
 //! The transport against dropbear on real OpenWrt (TESTING.md, Transport). Ignored by default:
 //! `just test-dropbear` starts an OpenWrt rootfs container per release and runs these against
-//! it, with `UNIWRT_DROPBEAR=<host:port>` and `UNIWRT_DROPBEAR_PASSWORD=<root password>`.
+//! it, with `UNIWRT_NODE=<host:port>` and `UNIWRT_NODE_PASSWORD=<root password>`.
 
 // Test code throughout: clippy.toml allows unwrap in tests, but not in their helpers.
 #![allow(clippy::unwrap_used)]
 
-use std::{env, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use serde_json::{json, value::to_raw_value};
 use uniwrt_core::SystemClock;
 use uniwrt_node::{
-    AUTHORIZED_KEY_COMMENT, AgentState, ControllerKey, Credential, Error, ExecRequest, ExitStatus,
+    AUTHORIZED_KEY_COMMENT, AgentLaunch, AgentState, Credential, Error, ExecRequest, ExitStatus,
     HostKey, LinkConfig, LinkState, NodeLink as _, Output, Session, SshConfig, SshLink, Target,
     probe,
 };
-use zeroize::Zeroizing;
+
+mod openwrt;
+
+use openwrt::{adopt, run};
 
 const LONG: Duration = Duration::from_secs(10);
 
@@ -30,60 +33,6 @@ for (let line = stdin.read("line"); length(line); line = stdin.read("line")) {
 	stdout.flush();
 }
 "#;
-
-struct Node {
-    target: Target,
-    host_key: HostKey,
-    key: ControllerKey,
-}
-
-/// Adopts the container as the adoption wizard will (M1.7): read the host key (the user would
-/// confirm it), log in with the root password, install the controller key, and log in with it.
-async fn adopt() -> (Session, Node) {
-    let address = env::var("UNIWRT_DROPBEAR").expect("UNIWRT_DROPBEAR=<host:port>");
-    let (host, port) = address.rsplit_once(':').unwrap();
-    let target = Target::new(host, port.parse().unwrap());
-    let config = SshConfig::default();
-    let host_key = probe(&target, None, &config).await.unwrap();
-    assert_eq!(host_key.algorithm(), "ssh-ed25519");
-
-    let password = env::var("UNIWRT_DROPBEAR_PASSWORD").unwrap();
-    let password = Credential::Password(Zeroizing::new(password));
-    let session = Session::connect(&target, None, &host_key, &password, &config)
-        .await
-        .unwrap();
-    let key = ControllerKey::generate().unwrap();
-    let install = r#"umask 077 && printf '%s\n' "$1" >>/etc/dropbear/authorized_keys"#;
-    let line = key.authorized_key().unwrap();
-    session
-        .exec(&ExecRequest::new(["sh", "-c", install, "sh", &line]))
-        .await
-        .unwrap()
-        .check("installing the key")
-        .unwrap();
-
-    let credential = Credential::Key(key.clone());
-    let session = Session::connect(&target, None, &host_key, &credential, &config)
-        .await
-        .unwrap();
-    (
-        session,
-        Node {
-            target,
-            host_key,
-            key,
-        },
-    )
-}
-
-async fn run(session: &Session, argv: &[&str]) -> String {
-    let output = session
-        .exec(&ExecRequest::new(argv.iter().copied()))
-        .await
-        .unwrap();
-    let output = output.check(argv[0]).unwrap();
-    String::from_utf8(output.stdout).unwrap()
-}
 
 #[tokio::test]
 #[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
@@ -249,7 +198,11 @@ async fn dropbear_answers_keepalives_so_idle_sessions_stay_up() {
 async fn a_link_runs_a_ucode_agent() {
     let (_, node) = adopt().await;
     let mut config = LinkConfig::new(node.target, node.host_key, Credential::Key(node.key));
-    config.agent = Some(vec!["ucode".into(), "-e".into(), ECHO_AGENT.into()]);
+    config.agent = Some(AgentLaunch::Command(vec![
+        "ucode".into(),
+        "-e".into(),
+        ECHO_AGENT.into(),
+    ]));
     let link = SshLink::spawn(config, Arc::new(SystemClock));
     let mut state = link.state();
     let up = tokio::time::timeout(LONG, async {

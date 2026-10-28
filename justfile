@@ -43,6 +43,10 @@ test:
 test-dropbear *images:
     @scripts/test-dropbear.sh {{ images }}
 
+# The node agent tests in OpenWrt rootfs containers booted with procd (needs Docker)
+test-agent *images:
+    @scripts/test-agent.sh {{ images }}
+
 # Format Rust and web code in place
 fmt:
     cargo fmt --all

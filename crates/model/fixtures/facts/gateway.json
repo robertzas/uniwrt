@@ -54,6 +54,20 @@
       "errors": []
     },
     {
+      "name": "loopback",
+      "proto": "static",
+      "up": true,
+      "device": "lo",
+      "uptime_s": 863995,
+      "ipv4": ["127.0.0.1/8"],
+      "ipv6": [],
+      "delegated_prefixes": [],
+      "ipv4_gateway": null,
+      "ipv6_gateway": null,
+      "dns_servers": [],
+      "errors": []
+    },
+    {
       "name": "wan",
       "proto": "dhcp",
       "up": true,
@@ -94,6 +108,18 @@
       "full_duplex": null,
       "master": null,
       "counters": { "rx_bytes": 3120494592, "tx_bytes": 41286311936, "rx_packets": 9512338, "tx_packets": 31876210, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 112, "tx_dropped": 0 }
+    },
+    {
+      "name": "lo",
+      "kind": "loopback",
+      "mac": null,
+      "mtu": 65536,
+      "up": true,
+      "carrier": true,
+      "speed_mbps": null,
+      "full_duplex": null,
+      "master": null,
+      "counters": { "rx_bytes": 81920, "tx_bytes": 81920, "rx_packets": 1200, "tx_packets": 1200, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0 }
     },
     {
       "name": "lan1",

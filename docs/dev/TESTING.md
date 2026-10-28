@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | Unit | Pure crates (uci, render, model, rf, topo, isp) | cargo nextest, proptest | `crates/*/src` | every commit |
 | Golden | Rendered UCI per role × feature × capability set | insta snapshots | `crates/render/tests` | every commit |
-| Agent | ucode collectors, transaction/rollback, protocol | OpenWrt rootfs containers (real ucode/uci; ubus where it can run) | `node-agent/tests` | every commit (M1.3+) |
+| Agent | The bundle's install, the ops in both loop modes, collect sets parsed into facts; transactions and rollback from M3 | OpenWrt rootfs containers booted with procd, so ubus, netifd, logd and dropbear are real; NET_ADMIN lets netifd configure the container (`just test-agent`, the CI job `agent`) | `crates/node/tests/agent.rs` | every commit |
 | Transport | SSH exec/stream/upload/jump, links (reconnect, quarantine, agent restarts) | an in-process russh server on loopback that runs commands with the local `sh`; dropbear in OpenWrt rootfs containers (`just test-dropbear`, the CI job `transport`) | `crates/node/tests` | every commit |
 | Engine/API | Telemetry ingest, jobs, routes | sim fleet, axum test client | `crates/*/tests` | every commit |
 | UI | Components with logic, stores | Vitest + Testing Library | `web/src/**/*.test.tsx` | every commit |
@@ -17,6 +17,7 @@
 
 - Real OpenWrt configs and agent outputs, collected per device family and OpenWrt version under `testdata/openwrt/<version>/<device>/`.
 - They are collected from the owner's nodes in observe mode (with consent) and anonymized by a script that rewrites MACs, SSIDs, keys and public IPs.
+- Agent output lives in `crates/node/fixtures/collect/*.json`: collect answers captured from the rootfs containers (sanitized: the host's model, CPU and kernel), and `gateway.json`, the raw output behind the canonical model fixture. Parsing `gateway.json` must give exactly that fixture's board, system, capabilities, interfaces and devices. To capture, mount `node-agent/` (with a `VERSION` file) at `/tmp/uniwrt/agent` in a container booted with procd, and pipe requests into `docker exec -i <container> ucode /tmp/uniwrt/agent/main.uc`.
 - Canonical model fixtures, written from the specs, live in `crates/model/fixtures/facts/*.json`. Each must round-trip through `NodeFacts` without losing a field, and they double as wire-format examples for the simulator and the UI.
 
 ## Rules

@@ -150,6 +150,25 @@ jobs:
       - name: Dropbear on OpenWrt 24.10 and 25.12
         run: scripts/test-dropbear.sh
 
+  # The node agent on OpenWrt booted with procd, in rootfs containers (TESTING.md, Agent).
+  agent:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install && rustc --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148 # keep in line with `just setup`
+      - name: The agent on OpenWrt 24.10 and 25.12
+        run: scripts/test-agent.sh
+
   build:
     name: build (${{ matrix.target }})
     needs: [version, web]
@@ -233,7 +252,7 @@ jobs:
           retention-days: 7
 
   image:
-    needs: [version, rust, transport, build]
+    needs: [version, rust, transport, agent, build]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20

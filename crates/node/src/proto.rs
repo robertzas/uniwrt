@@ -1,7 +1,7 @@
 //! The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in
 //! each direction. The controller sends requests; the agent answers each by its id and pushes
-//! events and ticks unasked. Its first line is a [`Hello`]. The ops and their arguments arrive
-//! with the agent (M1.3), and `node-agent/proto.uc` mirrors this file.
+//! events and ticks unasked. Its first line is a [`Hello`]. The ops, their arguments and results
+//! are in [`ops`]; `node-agent/proto.uc` and `node-agent/ops.uc` mirror both files.
 //!
 //! ```jsonc
 //! {"id":7,"op":"collect","args":{"sets":["system"]}}           // controller → agent
@@ -9,6 +9,8 @@
 //! {"ev":"hostapd.assoc","ts":1761091200123,"data":{…}}           // an event
 //! {"tick":{"system":{…}}}                                        // periodic collection
 //! ```
+
+pub mod ops;
 
 use std::{ops::RangeInclusive, sync::Arc};
 
@@ -41,9 +43,28 @@ pub struct Hello {
     /// The OpenWrt release, such as `25.12.6`.
     #[serde(default)]
     pub release: Option<String>,
-    /// What the node can do; typed with the agent (M1.3).
     #[serde(default)]
-    pub caps: serde_json::Value,
+    pub caps: AgentCaps,
+}
+
+/// What the running agent can do.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentCaps {
+    /// The agent runs an event loop (ucode-mod-uloop): it serves requests concurrently and can
+    /// push events and ticks. Without one, it serves requests one at a time.
+    pub events: bool,
+    /// The ops it serves.
+    pub ops: Vec<String>,
+    /// The collect sets it knows. Strings, so a newer agent's sets don't break an older
+    /// controller.
+    pub sets: Vec<String>,
+}
+
+impl AgentCaps {
+    pub fn has_set(&self, set: ops::Set) -> bool {
+        self.sets.iter().any(|name| name == set.as_str())
+    }
 }
 
 /// An error answer: `{"code":"timeout","msg":"…"}`.
@@ -93,7 +114,10 @@ struct Line {
 
 impl Message {
     pub(crate) fn parse(line: &[u8]) -> Result<Self, String> {
-        let line: Line = serde_json::from_slice(line).map_err(|err| err.to_string())?;
+        // ucode passes the bytes of command output and files through unchanged, so a string may
+        // hold invalid UTF-8; such bytes become U+FFFD rather than costing the whole line.
+        let line = String::from_utf8_lossy(line);
+        let line: Line = serde_json::from_str(&line).map_err(|err| err.to_string())?;
         Ok(match line {
             Line {
                 hello: Some(hello), ..
@@ -140,7 +164,7 @@ mod tests {
     use serde_json::value::RawValue;
     use uniwrt_core::Timestamp;
 
-    use super::{AgentEvent, Message, PROTO, Request, SUPPORTED};
+    use super::{AgentCaps, AgentEvent, Message, PROTO, Request, SUPPORTED, ops::Set};
 
     #[test]
     fn requests_serialize_as_one_compact_object() {
@@ -162,13 +186,20 @@ mod tests {
         let parse = |line: &str| Message::parse(line.as_bytes()).unwrap();
 
         let Message::Hello(hello) = parse(
-            r#"{"hello":{"proto":1,"agent":"ab12","release":"25.12.6","caps":{"ubus":true}}}"#,
+            r#"{"hello":{"proto":1,"agent":"ab12","release":"25.12.6","caps":{"events":true,"sets":["system"],"later":1}}}"#,
         ) else {
             panic!("hello");
         };
         assert_eq!((hello.proto, hello.agent.as_str()), (1, "ab12"));
         assert_eq!(hello.release.as_deref(), Some("25.12.6"));
-        assert_eq!(hello.caps["ubus"], true);
+        assert!(hello.caps.events);
+        assert!(hello.caps.has_set(Set::System));
+        assert!(!hello.caps.has_set(Set::Board));
+        // An agent without caps serves requests one at a time.
+        let Message::Hello(hello) = parse(r#"{"hello":{"proto":1,"agent":"old"}}"#) else {
+            panic!("hello without caps");
+        };
+        assert_eq!(hello.caps, AgentCaps::default());
 
         let Message::Answer {
             id: 7,
@@ -208,6 +239,20 @@ mod tests {
             panic!("tick");
         };
         assert_eq!(tick.get(), r#"{"system":{}}"#);
+    }
+
+    #[test]
+    fn invalid_utf8_in_strings_is_replaced_not_fatal() {
+        // ucode 25.12 prints a command's raw bytes inside JSON strings.
+        let line = b"{\"id\":1,\"ok\":{\"stdout\":\"a\x80\xffb\"}}";
+        let Message::Answer {
+            id: 1,
+            result: Ok(ok),
+        } = Message::parse(line).unwrap()
+        else {
+            panic!("answer");
+        };
+        assert_eq!(ok.get(), "{\"stdout\":\"a\u{fffd}\u{fffd}b\"}");
     }
 
     #[test]

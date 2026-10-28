@@ -34,27 +34,39 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 
 ### `uniwrt-node` (crates/node)
 
-The node transport: SSH to OpenWrt nodes (russh), the agent protocol's envelope, and the [`NodeLink`] trait through which the engine talks to a node.
+The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, its embedded bundle and the parsers of what it collects), and the [`NodeLink`] trait through which the engine talks to a node.
 
 - `src/agent.rs`: The agent's RPC multiplexer: requests go to the agent's stdin with an id, and answers, events and ticks come back on its stdout (see [`proto`](crate::proto)).
 - `src/agent/tests.rs`: The multiplexer against an in-memory fake agent.
 - `src/backoff.rs`: Jittered exponential backoff for reconnects (ARCHITECTURE.md, Node protocol: 1 s doubling to 60 s).
+- `src/bundle.rs`: The agent bundle: `node-agent/` embedded in the binary, and the bootstrap that installs it on a node by hash (ARCHITECTURE.md, Node protocol).
+- `src/bundle/tar.rs`: A minimal ustar writer: directories and regular files with a fixed owner, mode and time, so the same files always make the same bytes.
 - `src/error.rs`: Errors of the node transport.
 - `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 - `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
+- `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC).
+- `src/facts/capabilities.rs`: The `capabilities` set: binaries and modules found on the node, the build features that hostapd and `wpa_supplicant` report (`-v<feature>`), and how the switch is driven.
+- `src/facts/devices.rs`: The `devices` set: sysfs attributes of each device in /sys/class/net (text, as read) and the counters of /proc/net/dev.
+- `src/facts/interfaces.rs`: The `interfaces` set: `network.interface dump`.
+- `src/facts/mod.rs`: Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw sources that `node-agent/collect/<set>.uc` gathers.
+- `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
+- `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
 - `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
 - `src/key.rs`: The controller's SSH identity: one ed25519 key that every adopted node trusts.
-- `src/lib.rs`: The node transport: SSH to OpenWrt nodes (russh), the agent protocol's envelope, and the [`NodeLink`] trait through which the engine talks to a node.
+- `src/lib.rs`: The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, its embedded bundle and the parsers of what it collects), and the [`NodeLink`] trait through which the engine talks to a node.
 - `src/lines.rs`: Splits a byte stream into lines, bounded in length so a broken peer cannot exhaust memory.
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
+- `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/shell.rs`: Argv to a command line for the node's shell.
 - `src/ssh/channel.rs`: Commands on session channels.
 - `src/ssh/client.rs`: The russh client handler: checks the host key against the pin and reports why a session ended.
 - `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
 - `src/supervisor.rs`: [`SshLink`]: one node's connection, kept up by a task that reconnects with jittered backoff and restarts the agent, and that serves [`NodeLink`] from whatever session is current.
+- `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, and collect sets parsed into facts.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
+- `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`): adopting the node at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD`.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 
@@ -102,6 +114,23 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/writer.rs`: The writer: one thread owns the only write connection and commits queued operations in batches.
 
+## Node agent (`node-agent`)
+
+ucode modules, embedded in the binary and installed on nodes by hash (`crates/node/src/bundle.rs`). The entry point is `main.uc`.
+
+- `bus.uc`: ubus calls on one shared connection, with errors mapped to the protocol's codes.
+- `collect.uc`: The collect sets: each gathers the raw sources of one part of the node's facts, which crates/node/src/facts parses.
+- `collect/board.uc`: The `board` set: what the node is (`system board`, the release file and board.json).
+- `collect/capabilities.uc`: The `capabilities` set: features detected on the node, never inferred from its version: the package manager, optional software, what hostapd and wpa_supplicant were built with, and how the switch is driven.
+- `collect/devices.uc`: The `devices` set: every kernel network device, from sysfs, with the counters of /proc/net/dev.
+- `collect/interfaces.uc`: The `interfaces` set: netifd's logical interfaces (`network.interface dump`).
+- `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
+- `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
+- `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
+- `ops.uc`: The agent's operations (`proto::ops`).
+- `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
+- `util.uc`: Small readers shared by the agent's modules: files, sysfs attributes, shell-variable files and clocks.
+
 ## Web UI (`web/src`)
 
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
@@ -120,4 +149,5 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
+- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
