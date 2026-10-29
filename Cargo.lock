@@ -2356,6 +2356,8 @@ dependencies = [
  "tracing-subscriber",
  "ts-rs",
  "uniwrt-core",
+ "uniwrt-engine",
+ "uniwrt-model",
  "uniwrt-node",
  "uniwrt-store",
  "zeroize",
@@ -2370,6 +2372,22 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "uniwrt-engine"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-node",
+ "uniwrt-store",
+ "zeroize",
 ]
 
 [[package]]

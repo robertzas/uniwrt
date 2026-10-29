@@ -1,11 +1,12 @@
 //! What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node
 //! protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus
-//! notifications. They carry no node or time: the engine stamps them as they arrive.
+//! notifications. They carry no node or time: the engine stamps them as they arrive. A
+//! [`Roam`] is what the engine infers from them across nodes.
 
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
-use uniwrt_core::MacAddr;
+use uniwrt_core::{MacAddr, NodeId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -104,6 +105,26 @@ pub enum LeaseChange {
     Acked,
     /// Given back by the client.
     Released,
+}
+
+/// A Wi-Fi client moving from one access point to another, on the same node or another one:
+/// it was authorized at `to` while it was still connected at `from`, or shortly after leaving
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Roam {
+    pub mac: MacAddr,
+    pub from: Attachment,
+    pub to: Attachment,
+    /// How it authenticated at `to`; `ft` is an 802.11r fast transition.
+    pub auth_alg: Option<String>,
+}
+
+/// An access point of a node: the interface a client is connected to.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Attachment {
+    pub node: NodeId,
+    /// Such as `phy1-ap0`.
+    pub iface: String,
 }
 
 #[cfg(test)]

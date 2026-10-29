@@ -41,7 +41,7 @@ flowchart TB
 ## Process structure (one binary)
 
 - **HTTP server** (axum): REST under `/api/v1`, a WebSocket at `/api/v1/ws`, the embedded UI and the ZTP endpoints.
-- **Engine:** one **NodeActor** (tokio task) per node. It owns the node's SSH link, agent session, live facts and command queue, and is supervised with backoff.
+- **Engine:** one **NodeActor** (tokio task) per node. It follows the node's link and agent, keeps its live facts and status, sends its telemetry requests one at a time, and is restarted with backoff if it panics (D-037).
 - **Event bus:** tokio broadcast of typed `Event`s. Consumers are the WS hub, the metrics writer, the alert engine and the store.
 - **Job runner:** persisted state machines (adopt, apply, upgrade, rf-apply, backup) that resume after a restart. A per-node lock allows only one job per node at a time.
 - **Store:** SQLite in WAL mode, with one batched writer task and a read pool.
@@ -155,6 +155,7 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 | An apply breaks connectivity | The node rolls back itself when the dead-man timer expires. The job is marked failed and the node stays locked until it is reachable again. |
 | Node reboots mid-transaction | The boot guard restores the snapshot. |
 | Host key changes | The node is quarantined and an alert is raised; an admin must re-trust it. |
+| Telemetry stops while the link is up | After three of its fastest intervals (at least 30 s) the node is degraded, and the engine asks the agent for its pushes again (D-037). |
 | ucode is too old or modules are missing | Degraded mode: basic collection through exec, and the UI shows the reason. |
 | Clock skew | Node and controller timestamps are both kept. NTP on nodes is managed. |
 

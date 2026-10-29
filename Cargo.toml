@@ -12,6 +12,7 @@ publish = false
 
 [workspace.dependencies]
 uniwrt-core = { path = "crates/core" }
+uniwrt-engine = { path = "crates/engine" }
 uniwrt-model = { path = "crates/model" }
 uniwrt-node = { path = "crates/node" }
 uniwrt-store = { path = "crates/store" }

@@ -13,6 +13,7 @@
 mod build_info;
 mod cli;
 mod controller_key;
+mod fleet;
 mod healthcheck;
 mod http;
 mod logging;

@@ -9,12 +9,14 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 - WebSocket topics (deltas to the UI)
 - the batched metrics writer
 - the event and alert evaluators
-- periodic snapshots to SQLite
+- snapshots to SQLite: each node's latest facts, every 5 min when they changed and at shutdown (D-037)
 
-**Intervals:**
-- 15 s base.
-- 2 s for entities currently open in the UI (driven by subscriptions).
-- Push events go out immediately (D-036): hostapd's association steps and disassociations, netifd's interface and device changes (links up and down), and DHCP acks and releases. The engine infers roams from a station leaving one AP and joining another. hostapd's DFS radar notifications are forwarded but not parsed yet.
+**Intervals** (D-037; `Intervals` in `crates/engine/src/schedule.rs`):
+- 15 s base for system, devices, interfaces, radios and stations; 30 s for neighbors and batman; 60 s for leases; 1 h for capabilities and phys; board only when the agent starts.
+- 2 s for system, devices, radios and stations, and 10 s for batman, while the UI has the node open (`Engine::focus`, driven by subscriptions).
+- Push events go out immediately (D-036): hostapd's association steps and disassociations, netifd's interface and device changes (links up and down), and DHCP acks and releases. The engine collects the set an event touches again 500 ms later (the events in that time share one collect), and infers roams: a station authorized at another AP while it is still connected to the first, or within 15 s of leaving it. hostapd's DFS radar notifications are forwarded but not parsed yet.
+- An agent without an event loop is polled on the same intervals.
+- Telemetry that stays away for three of its fastest intervals (at least 30 s) makes the node degraded, and the engine asks the agent for its pushes again.
 
 **Collectors** (one small module each, in `node-agent/collect/`, parsed by `crates/node/src/facts/`). The first five shipped with M1.3, phys through batman with M1.3b (D-035); the rest come later:
 - system: uptime, load, memory, CPU %, temperature, flash

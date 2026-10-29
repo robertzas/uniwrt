@@ -3,7 +3,8 @@
 //!
 //! Shutdown is graceful: stop accepting, let in-flight requests finish for up to `DRAIN_TIMEOUT`
 //! (inside Docker's default 10 s stop grace period), then close what is left. A second signal
-//! closes everything at once. The database closes last, after committing queued writes.
+//! closes everything at once. Then the engine stops and saves the nodes' last facts, and the
+//! database closes last, after committing queued writes.
 
 use std::{future::IntoFuture as _, io, path::Path, sync::Arc, time::Duration};
 
@@ -15,14 +16,16 @@ use tokio::{
     sync::{Notify, mpsc},
 };
 use tracing::{info, warn};
-use uniwrt_core::SystemClock;
+use uniwrt_core::{Clock, SystemClock};
 use uniwrt_node::ControllerKey;
 use uniwrt_store::Store;
 
 use crate::{
     build_info,
     cli::ServeArgs,
-    controller_key, http, logging,
+    controller_key,
+    fleet::Fleet,
+    http, logging,
     ui::{self, Source},
 };
 
@@ -48,17 +51,21 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .with_context(|| format!("cannot create the data directory {}", data_dir.display()))?;
     // Registered before binding, so an early signal is not lost.
     let stop = forward_signals().context("cannot install signal handlers")?;
-    let store = Store::open(data_dir.join(DATABASE), Arc::new(SystemClock))
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let store = Store::open(data_dir.join(DATABASE), Arc::clone(&clock))
         .await
         .context("cannot open the database")?;
     let served = async {
-        // Nodes trust this key; the engine (M1.4) connects with it.
+        // Nodes trust this key; the engine connects with it.
         let controller_key = controller_key::load_or_generate(&store).await?;
         let listener = TcpListener::bind(args.http_listen)
             .await
             .with_context(|| format!("cannot listen on {}", args.http_listen))?;
         log_start(&listener, &data_dir, &controller_key)?;
-        serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await?;
+        let fleet = Fleet::start(&store, &controller_key, clock).await?;
+        let served = serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await;
+        fleet.stop().await;
+        served?;
         anyhow::Ok(())
     }
     .await;

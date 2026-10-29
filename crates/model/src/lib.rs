@@ -6,7 +6,9 @@
 //!   and the pinned SSH host key ([`node::HostKeyPin`]).
 //!   [`wifi`] is the Wi-Fi vocabulary shared by facts and, later, desired state (`SiteConfig`).
 //!   [`event`] is what nodes report as it happens ([`event::NodeEvent`]: stations joining and
-//!   leaving, devices and interfaces changing, DHCP leases), and [`log`] their log entries.
+//!   leaving, devices and interfaces changing, DHCP leases) plus the roams the engine infers from
+//!   them ([`event::Roam`]), and [`log`] their log entries. [`status`] is a node's status as the
+//!   engine derives it ([`status::NodeStatus`]: online, degraded or offline, with reasons).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -23,4 +25,5 @@ pub mod event;
 pub mod facts;
 pub mod log;
 pub mod node;
+pub mod status;
 pub mod wifi;

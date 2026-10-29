@@ -18,6 +18,27 @@ Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and t
 - `src/mac.rs`: MAC addresses (EUI-48): lenient parsing, canonical formatting and the address bits that matter.
 - `src/time.rs`: Timestamps: Unix milliseconds in UTC, with saturating arithmetic and RFC 3339 display.
 
+### `uniwrt-engine` (crates/engine)
+
+The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
+
+- `src/actor/jobs.rs`: The requests an actor sends its agent, one at a time so a node that serves requests one at a time is never asked twice at once: a queue of [`Job`]s, the one running, and its [`Outcome`].
+- `src/actor/mod.rs`: [`NodeActor`]: one task per node.
+- `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats.
+- `src/actor/tests.rs`: Actors over a scripted link, on tokio's paused clock: what they ask the agent, and what they announce.
+- `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
+- `src/config.rs`: The engine's settings.
+- `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
+- `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
+- `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
+- `src/live.rs`: The live state: what the engine knows about each node now.
+- `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
+- `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
+- `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
+- `src/status.rs`: A node's status (`model::status`) from its link's state and the health of its telemetry.
+- `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
+- `tests/agent.rs`: The engine watching real OpenWrt (TESTING.md, Agent): an actor over an SSH link to the agent, in both loop modes.
+
 ### `uniwrt-model` (crates/model)
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
@@ -36,6 +57,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
 - `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
+- `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
 
 ### `uniwrt-node` (crates/node)
@@ -103,6 +125,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, and the snapshot writer.
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/http/mod.rs`: The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share.
@@ -181,7 +204,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
-- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs against it.
+- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs and crates/engine/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
 - `scripts/wifi-lab/a/setup.uci`: (no header comment)

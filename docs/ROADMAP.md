@@ -50,8 +50,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
   - Under the event loop (D-036): `subscribe`/`unsubscribe` (the topics hostapd, netifd and dhcp over ubus, a subscriber per object, re-subscribing as objects appear), `log_follow` (logd polled by id by default, or `logread -f` streamed) and `set_interval` ticks. The synchronous mode answers them `unsupported`, and the engine polls instead.
   - `node::events` parses the pushes into ticks, `model::event`s (stations, devices, interfaces, leases) and `model::log` entries, tested against a lab capture (`fixtures/events/`).
   - Tested in the agent containers (ticks, both log modes, netifd) and the hwsim lab (a kicked client, its lease, a radio restart).
-- [ ] **M1.4 engine** (M) → M1.3c
-  - A NodeActor per node, the live state store, the event bus, subscription-driven adaptive intervals, snapshot persistence, and node status (online/degraded/offline) with reasons.
+- [x] **M1.4 engine** (M) → M1.3c
+  - A NodeActor per node, the live state store, the event bus, subscription-driven adaptive intervals, snapshot persistence, and node status (online/degraded/offline) with reasons (D-037).
+  - Pushed events refresh the sets they touch; roams are inferred across nodes; logs are followed on demand. `serve` watches the adopted nodes over SSH links. Tested over a scripted link on tokio's paused clock, and against the agent containers in both loop modes.
 - [ ] **M1.5 Simulator + demo mode** (M) → M1.4
   - `sim` crate implementing `NodeLink`: a gateway, 3 APs and about 30 clients, with roaming, signal drift, events and logs. Deterministic seed. `uniwrt serve --demo`.
 - [ ] **M1.6 API foundation, auth, TLS** (M) → M1.4
