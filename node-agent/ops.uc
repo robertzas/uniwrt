@@ -1,11 +1,16 @@
 // The agent's operations (`proto::ops`). Each answers once, through `done(result)` or
 // `done(null, code, msg)`: at once, or later for a command run in a task of the event loop.
+// The streams (subscriptions, log following, ticks) need the event loop; without it they
+// answer `unsupported` and the controller polls instead.
 
 import * as fs from "fs";
 import * as bus from "./bus.uc";
 import * as exec from "./exec.uc";
-import { SETS } from "./collect.uc";
-import { BAD_REQUEST, NOT_FOUND, FAILED } from "./proto.uc";
+import * as logs from "./logs.uc";
+import * as streams from "./streams.uc";
+import * as ticks from "./ticks.uc";
+import * as sets from "./collect.uc";
+import { BAD_REQUEST, NOT_FOUND, UNSUPPORTED, FAILED } from "./proto.uc";
 import { now_ms } from "./util.uc";
 
 const DEFAULT_MAX_BYTES = 1048576;
@@ -17,26 +22,11 @@ function ping(args, done) {
 	done({ ts: now_ms() });
 }
 
-// Sets that fail report an error each; the others are still collected.
 function collect(args, done) {
-	let names = args.sets ?? keys(SETS);
+	let names = args.sets ?? keys(sets.SETS);
 	if (type(names) != "array")
 		return done(null, BAD_REQUEST, "sets must be an array");
-	let result = { sets: {}, errors: {} };
-	for (let name in names) {
-		let set = SETS[name];
-		if (type(set) != "function") {
-			result.errors[name] = { code: BAD_REQUEST, msg: `unknown set ${name}` };
-			continue;
-		}
-		try {
-			result.sets[name] = set();
-		}
-		catch (e) {
-			result.errors[name] = { code: FAILED, msg: e.message };
-		}
-	}
-	done(result);
+	done(sets.run(names));
 }
 
 function ubus(args, done) {
@@ -93,6 +83,21 @@ function read_file(args, done) {
 	done({ data: args.base64 ? b64enc(data) : data, truncated: truncated });
 }
 
-const OPS = { ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file };
+// An op that needs the event loop.
+function streaming(op) {
+	return (args, done, loop) => loop ? op(args, done, loop) :
+		done(null, UNSUPPORTED, "the agent serves requests one at a time, without an event loop");
+}
 
-export { OPS };
+const OPS = {
+	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file,
+	subscribe: streaming(streams.subscribe), unsubscribe: streaming(streams.unsubscribe),
+	log_follow: streaming(logs.log_follow), set_interval: streaming(ticks.set_interval),
+};
+
+// Ends what would outlive the agent: a log stream's logread.
+function shutdown() {
+	logs.stop();
+}
+
+export { OPS, shutdown };

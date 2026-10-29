@@ -9,12 +9,14 @@
 # containers (and linking them) needs root, which a privileged helper container provides (D-035);
 # only hwsim radios are ever moved. `down` unloads the modules if `up` loaded them.
 #
-# Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture
+# Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture [collect | events]
 #   up       builds the images, starts the lab and writes target/wifi-lab.env (addresses, password)
 #   test     runs crates/node/tests/wifi.rs against a running lab, starting it first if needed
-#   capture  writes the collect answers of nodes a and b, from a running lab, to
+#   capture  (both parts unless one is named) writes the collect answers of nodes a and b, from a running lab, to
 #            crates/node/fixtures/collect/hwsim-<role>-<release>.json, and a's neighbors set
-#            with and without rtnetlink to hwsim-a-<release>-neighbors.json
+#            with and without rtnetlink to hwsim-a-<release>-neighbors.json; and what a's agent
+#            pushes while the client is kicked and a radio restarts, to
+#            crates/node/fixtures/events/hwsim-a-<release>.jsonl
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -135,6 +137,13 @@ down() {
 # The kernel each release ships, for sanitizing: captures must not carry the host's.
 declare -A KERNEL=([25.12.6]=6.12.58 [24.10.8]=6.6.110)
 
+# Installs the working tree's agent, as version "capture".
+install_agent() {
+  docker exec "$1" sh -c 'rm -rf /tmp/uniwrt/agent && mkdir -p /tmp/uniwrt/agent'
+  docker cp -q node-agent/. "$1:/tmp/uniwrt/agent/"
+  docker exec "$1" sh -c 'echo capture >/tmp/uniwrt/agent/VERSION'
+}
+
 # Runs the working tree's agent on each node and saves its answer to collecting every set,
 # sanitized like the container captures (TESTING.md): the host's model, CPU and kernel, and the
 # client's hostname, which is its container ID.
@@ -143,9 +152,7 @@ capture() {
   for role in a b; do
     release=${IMAGE[$role]}
     container=uniwrt-wifi-$role
-    docker exec "$container" sh -c 'rm -rf /tmp/uniwrt/agent && mkdir -p /tmp/uniwrt/agent'
-    docker cp -q node-agent/. "$container:/tmp/uniwrt/agent/"
-    docker exec "$container" sh -c 'echo capture >/tmp/uniwrt/agent/VERSION'
+    install_agent "$container"
     echo '{"id":1,"op":"collect","args":{}}' |
       docker exec -i "$container" ucode /tmp/uniwrt/agent/main.uc --sync | tail -n 1 |
       python3 -c '
@@ -187,20 +194,58 @@ print(json.dumps({k: v["ok"] for k, v in both.items()}, indent=1))' \
     >"crates/node/fixtures/collect/hwsim-a-${IMAGE[a]}-neighbors.json"
 }
 
+# What a's agent pushes, line by line, sanitized like the collect captures: the topics' events
+# while the client is kicked off a's 2g AP and comes back, loopback goes down and up, and radio0
+# restarts; the log polled, then streamed; and a tick.
+capture_events() {
+  local release=${IMAGE[a]} kick='{"addr":"02:00:00:00:04:00","reason":5,"deauth":true,"ban_time":0}'
+  # Commands run on the node print nothing: the block's output is the agent's input.
+  a() { docker exec uniwrt-wifi-a "$@" >/dev/null; }
+  install_agent uniwrt-wifi-a
+  {
+    echo '{"id":1,"op":"subscribe","args":{"topics":["dhcp","hostapd","netifd"]}}'
+    echo '{"id":2,"op":"log_follow","args":{"mode":"poll","backfill":2}}'
+    echo '{"id":3,"op":"set_interval","args":{"interval_ms":1000,"sets":["leases"]}}'
+    sleep 1.5
+    echo '{"id":4,"op":"set_interval","args":{"interval_ms":0,"sets":["leases"]}}'
+    a ubus call hostapd.phy1-ap0 del_client "$kick"
+    sleep 6
+    echo '{"id":5,"op":"log_follow","args":{"mode":"stream"}}'
+    sleep 0.5
+    a sh -c 'ifdown loopback && ifup loopback && logger -t lab "loopback restarted"'
+    sleep 1.5
+    echo '{"id":6,"op":"log_follow","args":{"mode":"off"}}'
+    a wifi down radio0
+    sleep 2
+    a wifi up radio0
+    sleep 12
+  } | docker exec -i uniwrt-wifi-a ucode /tmp/uniwrt/agent/main.uc |
+    sed "s/$(docker inspect -f '{{.Config.Hostname}}' uniwrt-wifi-c)/lab-client/g" \
+      >"crates/node/fixtures/events/hwsim-a-$release.jsonl"
+}
+
 case ${1:-} in
 up) up ;;
-capture) capture ;;
+capture)
+  case ${2:-} in
+  collect) capture ;;
+  events) capture_events ;;
+  '') capture && capture_events ;;
+  *) echo "usage: $0 capture [collect | events]" >&2 && exit 2 ;;
+  esac
+  ;;
 down) down ;;
 test)
   shift
   [[ -e $ENV_FILE ]] || { trap down EXIT && up; }
   # shellcheck source=/dev/null # written by `up`
   set -a && source "$ENV_FILE" && set +a
+  # One at a time: a test that kicks the client would fail the others' checks that it is there.
   cargo nextest run --locked -p uniwrt-node --test wifi --run-ignored only --status-level fail \
-    --hide-progress-bar "$@"
+    --hide-progress-bar --test-threads 1 "$@"
   ;;
 *)
-  echo "usage: $0 up | down | test [nextest args…] | capture" >&2
+  echo "usage: $0 up | down | test [nextest args…] | capture [collect | events]" >&2
   exit 2
   ;;
 esac

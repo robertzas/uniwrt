@@ -8,7 +8,7 @@ These apply to humans and agents alike. Read only the section you need.
 - One crate, one responsibility, with a minimal public API.
 - Every `lib.rs` starts with a `//!` **contract** covering purpose, public API summary, invariants, dependencies and how to test. Its first line is the one-line summary that `docs/MAP.md` picks up.
 - Rust is the source of truth for cross-language types. DTOs derive `TS`, and `just gen` writes them to `web/src/api/gen/`. Never hand-edit generated files.
-- Node-side code lives in `node-agent/` (ucode plus POSIX sh). Arguments travel as JSON or argv arrays and are never interpolated into shell strings.
+- Node-side code lives in `node-agent/` (ucode plus POSIX sh). Arguments travel as JSON or argv arrays and are never interpolated into shell strings. The one exception is a checked integer formatted with `%d` where `popen` takes no argv (logread's line count, D-036).
 
 ## Rust
 

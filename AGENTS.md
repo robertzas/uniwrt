@@ -98,7 +98,7 @@ docs/        plan, specs, decisions, status
 
 - Rust: edition 2024, thiserror in libraries and anyhow in the binary, no `unwrap` outside tests, `tracing`, clippy with `-D warnings`. Pure crates use no tokio and do no IO.
 - Web: strict TypeScript, Biome, Solid with Tailwind tokens and Kobalte primitives. Features never import other features.
-- Node side: ucode or POSIX sh, JSON lines on stdout, argv arrays (never interpolate values into shell strings), feature-detect modules.
+- Node side: ucode or POSIX sh, JSON lines on stdout, argv arrays (never interpolate values into shell strings; D-036 has the one exception), feature-detect modules.
 - Commits: `type(scope): summary`, where type is one of feat, fix, perf, refactor, docs, test, build, ci, chore. Mark breaking changes with `!`.
 
 ## Definition of done (per WP)

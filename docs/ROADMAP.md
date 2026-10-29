@@ -46,9 +46,10 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.3b node-agent: wireless, clients and mesh sets** (L) → M1.3 (split from M1.3; the streams moved to M1.3c)
   - Collect sets phys, radios, stations, leases, neighbors (with the bridge FDB) and batman, with their model types and parsers: nl80211 through ucode-mod-nl80211, netifd and hostapd over ubus, rtnetlink with a /proc fallback, dnsmasq and odhcpd, and batctl's JSON queries (D-035).
   - The hwsim lab (`just test-wifi`): virtual radios and batman-adv in OpenWrt 24.10 and 25.12 containers. Its sanitized captures are the wireless fixtures until the owner's nodes are captured.
-- [ ] **M1.3c node-agent: streams** (M) → M1.3b
-  - Under the event loop: `subscribe`/`unsubscribe` (hostapd, netifd and dnsmasq over ubus, re-subscribing as objects come and go), `log_follow` and `set_interval` ticks. The synchronous mode answers them `unsupported`, and the engine polls instead.
-  - Tested in the hwsim lab: association events from the client, log lines, ticks.
+- [x] **M1.3c node-agent: streams** (M) → M1.3b
+  - Under the event loop (D-036): `subscribe`/`unsubscribe` (the topics hostapd, netifd and dhcp over ubus, a subscriber per object, re-subscribing as objects appear), `log_follow` (logd polled by id by default, or `logread -f` streamed) and `set_interval` ticks. The synchronous mode answers them `unsupported`, and the engine polls instead.
+  - `node::events` parses the pushes into ticks, `model::event`s (stations, devices, interfaces, leases) and `model::log` entries, tested against a lab capture (`fixtures/events/`).
+  - Tested in the agent containers (ticks, both log modes, netifd) and the hwsim lab (a kicked client, its lease, a radio restart).
 - [ ] **M1.4 engine** (M) → M1.3c
   - A NodeActor per node, the live state store, the event bus, subscription-driven adaptive intervals, snapshot persistence, and node status (online/degraded/offline) with reasons.
 - [ ] **M1.5 Simulator + demo mode** (M) → M1.4

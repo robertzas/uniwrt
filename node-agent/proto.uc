@@ -2,6 +2,7 @@
 // per line in each direction. Keep both sides in step; `PROTO` bumps on breaking changes.
 
 import * as fs from "fs";
+import { now_ms } from "./util.uc";
 
 const PROTO = 1;
 
@@ -28,4 +29,12 @@ function failure(id, code, msg) {
 	return { id: id, err: { code: code, msg: msg } };
 }
 
-export { PROTO, BAD_REQUEST, NOT_FOUND, TIMEOUT, TOO_LARGE, DENIED, UNSUPPORTED, FAILED, send, answer, failure };
+// Pushes an event, stamped with the node's clock.
+function event(topic, data) {
+	send({ ev: topic, ts: now_ms(), data: data });
+}
+
+export {
+	PROTO, BAD_REQUEST, NOT_FOUND, TIMEOUT, TOO_LARGE, DENIED, UNSUPPORTED, FAILED,
+	send, answer, failure, event
+};

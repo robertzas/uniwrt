@@ -1,15 +1,18 @@
 //! Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`):
 //! adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in
-//! `UNIWRT_NODE_PASSWORD`) and linking to its agent.
+//! `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
 
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used)]
 
 use std::{env, sync::Arc, time::Duration};
 
+use tokio::sync::broadcast;
 use uniwrt_core::SystemClock;
 use uniwrt_node::{
-    AgentLaunch, AgentState, ControllerKey, Credential, ExecRequest, Hello, HostKey, LinkConfig,
-    LinkState, NodeLink as _, Session, SshConfig, SshLink, Target, probe,
+    AgentEvent, AgentLaunch, AgentState, ControllerKey, Credential, ExecRequest, Hello, HostKey,
+    LinkConfig, LinkState, NodeLink as _, Session, SshConfig, SshLink, Target,
+    events::{self, Push},
+    probe,
 };
 use zeroize::Zeroizing;
 
@@ -104,4 +107,27 @@ pub async fn run(session: &Session, argv: &[&str]) -> String {
         .unwrap();
     let output = output.check(argv[0]).unwrap();
     String::from_utf8(output.stdout).unwrap()
+}
+
+/// Waits up to `limit` for the first push that `want` picks, skipping the others.
+pub async fn next_push<T>(
+    pushes: &mut broadcast::Receiver<AgentEvent>,
+    limit: Duration,
+    mut want: impl FnMut(Push) -> Option<T>,
+) -> T {
+    tokio::time::timeout(limit, async {
+        loop {
+            let event = pushes.recv().await.unwrap();
+            if let Some(found) = events::parse(&event).unwrap().and_then(&mut want) {
+                return found;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "no such push within {limit:?}: {}",
+            std::any::type_name::<T>()
+        )
+    })
 }

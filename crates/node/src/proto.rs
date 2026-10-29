@@ -7,7 +7,7 @@
 //! {"id":7,"op":"collect","args":{"sets":["system"]}}           // controller → agent
 //! {"id":7,"ok":{…}}  {"id":9,"err":{"code":"timeout","msg":"…"}} // answers
 //! {"ev":"hostapd.assoc","ts":1761091200123,"data":{…}}           // an event
-//! {"tick":{"system":{…}}}                                        // periodic collection
+//! {"tick":{"sets":{"system":{…}},"errors":{}}}                   // periodic collection
 //! ```
 
 pub mod ops;
@@ -59,11 +59,17 @@ pub struct AgentCaps {
     /// The collect sets it knows. Strings, so a newer agent's sets don't break an older
     /// controller.
     pub sets: Vec<String>,
+    /// The topics it can subscribe to, with the event loop.
+    pub topics: Vec<String>,
 }
 
 impl AgentCaps {
     pub fn has_set(&self, set: ops::Set) -> bool {
         self.sets.iter().any(|name| name == set.as_str())
+    }
+
+    pub fn has_topic(&self, topic: ops::Topic) -> bool {
+        self.events && self.topics.iter().any(|name| name == topic.as_str())
     }
 }
 
@@ -84,7 +90,8 @@ pub enum AgentEvent {
         ts: Option<Timestamp>,
         data: Arc<RawValue>,
     },
-    /// `{"tick":{…}}`: the results of periodic collection.
+    /// `{"tick":{"sets":{…},"errors":{…}}}`: the results of periodic collection, shaped like
+    /// a `collect` answer ([`ops::Collected`]).
     Tick(Arc<RawValue>),
 }
 
@@ -164,7 +171,10 @@ mod tests {
     use serde_json::value::RawValue;
     use uniwrt_core::Timestamp;
 
-    use super::{AgentCaps, AgentEvent, Message, PROTO, Request, SUPPORTED, ops::Set};
+    use super::{
+        AgentCaps, AgentEvent, Message, PROTO, Request, SUPPORTED,
+        ops::{Set, Topic},
+    };
 
     #[test]
     fn requests_serialize_as_one_compact_object() {
@@ -186,7 +196,7 @@ mod tests {
         let parse = |line: &str| Message::parse(line.as_bytes()).unwrap();
 
         let Message::Hello(hello) = parse(
-            r#"{"hello":{"proto":1,"agent":"ab12","release":"25.12.6","caps":{"events":true,"sets":["system"],"later":1}}}"#,
+            r#"{"hello":{"proto":1,"agent":"ab12","release":"25.12.6","caps":{"events":true,"sets":["system"],"topics":["hostapd"],"later":1}}}"#,
         ) else {
             panic!("hello");
         };
@@ -195,6 +205,12 @@ mod tests {
         assert!(hello.caps.events);
         assert!(hello.caps.has_set(Set::System));
         assert!(!hello.caps.has_set(Set::Board));
+        assert!(hello.caps.has_topic(Topic::Hostapd));
+        assert!(!hello.caps.has_topic(Topic::Dhcp));
+        // Topics need the event loop.
+        let mut sync = hello.caps.clone();
+        sync.events = false;
+        assert!(!sync.has_topic(Topic::Hostapd));
         // An agent without caps serves requests one at a time.
         let Message::Hello(hello) = parse(r#"{"hello":{"proto":1,"agent":"old"}}"#) else {
             panic!("hello without caps");

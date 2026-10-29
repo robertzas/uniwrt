@@ -84,7 +84,7 @@ Rules:
 2. Open a long-lived channel running `ucode /tmp/uniwrt/agent/main.uc`.
 3. The agent's first line is `{"hello":{"proto":1,"agent":"<hash>","release":"25.12.6","caps":{"events":true,"ops":[…],"sets":[…]}}}`. A hash other than the bundle's fails the start.
 
-**Agent runtime (D-034).** With ucode-mod-uloop (in 25.12 images, and in Wi-Fi images since 23.05 through hostapd), a forked reader task feeds requests into an event loop, and each command runs in a task of its own. Without it, requests are served one at a time and the agent pushes no events. A command's output goes to files under `/tmp/uniwrt/run`, never to the agent's stdout. Collect sets return raw sources (ubus replies, sysfs text, `/proc` files), and the `node` crate parses them into `model::facts`.
+**Agent runtime (D-034).** With ucode-mod-uloop (in 25.12 images, and in Wi-Fi images since 23.05 through hostapd), a forked reader task feeds requests into an event loop, and each command runs in a task of its own. Without it, requests are served one at a time and the agent pushes no events. A command's output goes to files under `/tmp/uniwrt/run`, never to the agent's stdout. Collect sets return raw sources (ubus replies, sysfs text, `/proc` files), and the `node` crate parses them into `model::facts`. Under the event loop the agent also pushes (D-036): the ubus notifications of subscribed topics, its log in batches, and ticks of sets collected on a schedule, which `node::events` parses. Pushes end with the agent, so the engine asks for them again after each hello.
 
 **Messages** are newline-delimited JSON:
 
@@ -94,14 +94,15 @@ Rules:
 {"id":8,"op":"ubus","args":{"path":"hostapd.phy1-ap0","method":"rrm_nr_set","data":{"list":[]}}}
 {"id":9,"op":"exec","args":{"argv":["batctl","o"],"timeout_ms":5000}}
 {"id":10,"op":"subscribe","args":{"topics":["hostapd","netifd","dhcp"]}}
+{"id":11,"op":"set_interval","args":{"interval_ms":2000,"sets":["radios","stations"]}}
 // agent → controller
 {"id":7,"ok":{}}
 {"id":9,"err":{"code":"timeout","msg":"batctl did not exit within 5000 ms"}}
-{"ev":"hostapd.assoc","ts":1761091200123,"data":{"ifname":"phy1-ap0","mac":"aa:bb:cc:dd:ee:ff"}}
-{"tick":{"system":{}}}
+{"ev":"hostapd.assoc","ts":1761091200123,"data":{"address":"aa:bb:cc:dd:ee:ff","ifname":"phy1-ap0","signal":-52,"freq":5180}}
+{"tick":{"sets":{"radios":{},"stations":{}},"errors":{}}}
 ```
 
-- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c); `txn`, which delegates to the transaction tool (M3). Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
+- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c, event loop only; D-036); `txn`, which delegates to the transaction tool (M3). Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
 - **Source of truth:** `crates/node/src/proto.rs` and `proto/ops.rs`, mirrored by `node-agent/proto.uc` and `ops.uc`. The `proto` integer bumps on breaking changes; the controller supports the current version and the previous one.
 - **Jump hosts:** a `direct-tcpip` channel through an adopted node reaches isolated segments, such as the adoption port described in features/adoption.md.
 

@@ -22,6 +22,7 @@ Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and t
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
 
+- `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
 - `src/facts/interface.rs`: Logical interfaces (netifd) and the kernel network devices beneath them.
@@ -33,6 +34,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
+- `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
 
@@ -46,6 +48,12 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/bundle.rs`: The agent bundle: `node-agent/` embedded in the binary, and the bootstrap that installs it on a node by hash (ARCHITECTURE.md, Node protocol).
 - `src/bundle/tar.rs`: A minimal ustar writer: directories and regular files with a fixed owner, mode and time, so the same files always make the same bytes.
 - `src/error.rs`: Errors of the node transport.
+- `src/events.rs`: Parsing what the agent pushes ([`AgentEvent`]): ticks into [`Collected`] (applied with [`facts::apply`](crate::facts::apply)), the notifications of the subscribed [`Topic`](crate::proto::ops::Topic)s into [`NodeEvent`]s, and `log` batches into [`LogEntry`]s.
+- `src/events/dhcp.rs`: The DHCP servers' notifications, alike for dnsmasq and odhcpd: `dhcp.ack` with the client's `mac`, `ip`, `name` and the `interface` it was leased on, and `dhcp.release` without the name.
+- `src/events/hostapd.rs`: hostapd's notifications from each BSS's `hostapd.<ifname>` object: `auth` and `assoc` with the request's signal and frequency, `sta-authorized` with how the station authenticated, and `disassoc`.
+- `src/events/log.rs`: `log` batches (`node-agent/logs.uc`): logd's entries when polled, `{id, priority, source, time, msg}` with the time in ms and `msg` as `program[pid]: text`, or `logread -f -t` lines when streamed, `<ctime> [<s>.<ms>] <facility>.<severity> <msg>`, where the kernel's messages read `kern.<severity> kernel: <text>`.
+- `src/events/netifd.rs`: netifd's notifications: `interface.update` (up, with what changed) and `interface.down` from `network.interface`, each with the interface's status, and the `network.device` changes with the device's state.
+- `src/events/tests.rs`: (no header comment)
 - `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 - `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
 - `src/facts/batman.rs`: The `batman` set: batctl's JSON queries per mesh device.
@@ -70,18 +78,19 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
+- `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
 - `src/shell.rs`: Argv to a command line for the node's shell.
 - `src/ssh/channel.rs`: Commands on session channels.
 - `src/ssh/client.rs`: The russh client handler: checks the host key against the pin and reports why a session ended.
 - `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
 - `src/supervisor.rs`: [`SshLink`]: one node's connection, kept up by a task that reconnects with jittered backoff and restarts the agent, and that serves [`NodeLink`] from whatever session is current.
-- `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, and collect sets parsed into facts.
+- `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
-- `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`) and linking to its agent.
+- `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
-- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology.
+- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; and the gateway pushes its client's comings and goings.
 
 ### `uniwrt` (crates/server)
 
@@ -145,9 +154,12 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/stations.uc`: The `stations` set: the stations of every Wi-Fi interface (nl80211 `GET_STATION`): an AP's clients, mesh peers and a station interface's AP, with signal, rates, counters and airtime; and for APs, the capabilities hostapd saw in each client's association (`get_clients`).
 - `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
+- `logs.uc`: Following the node's log (`log_follow`; event loop only), pushed as `{"ev":"log",…}` events in batches.
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `ops.uc`: The agent's operations (`proto::ops`).
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
+- `streams.uc`: Push events from ubus (`subscribe`, `unsubscribe`; event loop only): the notifications of daemons' objects, forwarded as `{"ev":"<source>.<type>","ts":…,"data":{…}}` with the data as the daemon sent it.
+- `ticks.uc`: Periodic collection (`set_interval`; event loop only): sets collected on a schedule and pushed as `{"tick":{"sets":{…},"errors":{…}}}`, the shape of a `collect` answer.
 - `util.uc`: Small helpers shared by the agent's modules: readers of files, sysfs attributes and shell-variable files, `pick`, and clocks.
 - `wifi.uc`: Shared by the Wi-Fi sets: the kernel phys from sysfs, and nl80211 (ucode-mod-nl80211, which hostapd depends on), loaded on first use because images without Wi-Fi lack it.
 

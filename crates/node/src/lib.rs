@@ -9,7 +9,9 @@
 //!   [`Session::stream`] and [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
 //!   agent's stdio, see [`proto`]); [`proto::ops`] (the typed ops, sent with
 //!   [`NodeLink::request`]); [`Bundle`] (`node-agent/`, installed by hash into
-//!   `/tmp/uniwrt/agent`); [`facts`] (collect sets parsed into `model::facts`); [`SshLink`] (a
+//!   `/tmp/uniwrt/agent`); [`facts`] (collect sets parsed into `model::facts`); [`events`] (the
+//!   agent's pushes, from [`NodeLink::events`], parsed into ticks, `model::event`s and log
+//!   entries); [`SshLink`] (a
 //!   supervised connection that reconnects with jittered backoff, installs and restarts the
 //!   agent, and implements [`NodeLink`]); [`Error`].
 //! - **Invariants:** every connection checks the host key against its pin; a mismatch is
@@ -24,7 +26,7 @@
 //!   them), `zeroize`, `data-encoding` (base64 in agent output).
 //! - **Tests:** unit tests next to the pure parts (quoting through the local `sh`, backoff, line
 //!   framing, the envelope, the multiplexer over an in-memory pipe, the bundle's archive through
-//!   the host's `tar`, the parsers against `fixtures/collect/`); `tests/` runs sessions and links
+//!   the host's `tar`, the parsers against `fixtures/collect/` and `fixtures/events/`); `tests/` runs sessions and links
 //!   against an in-process russh server on loopback. Ignored unless run by their scripts:
 //!   `tests/dropbear.rs` (`just test-dropbear`) against dropbear in OpenWrt rootfs containers, and
 //!   `tests/agent.rs` (`just test-agent`) against the agent on OpenWrt booted with procd, and
@@ -34,6 +36,7 @@ mod agent;
 mod backoff;
 mod bundle;
 mod error;
+pub mod events;
 pub mod exec;
 pub mod facts;
 mod host_key;

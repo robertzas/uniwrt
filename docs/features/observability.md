@@ -14,7 +14,7 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 **Intervals:**
 - 15 s base.
 - 2 s for entities currently open in the UI (driven by subscriptions).
-- Push events go out immediately: association, disassociation and roams; link up/down; DHCP leases; DFS; netifd ifup/ifdown.
+- Push events go out immediately (D-036): hostapd's association steps and disassociations, netifd's interface and device changes (links up and down), and DHCP acks and releases. The engine infers roams from a station leaving one AP and joining another. hostapd's DFS radar notifications are forwarded but not parsed yet.
 
 **Collectors** (one small module each, in `node-agent/collect/`, parsed by `crates/node/src/facts/`). The first five shipped with M1.3, phys through batman with M1.3b (D-035); the rest come later:
 - system: uptime, load, memory, CPU %, temperature, flash
@@ -82,7 +82,7 @@ The inventory is keyed by MAC. Randomized MACs are flagged and grouped by hostna
 
 **Ingest:**
 - OpenWrt logd remote syslog (`log_ip`, `log_port`, `log_proto tcp`), enabled when a node becomes managed, or with consent in observe mode.
-- Zero-change alternative for observe mode: `logread -f` over the agent channel. `logread` also backfills on connect.
+- Zero-change alternative for observe mode: the agent's `log_follow` (D-036). By default it polls logd by sequence number every second; it can also stream `logread -f`. Either backfills the last N entries on request.
 
 **Receiver:** RFC 3164/5424 over UDP and TCP (octet-counted or newline-framed) on port 5514. It parses host, program, PID, severity and facility, then maps the host to a node.
 

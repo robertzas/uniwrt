@@ -5,6 +5,8 @@
 //!   FDB, batman-adv meshes), which the `node` crate parses agent output into. [`node`] is the inventory record ([`node::Node`]: identity, address, role, mode)
 //!   and the pinned SSH host key ([`node::HostKeyPin`]).
 //!   [`wifi`] is the Wi-Fi vocabulary shared by facts and, later, desired state (`SiteConfig`).
+//!   [`event`] is what nodes report as it happens ([`event::NodeEvent`]: stations joining and
+//!   leaving, devices and interfaces changing, DHCP leases), and [`log`] their log entries.
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -17,6 +19,8 @@
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.
 
+pub mod event;
 pub mod facts;
+pub mod log;
 pub mod node;
 pub mod wifi;

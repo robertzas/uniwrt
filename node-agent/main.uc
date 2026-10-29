@@ -3,14 +3,16 @@
 // /tmp/uniwrt/agent and runs `ucode /tmp/uniwrt/agent/main.uc` (ARCHITECTURE.md, Node protocol).
 //
 // With ucode-mod-uloop, a reader task feeds requests into an event loop and each command runs in
-// a task of its own, so a slow command holds up nothing else. Without it (images without Wi-Fi
-// before 25.12), requests are served one at a time. `--sync` forces that mode, for tests.
+// a task of its own, so a slow command holds up nothing else, and the agent pushes events and
+// ticks (streams.uc, logs.uc, ticks.uc). Without it (images without Wi-Fi before 25.12),
+// requests are served one at a time and nothing is pushed. `--sync` forces that mode, for tests.
 // Nothing but the protocol may reach stdout; diagnostics go to stderr, which the controller
 // keeps for its error messages.
 
 import * as fs from "fs";
-import { OPS } from "./ops.uc";
+import { OPS, shutdown } from "./ops.uc";
 import { SETS } from "./collect.uc";
+import { TOPICS } from "./streams.uc";
 import { RUN } from "./exec.uc";
 import { PROTO, BAD_REQUEST, FAILED, send, answer, failure } from "./proto.uc";
 import { read, shvars } from "./util.uc";
@@ -96,6 +98,7 @@ function serve_events(loop, input) {
 			watch.set(WATCH_MS);
 	});
 	loop.run();
+	shutdown();
 }
 
 let loop = event_loop();
@@ -112,7 +115,7 @@ send({
 		proto: PROTO,
 		agent: read(`${sourcepath(0, true)}/VERSION`) ?? "dev",
 		release: shvars("/etc/openwrt_release").DISTRIB_RELEASE,
-		caps: { events: loop != null, ops: sort(keys(OPS)), sets: sort(keys(SETS)) },
+		caps: { events: loop != null, ops: sort(keys(OPS)), sets: sort(keys(SETS)), topics: sort(keys(TOPICS)) },
 	},
 });
 

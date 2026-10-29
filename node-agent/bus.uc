@@ -1,4 +1,5 @@
-// ubus calls on one shared connection, with errors mapped to the protocol's codes.
+// ubus calls on one shared connection, with errors mapped to the protocol's codes. Subscriptions
+// (streams.uc) use the same connection, which the event loop then serves.
 
 import * as ubus from "ubus";
 import { BAD_REQUEST, NOT_FOUND, TIMEOUT, DENIED, UNSUPPORTED, FAILED } from "./proto.uc";
@@ -20,13 +21,21 @@ const CODES = {
 
 let conn = null;
 
-// Calls `method` on the object `path`: returns { ok: result } or { code, msg }.
-function call(path, method, data) {
+// The shared connection, made on first use: returns { ok: connection } or { code, msg }.
+function connection() {
 	if (!conn) {
 		conn = ubus.connect(null, TIMEOUT_S);
 		if (!conn)
 			return { code: FAILED, msg: `cannot connect to ubus: ${ubus.error()}` };
 	}
+	return { ok: conn };
+}
+
+// Calls `method` on the object `path`: returns { ok: result } or { code, msg }.
+function call(path, method, data) {
+	let c = connection();
+	if (c.code)
+		return c;
 	// Reading the last error clears it, so a call that returns nothing is told from a failure.
 	conn.error();
 	let result = conn.call(path, method, data ?? {});
@@ -49,4 +58,4 @@ function get(path, method, data) {
 	return r.ok;
 }
 
-export { call, get };
+export { connection, call, get };

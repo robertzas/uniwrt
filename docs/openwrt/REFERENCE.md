@@ -51,21 +51,22 @@ Detect which one is present by trying `command -v apk` first.
 | Object | Methods and events we use |
 |---|---|
 | `system` | board, info, validate_firmware_image, reboot |
-| `network.interface`, `network.interface.{name}` | dump, status, up, down |
-| `network.device` | status |
+| `network.interface`, `network.interface.{name}` | dump, status, up, down; notifications ✅ `interface.update` (the interface's status, `up: true`, and `updated`, such as `["addresses"]`) and `interface.down`, sent by both the main object and the interface's own; broadcast event `network.interface` (`action`: `ifup`/`ifdown`, `interface`) |
+| `network.device` | status; notifications ✅ `add`, `remove`, `up`, `down`, `link_up`, `link_down` and `topo_change` (a bridge's ports), each with `name`, `present`, `active`, `link_active`, `auth_status`; only for devices netifd knows |
 | `network.wireless` | status ✅: per radio `up`, `disabled`, `config` (UCI options, the Wi-Fi keys included) and `interfaces` (`section`, `ifname`, `config`). 25.12 images without wifi-scripts have no such object |
 | `iwinfo` (rpcd-mod-iwinfo) | devices, info, assoclist, scan, freqlist, txpowerlist |
-| `hostapd.{ifname}` | get_clients ✅ (`clients.<mac>`: `authorized`, `wmm`, `ht`, `vht`, `he`, `mfp`, `rrm` (5 bytes of RRM capabilities), `extended_capabilities` (bit 19: BSS transition), `aid`, `bytes`, `packets`, `rate`, `signal`; nothing says whether FT was used), get_status ✅ (`freq`, `channel`, `op_class`, `airtime`, `dfs`),  get_status, del_client, bss_transition_request, rrm_nr_get_own, rrm_nr_set, rrm_nr_list, rrm_beacon_req, switch_chan, notify_response; probe/auth/assoc/disassoc events via subscribe |
+| `hostapd.{ifname}` | get_clients ✅ (`clients.<mac>`: `authorized`, `wmm`, `ht`, `vht`, `he`, `mfp`, `rrm` (5 bytes of RRM capabilities), `extended_capabilities` (bit 19: BSS transition), `aid`, `bytes`, `packets`, `rate`, `signal`; nothing says whether FT was used), get_status ✅ (`freq`, `channel`, `op_class`, `airtime`, `dfs`), del_client ✅ (`addr`, `reason`, `deauth`, `ban_time`), bss_transition_request, rrm_nr_get_own, rrm_nr_set, rrm_nr_list, rrm_beacon_req, switch_chan, notify_response. Notifications to subscribers ✅ (both releases, all with `address` and `ifname`): `probe` (every probe request), `auth` and `assoc` (`target`, `signal`, `freq`), `sta-authorized` (`auth-alg`: `open`, `sae`, `ft`…), `disassoc` (also when the BSS goes down); fire-and-forget unless `notify_response` is set |
 | `service` (procd) | list, set, delete |
 | `uci` (rpcd) | get, set, commit, apply, confirm, rollback |
 | `luci-rpc` (only with LuCI) | getHostHints, getDHCPLeases, getBoardJSON |
-| `dnsmasq` | lease events (availability unverified); its only method is `metrics` ✅ |
+| `dnsmasq` | its only method is `metrics` ✅; notifications ✅ `dhcp.ack` (`mac`, `ip`, `name`, `interface`) and `dhcp.release` (no `name`) |
 | `dhcp` (odhcpd) ✅ | `ipv6leases` (`device.<dev>.leases[]`: `duid`, `iaid`, `hostname`, `ipv6-addr[]` with `valid-lifetime`, `valid`); `ipv4leases` only where odhcpd may serve DHCPv4 (in 24.10, not in 25.12); `add_lease`, `ipv6ra` |
-| `log` (logd) ✅ | `read` with `{"lines":N,"stream":false}`: `log[]` entries with `id` (a sequence), `priority`, `source`, `time` (ms) and `msg` (`program[pid]: text`) |
+| `log` (logd) ✅ | `read` with `{"lines":N,"stream":false}` (also `oneshot`): the last N entries as `log[]`, with `id` (a sequence, from 0 when logd starts), `priority`, `source` (0 for the kernel's, whose `msg` has no tag), `time` (ms) and `msg` (`program[pid]: text`); `write` |
+| ubusd ✅ | broadcast events `ubus.object.add` and `ubus.object.remove` (`id`, `path`) |
 
 ## CLI
 
-`uci` · `ubus call|listen|subscribe` · `batctl meshif <dev> mj|hj|oj|nj|gwj|tgj|tlj` (JSON ✅: throughputs and gateway bandwidths in 100 kbit/s, translation-table VLAN -1 for untagged; `batctl s` has no JSON) · `iw dev|phy|station dump|survey dump|scan` · `iwinfo` · `batctl o|n|tg|gwl|s|tp` · `logread [-f] [-e regex]` · `sysupgrade -T|-b|-n|-k` · `firstboot` · `reload_config` · `wifi reload|up|down|status` · `fw4 check|print|reload` · `jsonfilter` · `uclient-fetch` · `owut` · `apk` / `opkg`
+`uci` · `ubus call|listen|subscribe` · `batctl meshif <dev> mj|hj|oj|nj|gwj|tgj|tlj` (JSON ✅: throughputs and gateway bandwidths in 100 kbit/s, translation-table VLAN -1 for untagged; `batctl s` has no JSON) · `iw dev|phy|station dump|survey dump|scan` · `iwinfo` · `batctl o|n|tg|gwl|s|tp` · `logread [-f] [-e regex] [-l N] [-t]` (✅ `-t` adds `[<s>.<ms>]` after the date: `<ctime> [<s>.<ms>] <facility>.<severity> <msg>`, the kernel's as `kern.<severity> kernel: <text>`; `-f -l N` sends the last N, 0 for none, then follows) · `sysupgrade -T|-b|-n|-k` · `firstboot` · `reload_config` · `wifi reload|up|down|status` · `fw4 check|print|reload` · `jsonfilter` · `uclient-fetch` · `owut` · `apk` / `opkg`
 
 ## ucode ✅
 
@@ -79,6 +80,7 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - uloop: a buffered `read()` on a non-blocking descriptor drops data at EAGAIN, so stdin needs blocking reads in a forked `uloop.task`. A task's stdio is `/dev/null`; it reads the pipe through `/proc/self/fd/0`, reopened before the fork. `uloop.process` reports `WEXITSTATUS` (0 after a signal) and has no `kill()`.
 - nl80211 and rtnl (ucode-mod-nl80211 and ucode-mod-rtnl, which hostapd depends on, so on Wi-Fi images only) ✅: attributes are named in lower case without their prefix (`wiphy_freq`, `channel_width`, `wiphy_tx_power_level`, `sta_info.signal_avg`, `plink_state`). Bitrates are in 100 kbit/s, with the flags `width_40|80|160|320`, `40_mhz_width`, `short_gi`, and `he_gi`/`eht_gi`; powers are in mBm; `sta_flags` is `[mask, set]`. The survey has no `in_use`, so match the interface's frequency. A split `GET_WIPHY` dump starts with a null entry, and `wiphy_bands` is indexed by `enum nl80211_band`. An `AF_UNSPEC` neighbor dump has no bridge FDB; ask with `family: AF_BRIDGE`.
 - `fs.realpath` exists in both releases ✅.
+- ubus subscribers ✅ (both releases, under uloop): `conn.subscriber(notify_cb, remove_cb)`, then `sub.subscribe(path)`; `notify_cb(req)` sees `req.type` and `req.data` but not which object sent it, so use a subscriber per object; `remove_cb` runs when the object goes away. `sub.remove()` frees it (outside its own callbacks). `conn.listener(pattern, cb(ev, data))` receives broadcast events, and `listener.remove()` stops it. `conn.list()` returns names, `conn.list(pattern)` signatures.
 - ubus: `conn.call()` returns null both for a failure and for an empty reply. `conn.error()` returns the last error and clears it; messages start with the `ubus_strerror()` text, such as `Not found: …` or `Method not found: …`.
 
 ## Containers as test nodes ✅

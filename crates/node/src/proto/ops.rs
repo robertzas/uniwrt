@@ -1,6 +1,9 @@
 //! The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 //! Send them with [`NodeLink::request`](crate::NodeLink::request); a failed one is
-//! [`Error::Remote`](crate::Error::Remote) with one of the [`code`]s.
+//! [`Error::Remote`](crate::Error::Remote) with one of the [`code`]s. The ops that make the agent
+//! push events and ticks are in `streams.rs` and re-exported here.
+
+mod streams;
 
 use std::{collections::BTreeMap, fmt};
 
@@ -8,6 +11,10 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value, value::RawValue};
 use uniwrt_core::Timestamp;
 
+pub use self::streams::{
+    LogFollow, LogFollowing, LogMode, Schedule, SetInterval, Subscribe, Subscribed, Topic,
+    Unsubscribe,
+};
 use super::RemoteError;
 
 /// An operation: its name on the wire and the type of its result.

@@ -1,5 +1,5 @@
 //! The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both
-//! loop modes, and collect sets parsed into facts. Ignored by default: `just test-agent` boots
+//! loop modes, collect sets parsed into facts, and the pushes of the event loop. Ignored by default: `just test-agent` boots
 //! an OpenWrt rootfs container per release with procd, so ubus, netifd and logd run, and runs
 //! these against it with `UNIWRT_NODE=<host:port>`, `UNIWRT_NODE_PASSWORD` and
 //! `UNIWRT_NODE_RELEASE`.
@@ -14,12 +14,21 @@ use std::{
     time::{Duration, Instant},
 };
 
-use openwrt::{adopt, link, run};
+use openwrt::{adopt, link, next_push, run};
 use uniwrt_core::{Clock as _, SystemClock};
-use uniwrt_model::facts::{DeviceKind, NodeFacts, PackageManager};
+use uniwrt_model::{
+    event::NodeEvent,
+    facts::{DeviceKind, NodeFacts, PackageManager},
+    log::Severity,
+};
 use uniwrt_node::{
-    AgentLaunch, Bundle, Error, NodeLink as _, Output, facts,
-    proto::ops::{Collect, Exec, Ping, ReadFile, Set, Ubus, code},
+    AgentLaunch, Bundle, Error, NodeLink as _, Output,
+    events::Push,
+    facts,
+    proto::ops::{
+        Collect, Exec, LogFollow, LogMode, Ping, ReadFile, Set, SetInterval, Subscribe, Topic,
+        Ubus, Unsubscribe, code,
+    },
 };
 
 const LONG: Duration = Duration::from_secs(20);
@@ -68,7 +77,21 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
     assert!(Set::ALL.iter().all(|&set| hello.caps.has_set(set)));
     assert_eq!(
         hello.caps.ops,
-        ["collect", "exec", "ping", "read_file", "ubus"]
+        [
+            "collect",
+            "exec",
+            "log_follow",
+            "ping",
+            "read_file",
+            "set_interval",
+            "subscribe",
+            "ubus",
+            "unsubscribe"
+        ]
+    );
+    assert_eq!(
+        Topic::ALL.iter().all(|&topic| hello.caps.has_topic(topic)),
+        has_event_loop()
     );
     link.shutdown().await;
 }
@@ -201,6 +224,129 @@ async fn the_synchronous_mode_serves_the_same_ops() {
     assert_eq!(remote_code(link.request(&slow, LONG).await), code::TIMEOUT);
     let echoed = link.request(&Exec::new(["echo", "hi"]), LONG).await;
     assert_eq!(echoed.unwrap().stdout, "hi\n");
+    // Nothing is pushed without the event loop: the engine polls instead.
+    let topics = || Topic::ALL.to_vec();
+    let unsupported = [
+        remote_code(link.request(&Subscribe { topics: topics() }, LONG).await),
+        remote_code(link.request(&Unsubscribe { topics: topics() }, LONG).await),
+        remote_code(link.request(&LogFollow::new(LogMode::Poll), LONG).await),
+        remote_code(
+            link.request(
+                &SetInterval {
+                    interval_ms: 1000,
+                    sets: vec![Set::System],
+                },
+                LONG,
+            )
+            .await,
+        ),
+    ];
+    assert_eq!(unsupported, [code::UNSUPPORTED; 4]);
+    link.shutdown().await;
+}
+
+/// Ticks, both ways of following the log, and netifd's notifications, on the 25.12 rootfs: its
+/// container has no Wi-Fi and no working dnsmasq (the hwsim lab covers those topics).
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn under_the_event_loop_the_agent_pushes_ticks_logs_and_netifd_events() {
+    if !has_event_loop() {
+        return;
+    }
+    let (_, node) = adopt().await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let mut pushes = link.events();
+
+    let every_second = SetInterval {
+        interval_ms: 1000,
+        sets: vec![Set::System, Set::Interfaces],
+    };
+    let schedule = link.request(&every_second, LONG).await.unwrap();
+    assert_eq!(
+        schedule.intervals.values().collect::<Vec<_>>(),
+        [&1000, &1000]
+    );
+    let collected = next_push(&mut pushes, LONG, |push| match push {
+        Push::Tick(collected) => Some(collected),
+        _ => None,
+    })
+    .await;
+    let mut facts = NodeFacts::default();
+    assert_eq!(facts::apply(&collected, &mut facts), []);
+    assert!(facts.interfaces.iter().any(|i| i.name == "lan"));
+    let stopped = SetInterval {
+        interval_ms: 0,
+        sets: every_second.sets.clone(),
+    };
+    assert!(
+        link.request(&stopped, LONG)
+            .await
+            .unwrap()
+            .intervals
+            .is_empty()
+    );
+    let mut fast = every_second.clone();
+    fast.interval_ms = 10;
+    assert_eq!(
+        remote_code(link.request(&fast, LONG).await),
+        code::BAD_REQUEST
+    );
+
+    let netifd = Subscribe {
+        topics: vec![Topic::Netifd],
+    };
+    let subscribed = link.request(&netifd, LONG).await.unwrap();
+    assert_eq!(subscribed.topics, [Topic::Netifd]);
+    let bounce = Exec::new(["sh", "-c", "ifdown loopback && ifup loopback"]);
+    assert!(link.request(&bounce, LONG).await.unwrap().success());
+    for up in [false, true] {
+        next_push(&mut pushes, LONG, |push| match push {
+            Push::Event(NodeEvent::Interface(iface))
+                if iface.name == "loopback" && iface.up == up =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .await;
+    }
+    let unsubscribe = Unsubscribe {
+        topics: vec![Topic::Netifd],
+    };
+    let subscribed = link.request(&unsubscribe, LONG).await.unwrap();
+    assert_eq!(subscribed.topics, []);
+
+    for mode in [LogMode::Poll, LogMode::Stream] {
+        let mut follow = LogFollow::new(mode);
+        follow.backfill = 5;
+        let following = link.request(&follow, LONG).await.unwrap();
+        assert_eq!(following.mode, mode);
+        let text = format!("followed by {mode:?}");
+        let logger = Exec::new(["logger", "-t", "uniwrt-test", "-p", "daemon.warn", &text]);
+        assert!(link.request(&logger, LONG).await.unwrap().success());
+        let entry = next_push(&mut pushes, LONG, |push| match push {
+            Push::Log {
+                entries,
+                dropped: 0,
+            } => entries.into_iter().find(|e| e.message == text),
+            _ => None,
+        })
+        .await;
+        assert_eq!(entry.program.as_deref(), Some("uniwrt-test"));
+        assert_eq!((entry.facility, entry.severity), (3, Severity::Warning));
+        // logd's sequence numbers come only with polling.
+        assert_eq!(entry.seq.is_some(), mode == LogMode::Poll);
+    }
+    let off = link
+        .request(&LogFollow::new(LogMode::Off), LONG)
+        .await
+        .unwrap();
+    assert_eq!(off.mode, LogMode::Off);
+    let left = link
+        .request(&Exec::new(["pidof", "logread"]), LONG)
+        .await
+        .unwrap();
+    assert!(!left.success(), "logread outlived its follow: {left:?}");
     link.shutdown().await;
 }
 
