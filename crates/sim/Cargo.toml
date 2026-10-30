@@ -1,0 +1,25 @@
+[package]
+name = "uniwrt-sim"
+description = "uniwrt simulated fleet: a gateway, mesh access points and their clients behind NodeLink, for demo mode and tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bytes.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+uniwrt-node.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
+uniwrt-engine.workspace = true
+
+[lints]
+workspace = true

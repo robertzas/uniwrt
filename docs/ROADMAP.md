@@ -53,8 +53,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.4 engine** (M) → M1.3c
   - A NodeActor per node, the live state store, the event bus, subscription-driven adaptive intervals, snapshot persistence, and node status (online/degraded/offline) with reasons (D-037).
   - Pushed events refresh the sets they touch; roams are inferred across nodes; logs are followed on demand. `serve` watches the adopted nodes over SSH links. Tested over a scripted link on tokio's paused clock, and against the agent containers in both loop modes.
-- [ ] **M1.5 Simulator + demo mode** (M) → M1.4
+- [x] **M1.5 Simulator + demo mode** (M) → M1.4
   - `sim` crate implementing `NodeLink`: a gateway, 3 APs and about 30 clients, with roaming, signal drift, events and logs. Deterministic seed. `uniwrt serve --demo`.
+  - Done (D-038): a seeded world (path loss and fading, 802.11r roams, clients that leave and come back, bursty traffic, lease renewals, a wired AP and a multi-hop batman mesh, AP reboots) rendered in the agent's raw shapes, so the real parsers run; `SimLink` answers the event-loop agent's ops and pushes events, ticks and both log modes. `serve --demo [--demo-seed]` runs the engine on `FleetLink` over a fresh database in the data directory, deleted at exit; `just demo`. Tested through the node crate's parsers and with the engine on tokio's paused clock.
 - [ ] **M1.6 API foundation, auth, TLS** (M) → M1.4
   - axum route skeleton, problem+json errors, a WS hub with topics and deltas, ts-rs codegen (`just gen`), first-run admin setup, login and sessions (Argon2id), a self-signed TLS certificate (rcgen) on 8443 that the user can download, and the real vault: XChaCha20-Poly1305 under the master key, resealing the stub's `alg = 'plain'` rows (D-032).
 - [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6

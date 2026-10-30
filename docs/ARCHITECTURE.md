@@ -67,12 +67,13 @@ flowchart TB
 | L2 | `jobs` | persisted orchestrations: adopt, apply, upgrade, rf-apply, backup | L0, L1, engine |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
-| test | `sim` | simulated fleet implementing `NodeLink` (demo mode, tests) | core, model, node |
+| test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes; `serve --demo` and tests (D-038) | core, model, node |
 
 Rules:
 - Dependencies point only to the same layer or a lower one.
 - L0 crates do not depend on tokio and perform no IO. `just arch-check` enforces this (M1.9).
 - A crate is created when its first WP starts, not before.
+- `server` is the one crate outside the tests that depends on `sim`, for demo mode. The engine runs on its `FleetLink` enum (SSH or simulated), so the API has one engine type (D-038).
 - Packages are named `uniwrt-<crate>` (a library named `core` would shadow Rust's `core`); directories keep the short name.
 
 ## Node protocol (D-003: SSH + ephemeral ucode agent)

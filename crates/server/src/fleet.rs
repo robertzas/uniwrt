@@ -1,5 +1,6 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
-//! latest snapshot, and the snapshot writer.
+//! latest snapshot, and the snapshot writer. In demo mode the nodes are simulated instead,
+//! adopted into the demo's own database.
 
 use std::{sync::Arc, time::Duration};
 
@@ -7,9 +8,12 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{Engine, EngineConfig, Snapshots};
-use uniwrt_model::node::Node;
+use uniwrt_model::node::{NewNode, Node};
 use uniwrt_node::{AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, SshLink, Target};
+use uniwrt_sim::{SimConfig, SimFleet};
 use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store};
+
+use crate::fleet_link::FleetLink;
 
 /// How often each node's facts are saved: recent enough for a restart to show them, rarely
 /// enough to spare the disk (D-037).
@@ -18,8 +22,10 @@ const SNAPSHOT_INTERVAL: Duration = Duration::from_secs(300);
 const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(crate) struct Fleet {
-    pub(crate) engine: Engine<SshLink>,
+    pub(crate) engine: Engine<FleetLink>,
     snapshots: Snapshots,
+    /// Demo mode's world, which runs while it lives.
+    sim: Option<SimFleet>,
 }
 
 impl Fleet {
@@ -39,13 +45,49 @@ impl Fleet {
                         warn!(node_id = %id, %err, "cannot read the node's last facts");
                         None
                     });
-                    engine.add(id, link, last).await;
+                    engine.add(id, FleetLink::Ssh(link), last).await;
                 }
                 Err(err) => warn!(node_id = %id, "not watching the node: {err:#}"),
             }
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
-        Ok(Self { engine, snapshots })
+        Ok(Self {
+            engine,
+            snapshots,
+            sim: None,
+        })
+    }
+
+    /// Simulates the fleet `config` describes, adopting its nodes into `store`, which should
+    /// be empty (the demo's own).
+    pub(crate) async fn demo(
+        store: &Store,
+        config: &SimConfig,
+        clock: Arc<dyn Clock>,
+    ) -> anyhow::Result<Self> {
+        let sim = SimFleet::spawn(config, clock.as_ref());
+        let engine = Engine::new(EngineConfig::default(), clock);
+        for (index, node) in sim.nodes().into_iter().enumerate() {
+            let adopted = store
+                .create_node(NewNode {
+                    name: node.name,
+                    mac: node.mac,
+                    board_name: node.board_name,
+                    host: node.host,
+                    port: 22,
+                    role: node.role,
+                })
+                .await
+                .context("cannot adopt a simulated node")?;
+            let link = sim.link(index).context("a simulated node has no link")?;
+            engine.add(adopted.id, FleetLink::Sim(link), None).await;
+        }
+        let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
+        Ok(Self {
+            engine,
+            snapshots,
+            sim: Some(sim),
+        })
     }
 
     /// Stops the actors, saves the last snapshots and disconnects.
@@ -58,6 +100,7 @@ impl Fleet {
             .collect();
         self.engine.shutdown().await;
         self.snapshots.stop().await;
+        drop(self.sim);
         let disconnect = async {
             for link in &links {
                 link.shutdown().await;
@@ -146,6 +189,37 @@ mod tests {
         let view = fleet.engine.node(pinned.id).unwrap();
         assert_eq!(view.status.state, NodeState::Offline);
         assert!(fleet.engine.node(unpinned.id).is_none());
+        tokio::time::timeout(Duration::from_secs(5), fleet.stop())
+            .await
+            .unwrap();
+        store.close().await;
+    }
+
+    #[tokio::test]
+    async fn the_demo_adopts_and_watches_the_simulated_nodes() {
+        let dir = tempfile::tempdir().unwrap();
+        let clock = Arc::new(SystemClock);
+        let store = Store::open(dir.path().join("uniwrt.db"), clock.clone())
+            .await
+            .unwrap();
+        let fleet = Fleet::demo(&store, &uniwrt_sim::SimConfig::default(), clock)
+            .await
+            .unwrap();
+        let nodes = store.nodes().await.unwrap();
+        assert_eq!(nodes.len(), 4);
+        assert_eq!(nodes[0].role, NodeRole::Gateway);
+        let online = || {
+            nodes.iter().all(|node| {
+                fleet.engine.node(node.id).map(|view| view.status.state) == Some(NodeState::Online)
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !online() {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("the simulated nodes come online");
         tokio::time::timeout(Duration::from_secs(5), fleet.stop())
             .await
             .unwrap();

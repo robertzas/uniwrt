@@ -3,6 +3,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use clap::{Args, Parser, Subcommand};
+use uniwrt_sim::SimConfig;
 
 use crate::build_info;
 
@@ -54,6 +55,14 @@ pub(crate) struct ServeArgs {
         default_value = "info"
     )]
     pub(crate) log: String,
+    /// Run a simulated fleet (a gateway, 3 access points and 30 clients) instead of the adopted
+    /// nodes. Its database lives in a temporary directory inside the data directory and is
+    /// deleted at exit; the real data is never touched.
+    #[arg(long, env = "UNIWRT_DEMO")]
+    pub(crate) demo: bool,
+    /// The simulation's seed: the same seed gives the same fleet and story.
+    #[arg(long, env = "UNIWRT_DEMO_SEED", value_name = "SEED", default_value_t = SimConfig::DEFAULT_SEED, requires = "demo")]
+    pub(crate) demo_seed: u64,
 }
 
 #[derive(Debug, Args)]
@@ -107,6 +116,18 @@ mod tests {
         assert_eq!(args.http_listen.to_string(), "127.0.0.1:9000");
         assert_eq!(args.data_dir.to_str(), Some("/srv/uniwrt"));
         assert_eq!(args.log, "debug");
+    }
+
+    #[test]
+    fn demo_mode_takes_a_seed() {
+        let cli = Cli::try_parse_from(["uniwrt", "--demo"]).unwrap();
+        assert!(cli.serve.demo);
+        assert_eq!(cli.serve.demo_seed, uniwrt_sim::SimConfig::DEFAULT_SEED);
+        let cli = Cli::try_parse_from(["uniwrt", "serve", "--demo", "--demo-seed", "7"]).unwrap();
+        assert!(
+            matches!(cli.command, Some(Command::Serve(args)) if args.demo && args.demo_seed == 7)
+        );
+        assert!(Cli::try_parse_from(["uniwrt", "--demo-seed", "7"]).is_err());
     }
 
     #[test]

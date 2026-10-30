@@ -16,9 +16,12 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+bytes.workspace = true
 clap.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+# Demo mode's database lives in a temporary directory inside the data directory.
+tempfile.workspace = true
 tokio = { workspace = true, features = ["fs", "macros", "net", "rt-multi-thread", "signal", "time"] }
 tower-http = { workspace = true, features = ["catch-panic", "trace"] }
 tracing.workspace = true
@@ -28,6 +31,7 @@ uniwrt-core.workspace = true
 uniwrt-engine.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
+uniwrt-sim.workspace = true
 uniwrt-store.workspace = true
 zeroize.workspace = true
 
@@ -40,7 +44,6 @@ sha2.workspace = true
 # Decoders that check the embedded variants against the originals.
 brotli.workspace = true
 flate2.workspace = true
-tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util"] }
 tower = { workspace = true, features = ["util"] }
 

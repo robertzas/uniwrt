@@ -2343,6 +2343,7 @@ dependencies = [
  "anyhow",
  "axum",
  "brotli",
+ "bytes",
  "clap",
  "flate2",
  "serde",
@@ -2359,6 +2360,7 @@ dependencies = [
  "uniwrt-engine",
  "uniwrt-model",
  "uniwrt-node",
+ "uniwrt-sim",
  "uniwrt-store",
  "zeroize",
 ]
@@ -2417,6 +2419,20 @@ dependencies = [
  "uniwrt-core",
  "uniwrt-model",
  "zeroize",
+]
+
+[[package]]
+name = "uniwrt-sim"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uniwrt-core",
+ "uniwrt-engine",
+ "uniwrt-model",
+ "uniwrt-node",
 ]
 
 [[package]]

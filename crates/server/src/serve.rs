@@ -5,6 +5,9 @@
 //! (inside Docker's default 10 s stop grace period), then close what is left. A second signal
 //! closes everything at once. Then the engine stops and saves the nodes' last facts, and the
 //! database closes last, after committing queued writes.
+//!
+//! With `--demo` the nodes are simulated, and the database lives in a `demo-*` directory
+//! inside the data directory (a scratch image has no /tmp), deleted at exit.
 
 use std::{future::IntoFuture as _, io, path::Path, sync::Arc, time::Duration};
 
@@ -18,6 +21,7 @@ use tokio::{
 use tracing::{info, warn};
 use uniwrt_core::{Clock, SystemClock};
 use uniwrt_node::ControllerKey;
+use uniwrt_sim::SimConfig;
 use uniwrt_store::Store;
 
 use crate::{
@@ -51,8 +55,20 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .with_context(|| format!("cannot create the data directory {}", data_dir.display()))?;
     // Registered before binding, so an early signal is not lost.
     let stop = forward_signals().context("cannot install signal handlers")?;
+    let demo_dir = args
+        .demo
+        .then(|| {
+            tempfile::Builder::new()
+                .prefix("demo-")
+                .tempdir_in(&data_dir)
+        })
+        .transpose()
+        .context("cannot create the demo's directory")?;
+    let state_dir = demo_dir
+        .as_ref()
+        .map_or_else(|| data_dir.clone(), |dir| dir.path().to_owned());
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-    let store = Store::open(data_dir.join(DATABASE), Arc::clone(&clock))
+    let store = Store::open(state_dir.join(DATABASE), Arc::clone(&clock))
         .await
         .context("cannot open the database")?;
     let served = async {
@@ -61,8 +77,17 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         let listener = TcpListener::bind(args.http_listen)
             .await
             .with_context(|| format!("cannot listen on {}", args.http_listen))?;
-        log_start(&listener, &data_dir, &controller_key)?;
-        let fleet = Fleet::start(&store, &controller_key, clock).await?;
+        log_start(&listener, &state_dir, &controller_key)?;
+        let fleet = if args.demo {
+            let config = SimConfig {
+                seed: args.demo_seed,
+                ..SimConfig::default()
+            };
+            info!(seed = config.seed, "demo mode: simulating {} access points and {} clients; its data is deleted at exit", config.access_points, config.clients);
+            Fleet::demo(&store, &config, clock).await?
+        } else {
+            Fleet::start(&store, &controller_key, clock).await?
+        };
         let served = serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await;
         fleet.stop().await;
         served?;
@@ -70,6 +95,11 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     }
     .await;
     store.close().await;
+    if let Some(dir) = demo_dir
+        && let Err(err) = dir.close()
+    {
+        warn!(%err, "cannot delete the demo's directory");
+    }
     served?;
     info!("uniwrt stopped");
     Ok(())

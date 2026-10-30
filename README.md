@@ -68,6 +68,8 @@ docker run -d --name uniwrt --restart unless-stopped \
 
 Then open `https://<host>:8443`. Host networking is recommended because it makes discovery and log ingest simple. With bridge networking, publish `8443/tcp` and `5514/tcp+udp` instead. To keep the data in a host directory rather than the named volume, make that directory writable by UID 65532 first (`chown 65532:65532 <dir>`).
 
+To try it without a network of your own, add `-e UNIWRT_DEMO=1` (or run `uniwrt serve --demo`). That simulates a gateway, 3 mesh access points and 30 clients that roam, come and go, and now and then reboot an access point. Demo mode keeps its own database and deletes it at exit.
+
 ## Compatibility
 
 | | Supported |

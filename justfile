@@ -10,8 +10,8 @@ platforms := "linux/amd64,linux/386,linux/arm/v7,linux/arm64"
 default:
     @just --list --unsorted
 
-# Backend on 127.0.0.1:8080 plus the Vite dev server, which proxies /api to it
-dev:
+# Backend on 127.0.0.1:8080 plus the Vite dev server, which proxies /api to it; args go to serve
+dev *args:
     #!/usr/bin/env bash
     set -euo pipefail
     # Job control gives each process its own group, so stopping one also stops its children.
@@ -25,7 +25,7 @@ dev:
     }
     trap 'stop 0' INT TERM
     trap 'stop $?' EXIT
-    UNIWRT_HTTP_LISTEN=127.0.0.1:8080 cargo run --quiet -- serve </dev/null &
+    UNIWRT_HTTP_LISTEN=127.0.0.1:8080 cargo run --quiet -- serve {{ args }} </dev/null &
     # Vite itself rather than `bun run dev`, whose exit-code report would add noise on Ctrl-C.
     (cd web && exec node_modules/.bin/vite) </dev/null &
     wait -n
@@ -85,9 +85,8 @@ map:
 crate-age rev="HEAD":
     @scripts/crate-age.sh {{ rev }}
 
-# Run against the simulated fleet (arrives with it in M1.5)
-demo:
-    @echo "just demo arrives with the simulated fleet in M1.5" >&2; exit 1
+# `just dev` against the simulated fleet (a gateway, 3 access points, 30 clients); the seed is optional
+demo seed="": (dev "--demo" (if seed == "" { "" } else { "--demo-seed " + seed }))
 
 # Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
