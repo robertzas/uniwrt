@@ -107,7 +107,8 @@ mod tests {
 
     #[tokio::test]
     async fn passes_against_a_healthy_server() {
-        probe(spawn(http::router(&EMBEDDED, crate::tls::Tls::for_tests())).await)
+        let (_dir, api) = http::test_api().await;
+        probe(spawn(http::router(&EMBEDDED, api)).await)
             .await
             .unwrap();
     }

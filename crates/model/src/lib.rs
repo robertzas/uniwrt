@@ -9,6 +9,7 @@
 //!   leaving, devices and interfaces changing, DHCP leases) plus the roams the engine infers from
 //!   them ([`event::Roam`]), and [`log`] their log entries. [`status`] is a node's status as the
 //!   engine derives it ([`status::NodeStatus`]: online, degraded or offline, with reasons).
+//!   [`user`] holds the controller's users, their sessions and the audit log's entries.
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -26,4 +27,5 @@ pub mod facts;
 pub mod log;
 pub mod node;
 pub mod status;
+pub mod user;
 pub mod wifi;

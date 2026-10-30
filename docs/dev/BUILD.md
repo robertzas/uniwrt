@@ -128,4 +128,4 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | `just cross [target…]` | Static musl binaries built in the zigbuild container, written to `dist/uniwrt-<arch>`; all four targets by default |
 | `just image [tag]` | The four cross binaries plus a local multi-arch image (default tag `uniwrt:dev`) |
 | `just map` | Regenerate `docs/MAP.md` (`scripts/gen-map.sh`; with `--check` it only reports staleness) |
-| `just demo [seed]` | `just dev` against the simulated fleet (`serve --demo`, D-038); `just dev <args>` passes any arguments to `serve` |
+| `just demo [seed]` | `just dev` against the simulated fleet (`serve --demo`, D-038; log in as `demo` / `demo`); `just dev <args>` passes any arguments to `serve` |

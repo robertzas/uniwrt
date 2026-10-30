@@ -40,6 +40,8 @@ ids! {
     /// An adopted node. The store assigns it and never reuses it, so history that outlives a
     /// deleted node cannot point at a newer one.
     NodeId = "node";
+    /// A controller user. Assigned by the store and never reused, like [`NodeId`].
+    UserId = "user";
 }
 
 #[cfg(test)]

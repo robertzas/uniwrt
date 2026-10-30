@@ -10,6 +10,13 @@ use crate::ui::{self, Source};
 include!(concat!(env!("OUT_DIR"), "/build_info.rs"));
 
 /// What `uniwrt version` reports.
+/// The build identity as the API reports it (`GET /api/v1/health`).
+pub(crate) const API: uniwrt_api::BuildInfo = uniwrt_api::BuildInfo {
+    version: VERSION,
+    commit: COMMIT,
+    built_at: BUILT_AT,
+};
+
 #[derive(Debug, Serialize)]
 pub(crate) struct BuildInfo {
     pub(crate) version: &'static str,

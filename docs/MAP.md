@@ -8,6 +8,24 @@ Where code lives. Each entry is the first sentence of the file's header comment;
 
 A crate's contract is the full `//!` header of its `lib.rs` or `main.rs`.
 
+### `uniwrt-api` (crates/api)
+
+uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, and authentication with sessions.
+
+- `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
+- `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
+- `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
+- `src/auth/session.rs`: Login sessions: a random 256-bit token in the `__Host-uniwrt-session` cookie (`HttpOnly`, Secure, SameSite=Strict, the whole site), stored only as its SHA-256.
+- `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
+- `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
+- `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
+- `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
+- `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, and authentication with sessions.
+- `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
+- `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
+- `src/state.rs`: [`Api`]: what the handlers share: the store, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter and the setup window.
+- `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
+
 ### `uniwrt-core` (crates/core)
 
 Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and the `Clock` trait.
@@ -58,6 +76,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
+- `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
 
 ### `uniwrt-node` (crates/node)
@@ -128,12 +147,8 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, and the snapshot writer.
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
-- `src/http/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
-- `src/http/mod.rs`: The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share; the HTTPS listener serves [`router`], the plain HTTP listener [`plain::router`] around it.
+- `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
 - `src/http/plain.rs`: The plain HTTP listener (features/security.md, TLS; D-039): it redirects to HTTPS, except for the health check (Docker probes it) and for requests from a trusted reverse proxy, which terminates TLS itself and gets the whole application.
-- `src/http/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`).
-- `src/http/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
-- `src/http/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/logging.rs`: Logging: `tracing` to stderr, filtered by `--log` / `UNIWRT_LOG` (`EnvFilter` syntax).
 - `src/main.rs`: The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
 - `src/master_key.rs`: The vault's master key (features/security.md, Secrets vault): from `UNIWRT_MASTER_KEY`, or from its file (`<data dir>/master.key` unless `--master-key-file` says otherwise), which the first run creates with mode 0600.
@@ -187,10 +202,13 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/lib.rs`: SQLite persistence: one database in WAL mode, a batching writer thread, a read pool and repositories.
 - `src/migrate.rs`: Forward-only schema migrations, embedded at build time and tracked in `PRAGMA user_version`.
 - `src/readers.rs`: The read pool: read-only connections, opened on demand, used on tokio's blocking pool.
+- `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
+- `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
+- `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/vault/key.rs`: The master key: 32 random bytes that every secret in the vault is sealed under, kept outside the database (`master.key` or `UNIWRT_MASTER_KEY`; features/security.md, Secrets vault).
@@ -231,7 +249,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (2 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (7 files); never edit
 - `app/`: App.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, ThemeToggle.tsx, TopBar.tsx, nav.ts, routes.tsx
 - `lib/`: api.ts, strings.ts, theme.ts
 - `ui/`: EmptyState.tsx, Wordmark.tsx, tokens.css

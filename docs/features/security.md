@@ -18,15 +18,20 @@ Milestones: M1.6 (TLS, vault), M1.6b (auth and sessions), M3.1 (vault for config
 
 ## Controller authentication & sessions
 
-- **Users:** the first run creates the admin; there are no defaults. Local users have roles admin or viewer (viewer arrives in M9).
-- **Passwords:** Argon2id, with memory-hard parameters tuned for a Raspberry Pi, and a minimum length.
+The `api` crate implements it (`crates/api/src/auth/`; D-040).
+
+- **First-run setup:** there are no default credentials. A controller that starts without users accepts `POST /api/v1/auth/setup` for 10 minutes, then refuses it until restarted, so a forgotten controller cannot be claimed by someone else on the LAN (owner's choice). Setup creates the admin and logs them in; creating it is one statement, so two setups cannot both win. Demo mode, whose database is thrown away, creates `demo` / `demo` instead.
+- **Users:** lowercase usernames of 1–64 letters, digits, `.`, `_` and `-`. Roles admin or viewer (viewer arrives in M9).
+- **Passwords:** at least 12 characters and at most 1,024 bytes, no composition rules (NIST SP 800-63B). Argon2id with OWASP's minimum cost (19 MiB, 2 passes, 1 lane; about 50 ms on a Raspberry Pi 4), a 128-bit salt from ring, as a PHC string, so a later cost change still verifies old hashes. Hashing runs on the blocking pool, two at a time. A login for an unknown user verifies a dummy hash (computed at startup), so it takes as long as a wrong password.
+- **Throttling** (in memory, bounded to 10,000 entries per kind): a client (IPv6: its /64) with 10 failed logins in 15 minutes waits until the oldest ages out; a username with 5 failures in a row waits 1 minute, doubling to 15, until a success. Answers are 429 with `Retry-After`.
 - **Sessions:**
-  - random 256-bit IDs in HttpOnly + Secure + SameSite=Strict cookies
-  - idle and absolute timeouts; revocation
-  - CSRF defense: SameSite, an Origin check, and a custom header on mutating requests
-- **API tokens:** scoped and revocable, for scripts.
+  - a random 256-bit token in `__Host-uniwrt-session` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, no `Domain`); the store keeps only its SHA-256, so a copy of the database cannot log in
+  - they end after 7 days without a request or 30 days in all; use is recorded at most every 5 minutes; logout deletes the session, and logins delete the ended ones
+  - CSRF defense: `SameSite=Strict`; state-changing API requests need `X-Uniwrt-Csrf: 1` and, when the browser sends one, our own `Origin` (`https://<host>`, from the request or a trusted proxy's `X-Forwarded-Proto`/`-Host`); `Sec-Fetch-Site: cross-site` is refused
+- **Who the client is:** the listener decides (`uniwrt_api::Client`): over HTTPS the connection's peer; through a trusted proxy the rightmost `X-Forwarded-For` address that is not itself a trusted proxy. Nobody else's forwarded headers count.
+- **API tokens:** scoped and revocable, for scripts (not yet).
 - **2FA:** TOTP (M9). Passkeys (WebAuthn) once the controller is served with a trusted certificate.
-- **Audit log:** every login, change, apply, terminal session and secret view.
+- **Audit log** (`audit` table): every login, change, apply, terminal session and secret view. Recorded now: setup, logins, failed logins (with the username tried) and logouts, each with the client's address.
 
 ## HTTP response headers
 

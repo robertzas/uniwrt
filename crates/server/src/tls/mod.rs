@@ -27,7 +27,7 @@ use rustls::{
 };
 use serde::Serialize;
 use tracing::{info, warn};
-use ts_rs::TS;
+use uniwrt_api::{Certificate, TlsInfo};
 use uniwrt_core::Clock;
 use uniwrt_store::{Vault, VaultRepo as _};
 use zeroize::Zeroizing;
@@ -38,22 +38,6 @@ use names::{Host, Names, Permitted, TlsName};
 const CA_SECRET: &str = "tls/ca";
 const LEAF_SECRET: &str = "tls/leaf";
 const CHECK_EVERY: Duration = Duration::from_hours(24);
-
-/// The certificate the HTTPS listener serves, for clients to download and check.
-#[derive(Clone, Debug, Serialize, TS)]
-#[ts(export)]
-pub(crate) struct TlsInfo {
-    /// The local CA's common name, as trust stores list it.
-    pub(crate) ca_name: String,
-    /// SHA-256 of the CA certificate, colon-separated uppercase hex, to compare on a device.
-    pub(crate) ca_sha256: String,
-    /// When the CA expires, RFC 3339 UTC.
-    pub(crate) ca_not_after: String,
-    /// The DNS names and IP addresses the certificate covers.
-    pub(crate) names: Vec<String>,
-    /// When the certificate expires (RFC 3339 UTC); it is renewed 30 days before.
-    pub(crate) not_after: String,
-}
 
 /// What the HTTPS listener serves now. Clones share it.
 #[derive(Clone)]
@@ -126,15 +110,6 @@ impl Tls {
         Ok(Arc::new(config))
     }
 
-    pub(crate) fn info(&self) -> TlsInfo {
-        self.read(|current| current.info.clone())
-    }
-
-    /// The CA certificate, PEM.
-    pub(crate) fn ca_pem(&self) -> String {
-        self.read(|current| current.ca_pem.clone())
-    }
-
     fn read<T>(&self, f: impl FnOnce(&Current) -> T) -> T {
         f(&self.current.read().unwrap_or_else(PoisonError::into_inner))
     }
@@ -151,6 +126,16 @@ impl Tls {
             current: Arc::new(RwLock::new(Current::new(&ca, leaf, &provider).unwrap())),
             provider,
         }
+    }
+}
+
+impl Certificate for Tls {
+    fn info(&self) -> TlsInfo {
+        self.read(|current| current.info.clone())
+    }
+
+    fn ca_pem(&self) -> String {
+        self.read(|current| current.ca_pem.clone())
     }
 }
 

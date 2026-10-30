@@ -161,6 +161,8 @@ mod tests {
     };
     use tokio_rustls::TlsConnector;
 
+    use uniwrt_api::Certificate as _;
+
     use super::{Peer, TlsListener};
     use crate::tls::Tls;
 

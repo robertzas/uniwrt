@@ -1,6 +1,6 @@
 //! Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and the `Clock` trait.
 //!
-//! - **API:** [`NodeId`] (store-assigned, never reused); [`MacAddr`] (EUI-48, canonical
+//! - **API:** [`NodeId`] and [`UserId`] (store-assigned, never reused); [`MacAddr`] (EUI-48, canonical
 //!   `aa:bb:cc:dd:ee:ff`); [`IpNet`], [`Ipv4Net`] and [`Ipv6Net`] (re-exported from `ipnet`: an
 //!   address plus a prefix length, host bits kept, as in `10.0.0.1/24`); [`Timestamp`] (Unix
 //!   milliseconds, UTC); [`Clock`] with [`SystemClock`] and [`ManualClock`].
@@ -21,7 +21,7 @@ mod mac;
 mod time;
 
 pub use clock::{Clock, ManualClock, SystemClock};
-pub use id::NodeId;
+pub use id::{NodeId, UserId};
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 pub use mac::{MacAddr, ParseMacError};
 pub use time::Timestamp;

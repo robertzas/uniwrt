@@ -23,6 +23,7 @@ use tokio::{
     task::JoinSet,
 };
 use tracing::{info, warn};
+use uniwrt_api::{Api, ApiConfig, Certificate as _};
 use uniwrt_core::{Clock, SystemClock};
 use uniwrt_node::ControllerKey;
 use uniwrt_sim::SimConfig;
@@ -47,6 +48,9 @@ const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 const DATABASE: &str = "uniwrt.db";
 /// The master key file inside the data directory, unless configured elsewhere.
 const MASTER_KEY: &str = "master.key";
+/// Demo mode's admin: its database is thrown away at exit, and its nodes are simulated.
+const DEMO_USER: &str = "demo";
+const DEMO_PASSWORD: &str = "demo";
 
 /// One listener's server, running until its drain signal and its connections end.
 type Server = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
@@ -86,30 +90,21 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .await
         .context("cannot open the database")?;
     let served = async {
-        let key_file = args
-            .master_key_file
-            .clone()
-            .unwrap_or_else(|| data_dir.join(MASTER_KEY));
-        let key_source = if args.demo {
-            KeySource::Ephemeral
-        } else {
-            KeySource::Configured(&key_file)
-        };
-        let vault = master_key::open_vault(&store, key_source).await?;
-        // Nodes trust this key; the engine connects with it.
-        let controller_key = controller_key::load_or_generate(&vault).await?;
-        let (tls, renewer) = tls::start(
-            vault,
-            Arc::clone(&clock),
-            args.tls_names.clone(),
-            vec![args.https_listen],
-        )
-        .await
-        .context("cannot set up HTTPS")?;
+        let Secured {
+            controller_key,
+            tls,
+            renewer,
+            api,
+        } = secure(&args, &data_dir, &store, &clock).await?;
         let http = bind(args.http_listen).await?;
         let https = bind(args.https_listen).await?;
         log_start(&http, &https, &state_dir, &controller_key)?;
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
+        if args.demo {
+            info!("demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}");
+        } else if api.awaiting_setup() {
+            warn!("no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)");
+        }
         let fleet = if args.demo {
             let config = SimConfig {
                 seed: args.demo_seed,
@@ -121,7 +116,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             Fleet::start(&store, &controller_key, clock).await?
         };
         let renewal = tokio::spawn(renewer.run());
-        let app = http::router(&ui::EMBEDDED, tls.clone());
+        let app = http::router(&ui::EMBEDDED, api);
         let plain = http::plain::router(
             app.clone(),
             args.https_listen.port(),
@@ -129,7 +124,11 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         );
         let (drain, draining) = watch::channel(false);
         let servers = vec![
-            https_server(TlsListener::new(https, tls.server_config()?)?, app, draining.clone()),
+            https_server(
+                TlsListener::new(https, tls.server_config()?)?,
+                http::https(app),
+                draining.clone(),
+            ),
             http_server(http, plain, draining),
         ];
         let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
@@ -148,6 +147,59 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     served?;
     info!("uniwrt stopped");
     Ok(())
+}
+
+/// What the vault holds and serves: the controller's SSH key, HTTPS, and the API with its users.
+struct Secured {
+    controller_key: ControllerKey,
+    tls: tls::Tls,
+    renewer: tls::Renewer,
+    api: Api,
+}
+
+async fn secure(
+    args: &ServeArgs,
+    data_dir: &Path,
+    store: &Store,
+    clock: &Arc<dyn Clock>,
+) -> anyhow::Result<Secured> {
+    let key_file = args
+        .master_key_file
+        .clone()
+        .unwrap_or_else(|| data_dir.join(MASTER_KEY));
+    let key_source = if args.demo {
+        KeySource::Ephemeral
+    } else {
+        KeySource::Configured(&key_file)
+    };
+    let vault = master_key::open_vault(store, key_source).await?;
+    // Nodes trust this key; the engine connects with it.
+    let controller_key = controller_key::load_or_generate(&vault).await?;
+    let (tls, renewer) = tls::start(
+        vault,
+        Arc::clone(clock),
+        args.tls_names.clone(),
+        vec![args.https_listen],
+    )
+    .await
+    .context("cannot set up HTTPS")?;
+    let api = Api::new(ApiConfig::new(
+        store.clone(),
+        Arc::clone(clock),
+        build_info::API,
+        Arc::new(tls.clone()),
+    ))
+    .await
+    .context("cannot start the API")?;
+    if args.demo {
+        api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
+    }
+    Ok(Secured {
+        controller_key,
+        tls,
+        renewer,
+        api,
+    })
 }
 
 async fn bind(addr: SocketAddr) -> anyhow::Result<TcpListener> {
@@ -274,7 +326,7 @@ mod tests {
 
     use super::{http_server, https_server, serve_until};
     use crate::{
-        http,
+        http::{self, test_api},
         tls::{Tls, listener::TlsListener},
         ui::EMBEDDED,
     };
@@ -334,8 +386,9 @@ mod tests {
 
     #[tokio::test]
     async fn serves_then_stops_on_request() {
-        let app = http::router(&EMBEDDED, Tls::for_tests());
-        let (addr, stop, server) = start(app, Duration::from_secs(5)).await;
+        let (_dir, api) = test_api().await;
+        let (addr, stop, server) =
+            start(http::router(&EMBEDDED, api), Duration::from_secs(5)).await;
         let response = fetch(addr, "/api/v1/health").await;
         assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
 
@@ -353,13 +406,14 @@ mod tests {
         let https = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let http = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let http_addr = http.local_addr().unwrap();
-        let app = http::router(&EMBEDDED, tls.clone());
+        let (_dir, api) = test_api().await;
+        let app = http::router(&EMBEDDED, api);
         let plain = http::plain::router(app.clone(), 8443, Vec::new());
         let (drain_tx, draining) = watch::channel(false);
         let servers = vec![
             https_server(
                 TlsListener::new(https, tls.server_config().unwrap()).unwrap(),
-                app,
+                http::https(app),
                 draining.clone(),
             ),
             http_server(http, plain, draining),

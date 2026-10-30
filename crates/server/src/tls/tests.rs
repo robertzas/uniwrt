@@ -2,6 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
+use uniwrt_api::Certificate as _;
 use uniwrt_core::{ManualClock, Timestamp};
 use uniwrt_store::{MasterKey, Store, Vault, VaultRepo as _};
 

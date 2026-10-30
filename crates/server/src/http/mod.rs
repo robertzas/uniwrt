@@ -1,42 +1,33 @@
-//! The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share;
-//! the HTTPS listener serves [`router`], the plain HTTP listener [`plain::router`] around it.
+//! The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and
+//! the middleware both share. The HTTPS listener serves [`https`] around [`router`], the plain
+//! HTTP listener [`plain::router`]; each tells the API who the client is ([`Client`]).
 
-mod health;
 pub(crate) mod plain;
-mod problem;
-mod security;
-mod tls;
 
 use axum::{
     Router,
-    http::{HeaderMap, Method, Uri},
-    middleware,
-    routing::get,
+    extract::{ConnectInfo, Request},
+    http::{HeaderMap, Method, Uri, header},
+    middleware::{self, Next},
 };
 use tower_http::{catch_panic::CatchPanicLayer, trace::TraceLayer};
+use uniwrt_api::{Api, Client, security};
 
 use crate::{
-    tls::Tls,
+    tls::listener::Peer,
     ui::{self, Assets},
 };
 
 /// The application router. `assets` is the embedded UI (`ui::EMBEDDED`, or a table in tests).
-pub(crate) fn router(assets: &'static Assets, tls: Tls) -> Router {
-    let api = Router::new()
-        .route("/v1/health", get(health::get))
-        .route("/v1/tls", get(tls::info))
-        .route("/v1/tls/ca.crt", get(tls::ca))
-        .fallback(problem::not_found)
-        .method_not_allowed_fallback(problem::method_not_allowed)
-        .with_state(tls);
+pub(crate) fn router(assets: &'static Assets, api: Api) -> Router {
     Router::new()
-        .nest("/api", api)
+        .nest("/api", uniwrt_api::router(api))
         .fallback(
             move |method: Method, uri: Uri, headers: HeaderMap| async move {
                 let path = uri.path();
                 // `nest` leaves `/api/` (an empty tail) to this fallback; it is still an API miss.
                 if path == "/api" || path.starts_with("/api/") {
-                    return problem::no_route(path);
+                    return uniwrt_api::no_route(path);
                 }
                 ui::respond(assets, &method, path, &headers)
             },
@@ -47,26 +38,83 @@ pub(crate) fn router(assets: &'static Assets, tls: Tls) -> Router {
         .layer(TraceLayer::new_for_http())
 }
 
+/// `app` as the HTTPS listener serves it: the client is the connection's peer, over HTTPS.
+pub(crate) fn https(app: Router) -> Router {
+    app.layer(middleware::from_fn(
+        |ConnectInfo(Peer(peer)): ConnectInfo<Peer>, mut request: Request, next: Next| async move {
+            let client = Client {
+                ip: peer.ip().to_canonical(),
+                secure: true,
+                host: host(&request),
+            };
+            request.extensions_mut().insert(client);
+            next.run(request).await
+        },
+    ))
+}
+
+/// The host the client addressed: the `Host` header, or HTTP/2's `:authority`.
+pub(crate) fn host(request: &Request) -> Option<String> {
+    request
+        .headers()
+        .get(header::HOST)
+        .and_then(|host| host.to_str().ok())
+        .map(str::to_owned)
+        .or_else(|| request.uri().authority().map(ToString::to_string))
+}
+
+/// An API over a fresh store, for the server's own tests.
+#[cfg(test)]
+pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
+    use std::sync::Arc;
+
+    use uniwrt_api::{ApiConfig, PasswordCost};
+    use uniwrt_core::SystemClock;
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = uniwrt_store::Store::open(dir.path().join("uniwrt.db"), Arc::new(SystemClock))
+        .await
+        .unwrap();
+    let config = ApiConfig {
+        password_cost: PasswordCost::CHEAPEST,
+        ..ApiConfig::new(
+            store,
+            Arc::new(SystemClock),
+            crate::build_info::API,
+            Arc::new(crate::tls::Tls::for_tests()),
+        )
+    };
+    (dir, Api::new(config).await.unwrap())
+}
+
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+
     use axum::{
         body::{self, Body, Bytes},
+        extract::ConnectInfo,
         http::{Request, StatusCode},
         response::Response,
     };
     use serde_json::{Value, json};
     use tower::ServiceExt as _;
 
-    use super::router;
-    use crate::{build_info, tls::Tls, ui::EMBEDDED};
+    use super::{https, router, test_api};
+    use crate::{build_info, tls::listener::Peer, ui::EMBEDDED};
 
+    /// Sends a request as the HTTPS listener would, from 192.168.1.20.
     async fn send(method: &str, uri: &str, headers: &[(&str, &str)]) -> Response {
+        let (_dir, api) = test_api().await;
         let mut request = Request::builder().method(method).uri(uri);
         for &(name, value) in headers {
             request = request.header(name, value);
         }
-        router(&EMBEDDED, Tls::for_tests())
-            .oneshot(request.body(Body::empty()).unwrap())
+        let mut request = request.body(Body::empty()).unwrap();
+        let peer: SocketAddr = "192.168.1.20:50000".parse().unwrap();
+        request.extensions_mut().insert(ConnectInfo(Peer(peer)));
+        https(router(&EMBEDDED, api))
+            .oneshot(request)
             .await
             .unwrap()
     }
@@ -85,7 +133,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_reports_the_build_identity() {
+    async fn the_api_is_under_api_with_the_build_identity() {
         let res = send("GET", "/api/v1/health", &[]).await;
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(header(&res, "content-type"), Some("application/json"));
@@ -103,37 +151,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_ca_and_what_the_certificate_covers_are_public() {
-        let res = send("GET", "/api/v1/tls", &[]).await;
-        assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(header(&res, "cache-control"), Some("no-store"));
-        let json: Value = serde_json::from_slice(&body(res).await).unwrap();
-        assert!(
-            json["ca_name"]
-                .as_str()
-                .unwrap()
-                .starts_with("uniwrt local CA ")
-        );
-        assert_eq!(json["ca_sha256"].as_str().unwrap().len(), 95);
-        assert!(
-            json["names"]
-                .as_array()
-                .unwrap()
-                .contains(&json!("uniwrt.lan"))
-        );
-
-        let res = send("GET", "/api/v1/tls/ca.crt", &[]).await;
-        assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(
-            header(&res, "content-type"),
-            Some("application/x-x509-ca-cert")
-        );
-        assert_eq!(
-            header(&res, "content-disposition"),
-            Some("attachment; filename=\"uniwrt-ca.crt\"")
-        );
-        let pem = body(res).await;
-        assert!(pem.starts_with(b"-----BEGIN CERTIFICATE-----"));
+    async fn the_https_listener_identifies_the_client_to_the_api() {
+        let headers = [
+            ("host", "uniwrt.lan:8443"),
+            ("origin", "https://uniwrt.lan:8443"),
+            ("x-uniwrt-csrf", "1"),
+        ];
+        // Logout needs the client (for the audit) and checks the origin against it.
+        let res = send("POST", "/api/v1/auth/logout", &headers).await;
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+        let mut other = headers;
+        other[1] = ("origin", "https://other.lan:8443");
+        let res = send("POST", "/api/v1/auth/logout", &other).await;
+        assert_eq!(res.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -151,17 +181,6 @@ mod tests {
             assert_eq!(json["title"], "Not Found");
             assert_eq!(json["detail"], format!("No API route matches {path}"));
         }
-    }
-
-    #[tokio::test]
-    async fn wrong_method_is_405_problem_json() {
-        let res = send("POST", "/api/v1/health", &[]).await;
-        assert_eq!(res.status(), StatusCode::METHOD_NOT_ALLOWED);
-        assert_eq!(
-            header(&res, "content-type"),
-            Some("application/problem+json")
-        );
-        assert!(header(&res, "allow").is_some_and(|allow| allow.contains("GET")));
     }
 
     #[tokio::test]

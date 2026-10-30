@@ -3,7 +3,9 @@
 //! - **API:** [`Store::open`] creates or migrates the database and returns a cloneable handle;
 //!   [`Store::close`] commits what is queued and checkpoints. Repositories are traits that `Store`
 //!   implements: [`NodeRepo`] (the node inventory), [`FactsRepo`] (the latest facts snapshot of
-//!   each node) and [`HostKeyRepo`] (the SSH host key pinned for each node). [`VaultRepo`]
+//!   each node), [`HostKeyRepo`] (the SSH host key pinned for each node), [`UserRepo`] (users and
+//!   their password hashes), [`SessionRepo`] (login sessions by token hash) and [`AuditRepo`]
+//!   (the audit log). [`VaultRepo`]
 //!   (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes from the store
 //!   and the [`MasterKey`]. Errors are [`Error`].
 //! - **Vault:** each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the
@@ -42,6 +44,9 @@ mod vault;
 mod writer;
 
 pub use error::{Error, Result};
-pub use repo::{FactsRepo, HostKeyRepo, NodeRepo, Secret, VaultRepo};
+pub use repo::{
+    AuditRepo, FactsRepo, HostKeyRepo, NewSession, NodeRepo, Secret, SessionRepo, UserRepo,
+    VaultRepo,
+};
 pub use store::Store;
 pub use vault::{MasterKey, Vault};

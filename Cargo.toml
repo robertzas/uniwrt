@@ -11,6 +11,7 @@ repository = "https://github.com/robertzas/uniwrt"
 publish = false
 
 [workspace.dependencies]
+uniwrt-api = { path = "crates/api" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-engine = { path = "crates/engine" }
 uniwrt-model = { path = "crates/model" }
@@ -19,6 +20,8 @@ uniwrt-sim = { path = "crates/sim" }
 uniwrt-store = { path = "crates/store" }
 
 anyhow = "1.0.104"
+# Password hashing (Argon2id); already in the tree through ssh-key. Salts come from ring.
+argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "password-hash"] }
 axum = "0.8.9"
 bytes = "1"
 # The vault's AEAD (features/security.md); chacha20 and poly1305 are already in the tree through russh.
@@ -84,6 +87,11 @@ opt-level = 3    # vs "s": 13-25 % less CPU per request for 0.5 MB more binary (
 # build.rs precompresses the UI; unoptimized compressors would take minutes.
 # Named packages take precedence over build-override, which defaults to opt-level 0.
 [profile.dev.package.brotli]
+opt-level = 3
+# Argon2id at its production cost takes seconds unoptimized; logins in `just dev` should not.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
 opt-level = 3
 [profile.dev.package.miniz_oxide]
 opt-level = 3

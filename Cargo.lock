@@ -2682,11 +2682,33 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ts-rs",
+ "uniwrt-api",
  "uniwrt-core",
  "uniwrt-engine",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-sim",
+ "uniwrt-store",
+ "zeroize",
+]
+
+[[package]]
+name = "uniwrt-api"
+version = "0.0.0"
+dependencies = [
+ "argon2",
+ "axum",
+ "data-encoding",
+ "ring",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tracing",
+ "ts-rs",
+ "uniwrt-core",
+ "uniwrt-model",
  "uniwrt-store",
  "zeroize",
 ]

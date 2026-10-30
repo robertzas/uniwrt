@@ -59,8 +59,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.6 Vault and TLS** (M) → M1.4 (split from M1.6, owner's choice: auth moved to M1.6b, REST and WS to M1.6c)
   - The real vault: XChaCha20-Poly1305 under the master key (`master.key`, `UNIWRT_MASTER_KEY_FILE` or `UNIWRT_MASTER_KEY`), resealing the stub's `alg = 'plain'` rows (D-032). HTTPS on 8443 with a certificate the user can download and trust.
   - Done (D-039): a name-constrained local CA and the leaf it signs (rcgen), both in the vault; rustls with ring, HTTP/2 and a hot-swapped leaf renewed by a daily check; `GET /api/v1/tls` and `/api/v1/tls/ca.crt`; plain HTTP redirects except the health check and `--trusted-proxies`; `--tls-names`. Tested with webpki (chains, name constraints, validity), a TLS handshake, and the binary in CI's smoke test.
-- [ ] **M1.6b api crate, auth and sessions** (M) → M1.6
+- [x] **M1.6b api crate, auth and sessions** (M) → M1.6
   - The `api` crate (the routes, problem+json errors and security headers move there from `server/src/http`), first-run admin setup, login and sessions (Argon2id), CSRF defenses (SameSite, Origin, a custom header), login rate limiting and lockout, and the audit of logins (features/security.md). `ConnectInfo<Peer>` gives the client's address; behind a trusted proxy, `X-Forwarded-For` and `X-Forwarded-Proto`.
+  - Done (D-040): crate `uniwrt-api` (`Api`, `router`, `ApiError`, `Client`, `CurrentUser`, the `Certificate` trait for `/v1/tls`); setup within 10 minutes of a start without users (owner's choice); `/v1/auth`, `/setup`, `/login`, `/logout`, `/me`; migration 0003 (`users`, `sessions`, `audit`) and their repos; the listeners set `Client` (forwarded headers only from trusted proxies). API tokens are left for later. Tested through the router over a temporary store and with the binary.
 - [ ] **M1.6c REST and the WS hub** (M) → M1.6b
   - Node and fleet routes over `Engine<FleetLink>`, a WS hub with topics and deltas (at most 10 per second per topic), and ts-rs codegen (`just gen`) for the DTOs; tested against `serve --demo`.
 - [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6c
