@@ -1,5 +1,7 @@
 # CI/CD (docs/dev/BUILD.md): every push and pull request builds and tests; a push to main also
 # publishes the image and the GitHub release. Actions are pinned by commit SHA (Dependabot).
+# Rust caches are saved from main only, and branches restore main's: the account's cache storage
+# and download volume are limited.
 name: CI
 
 on:
@@ -129,6 +131,8 @@ jobs:
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148,cargo-deny@0.20.2 # keep in line with `just setup`
@@ -157,17 +161,10 @@ jobs:
 
   # The transport against dropbear on real OpenWrt, in rootfs containers (TESTING.md, Transport).
   transport:
-    name: transport (${{ matrix.release }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        release: ["24.10.8", "25.12.6"] # the releases in TESTING.md's matrix
-    env:
-      RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -175,25 +172,22 @@ jobs:
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # The container tests share the dependencies agent builds (node, engine, jobs).
+          shared-key: containers
+          save-if: false
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148 # keep in line with `just setup`
-      - name: Dropbear on OpenWrt ${{ matrix.release }}
-        run: scripts/test-dropbear.sh "openwrt/rootfs:x86-64-$RELEASE"
+      - name: Dropbear on OpenWrt 24.10 and 25.12
+        run: scripts/test-dropbear.sh
 
   # The node agent on OpenWrt booted with procd, in rootfs containers (TESTING.md, Agent).
   agent:
-    name: agent (${{ matrix.release }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        release: ["24.10.8", "25.12.6"] # the releases in TESTING.md's matrix
-    env:
-      RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -201,11 +195,15 @@ jobs:
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # The container tests share the dependencies agent builds (node, engine, jobs).
+          shared-key: containers
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148 # keep in line with `just setup`
-      - name: The agent on OpenWrt ${{ matrix.release }}
-        run: scripts/test-agent.sh "openwrt/rootfs:x86-64-$RELEASE"
+      - name: The agent on OpenWrt 24.10 and 25.12
+        run: scripts/test-agent.sh
 
   # The Wi-Fi and mesh sets in the hwsim lab (TESTING.md, Wi-Fi lab): mac80211_hwsim radios and
   # batman-adv from the runner's kernel, in OpenWrt 25.12 and 24.10 containers (D-043).
@@ -235,6 +233,10 @@ jobs:
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # The container tests share the dependencies agent builds (node, engine, jobs).
+          shared-key: containers
+          save-if: false
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148 # keep in line with `just setup`
@@ -276,6 +278,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ env.ZIG_VERSION }}

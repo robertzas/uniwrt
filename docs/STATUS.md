@@ -21,7 +21,7 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
-- 2026-10-30 — CI runs every suite (D-043): the hwsim lab as job `wifi`, agent/transport per release, `ui` apart from `web`.
+- 2026-10-30 — CI runs every suite (D-043): the hwsim lab as job `wifi`, `ui` apart from `web`, Rust caches saved from main only and shared by the container jobs.
 - 2026-10-30 — M1.7 done: crate `uniwrt-jobs`, `POST v1/adopt[/probe]`, `GET v1/jobs`, WS `jobs`, backups sealed in the DB. D-042. Split: M1.7b (discovery, batch), M1.8b (wizard).
 - 2026-10-30 — M1.6c done: `uniwrt_engine::Fleet`, `api::nodes`, `api::ws`, the `ts` feature; HTTP/2 extended CONNECT for WebSockets. D-041.
 - 2026-10-30 — M1.6b done: crate `uniwrt-api`, auth, sessions, CSRF, audit. D-040.
