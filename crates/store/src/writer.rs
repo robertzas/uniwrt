@@ -26,7 +26,7 @@ type Failure = Arc<rusqlite::Error>;
 pub(crate) struct Writer {
     queue: mpsc::Sender<Msg>,
     done: watch::Receiver<bool>,
-    /// Committed batches, for tests that check batching.
+    /// Batches taken up (committed or not), for tests that check batching.
     #[cfg(test)]
     batches: Arc<AtomicUsize>,
 }
@@ -148,8 +148,9 @@ fn work(conn: Connection, mut inbox: mpsc::Receiver<Msg>, batches: &AtomicUsize)
             };
         }
         if !batch.is_empty() {
-            commit(&conn, &mut batch);
+            // Counted before the operations learn their results, so whoever awaits one sees it.
             batches.fetch_add(1, Ordering::Relaxed);
+            commit(&conn, &mut batch);
         }
     }
     shut_down(conn);
