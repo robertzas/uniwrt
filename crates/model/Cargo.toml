@@ -11,6 +11,11 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 uniwrt-core.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# TypeScript types (ts-rs) for the API's DTOs.
+ts = ["dep:ts-rs", "uniwrt-core/ts"]
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -10,7 +10,7 @@ A crate's contract is the full `//!` header of its `lib.rs` or `main.rs`.
 
 ### `uniwrt-api` (crates/api)
 
-uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, and authentication with sessions.
+uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
@@ -20,11 +20,20 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
-- `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, and authentication with sessions.
+- `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
+- `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
-- `src/state.rs`: [`Api`]: what the handlers share: the store, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter and the setup window.
+- `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
+- `src/testing.rs`: Test support: an API over a temporary store, and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
+- `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
+- `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
+- `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
+- `src/ws/subs.rs`: A connection's subscriptions.
+- `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
+- `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, the rate of deltas, and closing.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>` and `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order).
 
 ### `uniwrt-core` (crates/core)
 
@@ -47,6 +56,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
 - `src/config.rs`: The engine's settings.
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
+- `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
@@ -249,7 +259,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (7 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (77 files); never edit
 - `app/`: App.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, ThemeToggle.tsx, TopBar.tsx, nav.ts, routes.tsx
 - `lib/`: api.ts, strings.ts, theme.ts
 - `ui/`: EmptyState.tsx, Wordmark.tsx, tokens.css

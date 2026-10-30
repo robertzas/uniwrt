@@ -7,6 +7,7 @@ use uniwrt_core::{Ipv4Net, Ipv6Net, MacAddr};
 
 /// A netifd interface (`network.interface` status): the layer-3 view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct InterfaceFacts {
     /// UCI name, such as `lan` or `wan6`.
     pub name: String,
@@ -18,9 +19,12 @@ pub struct InterfaceFacts {
     /// Time since the interface came up.
     pub uptime_s: Option<u64>,
     /// Addresses with their prefix length (host bits kept).
+    #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
     pub ipv4: Vec<Ipv4Net>,
+    #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
     pub ipv6: Vec<Ipv6Net>,
     /// Prefixes delegated by the upstream router (DHCPv6-PD).
+    #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
     pub delegated_prefixes: Vec<Ipv6Net>,
     pub ipv4_gateway: Option<Ipv4Addr>,
     pub ipv6_gateway: Option<Ipv6Addr>,
@@ -31,6 +35,7 @@ pub struct InterfaceFacts {
 
 /// A kernel network device (sysfs and `/proc/net/dev`): the layer-2 view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DeviceFacts {
     pub name: String,
     pub kind: DeviceKind,
@@ -49,6 +54,7 @@ pub struct DeviceFacts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceKind {
     /// A physical port, including DSA user ports.
@@ -70,6 +76,7 @@ pub enum DeviceKind {
 
 /// Cumulative counters since the device was created.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Counters {
     pub rx_bytes: u64,
     pub tx_bytes: u64,

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::Timestamp;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct LogEntry {
     /// logd's sequence number, when the entry was read from logd. It starts again at 0 when
     /// logd restarts.
@@ -26,6 +27,7 @@ pub struct LogEntry {
 /// Syslog severities, most severe first. They order as in syslog, so `severity <=
 /// Severity::Warning` is a warning or worse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Emergency,

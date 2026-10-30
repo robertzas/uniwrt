@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::Timestamp;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct NodeStatus {
     pub state: NodeState,
     /// When `state` last changed, on the controller's clock.
@@ -14,6 +15,7 @@ pub struct NodeStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum NodeState {
     /// Connected, with its agent running and its telemetry arriving.
@@ -25,6 +27,7 @@ pub enum NodeState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatusReason {
     /// Connecting, the `attempt`-th time since the node was last up.

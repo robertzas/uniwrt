@@ -8,6 +8,7 @@ use crate::wifi::{Band, ChannelWidth, WifiStandard};
 
 /// One radio: its configuration, its current operating state and its interfaces.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RadioFacts {
     /// UCI section, such as `radio0`.
     pub name: String,
@@ -36,6 +37,7 @@ pub struct RadioFacts {
 
 /// A Wi-Fi interface (UCI `wifi-iface`): an AP's BSS, a station uplink or a mesh point.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct WifiIfaceFacts {
     /// Kernel device, such as `phy1-ap0`; unknown while it is down.
     pub name: Option<String>,
@@ -53,6 +55,7 @@ pub struct WifiIfaceFacts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum WifiIfaceMode {
     Ap,

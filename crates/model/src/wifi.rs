@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// A frequency band, serialized as UCI's `band` option values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Band {
     /// 2.4 GHz
     #[serde(rename = "2g")]
@@ -18,6 +19,11 @@ pub enum Band {
 
 /// A channel width, serialized as its width in MHz.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(type = "20 | 40 | 80 | 160 | 320")
+)]
 #[serde(try_from = "u16", into = "u16")]
 pub enum ChannelWidth {
     Mhz20,
@@ -63,6 +69,7 @@ impl TryFrom<u16> for ChannelWidth {
 /// An 802.11 PHY standard, ordered from oldest to newest, serialized by its PHY name (the prefix
 /// of UCI `htmode` values such as `HE80`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum WifiStandard {
     /// 802.11a/b/g

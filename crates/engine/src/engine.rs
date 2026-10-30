@@ -197,6 +197,13 @@ impl<L: NodeLink> Engine<L> {
         &self.inner.ctx
     }
 
+    /// How many hold interest in the node; `None` if it is not watched.
+    pub fn interests(&self, node: NodeId) -> Option<Interests> {
+        self.nodes()
+            .get(&node)
+            .map(|entry| *entry.interests.borrow())
+    }
+
     fn interest(&self, node: NodeId, kind: Kind) -> Option<Interest> {
         let nodes = self.nodes();
         let entry = nodes.get(&node)?;

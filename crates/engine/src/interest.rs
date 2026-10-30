@@ -6,11 +6,13 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 
-/// How many hold each kind of interest in one node.
+/// How many hold each kind of interest in one node ([`Engine::interests`](crate::Engine::interests)).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct Interests {
-    pub(crate) focus: usize,
-    pub(crate) logs: usize,
+pub struct Interests {
+    /// Views of the node open in the UI.
+    pub focus: usize,
+    /// Followers of its log.
+    pub logs: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

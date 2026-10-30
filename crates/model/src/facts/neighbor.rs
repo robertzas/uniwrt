@@ -8,6 +8,7 @@ use uniwrt_core::MacAddr;
 
 /// An entry of the neighbor cache: the MAC address that holds an IP address on a device.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct NeighborFacts {
     pub ip: IpAddr,
     pub mac: MacAddr,
@@ -20,6 +21,7 @@ pub struct NeighborFacts {
 
 /// The kernel's neighbor states (`NUD_*`) that an entry with a MAC address can be in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum NeighborState {
     Reachable,
@@ -31,6 +33,7 @@ pub enum NeighborState {
 
 /// A MAC address a bridge learned on one of its ports (an entry of its forwarding database).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FdbEntry {
     pub mac: MacAddr,
     pub bridge: String,

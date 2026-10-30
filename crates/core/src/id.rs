@@ -8,6 +8,7 @@ macro_rules! ids {
     ($($(#[$meta:meta])* $name:ident = $label:literal;)*) => {$(
         $(#[$meta])*
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
         #[serde(transparent)]
         pub struct $name(i64);
 

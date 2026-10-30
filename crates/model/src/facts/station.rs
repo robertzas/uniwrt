@@ -10,6 +10,7 @@ use crate::wifi::{ChannelWidth, WifiStandard};
 /// A station associated with one of the node's Wi-Fi interfaces. Directions are the node's:
 /// `rx` is traffic from the station, `tx` traffic to it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct StationFacts {
     pub mac: MacAddr,
     /// The Wi-Fi interface it is associated with, such as `phy1-ap0`.
@@ -44,6 +45,7 @@ pub struct StationFacts {
 
 /// The 802.11s peer link states (`enum nl80211_plink_state`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum PeerLinkState {
     Listen,
@@ -58,6 +60,7 @@ pub enum PeerLinkState {
 
 /// A PHY rate with the parameters it was sent with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Rate {
     pub kbps: u32,
     pub standard: WifiStandard,
@@ -71,6 +74,7 @@ pub struct Rate {
 
 /// A roaming or protection feature the station advertised, serialized as its 802.11 amendment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum StationCapability {
     /// 802.11k radio measurement.
     #[serde(rename = "11k")]

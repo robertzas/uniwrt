@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::{MacAddr, NodeId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NodeEvent {
     /// A Wi-Fi client joining or leaving one of the node's access points (hostapd).
@@ -22,6 +23,7 @@ pub enum NodeEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct StationEvent {
     pub mac: MacAddr,
     /// The access point's interface, such as `phy1-ap0`.
@@ -38,6 +40,7 @@ pub struct StationEvent {
 
 /// A station's steps through joining, in order, and its leaving.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum StationChange {
     /// It asked to authenticate.
@@ -51,6 +54,7 @@ pub enum StationChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DeviceEvent {
     pub name: String,
     pub change: DeviceChange,
@@ -63,6 +67,7 @@ pub struct DeviceEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceChange {
     Added,
@@ -76,6 +81,7 @@ pub enum DeviceChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct InterfaceEvent {
     /// The interface's name in UCI, such as `lan` or `wan`.
     pub name: String,
@@ -88,6 +94,7 @@ pub struct InterfaceEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct LeaseEvent {
     pub change: LeaseChange,
     pub ip: IpAddr,
@@ -99,6 +106,7 @@ pub struct LeaseEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum LeaseChange {
     /// Handed out or renewed.
@@ -111,6 +119,7 @@ pub enum LeaseChange {
 /// it was authorized at `to` while it was still connected at `from`, or shortly after leaving
 /// it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Roam {
     pub mac: MacAddr,
     pub from: Attachment,
@@ -121,6 +130,7 @@ pub struct Roam {
 
 /// An access point of a node: the interface a client is connected to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Attachment {
     pub node: NodeId,
     /// Such as `phy1-ap0`.

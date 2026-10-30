@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 /// (compact in WebSocket deltas and SQLite, and `new Date(ms)` in the UI) and displays as RFC 3339
 /// (`2026-10-27T09:30:00Z`, with milliseconds only when they are not zero).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(transparent)]
 pub struct Timestamp(i64);
 

@@ -62,8 +62,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.6b api crate, auth and sessions** (M) → M1.6
   - The `api` crate (the routes, problem+json errors and security headers move there from `server/src/http`), first-run admin setup, login and sessions (Argon2id), CSRF defenses (SameSite, Origin, a custom header), login rate limiting and lockout, and the audit of logins (features/security.md). `ConnectInfo<Peer>` gives the client's address; behind a trusted proxy, `X-Forwarded-For` and `X-Forwarded-Proto`.
   - Done (D-040): crate `uniwrt-api` (`Api`, `router`, `ApiError`, `Client`, `CurrentUser`, the `Certificate` trait for `/v1/tls`); setup within 10 minutes of a start without users (owner's choice); `/v1/auth`, `/setup`, `/login`, `/logout`, `/me`; migration 0003 (`users`, `sessions`, `audit`) and their repos; the listeners set `Client` (forwarded headers only from trusted proxies). API tokens are left for later. Tested through the router over a temporary store and with the binary.
-- [ ] **M1.6c REST and the WS hub** (M) → M1.6b
+- [x] **M1.6c REST and the WS hub** (M) → M1.6b
   - Node and fleet routes over `Engine<FleetLink>`, a WS hub with topics and deltas (at most 10 per second per topic), and ts-rs codegen (`just gen`) for the DTOs; tested against `serve --demo`.
+  - Done (D-041): `uniwrt_engine::Fleet` (the owner's choice) and `Engine::interests`; `GET v1/nodes`, `GET v1/nodes/{id}`; `/v1/ws` with the topics `fleet`, `node:<id>` (holds focus) and `logs?node=<id>&min=…` (follows the log), snapshots then merged deltas every 100 ms, resync after lag, closing on logout, silence, stalls and shutdown, over HTTP/1.1 and HTTP/2 (extended CONNECT); the `ts` feature of `core` and `model`, so the DTOs carry the model's types. Tested with unit tests of the merging, over loopback sockets against the simulated fleet (HTTP/1.1 and HTTP/2), and with `serve --demo` over HTTPS.
 - [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6c
   - API and UI wizard: IP + root password → confirm the host-key fingerprint → install the key → inventory and config backup → live view. Batch-adopt the rest from the gateway's DHCP leases.
   - Acceptance: the owner's 4 nodes are adopted, with zero config changes other than `authorized_keys`.
@@ -79,7 +80,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [ ] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
 - [ ] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, actions (rename, kick, block).
 - [ ] **M2.4 Metrics & dashboard** (M): rollups, retention, LTTB downsampling, uPlot charts, dashboard v1.
-- [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`).
+- [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`). The WS `logs` topic's snapshot (empty since M1.6c) then comes from storage.
 - [ ] **M2.6 Events & alerts** (M): event timeline, alert rules, notifiers (ntfy, webhook and email first).
 - [ ] **M2.7 RF insight** (M): channel surveys, scheduled scans, the inter-node RSSI matrix, DFS events, spectrum view.
 

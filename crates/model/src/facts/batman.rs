@@ -7,6 +7,7 @@ use uniwrt_core::MacAddr;
 
 /// One mesh device of the node, such as `bat0`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BatmanFacts {
     /// The mesh device, such as `bat0`.
     pub mesh_if: String,
@@ -28,6 +29,7 @@ pub struct BatmanFacts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum BatmanAlgorithm {
     #[serde(rename = "BATMAN_IV")]
     BatmanIv,
@@ -36,6 +38,7 @@ pub enum BatmanAlgorithm {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum GatewayMode {
     Off,
@@ -44,6 +47,7 @@ pub enum GatewayMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct HardIf {
     pub name: String,
     pub mac: Option<MacAddr>,
@@ -53,6 +57,7 @@ pub struct HardIf {
 
 /// A route to another node: through which neighbor, and how good it is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Originator {
     pub mac: MacAddr,
     pub next_hop: MacAddr,
@@ -67,6 +72,7 @@ pub struct Originator {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BatmanNeighbor {
     pub mac: MacAddr,
     pub hard_if: String,
@@ -76,6 +82,7 @@ pub struct BatmanNeighbor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BatmanGateway {
     /// The gateway node.
     pub originator: MacAddr,
@@ -92,6 +99,7 @@ pub struct BatmanGateway {
 
 /// A client behind another node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RemoteClient {
     pub mac: MacAddr,
     /// The VLAN it was announced on; `None` when untagged.
@@ -106,6 +114,7 @@ pub struct RemoteClient {
 
 /// A client behind this node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct LocalClient {
     pub mac: MacAddr,
     pub vid: Option<u16>,

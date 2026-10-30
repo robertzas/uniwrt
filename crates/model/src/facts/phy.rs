@@ -10,6 +10,7 @@ use crate::wifi::{Band, ChannelWidth, WifiStandard};
 
 /// One kernel phy (wiphy). A phy may serve several bands; the radios on it say which they use.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PhyFacts {
     /// Such as `phy0`.
     pub name: String,
@@ -18,6 +19,7 @@ pub struct PhyFacts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PhyBand {
     pub band: Band,
     pub standards: BTreeSet<WifiStandard>,
@@ -39,6 +41,7 @@ impl PhyBand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Channel {
     pub number: u16,
     pub frequency_mhz: u32,
@@ -52,6 +55,7 @@ pub struct Channel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum DfsState {
     /// Usable after a channel availability check (CAC).

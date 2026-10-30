@@ -5,6 +5,7 @@ use uniwrt_core::{MacAddr, Timestamp};
 
 /// What the node is: hardware, kernel and firmware. Changes only with a reflash or upgrade.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BoardFacts {
     pub hostname: String,
     /// Marketing name, such as `GL.iNet GL-MT6000`.
@@ -23,6 +24,7 @@ pub struct BoardFacts {
 
 /// The firmware release (`/etc/openwrt_release`).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Release {
     /// `OpenWrt`, or the name of a derivative.
     pub distribution: String,
@@ -38,6 +40,7 @@ pub struct Release {
 
 /// Resource usage at collection time.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct SystemFacts {
     pub uptime_s: u64,
     /// The node's own clock at collection time, for skew detection.
@@ -56,6 +59,7 @@ pub struct SystemFacts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Memory {
     pub total_bytes: u64,
     /// Memory available to new processes without swapping (`MemAvailable`).
@@ -66,6 +70,7 @@ pub struct Memory {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Storage {
     pub total_bytes: u64,
     pub used_bytes: u64,

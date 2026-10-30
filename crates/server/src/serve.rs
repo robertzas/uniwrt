@@ -94,35 +94,51 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             controller_key,
             tls,
             renewer,
-            api,
         } = secure(&args, &data_dir, &store, &clock).await?;
         let http = bind(args.http_listen).await?;
         let https = bind(args.https_listen).await?;
         log_start(&http, &https, &state_dir, &controller_key)?;
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
-        if args.demo {
-            info!("demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}");
-        } else if api.awaiting_setup() {
-            warn!("no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)");
-        }
         let fleet = if args.demo {
             let config = SimConfig {
                 seed: args.demo_seed,
                 ..SimConfig::default()
             };
             info!(seed = config.seed, "demo mode: simulating {} access points and {} clients; its data is deleted at exit", config.access_points, config.clients);
-            Fleet::demo(&store, &config, clock).await?
+            Fleet::demo(&store, &config, Arc::clone(&clock)).await?
         } else {
-            Fleet::start(&store, &controller_key, clock).await?
+            Fleet::start(&store, &controller_key, Arc::clone(&clock)).await?
         };
+        let api = Api::new(ApiConfig::new(
+            store.clone(),
+            Arc::new(fleet.engine.clone()),
+            Arc::clone(&clock),
+            build_info::API,
+            Arc::new(tls.clone()),
+        ))
+        .await
+        .context("cannot start the API")?;
+        if args.demo {
+            api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
+            info!("demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}");
+        } else if api.awaiting_setup() {
+            warn!("no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)");
+        }
         let renewal = tokio::spawn(renewer.run());
-        let app = http::router(&ui::EMBEDDED, api);
+        let app = http::router(&ui::EMBEDDED, api.clone());
         let plain = http::plain::router(
             app.clone(),
             args.https_listen.port(),
             args.trusted_proxies.clone(),
         );
         let (drain, draining) = watch::channel(false);
+        // Draining waits for HTTP requests only; WebSockets are told to go.
+        let mut closing = draining.clone();
+        tokio::spawn(async move {
+            if closing.wait_for(|draining| *draining).await.is_ok() {
+                api.close_sockets();
+            }
+        });
         let servers = vec![
             https_server(
                 TlsListener::new(https, tls.server_config()?)?,
@@ -149,12 +165,11 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// What the vault holds and serves: the controller's SSH key, HTTPS, and the API with its users.
+/// What the vault holds and serves: the controller's SSH key and HTTPS.
 struct Secured {
     controller_key: ControllerKey,
     tls: tls::Tls,
     renewer: tls::Renewer,
-    api: Api,
 }
 
 async fn secure(
@@ -183,22 +198,10 @@ async fn secure(
     )
     .await
     .context("cannot set up HTTPS")?;
-    let api = Api::new(ApiConfig::new(
-        store.clone(),
-        Arc::clone(clock),
-        build_info::API,
-        Arc::new(tls.clone()),
-    ))
-    .await
-    .context("cannot start the API")?;
-    if args.demo {
-        api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
-    }
     Ok(Secured {
         controller_key,
         tls,
         renewer,
-        api,
     })
 }
 

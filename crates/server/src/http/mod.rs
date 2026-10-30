@@ -70,6 +70,9 @@ pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
 
     use uniwrt_api::{ApiConfig, PasswordCost};
     use uniwrt_core::SystemClock;
+    use uniwrt_engine::{Engine, EngineConfig};
+
+    use crate::fleet_link::FleetLink;
 
     let dir = tempfile::tempdir().unwrap();
     let store = uniwrt_store::Store::open(dir.path().join("uniwrt.db"), Arc::new(SystemClock))
@@ -79,6 +82,10 @@ pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
         password_cost: PasswordCost::CHEAPEST,
         ..ApiConfig::new(
             store,
+            Arc::new(Engine::<FleetLink>::new(
+                EngineConfig::default(),
+                Arc::new(SystemClock),
+            )),
             Arc::new(SystemClock),
             crate::build_info::API,
             Arc::new(crate::tls::Tls::for_tests()),

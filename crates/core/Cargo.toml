@@ -12,6 +12,11 @@ publish.workspace = true
 ipnet.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# TypeScript types (ts-rs) for the API's DTOs.
+ts = ["dep:ts-rs"]
 
 [dev-dependencies]
 proptest.workspace = true

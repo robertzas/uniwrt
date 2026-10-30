@@ -7,6 +7,7 @@ use uniwrt_core::{Timestamp, UserId};
 /// A user of the controller. The password hash is kept apart, by the store, and never leaves it
 /// except to be verified.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct User {
     pub id: UserId,
     /// Lowercase; unique.
@@ -18,6 +19,7 @@ pub struct User {
 
 /// What a user may do. Viewers arrive in M9; until then every user is an admin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     Admin,
@@ -39,6 +41,7 @@ pub struct Session {
 /// What the audit log records (features/security.md: every login, change, apply, terminal
 /// session and secret view; logins first).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum AuditAction {
     /// The first admin was created.
@@ -50,6 +53,7 @@ pub enum AuditAction {
 
 /// One audit log entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AuditEntry {
     pub at: Timestamp,
     pub action: AuditAction,

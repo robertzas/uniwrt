@@ -1,9 +1,12 @@
-//! [`Api`]: what the handlers share: the store, the clock, the build identity, the HTTPS
-//! certificate, the password hasher, the login limiter and the setup window.
+//! [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the
+//! HTTPS certificate, the password hasher, the login limiter, the setup window and the signal
+//! that closes the WS connections.
 
 use std::{fmt, sync::Arc, time::Duration};
 
+use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
+use uniwrt_engine::Fleet;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _};
 use zeroize::Zeroizing;
@@ -16,6 +19,8 @@ use crate::{
 /// What [`Api::new`] needs.
 pub struct ApiConfig {
     pub store: Store,
+    /// The engine, whatever its link type.
+    pub fleet: Arc<dyn Fleet>,
     pub clock: Arc<dyn Clock>,
     pub build: BuildInfo,
     pub certificate: Arc<dyn Certificate>,
@@ -28,12 +33,14 @@ impl ApiConfig {
     /// The production settings.
     pub fn new(
         store: Store,
+        fleet: Arc<dyn Fleet>,
         clock: Arc<dyn Clock>,
         build: BuildInfo,
         certificate: Arc<dyn Certificate>,
     ) -> Self {
         Self {
             store,
+            fleet,
             clock,
             build,
             certificate,
@@ -51,12 +58,15 @@ pub struct Api {
 
 struct Inner {
     store: Store,
+    fleet: Arc<dyn Fleet>,
     clock: Arc<dyn Clock>,
     build: BuildInfo,
     certificate: Arc<dyn Certificate>,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
+    /// True once the server stops: the WS connections close.
+    closing: watch::Sender<bool>,
 }
 
 impl Api {
@@ -71,6 +81,8 @@ impl Api {
                 limiter: LoginLimiter::default(),
                 setup: Setup::new(has_users, config.setup_window),
                 store: config.store,
+                fleet: config.fleet,
+                closing: watch::Sender::new(false),
                 clock: config.clock,
                 build: config.build,
                 certificate: config.certificate,
@@ -98,8 +110,22 @@ impl Api {
         self.inner.setup.state().0 == crate::auth::setup::SetupState::Open
     }
 
+    /// Closes every WS connection (code 1001, going away), for a server that stops: it waits for
+    /// HTTP requests, not for upgraded connections.
+    pub fn close_sockets(&self) {
+        self.inner.closing.send_replace(true);
+    }
+
     pub(crate) fn store(&self) -> &Store {
         &self.inner.store
+    }
+
+    pub(crate) fn fleet(&self) -> &dyn Fleet {
+        self.inner.fleet.as_ref()
+    }
+
+    pub(crate) fn closing(&self) -> watch::Receiver<bool> {
+        self.inner.closing.subscribe()
     }
 
     pub(crate) fn now(&self) -> Timestamp {

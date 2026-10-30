@@ -27,7 +27,7 @@ The `api` crate implements it (`crates/api/src/auth/`; D-040).
 - **Sessions:**
   - a random 256-bit token in `__Host-uniwrt-session` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, no `Domain`); the store keeps only its SHA-256, so a copy of the database cannot log in
   - they end after 7 days without a request or 30 days in all; use is recorded at most every 5 minutes; logout deletes the session, and logins delete the ended ones
-  - CSRF defense: `SameSite=Strict`; state-changing API requests need `X-Uniwrt-Csrf: 1` and, when the browser sends one, our own `Origin` (`https://<host>`, from the request or a trusted proxy's `X-Forwarded-Proto`/`-Host`); `Sec-Fetch-Site: cross-site` is refused
+  - CSRF defense: `SameSite=Strict`; state-changing API requests need `X-Uniwrt-Csrf: 1` and, when the browser sends one, our own `Origin` (`https://<host>`, from the request or a trusted proxy's `X-Forwarded-Proto`/`-Host`); `Sec-Fetch-Site: cross-site` is refused. The WebSocket upgrade (a GET, or an extended CONNECT over HTTP/2) checks `Origin` itself; its session is checked again every minute, and the socket closes (4401) when it ends (D-041)
 - **Who the client is:** the listener decides (`uniwrt_api::Client`): over HTTPS the connection's peer; through a trusted proxy the rightmost `X-Forwarded-For` address that is not itself a trusted proxy. Nobody else's forwarded headers count.
 - **API tokens:** scoped and revocable, for scripts (not yet).
 - **2FA:** TOTP (M9). Passkeys (WebAuthn) once the controller is served with a trusted certificate.

@@ -8,7 +8,7 @@
 
 use axum::{
     extract::Request,
-    http::{HeaderName, HeaderValue, Method, header},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, header},
     middleware::Next,
     response::Response,
 };
@@ -60,9 +60,11 @@ pub(crate) async fn no_store(mut response: Response) -> Response {
 
 /// Refuses state-changing requests without the CSRF header or from another origin.
 pub(crate) async fn csrf(request: Request, next: Next) -> Result<Response, ApiError> {
+    // CONNECT opens WebSockets over HTTP/2 (RFC 8441), like the GET upgrade over HTTP/1.1:
+    // only the WS hub accepts it, and it checks `Origin` itself.
     if matches!(
         *request.method(),
-        Method::GET | Method::HEAD | Method::OPTIONS
+        Method::GET | Method::HEAD | Method::OPTIONS | Method::CONNECT
     ) {
         return Ok(next.run(request).await);
     }
@@ -80,20 +82,24 @@ pub(crate) async fn csrf(request: Request, next: Next) -> Result<Response, ApiEr
             "Cross-site requests are refused".to_owned(),
         ));
     }
-    if let Some(origin) = headers.get(header::ORIGIN) {
-        let ours = request
-            .extensions()
-            .get::<Client>()
-            .and_then(Client::origin);
-        if ours
-            .as_deref()
-            .is_none_or(|ours| origin.as_bytes() != ours.as_bytes())
-        {
-            return Err(ApiError::Forbidden(format!(
-                "Requests from {} are refused",
-                String::from_utf8_lossy(origin.as_bytes())
-            )));
-        }
-    }
+    check_origin(headers, request.extensions().get::<Client>())?;
     Ok(next.run(request).await)
+}
+
+/// Refuses a request whose `Origin`, when it sends one, is not ours.
+pub(crate) fn check_origin(headers: &HeaderMap, client: Option<&Client>) -> Result<(), ApiError> {
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return Ok(());
+    };
+    let ours = client.and_then(Client::origin);
+    if ours
+        .as_deref()
+        .is_none_or(|ours| origin.as_bytes() != ours.as_bytes())
+    {
+        return Err(ApiError::Forbidden(format!(
+            "Requests from {} are refused",
+            String::from_utf8_lossy(origin.as_bytes())
+        )));
+    }
+    Ok(())
 }

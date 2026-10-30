@@ -4,8 +4,9 @@
 //! - **API:** [`Engine`] ([`add`](Engine::add) a node with its link, [`remove`](Engine::remove)
 //!   it, read it with [`node`](Engine::node) and [`all`](Engine::all) as [`NodeView`]s, take its
 //!   [`link`](Engine::link) for requests of one's own, [`subscribe`](Engine::subscribe) to the
-//!   bus's [`Event`]s); [`Interest`] guards from [`Engine::focus`] (fast intervals while the UI
-//!   has the node open) and [`Engine::follow_logs`] (the node's log, as [`Event::Log`]);
+//!   bus's [`Event`]s); [`Fleet`], its link-free face for the API (`Arc<dyn Fleet>`);
+//!   [`Interest`] guards from [`Engine::focus`] (fast intervals while the UI has the node open)
+//!   and [`Engine::follow_logs`] (the node's log, as [`Event::Log`]);
 //!   [`EngineConfig`] with the [`Intervals`] of each collect set; [`Snapshots`] (the latest facts
 //!   of each node, saved through `FactsRepo`).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
@@ -33,6 +34,7 @@ mod actor;
 mod bus;
 mod config;
 mod engine;
+mod fleet;
 mod interest;
 mod live;
 mod roam;
@@ -45,7 +47,8 @@ mod testing;
 pub use bus::Event;
 pub use config::EngineConfig;
 pub use engine::Engine;
-pub use interest::Interest;
+pub use fleet::Fleet;
+pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;

@@ -12,34 +12,19 @@ use axum::{
 use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{ManualClock, Timestamp};
+use uniwrt_engine::{Engine, EngineConfig};
 use uniwrt_model::user::AuditAction;
+use uniwrt_sim::SimLink;
 use uniwrt_store::{AuditRepo as _, Store};
 
 use crate::{
-    Api, ApiConfig, BuildInfo, Certificate, Client, PasswordCost, SETUP_WINDOW, TlsInfo,
-    auth::session::IDLE, router,
+    Client, SETUP_WINDOW,
+    auth::session::IDLE,
+    router,
+    testing::{self, PASSWORD},
 };
 
 const START: Timestamp = Timestamp::from_unix_secs(1_793_318_400);
-const PASSWORD: &str = "correct horse battery";
-
-struct FakeCertificate;
-
-impl Certificate for FakeCertificate {
-    fn info(&self) -> TlsInfo {
-        TlsInfo {
-            ca_name: "uniwrt local CA test".into(),
-            ca_sha256: "AA".into(),
-            ca_not_after: "2036-10-29T00:00:00Z".into(),
-            names: vec!["uniwrt.lan".into()],
-            not_after: "2027-12-01T00:00:00Z".into(),
-        }
-    }
-
-    fn ca_pem(&self) -> String {
-        "-----BEGIN CERTIFICATE-----\n".into()
-    }
-}
 
 struct Harness {
     _dir: tempfile::TempDir,
@@ -54,22 +39,8 @@ async fn harness() -> Harness {
     let store = Store::open(dir.path().join("uniwrt.db"), Arc::new(clock.clone()))
         .await
         .unwrap();
-    let api = Api::new(ApiConfig {
-        password_cost: PasswordCost::CHEAPEST,
-        setup_window: SETUP_WINDOW,
-        ..ApiConfig::new(
-            store.clone(),
-            Arc::new(clock.clone()),
-            BuildInfo {
-                version: "1.2.3",
-                commit: "abc",
-                built_at: "2026-10-30T00:00:00Z",
-            },
-            Arc::new(FakeCertificate),
-        )
-    })
-    .await
-    .unwrap();
+    let fleet = Engine::<SimLink>::new(EngineConfig::default(), Arc::new(clock.clone()));
+    let api = testing::api(store.clone(), Arc::new(fleet), Arc::new(clock.clone())).await;
     Harness {
         _dir: dir,
         store,

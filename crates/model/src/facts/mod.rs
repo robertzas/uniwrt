@@ -30,6 +30,7 @@ pub use self::{
 
 /// The observed state of one node.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct NodeFacts {
     /// When the facts were collected, on the controller's clock (the node's own clock is
     /// [`SystemFacts::node_time`]).

@@ -7,7 +7,7 @@ These apply to humans and agents alike. Read only the section you need.
 - Layering and allowed dependencies are defined in [ARCHITECTURE.md](../ARCHITECTURE.md#crates-and-layering). Pure (L0) crates use no tokio, do no IO, and never read the wall clock; inject a `Clock` instead.
 - One crate, one responsibility, with a minimal public API.
 - Every `lib.rs` starts with a `//!` **contract** covering purpose, public API summary, invariants, dependencies and how to test. Its first line is the one-line summary that `docs/MAP.md` picks up.
-- Rust is the source of truth for cross-language types. DTOs derive `TS`, and `just gen` writes them to `web/src/api/gen/`. Never hand-edit generated files.
+- Rust is the source of truth for cross-language types. DTOs derive `TS`, and `just gen` writes them to `web/src/api/gen/`. Never hand-edit generated files. `core` and `model` types derive it behind their `ts` feature (`#[cfg_attr(feature = "ts", derive(ts_rs::TS))]`); ts-rs's serde warnings are off, so a type with custom serde (`try_from`, a hand-written `Serialize`, a foreign field type) needs `ts(type = "…")` or `ts(as = "…")` (D-041).
 - Node-side code lives in `node-agent/` (ucode plus POSIX sh). Arguments travel as JSON or argv arrays and are never interpolated into shell strings. The one exception is a checked integer formatted with `%d` where `popen` takes no argv (logread's line count, D-036).
 
 ## Rust
@@ -43,7 +43,7 @@ These apply to humans and agents alike. Read only the section you need.
 2. **Model:** types in `crates/model` (desired state and/or facts), plus validation, plus a migration if the schema changes.
 3. **Render:** a module in `crates/render/src/<package>/` with golden tests (fixtures in `crates/render/tests/fixtures/`).
 4. **Telemetry** (if needed): a collector in `node-agent/collect/<name>.uc`, a parser in `crates/node/src/collect/<name>.rs`, and a fixture JSON file.
-5. **API:** routes in `crates/api/src/routes/<area>.rs` with DTOs that derive `TS`, then run `just gen`.
+5. **API:** routes in `crates/api/src/<area>` (a module per area, such as `auth/`, `nodes.rs`, `ws/`) with DTOs that derive `TS`, then run `just gen`. Live data goes out as a WS topic (`ws/topic.rs`, `ws/subs.rs`).
 6. **UI:** `web/src/features/<area>/` (page plus components) built from `ui/` primitives, with its lazy-loaded route registered in `app/routes.tsx`.
 7. **Docs:** tick the WP in ROADMAP and update STATUS. `docs/MAP.md` regenerates automatically.
 

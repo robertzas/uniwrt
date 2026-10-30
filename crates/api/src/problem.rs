@@ -69,6 +69,8 @@ pub enum ApiError {
     Unauthorized(String),
     /// Authenticated or not, the request is refused (403).
     Forbidden(String),
+    /// What the request names does not exist (404).
+    NotFound(String),
     /// The request conflicts with the current state (409).
     Conflict(String),
     /// Too many attempts; retry after this long (429).
@@ -89,6 +91,7 @@ impl IntoResponse for ApiError {
                 response
             }
             Self::Forbidden(detail) => response(StatusCode::FORBIDDEN, detail),
+            Self::NotFound(detail) => response(StatusCode::NOT_FOUND, detail),
             Self::Conflict(detail) => response(StatusCode::CONFLICT, detail),
             Self::TooManyRequests(wait) => {
                 let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
@@ -119,6 +122,7 @@ impl std::fmt::Display for ApiError {
             Self::BadRequest(detail)
             | Self::Unauthorized(detail)
             | Self::Forbidden(detail)
+            | Self::NotFound(detail)
             | Self::Conflict(detail)
             | Self::Internal(detail) => f.write_str(detail),
             Self::TooManyRequests(wait) => write!(f, "too many attempts; retry in {wait:?}"),

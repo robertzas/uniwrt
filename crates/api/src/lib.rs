@@ -1,14 +1,18 @@
 //! uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors,
-//! the security headers, and authentication with sessions.
+//! the security headers, authentication with sessions, the nodes, and the WS hub.
 //!
-//! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the clock, the build identity, the
-//!   HTTPS [`Certificate`], the password cost and the setup window); [`router`] for the server to
-//!   nest under `/api`; [`security::headers`] for every response, UI included; [`problem`] for
-//!   errors, [`no_route`] for unknown API paths. The listener sets each request's [`Client`].
+//! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the engine as an
+//!   `Arc<dyn Fleet>`, the clock, the build identity, the HTTPS [`Certificate`], the password
+//!   cost and the setup window); [`router`] for the server to nest under `/api`;
+//!   [`Api::close_sockets`] when the server stops; [`security::headers`] for every response, UI
+//!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
+//!   each request's [`Client`].
 //! - **Routes:** public: `GET v1/health`, `GET v1/tls`, `GET v1/tls/ca.crt`, `GET v1/auth`
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
-//!   session: `POST v1/auth/logout`, `GET v1/auth/me`. Handlers that need a user take
-//!   [`CurrentUser`].
+//!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
+//!   `GET v1/nodes/{id}` ([`NodeDetail`]) and `v1/ws` (the hub: GET, or CONNECT over HTTP/2;
+//!   topics `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>`, see `ws`). Handlers that need
+//!   a user take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
 //!   a time; unknown users cost the same as wrong passwords. Logins are throttled per client and
@@ -18,19 +22,26 @@
 //! - **Invariants:** state-changing requests need `X-Uniwrt-Csrf: 1` and, when they send one, our
 //!   `Origin` ([`security`]). API responses are never cached. Errors never leak internals: a 500
 //!   says to read the log, which has the cause. Passwords and tokens are zeroized and never logged.
-//! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-store`, axum, argon2, ring (tokens,
-//!   salts, digests), ts-rs for the DTOs (`web/src/api/gen`).
+//! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (with `ts`), `uniwrt-store`, `uniwrt-engine`
+//!   (`Fleet`, its events), `uniwrt-node` (collect sets), axum (with `ws`), argon2, ring
+//!   (tokens, salts, digests), ts-rs for the DTOs (`web/src/api/gen`).
 //! - **Tests:** unit tests per module; `auth/tests.rs` drives the router with
 //!   `tower::ServiceExt::oneshot` over a temporary store, on tokio's paused clock where time
-//!   matters (`cargo nextest run -p uniwrt-api`).
+//!   matters; `ws/subs_tests.rs` merges deltas over a scripted fleet; `nodes.rs` and
+//!   `ws/tests.rs` run against the simulated fleet (`testing::Demo`), the hub over loopback
+//!   HTTP/1.1 and HTTP/2 (`cargo nextest run -p uniwrt-api`).
 
 pub mod auth;
 mod client;
 mod health;
+mod nodes;
 pub mod problem;
 pub mod security;
 mod state;
+#[cfg(test)]
+mod testing;
 mod tls;
+mod ws;
 
 use axum::{
     Router, middleware,
@@ -40,9 +51,11 @@ use axum::{
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use health::BuildInfo;
+pub use nodes::{NodeDetail, NodeSummary};
 pub use problem::{ApiError, ApiResult, no_route};
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
+pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 
 /// The API's routes, to nest under `/api`.
 pub fn router(api: Api) -> Router {
@@ -55,6 +68,10 @@ pub fn router(api: Api) -> Router {
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/logout", post(auth::logout))
         .route("/v1/auth/me", get(auth::me))
+        .route("/v1/nodes", get(nodes::list))
+        .route("/v1/nodes/{id}", get(nodes::get))
+        // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).
+        .route("/v1/ws", get(ws::upgrade).connect(ws::upgrade))
         .fallback(problem::not_found)
         .method_not_allowed_fallback(problem::method_not_allowed)
         .layer(middleware::from_fn(security::csrf))

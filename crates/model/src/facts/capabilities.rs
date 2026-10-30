@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Features detected on the node, never inferred from its version.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Capabilities {
     /// apk on OpenWrt 25.12 and later, opkg before; `None` when neither is installed.
     pub package_manager: Option<PackageManager>,
@@ -18,6 +19,7 @@ pub struct Capabilities {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum PackageManager {
     Apk,
@@ -25,6 +27,7 @@ pub enum PackageManager {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum SwitchKind {
     /// Distributed Switch Architecture: each port is a network device.
@@ -35,6 +38,7 @@ pub enum SwitchKind {
 
 /// A hostapd or `wpa_supplicant` feature, serialized as the 802.11 amendment or short name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum WifiFeature {
     /// WPA3-Personal.
     #[serde(rename = "sae")]
@@ -69,6 +73,7 @@ pub enum WifiFeature {
 
 /// Optional software, serialized as its package name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum Software {
     /// The batman-adv kernel module.

@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 /// An EUI-48 MAC address. It displays and serializes in the canonical lowercase, colon-separated
 /// form that OpenWrt tools print (`aa:bb:cc:dd:ee:ff`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(type = "string"))]
 pub struct MacAddr([u8; 6]);
 
 /// The input was not six hex octets separated consistently by `:` or `-`.

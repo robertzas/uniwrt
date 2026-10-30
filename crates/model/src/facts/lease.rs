@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::MacAddr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct LeaseFacts {
     pub ip: IpAddr,
     /// Unknown for a DHCPv6 lease whose DUID carries no MAC address.
