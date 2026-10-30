@@ -11,3 +11,6 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 };
+
+// Nor does it scroll; Kobalte scrolls the focused option of lists and menus into view.
+Element.prototype.scrollIntoView ??= () => {};

@@ -1,6 +1,7 @@
 import { useLocation } from "@solidjs/router";
-import { Menu } from "lucide-solid";
+import { Menu } from "lucide";
 import { strings } from "../lib/strings";
+import { Icon } from "../ui/Icon";
 import { HealthBadge } from "./HealthBadge";
 import { findNavItem } from "./nav";
 
@@ -16,7 +17,7 @@ export function TopBar(props: { onOpenMenu: () => void }) {
         aria-label={strings.nav.open}
         class="-ml-1.5 grid size-9 place-items-center rounded-md text-fg-muted hover:bg-raised hover:text-fg md:hidden"
       >
-        <Menu class="size-5" aria-hidden="true" />
+        <Icon icon={Menu} class="size-5" />
       </button>
       <span class="truncate font-medium text-sm">{title()}</span>
       <div class="ml-auto">

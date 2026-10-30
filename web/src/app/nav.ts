@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-solid";
 import {
   Activity,
   BellRing,
@@ -16,19 +15,20 @@ import {
   Settings,
   ShieldCheck,
   Wifi,
-} from "lucide-solid";
+} from "lucide";
 import { strings } from "../lib/strings";
+import type { IconNode } from "../ui/Icon";
 
 export interface NavItem {
   readonly path: string;
   readonly label: string;
   readonly description: string;
-  readonly icon: LucideIcon;
+  readonly icon: IconNode;
 }
 
 export interface NavGroup {
   readonly label: string;
-  readonly icon: LucideIcon;
+  readonly icon: IconNode;
   readonly items: readonly NavItem[];
 }
 

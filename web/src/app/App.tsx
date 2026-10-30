@@ -1,7 +1,8 @@
-import { Router } from "@solidjs/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
-import { routes } from "./routes";
+import { createAppRouter } from "./routes";
 import { Shell } from "./Shell";
+
+const Router = createAppRouter();
 
 export function App() {
   const queryClient = new QueryClient({
@@ -9,7 +10,7 @@ export function App() {
   });
   return (
     <QueryClientProvider client={queryClient}>
-      <Router root={Shell}>{routes}</Router>
+      <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
     </QueryClientProvider>
   );
 }

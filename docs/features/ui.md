@@ -9,14 +9,14 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 
 ## Stack (D-002, D-018)
 
-- SolidJS 1.9; Solid 2.0 once it is GA and the ecosystem is ready (decision gate in M1.8)
+- SolidJS 2.0 release candidate with `@solidjs/web` (D-045); move to GA releases as they age in
 - Vite, strict TypeScript
 - Tailwind CSS v4 with design tokens as CSS variables
-- Kobalte (accessible headless primitives), @solidjs/router
-- @tanstack/solid-query for server state, plus WebSocket deltas
-- lucide-solid icons
+- Kobalte 2 (accessible headless primitives; patched, D-045), @solidjs/router 2 (config routes, plain `<a>` links)
+- @tanstack/solid-query 6 for server state, plus WebSocket deltas
+- Lucide icons through `ui/Icon` (the framework-free `lucide` data)
 - uPlot for time series; d3-force (in a Web Worker) with Canvas for the topology
-- @tanstack/solid-virtual for large tables
+- @tanstack/virtual-core, wrapped in `ui/`, for large tables
 - xterm.js and CodeMirror 6, lazy-loaded
 - Biome; Vitest with Testing Library; Playwright e2e tests against demo mode
 
@@ -30,7 +30,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 - **Type:** Inter for the UI and JetBrains Mono for MACs, IPs and values, with tabular numbers.
 - **Motion:** subtle (150–250 ms) and meaningful (state changes, live flows). `prefers-reduced-motion` is respected.
 - **Density modes:** comfortable and compact.
-- **Direction (O-5):** chosen from rendered mockups at M1.8: "Midnight glass", "Graphite pro" or "UniFi-familiar".
+- **Skins (D-046):** Graphite pro (default), Midnight glass and UniFi-familiar, each with light and dark. Skin and theme are separate choices, saved per browser and applied before the first paint by `public/theme-init.js`.
 
 ## Information architecture
 

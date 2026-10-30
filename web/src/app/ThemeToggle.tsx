@@ -1,9 +1,9 @@
 import { SegmentedControl } from "@kobalte/core/segmented-control";
-import { Monitor, Moon, Sun } from "lucide-solid";
+import { Monitor, Moon, Sun } from "lucide";
 import { For } from "solid-js";
-import { Dynamic } from "solid-js/web";
 import { strings } from "../lib/strings";
 import { isThemePreference, setThemePreference, themePreference } from "../lib/theme";
+import { Icon } from "../ui/Icon";
 
 const options = [
   { value: "system", label: strings.theme.system, icon: Monitor },
@@ -34,7 +34,7 @@ export function ThemeToggle() {
                 title={option.label}
                 class="flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-subtle transition-colors hover:text-fg data-[checked]:text-fg peer-focus-visible:outline-2 peer-focus-visible:outline-accent"
               >
-                <Dynamic component={option.icon} class="size-3.5" aria-hidden="true" />
+                <Icon icon={option.icon} class="size-3.5" />
                 <span class="sr-only">{option.label}</span>
               </SegmentedControl.ItemLabel>
             </SegmentedControl.Item>

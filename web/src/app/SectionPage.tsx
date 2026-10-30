@@ -5,9 +5,12 @@ import type { NavItem } from "./nav";
 
 /** The placeholder for a section whose feature has not landed yet. */
 export function SectionPage(props: { item: NavItem }) {
-  createEffect(() => {
-    document.title = `${props.item.label} · ${strings.appName}`;
-  });
+  createEffect(
+    () => props.item.label,
+    (label) => {
+      document.title = `${label} · ${strings.appName}`;
+    },
+  );
   return (
     <EmptyState
       icon={props.item.icon}

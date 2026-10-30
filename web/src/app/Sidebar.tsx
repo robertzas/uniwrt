@@ -1,7 +1,6 @@
-import { A } from "@solidjs/router";
 import { For } from "solid-js";
-import { Dynamic } from "solid-js/web";
 import { strings } from "../lib/strings";
+import { Icon } from "../ui/Icon";
 import { Wordmark } from "../ui/Wordmark";
 import { isGroup, type NavGroup, type NavItem, nav } from "./nav";
 import { ThemeToggle } from "./ThemeToggle";
@@ -11,9 +10,9 @@ export function Sidebar() {
   return (
     <div class="flex h-full flex-col">
       <div class="flex h-14 shrink-0 items-center px-4">
-        <A href="/" class="rounded-md">
+        <a href="/" class="rounded-md">
           <Wordmark />
-        </A>
+        </a>
       </div>
       <nav aria-label={strings.nav.label} class="flex-1 overflow-y-auto px-2 pb-4">
         <ul class="space-y-0.5">
@@ -58,15 +57,12 @@ function Group(props: { group: NavGroup }) {
 
 function NavLink(props: { item: NavItem }) {
   return (
-    <A
+    <a
       href={props.item.path}
-      end
-      class="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors"
-      activeClass="bg-raised font-medium text-fg"
-      inactiveClass="text-fg-muted hover:bg-raised/60 hover:text-fg"
+      class="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-fg-muted text-sm transition-colors hover:bg-raised/60 hover:text-fg data-active:bg-raised data-active:font-medium data-active:text-fg"
     >
-      <Dynamic component={props.item.icon} class="size-4 shrink-0" aria-hidden="true" />
+      <Icon icon={props.item.icon} class="size-4 shrink-0" />
       <span class="truncate">{props.item.label}</span>
-    </A>
+    </a>
   );
 }

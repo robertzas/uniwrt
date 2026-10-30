@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/solid-query";
-import { Show } from "solid-js";
+import { Loading, Match, Show, Switch } from "solid-js";
 import { api } from "../lib/api";
 import { strings } from "../lib/strings";
 
@@ -11,7 +11,12 @@ const dot: Record<State, string> = {
   offline: "bg-crit",
 };
 
-/** Whether the controller answers, and which build it runs. Polls until live updates land. */
+/**
+ * Whether the controller answers, and which build it runs. Polls until live updates land.
+ * Branches on the status flags: solid-query 6.0.0-rc.5 resolves the data of a failed first fetch
+ * to undefined instead of throwing to an <Errored> boundary (D-045). Data is read only once the
+ * query succeeded, and <Loading> keeps the badge visible while a poll revalidates it.
+ */
 export function HealthBadge() {
   const health = useQuery(() => ({
     queryKey: ["health"],
@@ -19,28 +24,38 @@ export function HealthBadge() {
     refetchInterval: 15_000,
     retry: false,
   }));
-  const state = (): State => {
-    if (health.isError) return "offline";
-    return health.data ? "online" : "checking";
-  };
-  const title = () => {
-    if (health.isError) return strings.health.unreachable;
-    const data = health.data;
-    return data ? strings.health.details(data.commit, data.built_at) : undefined;
-  };
 
+  return (
+    <Switch fallback={<Badge state="checking" />}>
+      <Match when={health.isError}>
+        <Badge state="offline" title={strings.health.unreachable} />
+      </Match>
+      <Match when={health.isSuccess}>
+        <Loading fallback={<Badge state="checking" />}>
+          <Badge
+            state="online"
+            version={health.data?.version}
+            title={health.data && strings.health.details(health.data.commit, health.data.built_at)}
+          />
+        </Loading>
+      </Match>
+    </Switch>
+  );
+}
+
+function Badge(props: { state: State; version?: string; title?: string }) {
   return (
     <div
       role="status"
-      title={title()}
+      title={props.title}
       class="inline-flex h-7 items-center gap-2 rounded-full border border-edge bg-surface px-2.5 text-xs"
     >
-      <span class={`size-2 rounded-full ${dot[state()]}`} aria-hidden="true" />
-      <span class="font-medium">{strings.health[state()]}</span>
-      <Show when={state() === "online" && health.data}>
-        {(data) => (
+      <span class={["size-2 rounded-full", dot[props.state]]} aria-hidden="true" />
+      <span class="font-medium">{strings.health[props.state]}</span>
+      <Show when={props.version}>
+        {(version) => (
           <span class="font-mono text-fg-subtle tabular-nums">
-            {strings.health.version(data().version)}
+            {strings.health.version(version())}
           </span>
         )}
       </Show>

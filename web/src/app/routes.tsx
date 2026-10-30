@@ -1,4 +1,4 @@
-import type { RouteDefinition } from "@solidjs/router";
+import { createRouter, type RouteDefinition, type RouterHistory } from "@solidjs/router";
 import { NotFound } from "./NotFound";
 import { navItems } from "./nav";
 import { SectionPage } from "./SectionPage";
@@ -9,5 +9,10 @@ import { SectionPage } from "./SectionPage";
  */
 export const routes: RouteDefinition[] = [
   ...navItems.map((item) => ({ path: item.path, component: () => <SectionPage item={item} /> })),
-  { path: "*", component: NotFound },
+  { path: "*404", component: NotFound },
 ];
+
+/** The app's router; tests pass a memory history. */
+export function createAppRouter(history?: RouterHistory) {
+  return createRouter({ routes, ...(history && { history }) });
+}

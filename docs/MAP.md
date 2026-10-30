@@ -291,7 +291,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (99 files); never edit
 - `app/`: App.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, ThemeToggle.tsx, TopBar.tsx, nav.ts, routes.tsx
 - `lib/`: api.ts, strings.ts, theme.ts
-- `ui/`: EmptyState.tsx, Wordmark.tsx, tokens.css
+- `ui/`: EmptyState.tsx, Icon.tsx, Wordmark.tsx, tokens.css
 
 ## Scripts
 

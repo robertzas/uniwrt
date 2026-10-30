@@ -26,9 +26,10 @@ These apply to humans and agents alike. Read only the section you need.
 - Strict TypeScript and no `any` (enforced by Biome). Named exports. Components go in PascalCase files, one per file in `features/`; primitives go in `ui/`.
 - Fetch data only through `lib/api` (the typed client) with solid-query. Live updates come through `lib/ws` subscriptions.
 - Styling: Tailwind utilities plus tokens. No ad-hoc colors: Tailwind's default palette is removed, so only the tokens in `ui/tokens.css` exist. No inline styles except dynamic geometry set through the CSSOM (style props); the CSP blocks style attributes in markup.
-- User-facing strings live in `lib/strings.ts`, so the UI is ready for translation. Icons come from lucide-solid; interactive primitives (dialogs, radio groups, menus) come from Kobalte.
+- User-facing strings live in `lib/strings.ts`, so the UI is ready for translation. Icons are `lucide` data rendered by `ui/Icon`; interactive primitives (dialogs, radio groups, menus) come from Kobalte.
 - Features never import other features.
-- Tests: Vitest + Testing Library for components that contain logic; Playwright for user flows (against demo mode). jsdom has no layout, so `src/test/setup.ts` stubs what Kobalte needs; components that use the router are tested inside a `MemoryRouter`.
+- Solid 2 (D-045) is not Solid 1: before writing components, read `web/node_modules/solid-js/CHEATSHEET.md` (about 7k tokens; its last section lists what changed). The usual traps: `createEffect(compute, apply)` has two arguments, no signal writes inside a component body or a memo, props are values (`<X v={count()} />`) and never destructured, and `class={[...,{ on: cond }]}` replaces `classList`.
+- Tests: Vitest + Testing Library for components that contain logic; Playwright for user flows (against demo mode). jsdom has no layout, so `src/test/setup.ts` stubs what Kobalte needs; components that use the router are tested inside `createAppRouter(memoryHistory(path))`.
 
 ## ucode / shell (node-agent)
 

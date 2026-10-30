@@ -5,11 +5,12 @@ import { HealthBadge } from "./HealthBadge";
 
 function renderBadge() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(() => (
+  render(() => (
     <QueryClientProvider client={client}>
       <HealthBadge />
     </QueryClientProvider>
   ));
+  return client;
 }
 
 describe("HealthBadge", () => {
@@ -37,5 +38,20 @@ describe("HealthBadge", () => {
 
     expect(await screen.findByText("Unreachable")).toBeInTheDocument();
     expect(screen.queryByText(/^v\d/)).not.toBeInTheDocument();
+  });
+
+  it("recovers when the controller answers again", async () => {
+    const health = { status: "ok", version: "1.2.3", commit: "abc1234", built_at: "2026-10-22" };
+    const fetch = vi.fn(async (): Promise<Response> => {
+      throw new TypeError("Failed to fetch");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const client = renderBadge();
+    expect(await screen.findByText("Unreachable")).toBeInTheDocument();
+
+    fetch.mockImplementation(async () => Response.json(health));
+    await client.refetchQueries({ queryKey: ["health"] });
+    expect(await screen.findByText("Online")).toBeInTheDocument();
+    expect(screen.getByText("v1.2.3")).toBeInTheDocument();
   });
 });

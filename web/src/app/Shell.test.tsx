@@ -1,8 +1,9 @@
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { createAppRouter } from "./routes";
 import { Shell } from "./Shell";
 
 describe("Shell", () => {
@@ -14,13 +15,11 @@ describe("Shell", () => {
       ),
     );
     const user = userEvent.setup();
-    const history = createMemoryHistory();
-    history.set({ value: "/", replace: true, scroll: false });
+    const history = memoryHistory("/");
+    const Router = createAppRouter(history);
     render(() => (
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter history={history} root={Shell}>
-          <Route path="*" component={() => <p>page</p>} />
-        </MemoryRouter>
+        <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
       </QueryClientProvider>
     ));
 
