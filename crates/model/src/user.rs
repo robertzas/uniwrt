@@ -49,6 +49,8 @@ pub enum AuditAction {
     Login,
     LoginFailed,
     Logout,
+    /// A user started adopting a node (the detail names it and the job).
+    Adopt,
 }
 
 /// One audit log entry.
@@ -63,6 +65,8 @@ pub struct AuditEntry {
     pub username: Option<String>,
     /// The client's address.
     pub ip: Option<String>,
+    /// What the action was about, for people, such as `root@10.0.0.2:22, job 3`.
+    pub detail: Option<String>,
 }
 
 #[cfg(test)]

@@ -328,12 +328,7 @@ async fn stay_up(
     let mut backoff = Backoff::new(config.retry.min, config.retry.max, random_seed());
     loop {
         core.set_state(up(AgentState::Starting));
-        let started = or_end!(start_agent(
-            session,
-            launch,
-            &core.events,
-            config.retry.hello_timeout
-        ));
+        let started = or_end!(launch.start(session, &core.events, config.retry.hello_timeout));
         let error = match started {
             Ok(agent) => {
                 let running = Instant::now();
@@ -358,30 +353,33 @@ async fn stay_up(
     }
 }
 
-async fn start_agent(
-    session: &Session,
-    launch: &AgentLaunch,
-    events: &broadcast::Sender<AgentEvent>,
-    hello_timeout: Duration,
-) -> Result<Agent> {
-    let bundle = Bundle::get();
-    let argv = match launch {
-        AgentLaunch::Bundle => {
-            bundle.ensure(session).await?;
-            bundle.argv()
+impl AgentLaunch {
+    /// Starts the agent on `session` and waits for its hello; its events go to `events`.
+    pub async fn start(
+        &self,
+        session: &Session,
+        events: &broadcast::Sender<AgentEvent>,
+        hello_timeout: Duration,
+    ) -> Result<Agent> {
+        let bundle = Bundle::get();
+        let argv = match self {
+            Self::Bundle => {
+                bundle.ensure(session).await?;
+                bundle.argv()
+            }
+            Self::Command(argv) => argv.clone(),
+        };
+        let stream = session.stream(&argv).await?;
+        let agent = Agent::start(stream, events.clone(), hello_timeout).await?;
+        if *self == Self::Bundle && agent.hello().agent != bundle.hash() {
+            return Err(Error::Protocol(format!(
+                "the node runs agent {}, not {}",
+                agent.hello().agent,
+                bundle.hash()
+            )));
         }
-        AgentLaunch::Command(argv) => argv.clone(),
-    };
-    let stream = session.stream(&argv).await?;
-    let agent = Agent::start(stream, events.clone(), hello_timeout).await?;
-    if *launch == AgentLaunch::Bundle && agent.hello().agent != bundle.hash() {
-        return Err(Error::Protocol(format!(
-            "the node runs agent {}, not {}",
-            agent.hello().agent,
-            bundle.hash()
-        )));
+        Ok(agent)
     }
-    Ok(agent)
 }
 
 /// Resolves once the link is told to stop (or its last handle is gone).

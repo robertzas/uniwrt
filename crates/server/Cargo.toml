@@ -39,6 +39,7 @@ ts-rs.workspace = true
 uniwrt-api.workspace = true
 uniwrt-core.workspace = true
 uniwrt-engine.workspace = true
+uniwrt-jobs.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-sim.workspace = true

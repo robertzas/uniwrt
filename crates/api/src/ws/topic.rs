@@ -1,5 +1,5 @@
-//! WS topics as clients name them: `fleet`, `node:<id>` and `logs?node=<id>&min=<severity>`
-//! (`min` is optional: every entry by default; the parameters may come in any order).
+//! WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min`
+//! is optional: every entry by default; the parameters may come in any order) and `jobs`.
 
 use std::fmt;
 
@@ -17,6 +17,8 @@ pub(crate) enum Topic {
     Node(NodeId),
     /// One node's log entries at `min` or more severe.
     Logs { node: NodeId, min: Severity },
+    /// The latest jobs, and every change to a job.
+    Jobs,
 }
 
 /// Why a topic name is refused.
@@ -37,6 +39,9 @@ impl Topic {
         if name == "fleet" {
             return Ok(Self::Fleet);
         }
+        if name == "jobs" {
+            return Ok(Self::Jobs);
+        }
         if let Some(id) = name.strip_prefix("node:") {
             return node_id(id).map(Self::Node);
         }
@@ -44,7 +49,7 @@ impl Topic {
             return logs(query);
         }
         Err(BadTopic(format!(
-            "Unknown topic {name:?}: use fleet, node:<id> or logs?node=<id>&min=<severity>"
+            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity> or jobs"
         )))
     }
 }

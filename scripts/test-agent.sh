@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt
-# rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs
-# and crates/engine/tests/agent.rs against it. Usage: scripts/test-agent.sh [image…]
+# rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs,
+# crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
+# Usage: scripts/test-agent.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -52,7 +53,7 @@ for image in "${images[@]}"; do
   fi
   # dropbear drops a client's sixth concurrent unauthenticated connection (MAX_UNAUTH_PER_IP).
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" UNIWRT_NODE_RELEASE="${image##*-}" \
-    cargo nextest run --locked -p uniwrt-node -p uniwrt-engine --test agent --run-ignored only --test-threads 2 \
+    cargo nextest run --locked -p uniwrt-node -p uniwrt-engine -p uniwrt-jobs --test agent --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
   docker rm -f "$container" >/dev/null
   container=''

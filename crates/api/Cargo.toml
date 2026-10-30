@@ -20,6 +20,7 @@ tracing.workspace = true
 ts-rs.workspace = true
 uniwrt-core = { workspace = true, features = ["ts"] }
 uniwrt-engine.workspace = true
+uniwrt-jobs.workspace = true
 uniwrt-model = { workspace = true, features = ["ts"] }
 uniwrt-node.workspace = true
 uniwrt-store.workspace = true

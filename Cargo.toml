@@ -14,6 +14,7 @@ publish = false
 uniwrt-api = { path = "crates/api" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-engine = { path = "crates/engine" }
+uniwrt-jobs = { path = "crates/jobs" }
 uniwrt-model = { path = "crates/model" }
 uniwrt-node = { path = "crates/node" }
 uniwrt-sim = { path = "crates/sim" }

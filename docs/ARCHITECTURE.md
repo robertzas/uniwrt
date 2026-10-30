@@ -43,7 +43,7 @@ flowchart TB
 - **HTTP server** (axum): REST under `/api/v1`, a WebSocket at `/api/v1/ws`, the embedded UI and the ZTP endpoints.
 - **Engine:** one **NodeActor** (tokio task) per node. It follows the node's link and agent, keeps its live facts and status, sends its telemetry requests one at a time, and is restarted with backoff if it panics (D-037).
 - **Event bus:** tokio broadcast of typed `Event`s. Consumers are the WS hub, the metrics writer, the alert engine and the store.
-- **Job runner:** persisted state machines (adopt, apply, upgrade, rf-apply, backup) that resume after a restart. A per-node lock allows only one job per node at a time.
+- **Job runner** (`jobs` crate): orchestrations on nodes (adopt now; apply, upgrade, rf-apply and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target.
 - **Store:** SQLite in WAL mode, with one batched writer task and a read pool.
 - **Syslog receiver:** UDP and TCP listeners → parser → store, plus a live-tail topic.
 - **Schedulers:** retention, backups, the RF optimizer, firmware checks and alert evaluation.
@@ -64,7 +64,7 @@ flowchart TB
 | L1 | `syslog` | RFC 3164/5424 receiver and parser | core |
 | L1 | `firmware` | release catalog, ASU client, image cache and verification | core, model |
 | L2 services | `engine` | node actors, telemetry ingest, live state, event bus, alerts, schedulers | L0, L1 |
-| L2 | `jobs` | persisted orchestrations: adopt, apply, upgrade, rf-apply, backup | L0, L1, engine |
+| L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7); apply, upgrade, rf-apply, backup later | L0, L1 |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
 | test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes; `serve --demo` and tests (D-038) | core, model, node |
@@ -124,9 +124,9 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 ## Persistence
 
 - One SQLite database in WAL mode at `/data/uniwrt.db` (mode 0600), owned by the `store` crate (D-031). One writer thread holds the only write connection and commits queued operations in batches of up to 256, each in its own savepoint so that a failing one rolls back alone; callers get their result once the batch commits. Reads use up to 4 read-only connections on tokio's blocking pool. With `synchronous=NORMAL`, a power loss may drop the last commits but never corrupts the database.
-- Tables (sketch; ✓ = exists): `users` ✓, `sessions` ✓ (by token hash), `audit` ✓, `api_tokens`, `settings`, `vault` ✓ (secrets, each sealed with XChaCha20-Poly1305 under the master key; features/security.md), `node_host_keys` ✓ (the pinned SSH host key per node), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
+- Tables (sketch; ✓ = exists): `users` ✓, `sessions` ✓ (by token hash), `audit` ✓, `api_tokens`, `settings`, `vault` ✓ (secrets, each sealed with XChaCha20-Poly1305 under the master key; features/security.md), `node_host_keys` ✓ (the pinned SSH host key per node), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_inventory` ✓ (the packages, read at adoption), `node_backups` ✓ (`sysupgrade -b` tarballs, sealed like secrets; D-042), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs` ✓ (history, steps as JSON; D-042), `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `firmware_cache`, `ztp_requests`.
 - Migrations are embedded from `crates/store/migrations/NNNN_name.sql`, forward-only (tracked in `PRAGMA user_version`; a database from a newer uniwrt is refused) and tested. A released migration is never edited.
-- Files: `/data/backups/`, `/data/firmware/`, `/data/master.key` (mode 0600; or `UNIWRT_MASTER_KEY_FILE`, or the key itself in `UNIWRT_MASTER_KEY`). The local CA and the HTTPS certificate live in the vault (D-039).
+- Files: `/data/firmware/`, `/data/master.key` (mode 0600; or `UNIWRT_MASTER_KEY_FILE`, or the key itself in `UNIWRT_MASTER_KEY`). The local CA and the HTTPS certificate live in the vault (D-039).
 
 ## API
 
@@ -136,7 +136,8 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 - State-changing requests carry `X-Uniwrt-Csrf: 1`; responses are `Cache-Control: no-store`. The `api` crate owns the routes and security headers; the server nests them under `/api`, serves the UI as the fallback, and tells the API who each client is (`Client`).
 - HTTPS serves everything (8443). Plain HTTP (8080) redirects to it, except the health check and requests from `--trusted-proxies`, which get the whole application (D-039).
 - Nodes (M1.6c): `GET /api/v1/nodes` (summaries) and `GET /api/v1/nodes/{id}` (record, status, facts). The API reaches the engine through `uniwrt_engine::Fleet`, its link-free face (D-041).
-- WebSocket `/api/v1/ws`: each `{"sub":["fleet","node:<id>","logs?node=<id>&min=warning"]}` replaces the connection's topics (`topology` comes with M2.1). The server answers each new topic with a snapshot, then deltas merged per topic and flushed at most every 100 ms; messages are tagged by `type` and name their topic. Holding `node:<id>` raises that node's telemetry rate (adaptive polling). The upgrade is a GET over HTTP/1.1 and an extended CONNECT over HTTP/2 (RFC 8441); it needs a session and our `Origin`, and the connection closes with 4401 when the session ends (D-041).
+- Adoption and jobs (M1.7): `POST /api/v1/adopt/probe` (the node's host key, for the user to confirm), `POST /api/v1/adopt` (202 with the job; audited), `GET /api/v1/jobs` and `GET /api/v1/jobs/{id}` (D-042).
+- WebSocket `/api/v1/ws`: each `{"sub":["fleet","node:<id>","logs?node=<id>&min=warning","jobs"]}` replaces the connection's topics (`topology` comes with M2.1). The server answers each new topic with a snapshot, then deltas merged per topic and flushed at most every 100 ms; messages are tagged by `type` and name their topic. Holding `node:<id>` raises that node's telemetry rate (adaptive polling). The upgrade is a GET over HTTP/1.1 and an extended CONNECT over HTTP/2 (RFC 8441); it needs a session and our `Origin`, and the connection closes with 4401 when the session ends (D-041).
 - Types: Rust DTOs derive `TS` with `#[ts(export)]`, and `cargo test` (or `just gen`) writes them and the types they use to `web/src/api/gen/`. The `core` and `model` types derive `TS` behind their `ts` feature, which only `api` enables. JSON keeps the Rust field names (snake_case).
 
 ## Performance budgets

@@ -242,6 +242,7 @@ async fn audit(
             user_id: user.map(|user| user.id),
             username: username.or_else(|| user.map(|user| user.username.clone())),
             ip: Some(client.ip.to_string()),
+            detail: None,
         })
         .await?;
     Ok(())

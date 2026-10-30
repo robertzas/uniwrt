@@ -5,14 +5,16 @@
 //!   implements: [`NodeRepo`] (the node inventory), [`FactsRepo`] (the latest facts snapshot of
 //!   each node), [`HostKeyRepo`] (the SSH host key pinned for each node), [`UserRepo`] (users and
 //!   their password hashes), [`SessionRepo`] (login sessions by token hash) and [`AuditRepo`]
-//!   (the audit log). [`VaultRepo`]
-//!   (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes from the store
-//!   and the [`MasterKey`]. Errors are [`Error`].
+//!   (the audit log), [`JobRepo`] (jobs as history) and [`InventoryRepo`] (packages and backups
+//!   of adopted nodes); [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
+//!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
+//!   from the store and the [`MasterKey`]; it also seals configuration backups
+//!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them. Errors are [`Error`].
 //! - **Vault:** each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the
 //!   master key, with a random 192-bit nonce and the secret's name as associated data. Opening
 //!   fails if any sealed row does not open with the key, and seals the rows the M1.2 stub stored
-//!   unencrypted (`alg = 'plain'`). The master key lives outside the database; keeping it is the
-//!   caller's job.
+//!   unencrypted (`alg = 'plain'`). Backups are sealed the same way, named by their SHA-256. The
+//!   master key lives outside the database; keeping it is the caller's job.
 //! - **Writes** go to one thread that owns the only write connection. It takes every queued
 //!   operation (up to 256) into one transaction and runs each in its own savepoint, so an operation
 //!   that fails or panics rolls back alone. Callers hear back once the batch has committed; under
@@ -45,8 +47,8 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    AuditRepo, FactsRepo, HostKeyRepo, NewSession, NodeRepo, Secret, SessionRepo, UserRepo,
-    VaultRepo,
+    Adoption, AuditRepo, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, NewSession, NodeRepo,
+    Secret, SessionRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
-pub use vault::{MasterKey, Vault};
+pub use vault::{MasterKey, SealedBackup, Vault};

@@ -27,7 +27,7 @@ use uniwrt_api::{Api, ApiConfig, Certificate as _};
 use uniwrt_core::{Clock, SystemClock};
 use uniwrt_node::ControllerKey;
 use uniwrt_sim::SimConfig;
-use uniwrt_store::Store;
+use uniwrt_store::{Store, Vault};
 
 use crate::{
     build_info,
@@ -91,6 +91,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .context("cannot open the database")?;
     let served = async {
         let Secured {
+            vault,
             controller_key,
             tls,
             renewer,
@@ -99,22 +100,17 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         let https = bind(args.https_listen).await?;
         log_start(&http, &https, &state_dir, &controller_key)?;
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
-        let fleet = if args.demo {
-            let config = SimConfig {
-                seed: args.demo_seed,
-                ..SimConfig::default()
-            };
-            info!(seed = config.seed, "demo mode: simulating {} access points and {} clients; its data is deleted at exit", config.access_points, config.clients);
-            Fleet::demo(&store, &config, Arc::clone(&clock)).await?
-        } else {
-            Fleet::start(&store, &controller_key, Arc::clone(&clock)).await?
-        };
+        let fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
+        let jobs = fleet
+            .jobs(&store, vault, &controller_key, Arc::clone(&clock))
+            .await?;
         let api = Api::new(ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),
             Arc::clone(&clock),
             build_info::API,
             Arc::new(tls.clone()),
+            jobs.clone(),
         ))
         .await
         .context("cannot start the API")?;
@@ -149,6 +145,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         ];
         let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
         renewal.abort();
+        jobs.shutdown().await;
         fleet.stop().await;
         served?;
         anyhow::Ok(())
@@ -165,8 +162,33 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// What the vault holds and serves: the controller's SSH key and HTTPS.
+/// The fleet: the simulated one in demo mode, else the adopted nodes.
+async fn start_fleet(
+    args: &ServeArgs,
+    store: &Store,
+    controller_key: &ControllerKey,
+    clock: &Arc<dyn Clock>,
+) -> anyhow::Result<Fleet> {
+    if args.demo {
+        let config = SimConfig {
+            seed: args.demo_seed,
+            ..SimConfig::default()
+        };
+        info!(
+            seed = config.seed,
+            "demo mode: simulating {} access points and {} clients; its data is deleted at exit",
+            config.access_points,
+            config.clients
+        );
+        Fleet::demo(store, &config, Arc::clone(clock)).await
+    } else {
+        Fleet::start(store, controller_key, Arc::clone(clock)).await
+    }
+}
+
+/// The vault, and what it holds and serves: the controller's SSH key and HTTPS.
 struct Secured {
+    vault: Vault,
     controller_key: ControllerKey,
     tls: tls::Tls,
     renewer: tls::Renewer,
@@ -191,7 +213,7 @@ async fn secure(
     // Nodes trust this key; the engine connects with it.
     let controller_key = controller_key::load_or_generate(&vault).await?;
     let (tls, renewer) = tls::start(
-        vault,
+        vault.clone(),
         Arc::clone(clock),
         args.tls_names.clone(),
         vec![args.https_listen],
@@ -199,6 +221,7 @@ async fn secure(
     .await
     .context("cannot set up HTTPS")?;
     Ok(Secured {
+        vault,
         controller_key,
         tls,
         renewer,

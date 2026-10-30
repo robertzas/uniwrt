@@ -17,14 +17,16 @@ The firewall on factory-default OpenWrt rejects input on WAN, so a fresh device 
 
 ## Path A: adopt existing (observe first) [M1.7]
 
-1. In Devices → Adopt → "Existing OpenWrt device", enter the IP or hostname and the root password (or skip the password if the controller's key is already installed).
-2. The controller reads the node's host key without logging in and shows its fingerprint. Once the user confirms it, the key is pinned (trust on first use, D-032), and every later connection must present it. The controller then logs in and checks the OpenWrt version (≥ 24.10), ucode modules, free RAM and flash, architecture and board.
-3. It installs the controller's public key in `/etc/dropbear/authorized_keys`, tagged `uniwrt-controller`. In observe mode, this is the only change it makes. The password is stored (in the vault) only if the user opts in.
-4. It pulls an inventory: `board.json`, `/etc/config/*`, the package list, radio capabilities, and a `sysupgrade -b` backup kept on the controller.
-5. It starts the ephemeral agent, and live telemetry begins. The node shows an **Observed** badge.
+1. In Devices → Adopt → "Existing OpenWrt device", enter the IP or hostname and the root password (or skip the password if the controller's key is already installed). The wizard arrives with M1.8b; the API is there now: `POST /api/v1/adopt/probe`, then `POST /api/v1/adopt` (D-042).
+2. The controller reads the node's host key without logging in and shows its fingerprint. Adoption sends back the key the user confirmed; the node must present it, and it is pinned (trust on first use, D-032), so every later connection must present it too. The controller then logs in and checks, before changing anything: OpenWrt 24.10 or later (or a snapshot), 8 MiB of available memory and 1 MiB free in `/tmp` for the agent, an identity (below), and that the node is not adopted yet.
+3. It appends the controller's public key to `/etc/dropbear/authorized_keys` unless it is there, then logs in with it. In observe mode, this is the only change it makes. The password is stored (in the vault) only if the user opts in.
+4. It pulls an inventory: the facts (board, system, capabilities, interfaces, radios…), the installed packages (from opkg's status file, or apk's database and world file, read without running the package manager), and a `sysupgrade -b -` backup streamed to the controller and sealed in its database. The node, its pinned key, facts, inventory and backup are recorded in one transaction, and the adoption is audited.
+5. It starts watching the node (the ephemeral agent in `/tmp`), and live telemetry begins. The node shows an **Observed** badge. Its role is the one the user gave, or a gateway if a WAN-like interface (`wan*`, PPP, cellular) is up with a default route, otherwise an access point.
 6. Later, "Manage this node" triggers a brownfield import (M3.5) and a review of the rendered diff, which should be empty or nearly so. The node then becomes **Managed**, one package at a time (network, wireless, …).
 
-Batch mode: once the gateway is adopted, the other nodes appear under Discovered (from DHCP leases and batman originators) for one-click adoption.
+Each adoption is a job (`GET /api/v1/jobs/{id}`, the WS topic `jobs`): its steps (connect, check, install key, log in with the key, inventory, backup, record, watch) with their state and detail, and on failure a code the UI acts on (`unreachable`, `host_key_mismatch`, `auth_rejected`, `unsupported`, `already_adopted`, `node_failed`, `interrupted`, `internal`). Jobs are history: a controller restart fails the ones that were running (D-042).
+
+Batch mode (M1.7b): once the gateway is adopted, the other nodes appear under Discovered (from DHCP leases and batman originators) for one-click adoption.
 
 ## Path B: zero-touch image (recommended for new devices) [M5.4]
 
@@ -79,7 +81,7 @@ Future roles: `switch` (an OpenWrt managed switch) and secondary gateways (multi
 
 ## Identity, credentials, trust
 
-- **Identity** is the label/primary MAC (from `board.json`) plus the board name, so it survives IP changes. A host-key mismatch quarantines the node and raises an alert. The admin can re-trust it, for example after a reflash.
+- **Identity** is the label MAC (from `board.json`; else the MAC of the device behind `lan`, else the lowest globally administered Ethernet MAC) plus the board name, so it survives IP changes. A host-key mismatch quarantines the node and raises an alert. The admin can re-trust it, for example after a reflash.
 - **Controller key:** ed25519, generated on first run and kept in the vault. A rotation job adds the new key → verifies it → removes the old one.
 - **Root password:** randomized per node when management starts, stored in the vault and viewable by an admin for emergencies. Optional hardening: key-only SSH and dropbear bound to the management network.
 - **Management addressing:** every node gets a DHCP reservation in the infrastructure range (10.0.0.2–10.0.0.31 by default). The controller keeps reservations in sync, so nodes have stable addresses without static configuration.

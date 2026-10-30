@@ -43,6 +43,10 @@ ids! {
     NodeId = "node";
     /// A controller user. Assigned by the store and never reused, like [`NodeId`].
     UserId = "user";
+    /// A job (adoption, later applying and upgrades), kept as history.
+    JobId = "job";
+    /// A node's configuration backup.
+    BackupId = "backup";
 }
 
 #[cfg(test)]

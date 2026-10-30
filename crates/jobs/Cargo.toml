@@ -1,0 +1,27 @@
+[package]
+name = "uniwrt-jobs"
+description = "uniwrt jobs: orchestrations on nodes, step by step, kept as history; adoption first"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+tracing.workspace = true
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+uniwrt-node.workspace = true
+uniwrt-store.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
+
+[lints]
+workspace = true

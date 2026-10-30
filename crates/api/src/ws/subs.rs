@@ -3,12 +3,16 @@
 //! which turns it into at most one delta per topic: changes merge (a node's latest status, the
 //! union of the facts' changed parts), while events, roams and log entries queue up to a cap.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
+};
 
 use tracing::warn;
-use uniwrt_core::NodeId;
+use uniwrt_core::{JobId, NodeId};
 use uniwrt_engine::{Event, Interest};
 use uniwrt_model::{
+    job::Job,
     log::{LogEntry, Severity},
     node::Node,
 };
@@ -21,6 +25,7 @@ use super::{
 };
 use crate::{
     Api,
+    jobs::DEFAULT_LIMIT,
     nodes::{NodeDetail, NodeSummary},
 };
 
@@ -65,6 +70,10 @@ enum Pending {
         min: Severity,
         entries: VecDeque<LogEntry>,
         dropped: u64,
+    },
+    Jobs {
+        /// The latest state of each job changed since the last flush.
+        changed: BTreeMap<JobId, Arc<Job>>,
     },
 }
 
@@ -125,6 +134,15 @@ impl Subscriptions {
     pub(crate) async fn apply(&mut self, api: &Api, event: &Event) {
         for sub in self.topics.values_mut() {
             sub.pending.apply(api, event).await;
+        }
+    }
+
+    /// Notes a job's change for the `jobs` topic.
+    pub(crate) fn job(&mut self, job: &Arc<Job>) {
+        for sub in self.topics.values_mut() {
+            if let Pending::Jobs { changed } = &mut sub.pending {
+                changed.insert(job.id, Arc::clone(job));
+            }
         }
     }
 
@@ -198,6 +216,17 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
                 dropped: 0,
             };
             (sub(pending, interest), snapshot)
+        }
+        Topic::Jobs => {
+            let jobs = api.jobs().jobs(DEFAULT_LIMIT).await.map_err(|err| {
+                warn!(%err, "cannot read the jobs for a WS topic");
+                BadTopic("The controller cannot read its jobs; its log has the details".to_owned())
+            })?;
+            let snapshot = ServerMessage::JobsSnapshot { topic, jobs };
+            let pending = Pending::Jobs {
+                changed: BTreeMap::new(),
+            };
+            (sub(pending, None), snapshot)
         }
     })
 }
@@ -319,6 +348,7 @@ impl Pending {
                     *dropped += excess as u64;
                 }
             }
+            Self::Jobs { .. } => {}
         }
     }
 
@@ -386,6 +416,13 @@ impl Pending {
                 topic,
                 entries: std::mem::take(entries).into(),
                 dropped: std::mem::take(dropped),
+            }),
+            Self::Jobs { changed } => (!changed.is_empty()).then(|| ServerMessage::JobsDelta {
+                topic,
+                jobs: std::mem::take(changed)
+                    .into_values()
+                    .map(|job| (*job).clone())
+                    .collect(),
             }),
         }
     }

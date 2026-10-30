@@ -1,20 +1,26 @@
 //! Repository traits: the store's API by concern. `Store` implements each; services depend on the
 //! traits, so their tests can substitute fakes.
 
+mod adoption;
 mod audit;
 mod facts;
 mod host_keys;
+mod jobs;
 mod nodes;
 mod sessions;
 mod users;
 
-use uniwrt_core::{NodeId, Timestamp, UserId};
+use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
 use uniwrt_model::{
     facts::NodeFacts,
+    inventory::{Backup, Inventory},
+    job::{Job, JobError, NewJob},
     node::{HostKeyPin, NewNode, Node},
     user::{AuditEntry, Role, Session, User},
 };
 use zeroize::Zeroizing;
+
+pub use adoption::Adoption;
 
 use crate::Result;
 
@@ -23,6 +29,11 @@ pub trait NodeRepo: Send + Sync {
     /// Adds a node in observe mode. A node with the same MAC is an
     /// [`Error::Conflict`](crate::Error::Conflict).
     fn create_node(&self, node: NewNode) -> impl Future<Output = Result<Node>> + Send;
+
+    /// Adds an adopted node in observe mode with its pinned host key, first facts, inventory and
+    /// backup, all or nothing. A node with the same MAC is an
+    /// [`Error::Conflict`](crate::Error::Conflict).
+    fn adopt_node(&self, adoption: Adoption) -> impl Future<Output = Result<Node>> + Send;
 
     fn node(&self, id: NodeId) -> impl Future<Output = Result<Option<Node>>> + Send;
 
@@ -57,6 +68,34 @@ pub trait HostKeyRepo: Send + Sync {
     ) -> impl Future<Output = Result<()>> + Send;
 
     fn host_key(&self, node: NodeId) -> impl Future<Output = Result<Option<HostKeyPin>>> + Send;
+}
+
+/// What adoption keeps about a node besides its facts.
+pub trait InventoryRepo: Send + Sync {
+    fn inventory(&self, node: NodeId) -> impl Future<Output = Result<Option<Inventory>>> + Send;
+
+    /// The node's configuration backups, newest first; [`Vault::open_backup`](crate::Vault::open_backup)
+    /// reads one.
+    fn backups(&self, node: NodeId) -> impl Future<Output = Result<Vec<Backup>>> + Send;
+}
+
+/// Jobs as history: each is saved as it progresses (D-042).
+pub trait JobRepo: Send + Sync {
+    /// Records a job starting now, every step pending.
+    fn create_job(&self, job: NewJob) -> impl Future<Output = Result<Job>> + Send;
+
+    /// Saves a job's progress: its state, node, steps, error and end. An unknown job is an
+    /// [`Error::NotFound`](crate::Error::NotFound).
+    fn update_job(&self, job: &Job) -> impl Future<Output = Result<()>> + Send;
+
+    fn job(&self, id: JobId) -> impl Future<Output = Result<Option<Job>>> + Send;
+
+    /// The latest `limit` jobs, newest first.
+    fn jobs(&self, limit: usize) -> impl Future<Output = Result<Vec<Job>>> + Send;
+
+    /// Fails every job still running, and its running step, with `error`: at startup, the jobs
+    /// that a stop interrupted. Returns how many.
+    fn interrupt_jobs(&self, error: JobError) -> impl Future<Output = Result<usize>> + Send;
 }
 
 /// A secret's bytes, wiped from memory when dropped.

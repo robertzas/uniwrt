@@ -7,6 +7,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
 use uniwrt_engine::Fleet;
+use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _};
 use zeroize::Zeroizing;
@@ -24,6 +25,8 @@ pub struct ApiConfig {
     pub clock: Arc<dyn Clock>,
     pub build: BuildInfo,
     pub certificate: Arc<dyn Certificate>,
+    /// The job runner: adoption.
+    pub jobs: Jobs,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -37,6 +40,7 @@ impl ApiConfig {
         clock: Arc<dyn Clock>,
         build: BuildInfo,
         certificate: Arc<dyn Certificate>,
+        jobs: Jobs,
     ) -> Self {
         Self {
             store,
@@ -44,6 +48,7 @@ impl ApiConfig {
             clock,
             build,
             certificate,
+            jobs,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -62,6 +67,7 @@ struct Inner {
     clock: Arc<dyn Clock>,
     build: BuildInfo,
     certificate: Arc<dyn Certificate>,
+    jobs: Jobs,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
@@ -86,6 +92,7 @@ impl Api {
                 clock: config.clock,
                 build: config.build,
                 certificate: config.certificate,
+                jobs: config.jobs,
             }),
         })
     }
@@ -138,6 +145,10 @@ impl Api {
 
     pub(crate) fn certificate(&self) -> &dyn Certificate {
         self.inner.certificate.as_ref()
+    }
+
+    pub(crate) fn jobs(&self) -> &Jobs {
+        &self.inner.jobs
     }
 
     pub(crate) fn passwords(&self) -> &Passwords {

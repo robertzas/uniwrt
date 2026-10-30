@@ -12,6 +12,8 @@ A crate's contract is the full `//!` header of its `lib.rs` or `main.rs`.
 
 uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 
+- `src/adopt.rs`: Adoption, with a session (features/adoption.md, Path A): `POST /api/v1/adopt/probe` reads a node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow.
+- `src/adopt/tests.rs`: The adoption and job routes through the router, against the simulated fleet's API: request checks, a probe and an adoption of a node that cannot be reached (the job records why), the audit, and demo mode, where nothing can be adopted.
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
 - `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
@@ -20,20 +22,21 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
+- `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
-- `src/testing.rs`: Test support: an API over a temporary store, and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
+- `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing in demo mode), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
-- `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
+- `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
 - `src/ws/subs.rs`: A connection's subscriptions.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
-- `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>` and `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order).
+- `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order) and `jobs`.
 
 ### `uniwrt-core` (crates/core)
 
@@ -67,6 +70,20 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
 - `tests/agent.rs`: The engine watching real OpenWrt (TESTING.md, Agent): an actor over an SSH link to the agent, in both loop modes.
 
+### `uniwrt-jobs` (crates/jobs)
+
+Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
+
+- `src/adopt/check.rs`: What adoption checks before it changes anything (features/adoption.md, Path A): the release, the resources the agent needs, and the node's identity; and the role a node seems to have.
+- `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
+- `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
+- `src/adopt/tests.rs`: Adoptions over a scripted node (a [`Dial`] that plays dropbear and the agent from a capture of OpenWrt 24.10 in a container) and a temporary store.
+- `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
+- `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
+- `src/remote.rs`: How jobs reach nodes: [`Dial`] probes and logs in, and a [`Remote`] is one login.
+- `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
+- `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
+
 ### `uniwrt-model` (crates/model)
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
@@ -82,6 +99,8 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/facts/radio.rs`: Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they operate.
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
+- `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
+- `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
 - `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
@@ -212,15 +231,18 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/lib.rs`: SQLite persistence: one database in WAL mode, a batching writer thread, a read pool and repositories.
 - `src/migrate.rs`: Forward-only schema migrations, embedded at build time and tracked in `PRAGMA user_version`.
 - `src/readers.rs`: The read pool: read-only connections, opened on demand, used on tokio's blocking pool.
+- `src/repo/adoption.rs`: Adopting a node in one transaction ([`NodeRepo::adopt_node`]), and [`InventoryRepo`] on SQLite: the `node_inventory` and `node_backups` tables.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
+- `src/repo/jobs.rs`: [`JobRepo`] on SQLite: the `jobs` table, each job's steps and error as JSON.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
+- `src/vault/backup.rs`: Configuration backups, sealed like secrets: [`Vault::seal_backup`] before they are stored (with the node at adoption, [`Adoption`](crate::Adoption)), [`Vault::open_backup`] to read one back.
 - `src/vault/key.rs`: The master key: 32 random bytes that every secret in the vault is sealed under, kept outside the database (`master.key` or `UNIWRT_MASTER_KEY`; features/security.md, Secrets vault).
 - `src/vault/mod.rs`: The secrets vault ([`Vault`]): [`VaultRepo`] over the `vault` table, every value sealed with XChaCha20-Poly1305 under the [`MasterKey`] (features/security.md, Secrets vault).
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
@@ -259,7 +281,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (77 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (90 files); never edit
 - `app/`: App.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, ThemeToggle.tsx, TopBar.tsx, nav.ts, routes.tsx
 - `lib/`: api.ts, strings.ts, theme.ts
 - `ui/`: EmptyState.tsx, Wordmark.tsx, tokens.css
@@ -272,7 +294,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
-- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs and crates/engine/tests/agent.rs against it.
+- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
 - `scripts/wifi-lab/a/setup.uci`: (no header comment)

@@ -1,7 +1,8 @@
-//! Test support: an API over a temporary store, and [`Demo`], the simulated fleet adopted into
-//! one with an admin logged in, served over the router or a loopback socket.
+//! Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing in
+//! demo mode), and [`Demo`], the simulated fleet adopted into one with an admin logged in,
+//! served over the router or a loopback socket.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
     Router,
@@ -15,9 +16,14 @@ use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
 use uniwrt_engine::{Engine, EngineConfig, Fleet};
-use uniwrt_model::node::NewNode;
+use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
+use uniwrt_model::{
+    facts::NodeFacts,
+    node::{NewNode, Node},
+};
+use uniwrt_node::{ControllerKey, HostKey, SshConfig};
 use uniwrt_sim::{SimConfig, SimFleet, SimLink};
-use uniwrt_store::{NodeRepo as _, Store};
+use uniwrt_store::{MasterKey, NodeRepo as _, Store, Vault};
 
 use crate::{Api, ApiConfig, BuildInfo, Certificate, Client, PasswordCost, TlsInfo, router};
 
@@ -44,8 +50,62 @@ impl Certificate for FakeCertificate {
     }
 }
 
-/// An API at the cheapest password cost.
+/// An API at the cheapest password cost, whose jobs reach nodes over SSH.
 pub(crate) async fn api(store: Store, fleet: Arc<dyn Fleet>, clock: Arc<dyn Clock>) -> Api {
+    let dial = SshDial {
+        config: SshConfig {
+            connect_timeout: Duration::from_secs(2),
+            ..SshConfig::default()
+        },
+    };
+    api_with(store, fleet, clock, Some(Arc::new(dial))).await
+}
+
+/// Logs `admin` in; returns the session cookie, `name=value`.
+pub(crate) async fn login(api: &Api) -> String {
+    let login = json!({ "username": "admin", "password": PASSWORD });
+    let res = router_send(api, post("/v1/auth/login", &login, None)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let set = res.headers()[header::SET_COOKIE].to_str().unwrap();
+    set.split(';').next().unwrap().to_owned()
+}
+
+/// Sends a request through `api`'s router, as the HTTPS listener hands it over.
+pub(crate) async fn router_send(api: &Api, request: Request) -> Response {
+    router(api.clone())
+        .oneshot(with_client(request))
+        .await
+        .unwrap()
+}
+
+/// Starts watching nobody: the API's tests adopt nothing for real.
+struct NoWatch;
+
+impl Watch for NoWatch {
+    fn watch(&self, _: Node, _: HostKey, _: NodeFacts) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+}
+
+/// [`api`] whose jobs reach nodes with `dial`; `None` as in demo mode.
+pub(crate) async fn api_with(
+    store: Store,
+    fleet: Arc<dyn Fleet>,
+    clock: Arc<dyn Clock>,
+    dial: Option<Arc<dyn Dial>>,
+) -> Api {
+    let jobs = Jobs::start(JobsConfig {
+        vault: Vault::open(&store, &MasterKey::generate().unwrap())
+            .await
+            .unwrap(),
+        store: store.clone(),
+        clock: Arc::clone(&clock),
+        key: ControllerKey::generate().unwrap(),
+        dial,
+        watch: Arc::new(NoWatch),
+    })
+    .await
+    .unwrap();
     Api::new(ApiConfig {
         password_cost: PasswordCost::CHEAPEST,
         ..ApiConfig::new(
@@ -58,6 +118,7 @@ pub(crate) async fn api(store: Store, fleet: Arc<dyn Fleet>, clock: Arc<dyn Cloc
                 built_at: "2026-10-30T00:00:00Z",
             },
             Arc::new(FakeCertificate),
+            jobs,
         )
     })
     .await
@@ -119,11 +180,7 @@ impl Demo {
             cookie: String::new(),
             ids,
         };
-        let login = json!({ "username": "admin", "password": PASSWORD });
-        let res = demo.send(post("/v1/auth/login", &login, None)).await;
-        assert_eq!(res.status(), StatusCode::OK);
-        let set = res.headers()[header::SET_COOKIE].to_str().unwrap();
-        demo.cookie = set.split(';').next().unwrap().to_owned();
+        demo.cookie = login(&demo.api).await;
         demo
     }
 
@@ -133,7 +190,7 @@ impl Demo {
 
     /// Sends a request through the router, as the HTTPS listener hands it over.
     pub(crate) async fn send(&self, request: Request) -> Response {
-        self.router().oneshot(with_client(request)).await.unwrap()
+        router_send(&self.api, request).await
     }
 
     pub(crate) fn get(&self, uri: &str) -> Request {

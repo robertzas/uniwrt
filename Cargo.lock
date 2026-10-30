@@ -2834,6 +2834,7 @@ dependencies = [
  "uniwrt-api",
  "uniwrt-core",
  "uniwrt-engine",
+ "uniwrt-jobs",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-sim",
@@ -2862,6 +2863,7 @@ dependencies = [
  "ts-rs",
  "uniwrt-core",
  "uniwrt-engine",
+ "uniwrt-jobs",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-sim",
@@ -2888,6 +2890,22 @@ dependencies = [
  "bytes",
  "serde_json",
  "tempfile",
+ "tokio",
+ "tracing",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-node",
+ "uniwrt-store",
+ "zeroize",
+]
+
+[[package]]
+name = "uniwrt-jobs"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
  "uniwrt-core",

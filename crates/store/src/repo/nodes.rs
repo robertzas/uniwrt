@@ -1,12 +1,12 @@
 //! [`NodeRepo`] on SQLite: the `nodes` table.
 
-use rusqlite::{OptionalExtension as _, Row, params};
+use rusqlite::{Connection, OptionalExtension as _, Row, params};
 use uniwrt_core::NodeId;
 use uniwrt_model::node::{NewNode, Node, NodeMode};
 
-use super::NodeRepo;
+use super::{NodeRepo, adoption};
 use crate::{
-    Result, Store,
+    Adoption, Result, Store,
     codec::{constraint, enum_column, enum_text, mac_column, timestamp_column},
 };
 
@@ -25,37 +25,49 @@ fn node_from_row(row: &Row<'_>) -> rusqlite::Result<Node> {
     })
 }
 
+fn insert(conn: &Connection, node: NewNode, now: i64) -> Result<Node> {
+    let NewNode {
+        name,
+        mac,
+        board_name,
+        host,
+        port,
+        role,
+    } = node;
+    conn.prepare_cached(
+        "INSERT INTO nodes (name, mac, board_name, host, port, role, mode, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+         RETURNING id, name, mac, board_name, host, port, role, mode, created_at, updated_at",
+    )?
+    .query_row(
+        params![
+            name,
+            mac.to_string(),
+            board_name,
+            host,
+            port,
+            enum_text(role),
+            enum_text(NodeMode::Observe),
+            now,
+        ],
+        node_from_row,
+    )
+    .map_err(|err| constraint(err, "node", mac))
+}
+
 impl NodeRepo for Store {
     async fn create_node(&self, node: NewNode) -> Result<Node> {
         let now = self.now().as_unix_ms();
+        self.write(move |conn| insert(conn, node, now)).await
+    }
+
+    async fn adopt_node(&self, adoption: Adoption) -> Result<Node> {
+        let now = self.now().as_unix_ms();
+        let encoded = adoption.encode()?;
         self.write(move |conn| {
-            let NewNode {
-                name,
-                mac,
-                board_name,
-                host,
-                port,
-                role,
-            } = node;
-            conn.prepare_cached(
-                "INSERT INTO nodes (name, mac, board_name, host, port, role, mode, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
-                 RETURNING id, name, mac, board_name, host, port, role, mode, created_at, updated_at",
-            )?
-            .query_row(
-                params![
-                    name,
-                    mac.to_string(),
-                    board_name,
-                    host,
-                    port,
-                    enum_text(role),
-                    enum_text(NodeMode::Observe),
-                    now,
-                ],
-                node_from_row,
-            )
-            .map_err(|err| constraint(err, "node", mac))
+            let node = insert(conn, adoption.node.clone(), now)?;
+            adoption::record(conn, node.id, adoption, &encoded)?;
+            Ok(node)
         })
         .await
     }

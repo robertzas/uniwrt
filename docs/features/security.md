@@ -31,7 +31,7 @@ The `api` crate implements it (`crates/api/src/auth/`; D-040).
 - **Who the client is:** the listener decides (`uniwrt_api::Client`): over HTTPS the connection's peer; through a trusted proxy the rightmost `X-Forwarded-For` address that is not itself a trusted proxy. Nobody else's forwarded headers count.
 - **API tokens:** scoped and revocable, for scripts (not yet).
 - **2FA:** TOTP (M9). Passkeys (WebAuthn) once the controller is served with a trusted certificate.
-- **Audit log** (`audit` table): every login, change, apply, terminal session and secret view. Recorded now: setup, logins, failed logins (with the username tried) and logouts, each with the client's address.
+- **Audit log** (`audit` table): every login, change, apply, terminal session and secret view. Recorded now: setup, logins, failed logins (with the username tried), logouts and adoptions (with the target as detail), each with the client's address.
 
 ## HTTP response headers
 
@@ -57,7 +57,8 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 - Each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the master key (`uniwrt vault v1`), with a random 192-bit nonce and the secret's name as associated data, so a sealed value cannot be moved to another name (`crates/store/src/vault/`).
 - **The master key** is 32 random bytes, kept as 64 hexadecimal digits: in `UNIWRT_MASTER_KEY`, or in a file, by default `/data/master.key` (mode 0600, created on the first run; a warning if others can read it). `--master-key-file` (`UNIWRT_MASTER_KEY_FILE`) puts the file elsewhere, such as a Docker secret, so that a copy of the data volume alone does not open the vault. Back the key up apart from the database: without it the secrets are lost.
 - **Opening** the vault tries the key on every sealed row and refuses to start if any does not open, so a wrong key fails at once. A missing key file is replaced by a new key only while nothing is sealed. Opening also reseals the rows that the M1.2 stub stored unencrypted (`alg = 'plain'`, D-032). Demo mode's key exists only in memory.
-- The first secrets are the controller's SSH key (`controller/ssh_key`), the local CA (`tls/ca`) and the HTTPS certificate (`tls/leaf`).
+- The first secrets are the controller's SSH key (`controller/ssh_key`), the local CA (`tls/ca`) and the HTTPS certificate (`tls/leaf`); adoption adds a node's root password (`node/<id>/root_password`) when the user asks to keep it.
+- **Configuration backups** (`sysupgrade -b` tarballs hold password hashes, private host keys and Wi-Fi keys) are sealed the same way in `node_backups`, with `backup/<sha256>` as associated data (D-042).
 - It holds: the controller SSH private key, node root passwords, Wi-Fi passphrases, mesh and FT keys, PPPoE credentials, WireGuard keys and notifier tokens.
 - Config revisions store only references. Viewing a secret is admin-only and audited.
 

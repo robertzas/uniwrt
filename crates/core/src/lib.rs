@@ -1,7 +1,7 @@
 //! Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and the `Clock` trait.
 //!
-//! - **API:** [`NodeId`] and [`UserId`] (store-assigned, never reused); [`MacAddr`] (EUI-48, canonical
-//!   `aa:bb:cc:dd:ee:ff`); [`IpNet`], [`Ipv4Net`] and [`Ipv6Net`] (re-exported from `ipnet`: an
+//! - **API:** [`NodeId`], [`UserId`], [`JobId`] and [`BackupId`] (store-assigned, never
+//!   reused); [`MacAddr`] (EUI-48, canonical `aa:bb:cc:dd:ee:ff`); [`IpNet`], [`Ipv4Net`] and [`Ipv6Net`] (re-exported from `ipnet`: an
 //!   address plus a prefix length, host bits kept, as in `10.0.0.1/24`); [`Timestamp`] (Unix
 //!   milliseconds, UTC); [`Clock`] with [`SystemClock`] and [`ManualClock`].
 //! - **Wire format:** IDs and timestamps serialize as JSON integers; MACs and prefixes as strings.
@@ -21,7 +21,7 @@ mod mac;
 mod time;
 
 pub use clock::{Clock, ManualClock, SystemClock};
-pub use id::{NodeId, UserId};
+pub use id::{BackupId, JobId, NodeId, UserId};
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 pub use mac::{MacAddr, ParseMacError};
 pub use time::Timestamp;

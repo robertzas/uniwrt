@@ -1,6 +1,6 @@
-//! One WebSocket connection: its subscriptions fed by the engine's bus and flushed every
-//! [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes
-//! silent, a send stalls or the controller stops.
+//! One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates
+//! and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends,
+//! the peer goes silent, a send stalls or the controller stops.
 
 use std::time::Duration;
 
@@ -55,6 +55,7 @@ async fn serve(
 ) -> Option<(u16, &'static str)> {
     // Subscribed before any snapshot is read, so that nothing falls between.
     let mut bus = api.fleet().subscribe();
+    let mut jobs = api.jobs().subscribe();
     let mut closing = api.closing();
     // Set once and never unset, so a change means the server is stopping.
     if *closing.borrow_and_update() {
@@ -87,6 +88,17 @@ async fn serve(
                 }
                 Err(RecvError::Lagged(missed)) => {
                     debug!(missed, "a WS connection fell behind the bus; sending snapshots");
+                    subs.resync(api).await
+                }
+                Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
+            },
+            update = jobs.recv() => match update {
+                Ok(job) => {
+                    subs.job(&job);
+                    continue;
+                }
+                Err(RecvError::Lagged(missed)) => {
+                    debug!(missed, "a WS connection fell behind the jobs; sending snapshots");
                     subs.resync(api).await
                 }
                 Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),

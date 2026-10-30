@@ -1,6 +1,7 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
 //! latest snapshot, and the snapshot writer. In demo mode the nodes are simulated instead,
-//! adopted into the demo's own database.
+//! adopted into the demo's own database. The job runner hands nodes adopted later to the engine
+//! ([`Watcher`]).
 
 use std::{sync::Arc, time::Duration};
 
@@ -8,10 +9,14 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{Engine, EngineConfig, Snapshots};
-use uniwrt_model::node::{NewNode, Node};
+use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
+use uniwrt_model::{
+    facts::NodeFacts,
+    node::{NewNode, Node},
+};
 use uniwrt_node::{AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, SshLink, Target};
 use uniwrt_sim::{SimConfig, SimFleet};
-use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store};
+use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store, Vault};
 
 use crate::fleet_link::FleetLink;
 
@@ -113,6 +118,54 @@ impl Fleet {
             warn!("links still connected after {DISCONNECT_TIMEOUT:?}");
         }
     }
+
+    /// The job runner over this fleet: the nodes it adopts join the engine. Demo mode adopts
+    /// nothing.
+    pub(crate) async fn jobs(
+        &self,
+        store: &Store,
+        vault: Vault,
+        key: &ControllerKey,
+        clock: Arc<dyn Clock>,
+    ) -> anyhow::Result<Jobs> {
+        let dial = self
+            .sim
+            .is_none()
+            .then(|| Arc::new(SshDial::default()) as Arc<dyn Dial>);
+        Jobs::start(JobsConfig {
+            store: store.clone(),
+            vault,
+            clock: Arc::clone(&clock),
+            key: key.clone(),
+            dial,
+            watch: Arc::new(Watcher {
+                engine: self.engine.clone(),
+                key: key.clone(),
+                clock,
+            }),
+        })
+        .await
+        .context("cannot start the jobs")
+    }
+}
+
+/// Watches each node the job runner adopts over an SSH link, as [`Fleet::start`] does with the
+/// nodes adopted before.
+pub(crate) struct Watcher {
+    pub(crate) engine: Engine<FleetLink>,
+    pub(crate) key: ControllerKey,
+    pub(crate) clock: Arc<dyn Clock>,
+}
+
+impl Watch for Watcher {
+    fn watch(&self, node: Node, host_key: HostKey, facts: NodeFacts) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            let link = ssh_link(&node, host_key, &self.key, &self.clock);
+            self.engine
+                .add(node.id, FleetLink::Ssh(link), Some(facts))
+                .await;
+        })
+    }
 }
 
 async fn link(
@@ -126,13 +179,23 @@ async fn link(
         .await?
         .context("no host key is pinned for it")?;
     let host_key = HostKey::from_pin(&pin).context("its pinned host key is invalid")?;
+    Ok(ssh_link(node, host_key, key, clock))
+}
+
+/// A link to the node with the controller's key, which runs the agent's bundle.
+fn ssh_link(
+    node: &Node,
+    host_key: HostKey,
+    key: &ControllerKey,
+    clock: &Arc<dyn Clock>,
+) -> SshLink {
     let mut config = LinkConfig::new(
         Target::new(node.host.clone(), node.port),
         host_key,
         Credential::Key(key.clone()),
     );
     config.agent = Some(AgentLaunch::Bundle);
-    Ok(SshLink::spawn(config, Arc::clone(clock)))
+    SshLink::spawn(config, Arc::clone(clock))
 }
 
 #[cfg(test)]

@@ -78,17 +78,33 @@ pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
     let store = uniwrt_store::Store::open(dir.path().join("uniwrt.db"), Arc::new(SystemClock))
         .await
         .unwrap();
+    let engine = Engine::<FleetLink>::new(EngineConfig::default(), Arc::new(SystemClock));
+    let key = uniwrt_node::ControllerKey::generate().unwrap();
+    let jobs = uniwrt_jobs::Jobs::start(uniwrt_jobs::JobsConfig {
+        store: store.clone(),
+        vault: uniwrt_store::Vault::open(&store, &uniwrt_store::MasterKey::generate().unwrap())
+            .await
+            .unwrap(),
+        clock: Arc::new(SystemClock),
+        key: key.clone(),
+        dial: None,
+        watch: Arc::new(crate::fleet::Watcher {
+            engine: engine.clone(),
+            key,
+            clock: Arc::new(SystemClock),
+        }),
+    })
+    .await
+    .unwrap();
     let config = ApiConfig {
         password_cost: PasswordCost::CHEAPEST,
         ..ApiConfig::new(
             store,
-            Arc::new(Engine::<FleetLink>::new(
-                EngineConfig::default(),
-                Arc::new(SystemClock),
-            )),
+            Arc::new(engine),
             Arc::new(SystemClock),
             crate::build_info::API,
             Arc::new(crate::tls::Tls::for_tests()),
+            jobs,
         )
     };
     (dir, Api::new(config).await.unwrap())

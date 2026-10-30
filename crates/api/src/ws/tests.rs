@@ -1,5 +1,6 @@
 //! The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks,
-//! snapshots then deltas, interest while topics are held, the rate of deltas, and closing.
+//! snapshots then deltas, interest while topics are held, jobs as they change, the rate of
+//! deltas, and closing.
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -209,6 +210,43 @@ async fn topics_answer_with_a_snapshot_then_deltas_and_hold_focus() {
     ws.send(Message::text("hello")).await.unwrap();
     let error = until(&mut ws, |message| message["type"] == "error").await;
     assert_eq!(error["topic"], Value::Null);
+}
+
+#[tokio::test]
+async fn the_jobs_topic_has_the_latest_jobs_then_their_changes() {
+    let demo = Demo::start().await;
+    let mut ws = open(&demo).await;
+    sub(&mut ws, &["jobs"]).await;
+    let snapshot = next(&mut ws).await;
+    assert_eq!(
+        snapshot,
+        json!({ "type": "jobs_snapshot", "topic": "jobs", "jobs": [] })
+    );
+
+    // Nothing listens there: the job fails at once.
+    let port = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let key = uniwrt_node::ControllerKey::generate().unwrap();
+    let adopt = json!({
+        "host": "127.0.0.1",
+        "port": port,
+        "host_key": key.authorized_key().unwrap(),
+    });
+    let res = demo
+        .send(post("/v1/adopt", &adopt, Some(&demo.cookie)))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let failed = until(&mut ws, |message| {
+        message["type"] == "jobs_delta" && message["jobs"][0]["state"] == "failed"
+    })
+    .await;
+    assert_eq!(failed["topic"], "jobs");
+    assert_eq!(failed["jobs"].as_array().unwrap().len(), 1);
+    assert_eq!(failed["jobs"][0]["error"]["code"], "unreachable");
 }
 
 #[tokio::test]

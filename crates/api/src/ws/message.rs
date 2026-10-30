@@ -12,6 +12,7 @@ use uniwrt_model::{
         BatmanFacts, BoardFacts, Capabilities, DeviceFacts, FdbEntry, InterfaceFacts, LeaseFacts,
         NeighborFacts, NodeFacts, PhyFacts, RadioFacts, StationFacts, SystemFacts,
     },
+    job::Job,
     log::LogEntry,
     status::NodeStatus,
 };
@@ -73,6 +74,16 @@ pub enum ServerMessage {
         topic: String,
         entries: Vec<LogEntry>,
         dropped: u64,
+    },
+    /// The latest jobs, newest first.
+    JobsSnapshot {
+        topic: String,
+        jobs: Vec<Job>,
+    },
+    /// Jobs that started or changed, each as it is now.
+    JobsDelta {
+        topic: String,
+        jobs: Vec<Job>,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

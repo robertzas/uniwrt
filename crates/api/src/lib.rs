@@ -31,9 +31,11 @@
 //!   `ws/tests.rs` run against the simulated fleet (`testing::Demo`), the hub over loopback
 //!   HTTP/1.1 and HTTP/2 (`cargo nextest run -p uniwrt-api`).
 
+mod adopt;
 pub mod auth;
 mod client;
 mod health;
+mod jobs;
 mod nodes;
 pub mod problem;
 pub mod security;
@@ -48,6 +50,7 @@ use axum::{
     routing::{get, post},
 };
 
+pub use adopt::{AdoptBody, ProbeRequest, ProbeResult};
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use health::BuildInfo;
@@ -70,6 +73,10 @@ pub fn router(api: Api) -> Router {
         .route("/v1/auth/me", get(auth::me))
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
+        .route("/v1/adopt/probe", post(adopt::probe))
+        .route("/v1/adopt", post(adopt::adopt))
+        .route("/v1/jobs", get(jobs::list))
+        .route("/v1/jobs/{id}", get(jobs::get))
         // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).
         .route("/v1/ws", get(ws::upgrade).connect(ws::upgrade))
         .fallback(problem::not_found)

@@ -73,6 +73,8 @@ pub enum ApiError {
     NotFound(String),
     /// The request conflicts with the current state (409).
     Conflict(String),
+    /// A node the request needs could not be reached or failed (502); the detail says why.
+    BadGateway(String),
     /// Too many attempts; retry after this long (429).
     TooManyRequests(Duration),
     /// A failure on our side (500); the detail is logged, never sent.
@@ -93,6 +95,7 @@ impl IntoResponse for ApiError {
             Self::Forbidden(detail) => response(StatusCode::FORBIDDEN, detail),
             Self::NotFound(detail) => response(StatusCode::NOT_FOUND, detail),
             Self::Conflict(detail) => response(StatusCode::CONFLICT, detail),
+            Self::BadGateway(detail) => response(StatusCode::BAD_GATEWAY, detail),
             Self::TooManyRequests(wait) => {
                 let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
                 let mut response = response(
@@ -124,6 +127,7 @@ impl std::fmt::Display for ApiError {
             | Self::Forbidden(detail)
             | Self::NotFound(detail)
             | Self::Conflict(detail)
+            | Self::BadGateway(detail)
             | Self::Internal(detail) => f.write_str(detail),
             Self::TooManyRequests(wait) => write!(f, "too many attempts; retry in {wait:?}"),
         }
@@ -145,7 +149,7 @@ impl From<JsonRejection> for ApiError {
 }
 
 /// An error with its sources, `outer: inner: …`.
-fn error_chain(err: &dyn std::error::Error) -> String {
+pub(crate) fn error_chain(err: &dyn std::error::Error) -> String {
     let mut text = err.to_string();
     let mut source = err.source();
     while let Some(err) = source {

@@ -5,6 +5,7 @@
 //! rather than at the first secret read, and reseals the rows that the M1.2 stub stored
 //! unencrypted (`alg = 'plain'`, D-032).
 
+mod backup;
 mod key;
 mod seal;
 
@@ -13,8 +14,11 @@ use std::{fmt, sync::Arc};
 use rusqlite::{OptionalExtension as _, params};
 use tracing::info;
 
+pub use backup::SealedBackup;
+pub(crate) use backup::backup_from_row;
 pub use key::MasterKey;
-use seal::{ALG, Sealer};
+pub(crate) use seal::ALG;
+use seal::Sealer;
 
 use crate::{Error, Result, Secret, Store, VaultRepo};
 
