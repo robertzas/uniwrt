@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import type { JSX } from "@solidjs/web";
-import { createEffect, createMemo, createSignal, Errored, onSettled } from "solid-js";
+import { createEffect, createMemo, createSignal, Errored, onSettled, useContext } from "solid-js";
 import { currentSkin } from "../lib/appearance";
+import { LiveContext } from "../lib/live";
 import { isPaletteShortcut } from "../lib/platform";
+import { SessionContext } from "../lib/session";
 import { strings } from "../lib/strings";
 import { Button } from "../ui/Button";
 import { Drawer } from "../ui/Dialog";
@@ -21,7 +23,15 @@ export function Shell(props: { children?: JSX.Element }) {
   const [paletteOpen, setPaletteOpen] = createSignal(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const commands = createMemo(() => appCommands((path) => navigate(path)));
+  const live = useContext(LiveContext);
+  const session = useContext(SessionContext);
+  const commands = createMemo(() =>
+    appCommands({
+      navigate: (path) => navigate(path),
+      devices: live.fleet.nodes,
+      signOut: () => void session.signOut(),
+    }),
+  );
   const rail = () => currentSkin() === "unifi";
 
   createEffect(

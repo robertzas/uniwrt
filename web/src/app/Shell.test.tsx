@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { openTestSocket, SignedInProviders } from "../test/providers";
 import { createAppRouter } from "./routes";
 import { Shell } from "./Shell";
 
@@ -17,9 +18,12 @@ describe("Shell", () => {
     const user = userEvent.setup();
     const history = memoryHistory("/");
     const Router = createAppRouter(history);
+    const { socket } = openTestSocket();
     render(() => (
       <QueryClientProvider client={new QueryClient()}>
-        <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
+        <SignedInProviders socket={socket}>
+          <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
+        </SignedInProviders>
       </QueryClientProvider>
     ));
 
@@ -40,9 +44,12 @@ describe("Shell", () => {
     const user = userEvent.setup();
     const history = memoryHistory("/");
     const Router = createAppRouter(history);
+    const { socket } = openTestSocket();
     render(() => (
       <QueryClientProvider client={new QueryClient()}>
-        <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
+        <SignedInProviders socket={socket}>
+          <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
+        </SignedInProviders>
       </QueryClientProvider>
     ));
 

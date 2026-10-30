@@ -21,6 +21,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // e2e/ is Playwright's (playwright.config.ts).
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
     restoreMocks: true,
     unstubGlobals: true,

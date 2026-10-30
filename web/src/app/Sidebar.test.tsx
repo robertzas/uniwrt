@@ -1,6 +1,7 @@
 import { memoryHistory } from "@solidjs/router";
 import { render, screen, within } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
+import { openTestSocket, SignedInProviders } from "../test/providers";
 import { navItems } from "./nav";
 import { createAppRouter } from "./routes";
 import { Sidebar } from "./Sidebar";
@@ -8,7 +9,12 @@ import { Sidebar } from "./Sidebar";
 describe("Sidebar", () => {
   it("links every section and marks the current page", async () => {
     const Router = createAppRouter(memoryHistory("/insights/logs"));
-    render(() => <Router>{() => <Sidebar />}</Router>);
+    const { socket } = openTestSocket();
+    render(() => (
+      <SignedInProviders socket={socket}>
+        <Router>{() => <Sidebar />}</Router>
+      </SignedInProviders>
+    ));
     const nav = await screen.findByRole("navigation", { name: "Main" });
 
     const hrefs = within(nav)
@@ -24,7 +30,12 @@ describe("Sidebar", () => {
 
   it("keeps every link named as an icon rail", async () => {
     const Router = createAppRouter(memoryHistory("/devices"));
-    render(() => <Router>{() => <Sidebar rail />}</Router>);
+    const { socket } = openTestSocket();
+    render(() => (
+      <SignedInProviders socket={socket}>
+        <Router>{() => <Sidebar rail />}</Router>
+      </SignedInProviders>
+    ));
     const nav = await screen.findByRole("navigation", { name: "Main" });
     const links = within(nav).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual(navItems.map((item) => item.label));

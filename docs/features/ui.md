@@ -79,4 +79,7 @@ WCAG 2.2 AA; full keyboard operation and focus management. Color is never the on
 
 - **Primitives (`ui/`):** Icon, Button, Card and CardHeader, Badge and StatusDot, Stat, Sparkline, Table (virtualized above 200 rows), Tabs, Dialog and Drawer, Tooltip, Toast (`showToast`), Kbd. Interactive ones wrap Kobalte.
 - **Shell (`app/`):** the sidebar (an icon rail in UniFi-familiar, a drawer on phones), the top bar (title, search, health), the Appearance menu (skin and theme), the ⌘K palette (`app/commands.ts`; features add their commands there) and a page error boundary.
+- **Signed-out screens (`features/auth`):** first-run setup, "setup closed" and login; `app/App.tsx` shows them until there is a session, then the shell (D-047).
+- **Live data (`lib/`):** `api.ts` (typed routes; the CSRF header on every POST; a 401 ends the session), `ws.ts` (`LiveSocket`: topics, reconnect, a flush per animation frame), `live.ts` (`LiveContext`: the fleet store; `createNodeView` for `node:<id>`), `session.ts` (`SessionContext`: the user, sign-out), `format.ts`.
+- **Devices (`features/devices`):** the list (`/devices`) and a node's live overview (`/devices/:id`: status and reasons, stats with sparklines, radios, details, Wi-Fi clients); ⌘K opens a device found by name, MAC, address or model.
 - **Gallery:** `/dev/ui` in development builds shows every primitive; `?skin=glass&theme=dark` applies a skin and theme, for screenshots.

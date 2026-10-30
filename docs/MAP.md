@@ -289,10 +289,12 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 
 - top level: index.css, main.tsx
 - `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (99 files); never edit
-- `app/`: App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
+- `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
-- `lib/`: api.ts, appearance.ts, platform.ts, strings.ts
-- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
+- `features/auth/`: SignIn.tsx
+- `features/devices/`: ClientsCard.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
+- `lib/`: api.ts, appearance.ts, format.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 
 ## Scripts
 

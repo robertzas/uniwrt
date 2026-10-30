@@ -3,11 +3,12 @@ import { strings } from "../lib/strings";
 import { Icon } from "../ui/Icon";
 import { Tooltip } from "../ui/Tooltip";
 import { Wordmark } from "../ui/Wordmark";
+import { AccountMenu } from "./AccountMenu";
 import { AppearanceMenu } from "./AppearanceMenu";
 import { isGroup, type NavGroup, type NavItem, nav } from "./nav";
 
 /**
- * Wordmark, navigation and the appearance menu; shared by the desktop sidebar and the mobile
+ * Wordmark, navigation, and the appearance and account menus; shared by the desktop sidebar and the mobile
  * drawer. As a `rail` (the UniFi-familiar skin) it shows icons only, each with a tooltip; the
  * labels stay in the accessibility tree.
  */
@@ -37,8 +38,9 @@ export function Sidebar(props: { rail?: boolean }) {
           </For>
         </ul>
       </nav>
-      <div class={["border-edge border-t py-3", props.rail ? "px-3" : "px-2"]}>
+      <div class={["space-y-1 border-edge border-t py-3", props.rail ? "px-3" : "px-2"]}>
         <AppearanceMenu compact={props.rail} />
+        <AccountMenu compact={props.rail} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "root": ".." },
-  "files": { "includes": ["**", "!dist", "!src/api/gen"] },
+  "files": { "includes": ["**", "!dist", "!src/api/gen", "!playwright-report", "!test-results"] },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "css": { "parser": { "tailwindDirectives": true } },
   "linter": {
@@ -13,7 +13,7 @@
   },
   "overrides": [
     {
-      "includes": ["vite.config.ts"],
+      "includes": ["vite.config.ts", "playwright.config.ts"],
       "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     }
   ],

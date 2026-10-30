@@ -32,7 +32,9 @@ export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => voi
         >
           <Icon icon={Search} class="size-4 shrink-0" />
           <span class="hidden sm:inline">{strings.palette.search}</span>
-          <Kbd class="ml-auto hidden sm:inline-flex">{paletteShortcut}</Kbd>
+          <span class="ml-auto hidden sm:inline-flex">
+            <Kbd>{paletteShortcut}</Kbd>
+          </span>
         </button>
         <HealthBadge />
       </div>

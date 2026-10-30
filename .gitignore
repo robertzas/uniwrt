@@ -25,3 +25,7 @@ master.key
 .DS_Store
 .idea/
 *.swp
+
+# Playwright (web/e2e)
+/web/test-results/
+/web/playwright-report/

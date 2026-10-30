@@ -14,7 +14,7 @@ function renderPalette() {
       <button type="button" onClick={() => setOpen(true)}>
         reopen
       </button>
-      <CommandPalette open={open()} onOpenChange={setOpen} commands={appCommands(navigate)} />
+      <CommandPalette open={open()} onOpenChange={setOpen} commands={appCommands({ navigate })} />
     </>
   ));
   return { navigate, open };

@@ -8,8 +8,23 @@ import { SectionPage } from "./SectionPage";
  * One route per sidebar page. Each feature replaces its placeholder with a lazy-loaded page
  * (`lazy(() => import(...))`), which keeps the initial bundle within the budget in ui.md.
  */
+const pages: Record<string, RouteDefinition["component"]> = {
+  "/devices": lazy(() =>
+    import("../features/devices/DevicesPage").then((m) => ({ default: m.DevicesPage })),
+  ),
+};
+
 export const routes: RouteDefinition[] = [
-  ...navItems.map((item) => ({ path: item.path, component: () => <SectionPage item={item} /> })),
+  ...navItems.map((item) => ({
+    path: item.path,
+    component: pages[item.path] ?? (() => <SectionPage item={item} />),
+  })),
+  {
+    path: "/devices/:id",
+    component: lazy(() =>
+      import("../features/devices/DevicePage").then((m) => ({ default: m.DevicePage })),
+    ),
+  },
   // The design-system gallery, in development builds only (dead code in production).
   ...(import.meta.env.DEV
     ? [

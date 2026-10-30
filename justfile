@@ -49,6 +49,11 @@ test-dropbear *images:
 test-agent *images:
     @scripts/test-agent.sh {{ images }}
 
+# The Playwright smoke test: a debug binary with the UI embedded serves the simulated fleet to Chrome
+e2e: web-build
+    UNIWRT_WEB_DIST=web/dist cargo build --locked
+    cd web && node_modules/.bin/playwright test
+
 # The Wi-Fi and mesh tests in the hwsim lab (needs Docker; loads mac80211_hwsim and batman-adv)
 test-wifi *args:
     @scripts/wifi-lab.sh test {{ args }}

@@ -70,7 +70,11 @@ export const navItems: readonly NavItem[] = nav.flatMap((entry) =>
   isGroup(entry) ? entry.items : [entry],
 );
 
+/** The page a path belongs to: its own, or the section it is under (`/devices/3` → Devices). */
 export function findNavItem(pathname: string): NavItem | undefined {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  return navItems.find((item) => item.path === path);
+  return (
+    navItems.find((item) => item.path === path) ??
+    navItems.find((item) => item.path !== "/" && path.startsWith(`${item.path}/`))
+  );
 }

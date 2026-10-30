@@ -1,4 +1,5 @@
-import { Laptop, Moon, Palette, Sun } from "lucide";
+import { Laptop, LogOut, Moon, Palette, RadioTower, Router, Sun } from "lucide";
+import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
   type Skin,
   setCurrentSkin,
@@ -23,9 +24,19 @@ export interface Command {
 
 const themeIcons: Record<ThemePreference, IconNode> = { system: Laptop, light: Sun, dark: Moon };
 
-/** The app's commands: every page, then the skins and themes. */
-export function appCommands(navigate: (path: string) => void): Command[] {
+/** What the commands act on besides pages and appearance. */
+export interface CommandContext {
+  navigate: (path: string) => void;
+  /** Adopted nodes; each gets a command that opens it, found by name, MAC, address or model. */
+  devices?: readonly NodeSummary[];
+  signOut?: () => void;
+}
+
+/** The app's commands: every page, the devices, then the skins, themes and account. */
+export function appCommands(context: CommandContext): Command[] {
   const p = strings.palette;
+  const { navigate } = context;
+  const roles = strings.devices.role;
   return [
     ...navItems.map((item) => ({
       id: `go:${item.path}`,
@@ -34,6 +45,14 @@ export function appCommands(navigate: (path: string) => void): Command[] {
       icon: item.icon,
       keywords: item.description,
       run: () => navigate(item.path),
+    })),
+    ...(context.devices ?? []).map((node) => ({
+      id: `device:${node.id}`,
+      group: p.groups.devices,
+      label: node.name,
+      icon: node.role === "gateway" ? Router : RadioTower,
+      keywords: [roles[node.role], node.mac, node.host, node.model ?? ""].join(" "),
+      run: () => navigate(`/devices/${node.id}`),
     })),
     ...skins.map((skin: Skin) => ({
       id: `skin:${skin}`,
@@ -51,6 +70,18 @@ export function appCommands(navigate: (path: string) => void): Command[] {
       keywords: `${strings.theme.label} mode`,
       run: () => setThemePreference(theme),
     })),
+    ...(context.signOut
+      ? [
+          {
+            id: "account:sign-out",
+            group: p.groups.account,
+            label: strings.account.signOut,
+            icon: LogOut,
+            keywords: "log out logout",
+            run: context.signOut,
+          },
+        ]
+      : []),
   ];
 }
 
