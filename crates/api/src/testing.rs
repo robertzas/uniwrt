@@ -1,5 +1,5 @@
-//! Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing in
-//! demo mode), and [`Demo`], the simulated fleet adopted into one with an admin logged in,
+//! Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing
+//! without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in,
 //! served over the router or a loopback socket.
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -87,7 +87,7 @@ impl Watch for NoWatch {
     }
 }
 
-/// [`api`] whose jobs reach nodes with `dial`; `None` as in demo mode.
+/// [`api`] whose jobs reach nodes with `dial`; `None` reaches nothing.
 pub(crate) async fn api_with(
     store: Store,
     fleet: Arc<dyn Fleet>,
@@ -143,7 +143,7 @@ impl Demo {
         Self::start_with(true).await
     }
 
-    /// Without `dial`, as in demo mode: nothing is adopted or probed.
+    /// Without `dial`: nothing is adopted or probed.
     pub(crate) async fn start_with(dial: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);

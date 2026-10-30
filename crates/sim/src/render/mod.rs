@@ -4,6 +4,7 @@
 //! as a real node's, so the simulation exercises them.
 
 mod batman;
+pub(crate) mod commands;
 mod devices;
 mod l2;
 mod logs;

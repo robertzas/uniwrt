@@ -1,4 +1,4 @@
-import { Laptop, LogOut, Moon, Palette, RadioTower, Router, Sun } from "lucide";
+import { Laptop, LogOut, Moon, Palette, Plus, RadioTower, Router, Sun } from "lucide";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
   type Skin,
@@ -32,7 +32,7 @@ export interface CommandContext {
   signOut?: () => void;
 }
 
-/** The app's commands: every page, the devices, then the skins, themes and account. */
+/** The app's commands: every page, adoption and the devices, then the skins, themes and account. */
 export function appCommands(context: CommandContext): Command[] {
   const p = strings.palette;
   const { navigate } = context;
@@ -46,6 +46,14 @@ export function appCommands(context: CommandContext): Command[] {
       keywords: item.description,
       run: () => navigate(item.path),
     })),
+    {
+      id: "devices:adopt",
+      group: p.groups.devices,
+      label: p.adopt,
+      icon: Plus,
+      keywords: "add new router access point openwrt ssh discovered",
+      run: () => navigate("/devices?adopt=1"),
+    },
     ...(context.devices ?? []).map((node) => ({
       id: `device:${node.id}`,
       group: p.groups.devices,

@@ -161,7 +161,7 @@ async fn on_node(
     progress: &mut Progress,
 ) -> Result<Found, JobError> {
     let Some(dial) = &shared.dial else {
-        return Err(internal("no way to reach nodes", &"demo mode"));
+        return Err(internal("no way to reach nodes", &"no dial"));
     };
     let key = Credential::Key(shared.key.clone());
     let password = request.password.clone().map(Credential::Password);

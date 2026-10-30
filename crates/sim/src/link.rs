@@ -1,6 +1,7 @@
 //! [`SimLink`]: one simulated node behind [`NodeLink`]. It answers the agent's ops as the
 //! event-loop agent does (`collect`, `subscribe`/`unsubscribe`, `set_interval`, `log_follow`,
-//! `ping`), keeps what they asked for in the node's [`Session`], and runs no commands.
+//! `ping`), keeps what they asked for in the node's [`Session`], and runs only the commands
+//! adoption runs (`render::commands`).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -18,7 +19,10 @@ use uniwrt_node::{
     proto::ops::{LogFollow, LogMode, Set, SetInterval, Topic},
 };
 
-use crate::{fleet::Shared, render};
+use crate::{
+    fleet::{Shared, lock},
+    render,
+};
 
 /// A simulated node's link. Clones share it.
 #[derive(Clone)]
@@ -52,15 +56,15 @@ pub(crate) struct LogFollowing {
 }
 
 impl SimLink {
+    /// Whether the node's `authorized_keys` holds `line`, as adoption installs it.
+    pub fn trusts(&self, line: &str) -> bool {
+        lock(&self.shared.nodes[self.node].authorized_keys)
+            .iter()
+            .any(|key| key == line)
+    }
+
     fn answer(&self, op: &str, args: &RawValue) -> Result<Value> {
-        let channel = &self.shared.nodes[self.node];
-        if !matches!(
-            &*channel.state.borrow(),
-            LinkState::Up {
-                agent: AgentState::Running(_),
-                ..
-            }
-        ) {
+        if !self.running() {
             return Err(Error::AgentUnavailable {
                 reason: "the simulated node is down".to_owned(),
             });
@@ -138,6 +142,31 @@ impl SimLink {
             _ => return Err(bad_request(op, "unknown op")),
         })
     }
+
+    fn run(&self, request: &ExecRequest) -> Result<ExecOutput> {
+        if !self.running() {
+            return Err(Error::Disconnected {
+                what: "exec".to_owned(),
+            });
+        }
+        let world = self.shared.world();
+        let mut keys = lock(&self.shared.nodes[self.node].authorized_keys);
+        Ok(render::commands::exec(
+            &world.nodes[self.node],
+            &request.argv,
+            &mut keys,
+        ))
+    }
+
+    fn running(&self) -> bool {
+        matches!(
+            &*self.shared.nodes[self.node].state.borrow(),
+            LinkState::Up {
+                agent: AgentState::Running(_),
+                ..
+            }
+        )
+    }
 }
 
 fn field<T: DeserializeOwned>(op: &str, args: &RawValue, name: &str) -> Result<T> {
@@ -177,8 +206,8 @@ impl NodeLink for SimLink {
         std::future::ready(answer)
     }
 
-    fn exec(&self, _request: ExecRequest) -> impl Future<Output = Result<ExecOutput>> + Send {
-        std::future::ready(Err(unsupported("exec")))
+    fn exec(&self, request: ExecRequest) -> impl Future<Output = Result<ExecOutput>> + Send {
+        std::future::ready(self.run(&request))
     }
 
     fn stream(&self, _argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {

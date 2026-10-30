@@ -73,7 +73,17 @@ export function Drawer(props: DrawerProps) {
   );
 }
 
+/**
+ * Focuses `target` (else Kobalte focuses the first focusable element) unless the user already
+ * focused something inside the dialog: the auto-focus can come a moment after the dialog shows.
+ */
 function focusInitial(event: Event, target: DialogProps["initialFocus"]) {
+  const content = event.currentTarget instanceof Element ? event.currentTarget : null;
+  const active = document.activeElement;
+  if (content && active && active !== content && content.contains(active)) {
+    event.preventDefault();
+    return;
+  }
   const element = target?.();
   if (element) {
     event.preventDefault();

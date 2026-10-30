@@ -10,7 +10,7 @@ use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
 pub struct Job {
     pub id: JobId,
     pub kind: JobKind,
-    /// What it acts on, for people: `host:port` while adopting.
+    /// What it acts on, for people: `root@host:port` while adopting.
     pub target: String,
     /// The node it acts on; for an adoption, the node it adopted, once recorded.
     pub node: Option<NodeId>,

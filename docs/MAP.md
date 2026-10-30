@@ -14,7 +14,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 
 - `src/adopt.rs`: Adoption, with a session (features/adoption.md, Path A): `POST /api/v1/adopt/probe` reads a node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow.
 - `src/adopt/batch.rs`: `POST /api/v1/adopt/batch`: adopts several nodes with one password, typically those that `GET /api/v1/discovered` reports, each with the host key the user confirmed.
-- `src/adopt/tests.rs`: The adoption and job routes through the router, against the simulated fleet's API: request checks, a probe and an adoption of a node that cannot be reached (the job records why), the audit, and demo mode, where nothing can be adopted.
+- `src/adopt/tests.rs`: The adoption and job routes through the router, against the simulated fleet's API: request checks, a probe and an adoption of a node that cannot be reached (the job records why), the audit, and a controller without a dial, where nothing can be adopted.
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
 - `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
@@ -30,7 +30,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
-- `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing in demo mode), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
+- `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
@@ -180,6 +180,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
+- `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, and the snapshot writer.
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
@@ -209,6 +210,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
+- `src/render/commands.rs`: The commands adoption runs on a node (features/adoption.md, Path A), answered as OpenWrt would: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`.
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
@@ -293,8 +295,9 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
 - `features/devices/`: ClientsCard.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
-- `lib/`: api.ts, appearance.ts, format.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
-- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
+- `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
+- `lib/`: api.ts, appearance.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 
 ## Scripts
 

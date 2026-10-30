@@ -62,6 +62,8 @@ pub(crate) struct Channel {
     pub(crate) pushes: broadcast::Sender<AgentEvent>,
     session: Mutex<Session>,
     connection: Mutex<Connection>,
+    /// The lines of dropbear's `authorized_keys`, which survive reboots.
+    pub(crate) authorized_keys: Mutex<Vec<String>>,
 }
 
 /// Where the controller's connection to a node stands.
@@ -91,6 +93,7 @@ impl SimFleet {
                 pushes: broadcast::channel(PUSH_CAPACITY).0,
                 session: Mutex::new(Session::default()),
                 connection: Mutex::new(Connection::Up),
+                authorized_keys: Mutex::default(),
             })
             .collect();
         let shared = Arc::new(Shared {
@@ -306,6 +309,6 @@ fn raw(value: &serde_json::Value) -> Arc<serde_json::value::RawValue> {
     Arc::from(to_raw_value(value).unwrap_or_default())
 }
 
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

@@ -13,7 +13,7 @@ import type { UserId } from "./UserId";
  */
 export type Job = { id: JobId, kind: JobKind, 
 /**
- * What it acts on, for people: `host:port` while adopting.
+ * What it acts on, for people: `root@host:port` while adopting.
  */
 target: string, 
 /**

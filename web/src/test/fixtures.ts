@@ -1,6 +1,8 @@
+import type { Job } from "../api/gen/Job";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeFacts } from "../api/gen/NodeFacts";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { StepState } from "../api/gen/StepState";
 
 /* Made-up API data for tests. */
 
@@ -90,5 +92,45 @@ export function detail(withFacts: NodeFacts | null): NodeDetail {
     },
     status: s.status,
     facts: withFacts,
+  };
+}
+
+const adoptSteps = [
+  "connect",
+  "check",
+  "install_key",
+  "verify_key",
+  "inventory",
+  "backup",
+  "record",
+  "watch",
+] as const;
+
+/** An adoption of `host` whose first `done` steps are done and the next one is in `state`. */
+export function adoptJob(
+  id: number,
+  host: string,
+  done: number,
+  state: StepState = "running",
+  extra: Partial<Job> = {},
+): Job {
+  return {
+    id,
+    kind: "adopt",
+    target: `root@${host}:22`,
+    node: null,
+    state: "running",
+    steps: adoptSteps.map((name, i) => ({
+      name,
+      state: i < done ? "done" : i === done ? state : "pending",
+      detail: i < done ? `${name} detail` : null,
+      started_at: i <= done ? 1 : null,
+      finished_at: i < done ? 2 : null,
+    })),
+    error: null,
+    created_by: 1,
+    started_at: 1,
+    finished_at: null,
+    ...extra,
   };
 }

@@ -59,9 +59,7 @@ pub(crate) async fn get(
 pub(crate) fn jobs_error(err: uniwrt_jobs::Error) -> ApiError {
     use uniwrt_jobs::Error;
     match err {
-        Error::Unavailable => ApiError::Conflict(
-            "Demo mode simulates its nodes; real ones cannot be adopted".to_owned(),
-        ),
+        Error::Unavailable => ApiError::Conflict("This controller cannot reach nodes".to_owned()),
         Error::Busy { target } => {
             ApiError::Conflict(format!("A job is running for {target} already"))
         }

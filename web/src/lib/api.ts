@@ -1,9 +1,16 @@
+import type { AdoptBody } from "../api/gen/AdoptBody";
 import type { AuthState } from "../api/gen/AuthState";
+import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
+import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
 import type { Credentials } from "../api/gen/Credentials";
+import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { Health } from "../api/gen/Health";
+import type { Job } from "../api/gen/Job";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { ProbeRequest } from "../api/gen/ProbeRequest";
+import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { UserInfo } from "../api/gen/UserInfo";
 
 /** A failed API call. Problem details (RFC 9457) from the server fill `title` and `message`. */
@@ -93,4 +100,15 @@ export const api = {
     list: (signal?: AbortSignal) => request<NodeSummary[]>("/nodes", { signal }),
     get: (id: NodeId, signal?: AbortSignal) => request<NodeDetail>(`/nodes/${id}`, { signal }),
   },
+  adopt: {
+    /** Reads the node's host key, for the user to confirm before adopting it. */
+    probe: (target: ProbeRequest) =>
+      request<ProbeResult>("/adopt/probe", { method: "POST", body: target }),
+    /** Starts adopting a node; the job that answers is followed on the WS topic `jobs`. */
+    start: (body: AdoptBody) => request<Job>("/adopt", { method: "POST", body }),
+    batch: (body: BatchAdoptBody) =>
+      request<BatchAdoptResult>("/adopt/batch", { method: "POST", body }),
+  },
+  /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
+  discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),
 };

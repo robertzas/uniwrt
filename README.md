@@ -70,7 +70,7 @@ Then open `https://<host>:8443` and create the admin account. For safety, setup 
 
 The controller makes its own local CA, limited to local names and private addresses. Download it from `https://<host>:8443/api/v1/tls/ca.crt`, check its SHA-256 against the one the log prints, and trust it on your devices: the certificate warnings are then gone for good. Secrets (SSH keys, passwords) are encrypted under `/data/master.key`; back that file up apart from the data, or keep it outside the volume with `UNIWRT_MASTER_KEY_FILE`. Behind a reverse proxy that terminates TLS, let it reach port 8080 and list it in `UNIWRT_TRUSTED_PROXIES`. To keep the data in a host directory rather than the named volume, make that directory writable by UID 65532 first (`chown 65532:65532 <dir>`).
 
-To try it without a network of your own, add `-e UNIWRT_DEMO=1` (or run `uniwrt serve --demo`). That simulates a gateway, 3 mesh access points and 30 clients that roam, come and go, and now and then reboot an access point. Demo mode keeps its own database and deletes it at exit; log in as `demo`, password `demo`.
+To try it without a network of your own, add `-e UNIWRT_DEMO=1` (or run `uniwrt serve --demo`). That simulates a gateway, 3 mesh access points and 30 clients that roam, come and go, and now and then reboot an access point. The last access point waits under Devices → Discovered for you to adopt it (its root password is `demo`). Demo mode keeps its own database and deletes it at exit; log in as `demo`, password `demo`.
 
 ## Compatibility
 

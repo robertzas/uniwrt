@@ -64,7 +64,7 @@ struct Probed {
 }
 
 impl Discovery {
-    /// Without a dial (demo mode), nothing is probed.
+    /// Without a dial, nothing is probed.
     pub(crate) fn new(dial: Option<Arc<dyn Dial>>, clock: Arc<dyn Clock>) -> Self {
         Self {
             dial,

@@ -1,6 +1,7 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
 //! latest snapshot, and the snapshot writer. In demo mode the nodes are simulated instead,
-//! adopted into the demo's own database. The job runner hands nodes adopted later to the engine
+//! adopted into the demo's own database but for the last access point, which waits to be
+//! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
 //! ([`Watcher`]).
 
 use std::{sync::Arc, time::Duration};
@@ -18,19 +19,21 @@ use uniwrt_node::{AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, S
 use uniwrt_sim::{SimConfig, SimFleet};
 use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store, Vault};
 
-use crate::fleet_link::FleetLink;
+use crate::{demo::DemoDial, fleet_link::FleetLink};
 
 /// How often each node's facts are saved: recent enough for a restart to show them, rarely
 /// enough to spare the disk (D-037).
 const SNAPSHOT_INTERVAL: Duration = Duration::from_secs(300);
 /// How long stopping waits for the links to disconnect.
 const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+/// The simulated nodes left for the user to adopt, the last ones.
+const DEMO_UNADOPTED: usize = 1;
 
 pub(crate) struct Fleet {
     pub(crate) engine: Engine<FleetLink>,
     snapshots: Snapshots,
-    /// Demo mode's world, which runs while it lives.
-    sim: Option<SimFleet>,
+    /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
+    sim: Option<(SimFleet, Arc<DemoDial>)>,
 }
 
 impl Fleet {
@@ -63,16 +66,19 @@ impl Fleet {
         })
     }
 
-    /// Simulates the fleet `config` describes, adopting its nodes into `store`, which should
-    /// be empty (the demo's own).
+    /// Simulates the fleet `config` describes, adopting all its nodes but the last into
+    /// `store`, which should be empty (the demo's own).
     pub(crate) async fn demo(
         store: &Store,
         config: &SimConfig,
         clock: Arc<dyn Clock>,
     ) -> anyhow::Result<Self> {
         let sim = SimFleet::spawn(config, clock.as_ref());
+        let dial = Arc::new(DemoDial::new(&sim).context("cannot make the demo's host keys")?);
         let engine = Engine::new(EngineConfig::default(), clock);
-        for (index, node) in sim.nodes().into_iter().enumerate() {
+        let nodes = sim.nodes();
+        let adopted = nodes.len().saturating_sub(DEMO_UNADOPTED).max(1);
+        for (index, node) in nodes.into_iter().enumerate().take(adopted) {
             let adopted = store
                 .create_node(NewNode {
                     name: node.name,
@@ -91,8 +97,14 @@ impl Fleet {
         Ok(Self {
             engine,
             snapshots,
-            sim: Some(sim),
+            sim: Some((sim, dial)),
         })
+    }
+
+    /// The simulated node at `host`, in demo mode.
+    #[cfg(test)]
+    pub(crate) fn sim_link(&self, host: &str) -> Option<uniwrt_sim::SimLink> {
+        self.sim.as_ref()?.1.link(host)
     }
 
     /// Stops the actors, saves the last snapshots and disconnects.
@@ -120,7 +132,7 @@ impl Fleet {
     }
 
     /// The job runner over this fleet: the nodes it adopts join the engine. Demo mode adopts
-    /// nothing.
+    /// the simulated nodes.
     pub(crate) async fn jobs(
         &self,
         store: &Store,
@@ -128,20 +140,22 @@ impl Fleet {
         key: &ControllerKey,
         clock: Arc<dyn Clock>,
     ) -> anyhow::Result<Jobs> {
-        let dial = self
-            .sim
-            .is_none()
-            .then(|| Arc::new(SshDial::default()) as Arc<dyn Dial>);
+        let demo = self.sim.as_ref().map(|(_, dial)| Arc::clone(dial));
+        let dial = match &demo {
+            Some(demo) => Arc::clone(demo) as Arc<dyn Dial>,
+            None => Arc::new(SshDial::default()),
+        };
         Jobs::start(JobsConfig {
             store: store.clone(),
             vault,
             clock: Arc::clone(&clock),
             key: key.clone(),
-            dial,
+            dial: Some(dial),
             watch: Arc::new(Watcher {
                 engine: self.engine.clone(),
                 key: key.clone(),
                 clock,
+                demo,
             }),
         })
         .await
@@ -150,20 +164,22 @@ impl Fleet {
 }
 
 /// Watches each node the job runner adopts over an SSH link, as [`Fleet::start`] does with the
-/// nodes adopted before.
+/// nodes adopted before; in demo mode, over the simulated node's link.
 pub(crate) struct Watcher {
     pub(crate) engine: Engine<FleetLink>,
     pub(crate) key: ControllerKey,
     pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) demo: Option<Arc<DemoDial>>,
 }
 
 impl Watch for Watcher {
     fn watch(&self, node: Node, host_key: HostKey, facts: NodeFacts) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            let link = ssh_link(&node, host_key, &self.key, &self.clock);
-            self.engine
-                .add(node.id, FleetLink::Ssh(link), Some(facts))
-                .await;
+            let link = match self.demo.as_ref().and_then(|demo| demo.link(&node.host)) {
+                Some(link) => FleetLink::Sim(link),
+                None => FleetLink::Ssh(ssh_link(&node, host_key, &self.key, &self.clock)),
+            };
+            self.engine.add(node.id, link, Some(facts)).await;
         })
     }
 }
@@ -259,7 +275,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_demo_adopts_and_watches_the_simulated_nodes() {
+    async fn the_demo_adopts_and_watches_all_simulated_nodes_but_the_last() {
         let dir = tempfile::tempdir().unwrap();
         let clock = Arc::new(SystemClock);
         let store = Store::open(dir.path().join("uniwrt.db"), clock.clone())
@@ -268,8 +284,9 @@ mod tests {
         let fleet = Fleet::demo(&store, &uniwrt_sim::SimConfig::default(), clock)
             .await
             .unwrap();
+        // The last access point waits to be adopted (`demo::tests`).
         let nodes = store.nodes().await.unwrap();
-        assert_eq!(nodes.len(), 4);
+        assert_eq!(nodes.len(), 3);
         assert_eq!(nodes[0].role, NodeRole::Gateway);
         let online = || {
             nodes.iter().all(|node| {

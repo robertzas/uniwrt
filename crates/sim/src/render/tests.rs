@@ -200,3 +200,56 @@ fn notifications_and_logs_parse() {
 fn raw(value: &Value) -> Arc<serde_json::value::RawValue> {
     to_raw_value(value).unwrap().into()
 }
+
+#[test]
+fn adoption_s_commands_answer_as_on_openwrt() {
+    let world = world();
+    let run = |node: usize, argv: &[&str], keys: &mut Vec<String>| {
+        let argv: Vec<String> = argv.iter().map(|&arg| arg.to_owned()).collect();
+        super::commands::exec(&world.nodes[node], &argv, keys)
+    };
+    let mut keys = Vec::new();
+    let release = run(0, &["cat", "/etc/openwrt_release"], &mut keys);
+    let release = String::from_utf8(release.stdout).unwrap();
+    assert!(release.starts_with("DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='"));
+
+    let install = [
+        "sh",
+        "-c",
+        "f=/etc/dropbear/authorized_keys …",
+        "sh",
+        "ssh-ed25519 AAAA uniwrt",
+    ];
+    assert_eq!(run(0, &install, &mut keys).stdout, b"added\n");
+    assert_eq!(run(0, &install, &mut keys).stdout, b"present\n");
+    assert_eq!(keys, ["ssh-ed25519 AAAA uniwrt"]);
+
+    // Each node reads its own package manager's database, and only that one.
+    let opkg = [
+        "grep",
+        "-E",
+        "^(Package|Version|Status):",
+        "/usr/lib/opkg/status",
+    ];
+    let apk = ["grep", "-E", "^[PV]:", "/lib/apk/db/installed"];
+    for node in 0..world.nodes.len() {
+        let (theirs, other) = if world.nodes[node].release.package_manager == "opkg" {
+            (&opkg, &apk)
+        } else {
+            (&apk, &opkg)
+        };
+        let output = run(node, theirs, &mut keys);
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .contains("dropbear")
+        );
+        assert!(!run(node, other, &mut keys).status.success());
+    }
+
+    let backup = run(0, &["sysupgrade", "-b", "-"], &mut keys);
+    assert!(backup.stdout.starts_with(&[0x1f, 0x8b]));
+    let missing = run(0, &["reboot"], &mut keys);
+    assert_eq!(missing.status, uniwrt_node::ExitStatus::Code(127));
+}

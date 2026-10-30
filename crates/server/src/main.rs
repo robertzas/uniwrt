@@ -16,6 +16,7 @@
 mod build_info;
 mod cli;
 mod controller_key;
+mod demo;
 mod fleet;
 mod fleet_link;
 mod healthcheck;

@@ -51,6 +51,14 @@ describe("commands", () => {
     expect(navigate).toHaveBeenCalledWith("/devices/2");
   });
 
+  it("opens the adoption wizard", () => {
+    const navigate = vi.fn();
+    const [command] = filterCommands(appCommands({ navigate }), "adopt");
+    expect(command?.id).toBe("devices:adopt");
+    command?.run();
+    expect(navigate).toHaveBeenCalledWith("/devices?adopt=1");
+  });
+
   it("signs out when the app gives a way to", () => {
     const signOut = vi.fn();
     expect(appCommands({ navigate: vi.fn() }).map((c) => c.id)).not.toContain("account:sign-out");

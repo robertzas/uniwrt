@@ -116,7 +116,11 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .context("cannot start the API")?;
         if args.demo {
             api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
-            info!("demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}");
+            info!(
+                "demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}; the last access point \
+                 waits to be adopted, with root password {}",
+                crate::demo::ROOT_PASSWORD
+            );
         } else if api.awaiting_setup() {
             warn!("no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)");
         }

@@ -48,7 +48,7 @@ pub struct JobsConfig {
     pub clock: Arc<dyn Clock>,
     /// The key that adopted nodes trust.
     pub key: ControllerKey,
-    /// How to reach nodes; `None` where nothing can be adopted (demo mode).
+    /// How to reach nodes; `None` where nothing can be adopted (some tests).
     pub dial: Option<Arc<dyn Dial>>,
     pub watch: Arc<dyn Watch>,
 }
@@ -121,7 +121,7 @@ impl Jobs {
         })
     }
 
-    /// Whether nodes can be adopted here: not in demo mode.
+    /// Whether nodes can be adopted here: not without a dial.
     pub fn can_adopt(&self) -> bool {
         self.shared.dial.is_some()
     }

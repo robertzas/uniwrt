@@ -92,6 +92,7 @@ pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
             engine: engine.clone(),
             key,
             clock: Arc::new(SystemClock),
+            demo: None,
         }),
     })
     .await

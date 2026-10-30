@@ -1,14 +1,20 @@
-import { useNavigate } from "@solidjs/router";
-import { RadioTower, Router } from "lucide";
-import { createEffect, Show, useContext } from "solid-js";
+import { useNavigate, useSearchParams } from "@solidjs/router";
+import { Plus, RadioTower, Router } from "lucide";
+import { createEffect, createSignal, Show, useContext } from "solid-js";
+import type { Discovered } from "../../api/gen/Discovered";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { formatDuration, formatPercent, NONE } from "../../lib/format";
+import { createJobsView } from "../../lib/jobs";
 import { LiveContext } from "../../lib/live";
 import { strings } from "../../lib/strings";
+import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { type Column, Table } from "../../ui/Table";
+import { AdoptDialog } from "./adopt/AdoptDialog";
+import { BatchDialog } from "./adopt/BatchDialog";
+import { DiscoveredCard } from "./adopt/DiscoveredCard";
 import { ModeBadge, StatusBadge } from "./status";
 
 const c = strings.devices.columns;
@@ -63,10 +69,29 @@ const columns: Column<NodeSummary>[] = [
   },
 ];
 
-/** Every adopted node with its live status and headline numbers; a row opens the node. */
+/** The wizard's place in the URL (`?adopt=1&host=…`), so ⌘K and links can open it. */
+type AdoptParams = { adopt?: string; host?: string };
+
+/**
+ * Every adopted node with its live status and headline numbers; a row opens the node. Below them,
+ * the discovered devices, and the adoption wizard for one device or several.
+ */
 export function DevicesPage() {
   const live = useContext(LiveContext);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams<AdoptParams>();
+  const [jobs, addJobs] = createJobsView(live);
+  const [batch, setBatch] = createSignal<Discovered[]>();
+  const openAdopt = (host?: string) => setParams({ adopt: "1", host }, { replace: true });
+  // Only while open: Kobalte also reports a close as the page unmounts, when navigating away.
+  const closeAdopt = () => {
+    if (params.adopt) setParams({ adopt: undefined, host: undefined }, { replace: true });
+  };
+  const adoptButton = () => (
+    <Button size="sm" variant="primary" icon={Plus} onClick={() => openAdopt()}>
+      {strings.adopt.open}
+    </Button>
+  );
   createEffect(
     () => strings.devices.title,
     (title) => {
@@ -75,38 +100,64 @@ export function DevicesPage() {
   );
 
   return (
-    <Show
-      when={live.fleet.ready}
-      fallback={
-        <p role="status" class="py-20 text-center text-fg-subtle text-sm">
-          {strings.devices.loading}…
-        </p>
-      }
-    >
+    <>
       <Show
-        when={live.fleet.nodes.length > 0}
+        when={live.fleet.ready}
         fallback={
-          <EmptyState
-            icon={Router}
-            title={strings.devices.empty.title}
-            description={strings.devices.empty.description}
-          />
+          <p role="status" class="py-20 text-center text-fg-subtle text-sm">
+            {strings.devices.loading}…
+          </p>
         }
       >
-        <Card class="mx-auto max-w-7xl overflow-hidden">
-          <CardHeader
-            title={strings.devices.title}
-            description={strings.devices.count(live.fleet.nodes.length)}
-          />
-          <Table
-            label={strings.devices.title}
-            columns={columns}
-            rows={live.fleet.nodes}
-            rowKey={(node) => String(node.id)}
-            onRowClick={(node) => navigate(`/devices/${node.id}`)}
-          />
-        </Card>
+        <Show
+          when={live.fleet.nodes.length > 0}
+          fallback={
+            <EmptyState
+              icon={Router}
+              title={strings.devices.empty.title}
+              description={strings.devices.empty.description}
+            >
+              <div class="mt-6">{adoptButton()}</div>
+            </EmptyState>
+          }
+        >
+          <Card class="mx-auto max-w-7xl overflow-hidden">
+            <CardHeader
+              title={strings.devices.title}
+              description={strings.devices.count(live.fleet.nodes.length)}
+              actions={adoptButton()}
+            />
+            <Table
+              label={strings.devices.title}
+              columns={columns}
+              rows={live.fleet.nodes}
+              rowKey={(node) => String(node.id)}
+              onRowClick={(node) => navigate(`/devices/${node.id}`)}
+            />
+          </Card>
+          {/* Below the list, so that it appearing never moves the rows. */}
+          <DiscoveredCard jobs={jobs} onAdopt={openAdopt} onAdoptMany={setBatch} />
+        </Show>
       </Show>
-    </Show>
+      <AdoptDialog
+        open={params.adopt === "1"}
+        onOpenChange={(open) => {
+          if (!open) closeAdopt();
+        }}
+        host={params.host}
+        jobs={jobs}
+        addJobs={addJobs}
+        onOpenDevice={(id) => navigate(`/devices/${id}`)}
+      />
+      <BatchDialog
+        open={batch() !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setBatch(undefined);
+        }}
+        nodes={batch() ?? []}
+        jobs={jobs}
+        addJobs={addJobs}
+      />
+    </>
   );
 }

@@ -1,6 +1,6 @@
 //! The adoption and job routes through the router, against the simulated fleet's API: request
 //! checks, a probe and an adoption of a node that cannot be reached (the job records why), the
-//! audit, and demo mode, where nothing can be adopted.
+//! audit, and a controller without a dial, where nothing can be adopted.
 
 use std::{sync::Arc, time::Duration};
 
@@ -141,7 +141,7 @@ async fn an_unreachable_node_fails_the_probe_and_the_adoption_records_why() {
 }
 
 #[tokio::test]
-async fn demo_mode_adopts_nothing() {
+async fn without_a_dial_nothing_is_adopted() {
     let dir = tempfile::tempdir().unwrap();
     let clock = Arc::new(SystemClock);
     let store = Store::open(dir.path().join("uniwrt.db"), clock.clone())
@@ -161,7 +161,7 @@ async fn demo_mode_adopts_nothing() {
         body(res).await["detail"]
             .as_str()
             .unwrap()
-            .contains("Demo mode")
+            .contains("cannot reach nodes")
     );
 }
 
@@ -217,7 +217,7 @@ async fn a_batch_is_checked_whole_then_starts_a_job_per_node() {
 }
 
 #[tokio::test]
-async fn adopted_nodes_are_not_discovered_and_demo_mode_probes_nothing() {
+async fn adopted_nodes_are_not_discovered_and_nothing_is_probed_without_a_dial() {
     let demo = Demo::start_with(false).await;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     while !demo
