@@ -1,4 +1,4 @@
-//! How jobs reach nodes: [`Dial`] probes and logs in, and a [`Remote`] is one login. Over SSH in
+//! How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login. Over SSH in
 //! production ([`SshDial`]); tests script them.
 
 use std::{pin::Pin, time::Duration};
@@ -13,11 +13,18 @@ use uniwrt_node::{
 /// A boxed future, so that the traits stay dyn-compatible.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// How long an SSH server may take to send its banner (it does at once).
+const BANNER_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// How long the agent may take to collect every set once.
 const COLLECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Reaches nodes.
 pub trait Dial: Send + Sync + 'static {
+    /// Reads the SSH server's version line on port `target.port`, without a handshake; `None`
+    /// when something else listens there (discovery).
+    fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>>;
+
     /// Reads the node's host key without logging in (trust on first use).
     fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>>;
 
@@ -48,6 +55,11 @@ pub struct SshDial {
 }
 
 impl Dial for SshDial {
+    fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
+        let timeout = BANNER_TIMEOUT.min(self.config.connect_timeout);
+        Box::pin(uniwrt_node::banner(target, timeout))
+    }
+
     fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
         Box::pin(uniwrt_node::probe(target, None, &self.config))
     }

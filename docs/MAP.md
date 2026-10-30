@@ -13,6 +13,7 @@ A crate's contract is the full `//!` header of its `lib.rs` or `main.rs`.
 uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 
 - `src/adopt.rs`: Adoption, with a session (features/adoption.md, Path A): `POST /api/v1/adopt/probe` reads a node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow.
+- `src/adopt/batch.rs`: `POST /api/v1/adopt/batch`: adopts several nodes with one password, typically those that `GET /api/v1/discovered` reports, each with the host key the user confirmed.
 - `src/adopt/tests.rs`: The adoption and job routes through the router, against the simulated fleet's API: request checks, a probe and an adoption of a node that cannot be reached (the job records why), the audit, and demo mode, where nothing can be adopted.
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
@@ -21,6 +22,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
+- `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
@@ -78,9 +80,12 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
 - `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
 - `src/adopt/tests.rs`: Adoptions over a scripted node (a [`Dial`] that plays dropbear and the agent from a capture of OpenWrt 24.10 in a container) and a temporary store.
+- `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
+- `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
+- `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
 - `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
-- `src/remote.rs`: How jobs reach nodes: [`Dial`] probes and logs in, and a [`Remote`] is one login.
+- `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
@@ -88,6 +93,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
 
+- `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
@@ -150,6 +156,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
 - `src/shell.rs`: Argv to a command line for the node's shell.
+- `src/ssh/banner.rs`: [`banner`]: the version line an SSH server sends as soon as a client connects (RFC 4253, 4.2), read without starting a handshake, so that discovery can tell dropbear, and so likely OpenWrt, from other hosts with one cheap connection.
 - `src/ssh/channel.rs`: Commands on session channels.
 - `src/ssh/client.rs`: The russh client handler: checks the host key against the pin and reports why a session ended.
 - `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
@@ -281,7 +288,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (90 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (99 files); never edit
 - `app/`: App.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, ThemeToggle.tsx, TopBar.tsx, nav.ts, routes.tsx
 - `lib/`: api.ts, strings.ts, theme.ts
 - `ui/`: EmptyState.tsx, Wordmark.tsx, tokens.css

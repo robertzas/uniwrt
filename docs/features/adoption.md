@@ -26,7 +26,7 @@ The firewall on factory-default OpenWrt rejects input on WAN, so a fresh device 
 
 Each adoption is a job (`GET /api/v1/jobs/{id}`, the WS topic `jobs`): its steps (connect, check, install key, log in with the key, inventory, backup, record, watch) with their state and detail, and on failure a code the UI acts on (`unreachable`, `host_key_mismatch`, `auth_rejected`, `unsupported`, `already_adopted`, `node_failed`, `interrupted`, `internal`). Jobs are history: a controller restart fails the ones that were running (D-042).
 
-Batch mode (M1.7b): once the gateway is adopted, the other nodes appear under Discovered (from DHCP leases and batman originators) for one-click adoption.
+Batch mode (M1.7b, D-044): once the gateway is adopted, the other nodes appear under Discovered (below), each with the host key its probe read. The user checks the fingerprints, picks the nodes, and gives one password: `POST /api/v1/adopt/batch` checks every node first, then starts one adopt job per node (refusing only the nodes a job runs for already). At most 4 adoptions run at once; the others wait. The wizard arrives with M1.8b.
 
 ## Path B: zero-touch image (recommended for new devices) [M5.4]
 
@@ -88,4 +88,10 @@ Future roles: `switch` (an OpenWrt managed switch) and secondary gateways (multi
 
 ## Discovery (once the gateway is adopted)
 
-Sources: the gateway's DHCP leases (hostnames `OpenWrt` or `uniwrt-*`), batman originators, LLDP neighbors, rate-limited SSH banner probes of new leases, and ZTP hellos. Unadopted OpenWrt devices show up as **Discovered**, with one-click adoption (asking for credentials when needed).
+`GET /api/v1/discovered` (M1.7b, D-044) reports the unadopted devices that look like OpenWrt nodes. It waits up to 3 s for new probes, and says `scanning` while some still run.
+
+- **Sources** (from every adopted node's latest facts): DHCP leases, IPv4 neighbors on non-WAN interfaces (this finds APs with static addresses), and batman-adv meshes. A mesh originator is mapped to addresses through the wired clients it announces (batman's global translation table), which include the node's own bridge. The adopted nodes are left out, by every MAC and IP address in their facts. So is an originator that announces one of their MACs, so that a node adopted moments ago, which has no facts yet, does not reappear.
+- **Probes:** every candidate address gets a TCP connection to port 22 that reads the SSH banner (no handshake). Dropbear servers, and hosts named `OpenWrt` or `uniwrt-*`, also have their host key read (a handshake that stops at the key). A probe never tries to log in. At most 4 probes run at once, and each result holds for 10 minutes. Demo mode probes nothing.
+- **Reported:** dropbear servers, hosts with those names (even when unreachable), and every mesh originator none of whose devices is reported, as a node with no known address.
+
+Later sources: LLDP neighbors and ZTP hellos (M5.4).

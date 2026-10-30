@@ -13,6 +13,8 @@
 //!   [`job`] is what the controller does on nodes step by step ([`job::Job`], adoption first),
 //!   and [`inventory`] what it keeps about a node besides facts: installed packages
 //!   ([`inventory::Inventory`]) and configuration backups ([`inventory::Backup`]).
+//!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
+//!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -25,6 +27,7 @@
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.
 
+pub mod discovery;
 pub mod event;
 pub mod facts;
 pub mod inventory;

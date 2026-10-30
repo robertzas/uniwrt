@@ -13,7 +13,7 @@ use uniwrt_core::SystemClock;
 use uniwrt_node::{
     AUTHORIZED_KEY_COMMENT, AgentLaunch, AgentState, Credential, Error, ExecRequest, ExitStatus,
     HostKey, LinkConfig, LinkState, NodeLink as _, Output, Session, SshConfig, SshLink, Target,
-    probe,
+    banner, probe,
 };
 
 mod openwrt;
@@ -38,6 +38,9 @@ for (let line = stdin.read("line"); length(line); line = stdin.read("line")) {
 #[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
 async fn adoption_installs_the_controller_key_and_logs_in_with_it() {
     let (session, node) = adopt().await;
+    // Discovery tells OpenWrt apart by its SSH banner.
+    let line = banner(&node.target, LONG).await.unwrap().unwrap();
+    assert!(line.starts_with("SSH-2.0-dropbear"), "{line}");
     let release = run(&session, &["cat", "/etc/openwrt_release"]).await;
     assert!(release.contains("DISTRIB_ID='OpenWrt'"), "{release}");
     let keys = run(&session, &["cat", "/etc/dropbear/authorized_keys"]).await;

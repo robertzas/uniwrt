@@ -140,6 +140,11 @@ pub(crate) struct Demo {
 
 impl Demo {
     pub(crate) async fn start() -> Self {
+        Self::start_with(true).await
+    }
+
+    /// Without `dial`, as in demo mode: nothing is adopted or probed.
+    pub(crate) async fn start_with(dial: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
         let store = Store::open(dir.path().join("uniwrt.db"), Arc::clone(&clock))
@@ -169,7 +174,12 @@ impl Demo {
             engine.add(adopted.id, sim.link(index).unwrap(), None).await;
             ids.push(adopted.id);
         }
-        let api = api(store.clone(), Arc::new(engine.clone()), clock).await;
+        let fleet = Arc::new(engine.clone());
+        let api = if dial {
+            api(store.clone(), fleet, clock).await
+        } else {
+            api_with(store.clone(), fleet, clock, None).await
+        };
         api.create_admin("admin", PASSWORD).await.unwrap();
         let mut demo = Self {
             _dir: dir,

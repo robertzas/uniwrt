@@ -4,12 +4,17 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
-use tokio::{sync::broadcast, task::AbortHandle};
+use tokio::{
+    sync::{Semaphore, broadcast},
+    task::AbortHandle,
+};
 use tracing::{Instrument as _, info, info_span, warn};
 use uniwrt_core::{Clock, JobId, UserId};
 use uniwrt_model::{
+    discovery::DiscoveryReport,
     facts::NodeFacts,
     job::{Job, JobError, JobErrorCode, JobKind, NewJob},
     node::Node,
@@ -20,11 +25,15 @@ use uniwrt_store::{JobRepo as _, Store, Vault};
 use crate::{
     AdoptRequest, BoxFuture, Dial, Error, Result,
     adopt::{self, STEPS},
+    discovery::Discovery,
     progress::Progress,
 };
 
 /// How many job updates a slow subscriber may fall behind before it lags.
 const UPDATES: usize = 64;
+/// Adoptions running at once; more wait for a slot. Each holds a login and its backup (up to
+/// 32 MiB) in memory.
+const ADOPTIONS: usize = 4;
 
 /// Starts watching nodes as they are adopted: the engine, as the server composes it.
 pub trait Watch: Send + Sync + 'static {
@@ -57,6 +66,8 @@ pub(crate) struct Shared {
     pub(crate) key: ControllerKey,
     pub(crate) dial: Option<Arc<dyn Dial>>,
     pub(crate) watch: Arc<dyn Watch>,
+    pub(crate) adoptions: Semaphore,
+    discovery: Discovery,
     updates: broadcast::Sender<Arc<Job>>,
     running: Mutex<Running>,
 }
@@ -98,10 +109,12 @@ impl Jobs {
             shared: Arc::new(Shared {
                 store: config.store,
                 vault: config.vault,
+                discovery: Discovery::new(config.dial.clone(), Arc::clone(&config.clock)),
                 clock: config.clock,
                 key: config.key,
                 dial: config.dial,
                 watch: config.watch,
+                adoptions: Semaphore::new(ADOPTIONS),
                 updates: broadcast::channel(UPDATES).0,
                 running: Mutex::default(),
             }),
@@ -164,6 +177,16 @@ impl Jobs {
         );
         running.tasks.insert(job.id, (key, task.abort_handle()));
         Ok(job)
+    }
+
+    /// The OpenWrt devices that the `adopted` nodes (each with its latest facts) see and that
+    /// are not adopted, after waiting up to `wait` for the probes of new ones.
+    pub async fn discover(
+        &self,
+        adopted: &[(Node, Option<Arc<NodeFacts>>)],
+        wait: Duration,
+    ) -> DiscoveryReport {
+        self.shared.discovery.scan(adopted, wait).await
     }
 
     pub async fn job(&self, id: JobId) -> Result<Option<Job>> {

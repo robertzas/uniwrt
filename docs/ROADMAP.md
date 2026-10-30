@@ -68,9 +68,10 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.7 Adopt existing node (observe mode)** (M) → M1.6c (split, owner's choice: discovery and batch adoption moved to M1.7b, the wizard to M1.8b)
   - API and job: IP + root password → confirm the host-key fingerprint → install the key → inventory and config backup → live view.
   - Done (D-042): crate `uniwrt-jobs` (`Jobs`, the adopt job, `Dial`/`Remote`/`SshDial`), jobs kept as history (no resume); migration 0004 (`jobs`, `node_inventory`, `node_backups` sealed in the DB, `audit.detail`); `POST v1/adopt/probe`, `POST v1/adopt`, `GET v1/jobs[/{id}]`, the WS topic `jobs`; adopted nodes are watched at once. Tested over a scripted dial and a temporary store, and by adopting OpenWrt 24.10 and 25.12 containers, checking that only `authorized_keys` changes.
-- [ ] **M1.7b Discovery and batch adoption** (S) → M1.7
+- [x] **M1.7b Discovery and batch adoption** (S) → M1.7
   - Discovered nodes from the gateway's DHCP leases (and batman originators), adopted in one go with one password.
   - Acceptance (with M1.8b): the owner's 4 nodes are adopted, with zero config changes other than `authorized_keys`.
+  - Done (D-044): `GET v1/discovered`, built from the adopted nodes' leases, LAN neighbors (owner's choice) and batman meshes, with SSH banner and host-key probes (`uniwrt_node::banner`, `Dial::banner`; 4 at a time, held 10 minutes); `POST v1/adopt/batch` (one password, a job per node); at most 4 adoptions at once. Tested over the gateway fixture with a scripted dial, through the router (batches, demo mode), and the banner against dropbear (`just test-dropbear`).
 - [ ] **M1.8 App shell & design system v1** (L) → M1.6c
   - Decision gates: is Solid 2.0 GA, and is the ecosystem ready? Settle the UI direction (O-5) by showing the owner 3 rendered mockups.
   - Tokens and primitives (Button, Card, Badge, virtualized Table, Tabs, Dialog, Drawer, Tooltip, Toast, Stat, Sparkline), layout, sidebar, top bar, ⌘K palette, theme toggle, plus a Devices list and a live Device overview.

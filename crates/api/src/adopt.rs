@@ -1,7 +1,8 @@
 //! Adoption, with a session (features/adoption.md, Path A): `POST /api/v1/adopt/probe` reads a
 //! node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node
 //! with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's
-//! `jobs` topic follow.
+//! `jobs` topic follow. `POST /api/v1/adopt/batch` adopts several with one password
+//! ([`batch`]).
 
 use axum::{
     Json,
@@ -13,8 +14,9 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uniwrt_jobs::AdoptRequest;
 use uniwrt_model::{
+    job::Job,
     node::NodeRole,
-    user::{AuditAction, AuditEntry},
+    user::{AuditAction, AuditEntry, User},
 };
 use uniwrt_node::{HostKey, Target};
 use uniwrt_store::AuditRepo as _;
@@ -113,26 +115,11 @@ pub(crate) async fn adopt(
     body: Result<Json<AdoptBody>, JsonRejection>,
 ) -> ApiResult<Response> {
     let Json(body) = body?;
-    let password = body.password.map(Zeroizing::new);
-    if password
-        .as_ref()
-        .is_some_and(|password| password.len() > MAX_PASSWORD_BYTES)
-    {
-        return Err(ApiError::BadRequest(format!(
-            "A password is at most {MAX_PASSWORD_BYTES} bytes long"
-        )));
-    }
-    let remember_password = body.remember_password.unwrap_or(false);
-    if remember_password && password.is_none() {
-        return Err(ApiError::BadRequest(
-            "There is no password to remember".to_owned(),
-        ));
-    }
+    let password = password(body.password)?;
+    let remember_password = remember(body.remember_password, password.as_ref())?;
     let request = AdoptRequest {
         target: target(&body.host, body.port.unwrap_or(SSH_PORT))?,
-        host_key: HostKey::parse(body.host_key.trim()).map_err(|_| {
-            ApiError::BadRequest("The host key must be an OpenSSH public key".to_owned())
-        })?,
+        host_key: host_key(&body.host_key)?,
         password,
         remember_password,
         name: body.name.map(|name| display_name(&name)).transpose()?,
@@ -144,16 +131,7 @@ pub(crate) async fn adopt(
         .adopt(request, Some(user.id))
         .await
         .map_err(jobs_error)?;
-    api.store()
-        .record(AuditEntry {
-            at: api.now(),
-            action: AuditAction::Adopt,
-            user_id: Some(user.id),
-            username: Some(user.username),
-            ip: Some(client.ip.to_string()),
-            detail: Some(format!("{}, job {}", job.target, job.id)),
-        })
-        .await?;
+    audit(&api, &user, &client, &job).await?;
     let location = format!("/api/v1/jobs/{}", job.id);
     Ok((
         StatusCode::ACCEPTED,
@@ -161,6 +139,49 @@ pub(crate) async fn adopt(
         Json(job),
     )
         .into_response())
+}
+
+/// Records who started adopting a node, and from where.
+async fn audit(api: &Api, user: &User, client: &Client, job: &Job) -> ApiResult<()> {
+    api.store()
+        .record(AuditEntry {
+            at: api.now(),
+            action: AuditAction::Adopt,
+            user_id: Some(user.id),
+            username: Some(user.username.clone()),
+            ip: Some(client.ip.to_string()),
+            detail: Some(format!("{}, job {}", job.target, job.id)),
+        })
+        .await?;
+    Ok(())
+}
+
+fn password(password: Option<String>) -> ApiResult<Option<Zeroizing<String>>> {
+    let password = password.map(Zeroizing::new);
+    if password
+        .as_ref()
+        .is_some_and(|password| password.len() > MAX_PASSWORD_BYTES)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "A password is at most {MAX_PASSWORD_BYTES} bytes long"
+        )));
+    }
+    Ok(password)
+}
+
+fn remember(remember: Option<bool>, password: Option<&Zeroizing<String>>) -> ApiResult<bool> {
+    let remember = remember.unwrap_or(false);
+    if remember && password.is_none() {
+        return Err(ApiError::BadRequest(
+            "There is no password to remember".to_owned(),
+        ));
+    }
+    Ok(remember)
+}
+
+fn host_key(host_key: &str) -> ApiResult<HostKey> {
+    HostKey::parse(host_key.trim())
+        .map_err(|_| ApiError::BadRequest("The host key must be an OpenSSH public key".to_owned()))
 }
 
 /// `root` at `host:port`: a host name or an IP address (IPv6 without brackets), never anything
@@ -199,5 +220,6 @@ fn display_name(name: &str) -> ApiResult<String> {
     Ok(name.to_owned())
 }
 
+pub(crate) mod batch;
 #[cfg(test)]
 mod tests;

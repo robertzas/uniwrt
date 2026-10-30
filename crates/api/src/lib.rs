@@ -10,8 +10,11 @@
 //! - **Routes:** public: `GET v1/health`, `GET v1/tls`, `GET v1/tls/ca.crt`, `GET v1/auth`
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
-//!   `GET v1/nodes/{id}` ([`NodeDetail`]) and `v1/ws` (the hub: GET, or CONNECT over HTTP/2;
-//!   topics `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>`, see `ws`). Handlers that need
+//!   `GET v1/nodes/{id}` ([`NodeDetail`]), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
+//!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]` and `v1/ws` (the hub: GET, or
+//!   CONNECT over HTTP/2; topics `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>`, `jobs`,
+//!   see `ws`). Handlers that need
 //!   a user take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
@@ -34,6 +37,7 @@
 mod adopt;
 pub mod auth;
 mod client;
+mod discovered;
 mod health;
 mod jobs;
 mod nodes;
@@ -50,7 +54,10 @@ use axum::{
     routing::{get, post},
 };
 
-pub use adopt::{AdoptBody, ProbeRequest, ProbeResult};
+pub use adopt::{
+    AdoptBody, ProbeRequest, ProbeResult,
+    batch::{BatchAdoptBody, BatchAdoptResult, BatchNode, Refused},
+};
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use health::BuildInfo;
@@ -75,6 +82,8 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes/{id}", get(nodes::get))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
+        .route("/v1/adopt/batch", post(adopt::batch::adopt))
+        .route("/v1/discovered", get(discovered::list))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
         // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).

@@ -3,7 +3,7 @@
 
 use uniwrt_core::MacAddr;
 use uniwrt_model::{
-    facts::{DeviceKind, NodeFacts},
+    facts::{DeviceKind, InterfaceFacts, NodeFacts},
     node::NodeRole,
 };
 
@@ -125,17 +125,22 @@ pub(super) fn role(facts: &NodeFacts) -> NodeRole {
     let upstream = facts.interfaces.iter().any(|interface| {
         interface.up
             && (interface.ipv4_gateway.is_some() || interface.ipv6_gateway.is_some())
-            && (interface.name.starts_with("wan")
-                || matches!(
-                    interface.proto.as_str(),
-                    "pppoe" | "pppoa" | "3g" | "qmi" | "mbim" | "ncm" | "wwan"
-                ))
+            && wan_like(interface)
     });
     if upstream {
         NodeRole::Gateway
     } else {
         NodeRole::Ap
     }
+}
+
+/// Named `wan*`, or with a PPP or cellular protocol.
+pub(crate) fn wan_like(interface: &InterfaceFacts) -> bool {
+    interface.name.starts_with("wan")
+        || matches!(
+            interface.proto.as_str(),
+            "pppoe" | "pppoa" | "3g" | "qmi" | "mbim" | "ncm" | "wwan"
+        )
 }
 
 #[cfg(test)]

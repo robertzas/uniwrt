@@ -101,6 +101,10 @@ impl FakeNode {
 struct FakeDial(Arc<FakeNode>);
 
 impl Dial for FakeDial {
+    fn banner<'a>(&'a self, _target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
+        Box::pin(async { Ok(Some("SSH-2.0-dropbear_2024.86".to_owned())) })
+    }
+
     fn probe<'a>(&'a self, _target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
         Box::pin(async { Ok(self.0.host_key.clone()) })
     }

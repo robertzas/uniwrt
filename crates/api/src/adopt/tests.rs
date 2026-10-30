@@ -4,7 +4,10 @@
 
 use std::{sync::Arc, time::Duration};
 
-use axum::http::{StatusCode, header};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode, header},
+};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use uniwrt_core::SystemClock;
@@ -160,4 +163,84 @@ async fn demo_mode_adopts_nothing() {
             .unwrap()
             .contains("Demo mode")
     );
+}
+
+#[tokio::test]
+async fn a_batch_is_checked_whole_then_starts_a_job_per_node() {
+    let demo = Demo::start().await;
+    let cookie = Some(demo.cookie.as_str());
+    let node = |port: u16| json!({ "host": "127.0.0.1", "port": port, "host_key": host_key() });
+    let (a, b) = (closed_port().await, closed_port().await);
+    let many: Vec<Value> = (1..=65).map(node).collect();
+    let bad = [
+        json!({ "nodes": [] }),
+        json!({ "nodes": many }),
+        json!({ "nodes": [node(a), node(a)], "password": "secret" }),
+        json!({ "nodes": [node(a), { "host": "a b", "host_key": host_key() }] }),
+        json!({ "nodes": [node(a)], "remember_password": true }),
+    ];
+    for request in bad {
+        let res = demo.send(post("/v1/adopt/batch", &request, cookie)).await;
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "{request}");
+    }
+    let res = demo
+        .send(post(
+            "/v1/adopt/batch",
+            &json!({ "nodes": [node(a), { "host": "a b", "host_key": host_key() }] }),
+            cookie,
+        ))
+        .await;
+    assert_eq!(
+        body(res).await["detail"],
+        "Node 2: The host must be an IP address or a host name"
+    );
+    assert_eq!(demo.api.jobs().jobs(10).await.unwrap(), []);
+
+    let batch = json!({ "nodes": [node(a), node(b)], "password": "secret" });
+    let res = demo.send(post("/v1/adopt/batch", &batch, cookie)).await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let result = body(res).await;
+    assert!(!result.to_string().contains("secret"));
+    assert_eq!(result["refused"], json!([]));
+    let targets: Vec<&str> = result["jobs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|job| job["target"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        targets,
+        [format!("root@127.0.0.1:{a}"), format!("root@127.0.0.1:{b}")]
+    );
+    let audit = demo.store.audit_log(5).await.unwrap();
+    assert_eq!(audit.len(), 3, "the login and both adoptions");
+}
+
+#[tokio::test]
+async fn adopted_nodes_are_not_discovered_and_demo_mode_probes_nothing() {
+    let demo = Demo::start_with(false).await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while !demo
+        .engine
+        .all()
+        .iter()
+        .all(|(_, view)| view.facts.is_some())
+    {
+        assert!(tokio::time::Instant::now() < deadline, "no facts");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let res = demo.send(demo.get("/v1/discovered")).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(body(res).await, json!({ "nodes": [], "scanning": false }));
+    let batch = json!({ "nodes": [{ "host": "10.0.0.2", "host_key": host_key() }] });
+    let res = demo
+        .send(post("/v1/adopt/batch", &batch, Some(demo.cookie.as_str())))
+        .await;
+    assert_eq!(res.status(), StatusCode::CONFLICT);
+    let res = router_send(
+        &demo.api,
+        Request::get("/v1/discovered").body(Body::empty()).unwrap(),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }

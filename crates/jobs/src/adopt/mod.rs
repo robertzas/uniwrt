@@ -3,7 +3,7 @@
 //! all, and start watching. In observe mode, `authorized_keys` is the only thing it changes on
 //! the node (directive 8); the agent runs from `/tmp`.
 
-mod check;
+pub(crate) mod check;
 mod packages;
 #[cfg(test)]
 mod tests;
@@ -65,6 +65,8 @@ pub struct AdoptRequest {
 }
 
 pub(crate) async fn run(shared: Arc<Shared>, request: AdoptRequest, mut progress: Progress) {
+    // Never closed.
+    let _permit = shared.adoptions.acquire().await;
     let result = adopt(&shared, &request, &mut progress).await;
     match &result {
         Ok(()) => info!("adopted"),

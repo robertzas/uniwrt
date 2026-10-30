@@ -1,6 +1,7 @@
 //! SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`),
 //! checking the host key against its pin, authenticating, and running commands.
 
+mod banner;
 mod channel;
 mod client;
 
@@ -18,6 +19,7 @@ use russh::{
 use tokio::{net::TcpStream, sync::watch};
 use zeroize::Zeroizing;
 
+pub use self::banner::banner;
 use self::client::Client;
 use crate::{
     ControllerKey, Error, HostKey, Result,

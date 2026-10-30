@@ -4,7 +4,8 @@
 //!
 //! - **API:** [`ControllerKey`] (the controller's ed25519 identity, kept in the vault as OpenSSH
 //!   text); [`HostKey`] and [`probe`] (trust on first use: read a node's host key so the user can
-//!   confirm its fingerprint before it is pinned); [`Session`] (one authenticated connection,
+//!   confirm its fingerprint before it is pinned); [`banner`] (an SSH server's version line, read
+//!   without a handshake, for discovery); [`Session`] (one authenticated connection,
 //!   direct or through a jump session over `direct-tcpip`) with [`Session::exec`],
 //!   [`Session::stream`] and [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
 //!   agent's stdio, see [`proto`]); [`proto::ops`] (the typed ops, sent with
@@ -56,5 +57,5 @@ pub use host_key::HostKey;
 pub use key::{AUTHORIZED_KEY_COMMENT, ControllerKey};
 pub use link::{AgentState, LinkState, NodeLink};
 pub use proto::{AgentEvent, Hello};
-pub use ssh::{Credential, Session, SshConfig, Target, probe};
+pub use ssh::{Credential, Session, SshConfig, Target, banner, probe};
 pub use supervisor::{AgentLaunch, LinkConfig, RetryConfig, SshLink};
