@@ -1,4 +1,5 @@
 import { createRouter, type RouteDefinition, type RouterHistory } from "@solidjs/router";
+import { lazy } from "solid-js";
 import { NotFound } from "./NotFound";
 import { navItems } from "./nav";
 import { SectionPage } from "./SectionPage";
@@ -9,6 +10,15 @@ import { SectionPage } from "./SectionPage";
  */
 export const routes: RouteDefinition[] = [
   ...navItems.map((item) => ({ path: item.path, component: () => <SectionPage item={item} /> })),
+  // The design-system gallery, in development builds only (dead code in production).
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: "/dev/ui",
+          component: lazy(() => import("../dev/Gallery").then((m) => ({ default: m.Gallery }))),
+        },
+      ]
+    : []),
   { path: "*404", component: NotFound },
 ];
 

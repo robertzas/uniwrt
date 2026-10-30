@@ -7,7 +7,7 @@ Milestones: M0.3 (skeleton), M1.8 (app shell and design system v1), every featur
 
 Professional, modern and fast: dense but calm. It should feel like a premium product, with Linear/Vercel-level polish and UniFi-level network clarity. Excellent on desktop and genuinely useful on a phone.
 
-## Stack (D-002, D-018)
+## Stack (D-002, D-018, D-045)
 
 - SolidJS 2.0 release candidate with `@solidjs/web` (D-045); move to GA releases as they age in
 - Vite, strict TypeScript
@@ -23,7 +23,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 ## Visual language
 
 - **Themes:** dark-first plus a light theme; follows the system setting, with a toggle.
-- **Token implementation:** `web/src/ui/tokens.css` defines each color once with `light-dark()`. `<html data-theme>` forces a theme, saved per browser and applied before the first paint by `public/theme-init.js`. Text tiers and the accent meet WCAG AA (4.5:1) on every surface; status, band and link colors meet 3:1 and are always paired with text or an icon.
+- **Token implementation:** `web/src/ui/tokens.css` defines each color once with `light-dark()`; `<html data-skin>` re-binds the tokens for the glass and UniFi-familiar skins (surfaces, borders, text, accent, `rounded-card`/`rounded-control`, `shadow-card`, `--blur-panel`, `h-row`, `w-sidebar`), so components never branch on the skin; the `glass:` variant adds glass-only effects. `tokens.test.ts` checks the contrast promises below for every skin and theme. `<html data-theme>` forces a theme, saved per browser and applied before the first paint by `public/theme-init.js`. Text tiers and the accent meet WCAG AA (4.5:1) on every surface; status, band and link colors meet 3:1 and are always paired with text or an icon.
 - **Tokens:** surface levels, borders, text tiers, accent, and status (ok/warn/crit/info). Two token families are used identically in every chart, graph and legend:
   - **band colors:** 2.4 GHz amber, 5 GHz cyan, 6 GHz violet
   - **link-quality ramp**
@@ -75,4 +75,8 @@ WCAG 2.2 AA; full keyboard operation and focus management. Color is never the on
 
 ## Frontend structure
 
-`web/src/{app, ui, lib, api/gen, features/<area>, viz/<kind>}`. Features never import other features; shared code goes in `ui/` (primitives) or `lib/` (API client, WebSocket client, formatters).
+`web/src/{app, ui, lib, api/gen, features/<area>, viz/<kind>}`. Features never import other features; shared code goes in `ui/` (primitives) or `lib/` (API client, WebSocket client, formatters, appearance).
+
+- **Primitives (`ui/`):** Icon, Button, Card and CardHeader, Badge and StatusDot, Stat, Sparkline, Table (virtualized above 200 rows), Tabs, Dialog and Drawer, Tooltip, Toast (`showToast`), Kbd. Interactive ones wrap Kobalte.
+- **Shell (`app/`):** the sidebar (an icon rail in UniFi-familiar, a drawer on phones), the top bar (title, search, health), the Appearance menu (skin and theme), the ⌘K palette (`app/commands.ts`; features add their commands there) and a page error boundary.
+- **Gallery:** `/dev/ui` in development builds shows every primitive; `?skin=glass&theme=dark` applies a skin and theme, for screenshots.

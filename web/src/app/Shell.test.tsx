@@ -31,4 +31,25 @@ describe("Shell", () => {
     expect(history.get()).toBe("/clients");
     expect(document.querySelector("header")).toHaveTextContent("Clients");
   });
+
+  it("opens the command palette with the shortcut and navigates from it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({})),
+    );
+    const user = userEvent.setup();
+    const history = memoryHistory("/");
+    const Router = createAppRouter(history);
+    render(() => (
+      <QueryClientProvider client={new QueryClient()}>
+        <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
+      </QueryClientProvider>
+    ));
+
+    await user.keyboard("{Control>}k{/Control}");
+    const input = await screen.findByRole("combobox", { name: "Command palette" });
+    await user.type(input, "updates{Enter}");
+    await waitFor(() => expect(history.get()).toBe("/updates"));
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
 });

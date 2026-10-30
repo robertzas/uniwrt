@@ -69,6 +69,11 @@ export const strings = {
   },
   page: {
     soon: "Arrives in an upcoming release",
+    error: {
+      title: "This page hit a problem",
+      description: "The rest of the app still works. Try again, or reload if it keeps happening.",
+      retry: "Try again",
+    },
     notFound: {
       title: "Page not found",
       description:
@@ -89,5 +94,30 @@ export const strings = {
     system: "System",
     light: "Light",
     dark: "Dark",
+  },
+  skin: {
+    label: "Skin",
+    graphite: { label: "Graphite pro", description: "Neutral, crisp and dense" },
+    glass: { label: "Midnight glass", description: "Translucent layers and neon accents" },
+    unifi: { label: "UniFi-familiar", description: "Airy cards and an icon rail" },
+  },
+  appearance: {
+    label: "Appearance",
+  },
+  palette: {
+    open: "Search or run a command",
+    title: "Command palette",
+    search: "Search",
+    placeholder: "Search pages and commands…",
+    empty: (query: string) => `Nothing matches “${query}”.`,
+    groups: { navigate: "Go to", appearance: "Appearance" },
+    skin: (label: string) => `Use the ${label} skin`,
+    theme: (label: string) => `Use the ${label.toLowerCase()} theme`,
+    hint: { move: "to move", run: "to run", close: "to close" },
+  },
+  common: {
+    close: "Close",
+    dismiss: "Dismiss",
+    notifications: "Notifications",
   },
 } as const;

@@ -21,4 +21,14 @@ describe("Sidebar", () => {
     );
     expect(within(nav).getByRole("list", { name: "Insights" })).toBeInTheDocument();
   });
+
+  it("keeps every link named as an icon rail", async () => {
+    const Router = createAppRouter(memoryHistory("/devices"));
+    render(() => <Router>{() => <Sidebar rail />}</Router>);
+    const nav = await screen.findByRole("navigation", { name: "Main" });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(navItems.map((item) => item.label));
+    expect(within(nav).getByRole("link", { name: "Devices" })).toHaveAttribute("data-active");
+    expect(screen.getByRole("button", { name: "Appearance" })).toBeInTheDocument();
+  });
 });

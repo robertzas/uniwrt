@@ -1,8 +1,8 @@
 import { SegmentedControl } from "@kobalte/core/segmented-control";
 import { Monitor, Moon, Sun } from "lucide";
 import { For } from "solid-js";
+import { isThemePreference, setThemePreference, themePreference } from "../lib/appearance";
 import { strings } from "../lib/strings";
-import { isThemePreference, setThemePreference, themePreference } from "../lib/theme";
 import { Icon } from "../ui/Icon";
 
 const options = [

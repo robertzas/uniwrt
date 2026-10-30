@@ -1,7 +1,7 @@
 import { render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import { setThemePreference } from "../lib/theme";
+import { setThemePreference } from "../lib/appearance";
 import { ThemeToggle } from "./ThemeToggle";
 
 describe("ThemeToggle", () => {

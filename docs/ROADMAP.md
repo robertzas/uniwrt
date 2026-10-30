@@ -72,10 +72,14 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
   - Discovered nodes from the gateway's DHCP leases (and batman originators), adopted in one go with one password.
   - Acceptance (with M1.8b): the owner's 4 nodes are adopted, with zero config changes other than `authorized_keys`.
   - Done (D-044): `GET v1/discovered`, built from the adopted nodes' leases, LAN neighbors (owner's choice) and batman meshes, with SSH banner and host-key probes (`uniwrt_node::banner`, `Dial::banner`; 4 at a time, held 10 minutes); `POST v1/adopt/batch` (one password, a job per node); at most 4 adoptions at once. Tested over the gateway fixture with a scripted dial, through the router (batches, demo mode), and the banner against dropbear (`just test-dropbear`).
-- [ ] **M1.8 App shell & design system v1** (L) → M1.6c
+- [x] **M1.8 App shell & design system v1** (L) → M1.6c (split: sign-in, the API and WS clients, the Devices list and the live Device overview moved to M1.8c)
   - Decision gates: is Solid 2.0 GA, and is the ecosystem ready? Settle the UI direction (O-5) by showing the owner 3 rendered mockups.
-  - Tokens and primitives (Button, Card, Badge, virtualized Table, Tabs, Dialog, Drawer, Tooltip, Toast, Stat, Sparkline), layout, sidebar, top bar, ⌘K palette, theme toggle, plus a Devices list and a live Device overview.
-- [ ] **M1.8b Adoption wizard** (M) → M1.8, M1.7b
+  - Tokens and primitives (Button, Card, Badge, virtualized Table, Tabs, Dialog, Drawer, Tooltip, Toast, Stat, Sparkline), layout, sidebar, top bar, ⌘K palette, theme toggle.
+  - Done (D-045, D-046): Solid 2 RC with router 2, solid-query 6 and a patched Kobalte 2 (owner's choice after a spike); three skins (Graphite pro, Midnight glass, UniFi-familiar) × light and dark, chosen in the sidebar's Appearance menu or ⌘K and applied before the first paint; `tokens.test.ts` checks WCAG contrast for every skin and theme; primitives in `web/src/ui/` (Icon over `lucide` data, a Table virtualized above 200 rows with `@tanstack/virtual-core`); the shell with an icon rail (UniFi-familiar), a mobile drawer, the ⌘K palette (pages, skins, themes) and a page error boundary; the dev-only gallery at `/dev/ui?skin=…&theme=…`. Tested with Vitest (67 tests, the Kobalte patch included) and by screenshots of the gallery in each skin.
+- [ ] **M1.8c Sign-in and live devices** (M) → M1.8
+  - First-run setup and login screens over `/v1/auth` (sessions, CSRF header), with the shell shown only when signed in; `lib/api` for the node routes and `lib/ws` (the `fleet` and `node:<id>` topics, deltas applied once per animation frame).
+  - A Devices list (the Table, live status, ⌘K finds devices by name, MAC or IP) and a live Device overview (stats, radios, clients) against `serve --demo`; a Playwright smoke test in CI against demo mode.
+- [ ] **M1.8b Adoption wizard** (M) → M1.8c, M1.7b
   - Devices → Adopt: address and password → the fingerprint to confirm → the job's steps live (WS `jobs`) → the node's live view; Discovered nodes with batch adoption; failures explained by their code. A simulated adoption in demo mode.
 - [ ] **M1.9 Dev accelerators** (S) → M1.6b
   - `just new-feature <area>` (scaffolds the files in the feature recipe) and `just arch-check` (enforces the layering rules from ARCHITECTURE.md), both wired into `just check` and CI.
