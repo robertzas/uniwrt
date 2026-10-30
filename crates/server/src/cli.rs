@@ -3,11 +3,13 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use clap::{Args, Parser, Subcommand};
+use ipnet::IpNet;
 use uniwrt_sim::SimConfig;
 
-use crate::build_info;
+use crate::{build_info, tls::names::TlsName};
 
 const DEFAULT_HTTP_LISTEN: &str = "0.0.0.0:8080";
+const DEFAULT_HTTPS_LISTEN: &str = "0.0.0.0:8443";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -36,9 +38,37 @@ pub(crate) enum Command {
 
 #[derive(Debug, Args)]
 pub(crate) struct ServeArgs {
-    /// Address and port of the HTTP listener.
+    /// Address and port of the HTTP listener, which redirects to HTTPS except for the health
+    /// check and trusted proxies.
     #[arg(long, env = "UNIWRT_HTTP_LISTEN", value_name = "ADDR:PORT", default_value = DEFAULT_HTTP_LISTEN)]
     pub(crate) http_listen: SocketAddr,
+    /// Address and port of the HTTPS listener, which serves the UI and the API.
+    #[arg(long, env = "UNIWRT_HTTPS_LISTEN", value_name = "ADDR:PORT", default_value = DEFAULT_HTTPS_LISTEN)]
+    pub(crate) https_listen: SocketAddr,
+    /// More DNS names and IP addresses for the HTTPS certificate, comma-separated: the ones
+    /// clients use that the controller cannot see itself (the host's address when it runs in
+    /// a bridged container, a DNS name). Configure them before the first run: the local CA may
+    /// sign only local names, private addresses and the names configured when it was made.
+    #[arg(
+        long,
+        env = "UNIWRT_TLS_NAMES",
+        value_name = "NAME",
+        value_delimiter = ','
+    )]
+    pub(crate) tls_names: Vec<TlsName>,
+    /// Reverse proxies that terminate TLS and forward to the HTTP listener, comma-separated
+    /// networks (`127.0.0.1/32`, `172.16.0.0/12`); their requests get the whole application.
+    #[arg(
+        long,
+        env = "UNIWRT_TRUSTED_PROXIES",
+        value_name = "CIDR",
+        value_delimiter = ','
+    )]
+    pub(crate) trusted_proxies: Vec<IpNet>,
+    /// The vault's master key file (default: `master.key` in the data directory), created on
+    /// the first run. `UNIWRT_MASTER_KEY` may hold the key itself (64 hexadecimal digits).
+    #[arg(long, env = "UNIWRT_MASTER_KEY_FILE", value_name = "FILE")]
+    pub(crate) master_key_file: Option<PathBuf>,
     /// Directory for the database, keys, backups and the firmware cache.
     #[arg(
         long,
@@ -87,6 +117,7 @@ mod tests {
     use clap::{CommandFactory as _, Parser as _};
 
     use super::{Cli, Command};
+    use crate::tls::names::TlsName;
 
     #[test]
     fn definition_is_valid() {
@@ -116,6 +147,41 @@ mod tests {
         assert_eq!(args.http_listen.to_string(), "127.0.0.1:9000");
         assert_eq!(args.data_dir.to_str(), Some("/srv/uniwrt"));
         assert_eq!(args.log, "debug");
+        assert_eq!(args.https_listen.to_string(), "0.0.0.0:8443");
+        assert!(args.tls_names.is_empty() && args.trusted_proxies.is_empty());
+        assert!(args.master_key_file.is_none());
+    }
+
+    #[test]
+    fn https_takes_extra_names_and_trusted_proxies_as_lists() {
+        let cli = Cli::try_parse_from([
+            "uniwrt",
+            "--https-listen",
+            "[::]:443",
+            "--tls-names",
+            "192.168.1.10,uniwrt.home.arpa",
+            "--trusted-proxies",
+            "127.0.0.1/32,fd00::/8",
+            "--master-key-file",
+            "/run/secrets/master.key",
+        ])
+        .unwrap();
+        let args = cli.serve;
+        assert_eq!(args.https_listen.to_string(), "[::]:443");
+        assert_eq!(
+            args.tls_names,
+            [
+                TlsName::Ip("192.168.1.10".parse().unwrap()),
+                TlsName::Dns("uniwrt.home.arpa".into())
+            ]
+        );
+        assert_eq!(args.trusted_proxies.len(), 2);
+        assert_eq!(
+            args.master_key_file.as_deref().and_then(|p| p.to_str()),
+            Some("/run/secrets/master.key")
+        );
+        assert!(Cli::try_parse_from(["uniwrt", "--tls-names", "*.lan"]).is_err());
+        assert!(Cli::try_parse_from(["uniwrt", "--trusted-proxies", "10.0.0.1"]).is_err());
     }
 
     #[test]

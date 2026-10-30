@@ -124,15 +124,16 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 ## Persistence
 
 - One SQLite database in WAL mode at `/data/uniwrt.db` (mode 0600), owned by the `store` crate (D-031). One writer thread holds the only write connection and commits queued operations in batches of up to 256, each in its own savepoint so that a failing one rolls back alone; callers get their result once the batch commits. Reads use up to 4 read-only connections on tokio's blocking pool. With `synchronous=NORMAL`, a power loss may drop the last commits but never corrupts the database.
-- Tables (sketch; ✓ = exists): `users`, `sessions`, `api_tokens`, `settings`, `vault` ✓ (secrets; unencrypted `alg = 'plain'` rows until M1.6 seals them, D-032), `node_host_keys` ✓ (the pinned SSH host key per node), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
+- Tables (sketch; ✓ = exists): `users`, `sessions`, `api_tokens`, `settings`, `vault` ✓ (secrets, each sealed with XChaCha20-Poly1305 under the master key; features/security.md), `node_host_keys` ✓ (the pinned SSH host key per node), `revisions` (SiteConfig JSON + metadata), `nodes` ✓, `node_facts` ✓ (the latest NodeFacts JSON per node), `node_configs` (last fetched UCI per package + hash), `clients`, `client_sessions` (association and roam history), `events`, `jobs`, `job_steps`, `metrics_raw`/`_1m`/`_1h`, `logs` + `logs_fts` (FTS5), `backups`, `firmware_cache`, `ztp_requests`.
 - Migrations are embedded from `crates/store/migrations/NNNN_name.sql`, forward-only (tracked in `PRAGMA user_version`; a database from a newer uniwrt is refused) and tested. A released migration is never edited.
-- Files: `/data/backups/`, `/data/firmware/`, `/data/tls/`, `/data/master.key` (mode 0600).
+- Files: `/data/backups/`, `/data/firmware/`, `/data/master.key` (mode 0600; or `UNIWRT_MASTER_KEY_FILE`, or the key itself in `UNIWRT_MASTER_KEY`). The local CA and the HTTPS certificate live in the vault (D-039).
 
 ## API
 
 - REST JSON under `/api/v1`: auth, site, revisions, changes (pending/review/apply), nodes, clients, networks, wlans, topology, metrics, logs, events, jobs, firmware, isp-presets, tools, settings.
 - Errors use RFC 9457 problem+json. Pagination is cursor-based.
-- Auth: a session cookie for the UI, or a bearer API token for scripts.
+- Auth: a session cookie for the UI, or a bearer API token for scripts. Public routes: `/api/v1/health`, `/api/v1/tls` (the certificate's names and the CA's fingerprint) and `/api/v1/tls/ca.crt`.
+- HTTPS serves everything (8443). Plain HTTP (8080) redirects to it, except the health check and requests from `--trusted-proxies`, which get the whole application (D-039).
 - WebSocket `/api/v1/ws`: the client sends `{"sub":["fleet","node:<id>","topology","logs?node=<id>&min=warning"]}`. The server answers with a snapshot, then batched deltas. Viewing an entity raises its telemetry rate (adaptive polling).
 - Types: Rust DTOs derive `TS` with `#[ts(export)]`, and `cargo test` (or `just gen`) writes them to `web/src/api/gen/`. JSON keeps the Rust field names (snake_case).
 

@@ -1,5 +1,5 @@
-//! `uniwrt serve`: starts the runtime, opens the database, binds the listener and serves until
-//! SIGTERM or SIGINT.
+//! `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and
+//! HTTPS listeners and serves until SIGTERM or SIGINT.
 //!
 //! Shutdown is graceful: stop accepting, let in-flight requests finish for up to `DRAIN_TIMEOUT`
 //! (inside Docker's default 10 s stop grace period), then close what is left. A second signal
@@ -7,16 +7,20 @@
 //! database closes last, after committing queued writes.
 //!
 //! With `--demo` the nodes are simulated, and the database lives in a `demo-*` directory
-//! inside the data directory (a scratch image has no /tmp), deleted at exit.
+//! inside the data directory (a scratch image has no /tmp), deleted at exit; its master key
+//! exists only in memory.
 
-use std::{future::IntoFuture as _, io, path::Path, sync::Arc, time::Duration};
+use std::{
+    future::IntoFuture as _, io, net::SocketAddr, path::Path, pin::Pin, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
-use axum::{Router, serve::ListenerExt as _};
+use axum::Router;
 use tokio::{
     net::TcpListener,
     signal::unix::{SignalKind, signal},
-    sync::{Notify, mpsc},
+    sync::{mpsc, watch},
+    task::JoinSet,
 };
 use tracing::{info, warn};
 use uniwrt_core::{Clock, SystemClock};
@@ -30,12 +34,22 @@ use crate::{
     controller_key,
     fleet::Fleet,
     http, logging,
+    master_key::{self, Source as KeySource},
+    tls::{
+        self,
+        listener::{Peer, PlainListener, TlsListener},
+    },
     ui::{self, Source},
 };
 
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// The database file inside the data directory.
 const DATABASE: &str = "uniwrt.db";
+/// The master key file inside the data directory, unless configured elsewhere.
+const MASTER_KEY: &str = "master.key";
+
+/// One listener's server, running until its drain signal and its connections end.
+type Server = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
 
 pub(crate) fn run(args: ServeArgs) -> anyhow::Result<()> {
     logging::init(&args.log)?;
@@ -72,12 +86,30 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         .await
         .context("cannot open the database")?;
     let served = async {
+        let key_file = args
+            .master_key_file
+            .clone()
+            .unwrap_or_else(|| data_dir.join(MASTER_KEY));
+        let key_source = if args.demo {
+            KeySource::Ephemeral
+        } else {
+            KeySource::Configured(&key_file)
+        };
+        let vault = master_key::open_vault(&store, key_source).await?;
         // Nodes trust this key; the engine connects with it.
-        let controller_key = controller_key::load_or_generate(&store).await?;
-        let listener = TcpListener::bind(args.http_listen)
-            .await
-            .with_context(|| format!("cannot listen on {}", args.http_listen))?;
-        log_start(&listener, &state_dir, &controller_key)?;
+        let controller_key = controller_key::load_or_generate(&vault).await?;
+        let (tls, renewer) = tls::start(
+            vault,
+            Arc::clone(&clock),
+            args.tls_names.clone(),
+            vec![args.https_listen],
+        )
+        .await
+        .context("cannot set up HTTPS")?;
+        let http = bind(args.http_listen).await?;
+        let https = bind(args.https_listen).await?;
+        log_start(&http, &https, &state_dir, &controller_key)?;
+        info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
         let fleet = if args.demo {
             let config = SimConfig {
                 seed: args.demo_seed,
@@ -88,7 +120,20 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         } else {
             Fleet::start(&store, &controller_key, clock).await?
         };
-        let served = serve_until(listener, http::router(&ui::EMBEDDED), stop, DRAIN_TIMEOUT).await;
+        let renewal = tokio::spawn(renewer.run());
+        let app = http::router(&ui::EMBEDDED, tls.clone());
+        let plain = http::plain::router(
+            app.clone(),
+            args.https_listen.port(),
+            args.trusted_proxies.clone(),
+        );
+        let (drain, draining) = watch::channel(false);
+        let servers = vec![
+            https_server(TlsListener::new(https, tls.server_config()?)?, app, draining.clone()),
+            http_server(http, plain, draining),
+        ];
+        let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
+        renewal.abort();
         fleet.stop().await;
         served?;
         anyhow::Ok(())
@@ -105,11 +150,23 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn log_start(listener: &TcpListener, data_dir: &Path, key: &ControllerKey) -> io::Result<()> {
+async fn bind(addr: SocketAddr) -> anyhow::Result<TcpListener> {
+    TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("cannot listen on {addr}"))
+}
+
+fn log_start(
+    http: &TcpListener,
+    https: &TcpListener,
+    data_dir: &Path,
+    key: &ControllerKey,
+) -> io::Result<()> {
     info!(
         version = build_info::VERSION,
         commit = build_info::COMMIT,
-        http = %listener.local_addr()?,
+        https = %https.local_addr()?,
+        http = %http.local_addr()?,
         data_dir = %data_dir.display(),
         controller_key = %key.fingerprint(),
         "uniwrt is serving"
@@ -139,34 +196,60 @@ fn forward_signals() -> io::Result<mpsc::Receiver<&'static str>> {
     Ok(rx)
 }
 
-/// Serves `app` until the first stop request, then drains for up to `drain`; a second request,
-/// or the end of the drain time, closes the remaining connections.
+/// Resolves once `draining` turns true (or its sender is gone).
+async fn drained(mut draining: watch::Receiver<bool>) {
+    let _ = draining.wait_for(|draining| *draining).await;
+}
+
+fn https_server(listener: TlsListener, app: Router, draining: watch::Receiver<bool>) -> Server {
+    let service = app.into_make_service_with_connect_info::<Peer>();
+    Box::pin(
+        axum::serve(listener, service)
+            .with_graceful_shutdown(drained(draining))
+            .into_future(),
+    )
+}
+
+fn http_server(listener: TcpListener, app: Router, draining: watch::Receiver<bool>) -> Server {
+    let listener = PlainListener(listener);
+    let service = app.into_make_service_with_connect_info::<Peer>();
+    Box::pin(
+        axum::serve(listener, service)
+            .with_graceful_shutdown(drained(draining))
+            .into_future(),
+    )
+}
+
+/// Runs `servers` until the first stop request, then tells them to drain (through `drain`, which
+/// their graceful shutdown waits on) for up to `drain_time`; a second request, or the end of the
+/// drain time, closes the remaining connections. A server that fails ends them all.
 async fn serve_until(
-    listener: TcpListener,
-    app: Router,
+    servers: Vec<Server>,
+    drain: &watch::Sender<bool>,
     mut stop: mpsc::Receiver<&'static str>,
-    drain: Duration,
+    drain_time: Duration,
 ) -> io::Result<()> {
-    let draining = Arc::new(Notify::new());
-    let listener = listener.tap_io(|tcp| {
-        // Small API responses should not wait for Nagle's algorithm; failure only costs latency.
-        let _ = tcp.set_nodelay(true);
-    });
-    let server = axum::serve(listener, app)
-        .with_graceful_shutdown({
-            let draining = Arc::clone(&draining);
-            async move { draining.notified().await }
-        })
-        .into_future();
-    tokio::pin!(server);
+    let mut running = JoinSet::new();
+    for server in servers {
+        running.spawn(server);
+    }
+    let ended = |joined: Result<io::Result<()>, tokio::task::JoinError>| {
+        joined.unwrap_or_else(|err| Err(io::Error::other(err)))
+    };
     tokio::select! {
-        result = &mut server => return result,
+        Some(joined) = running.join_next() => return ended(joined),
         Some(reason) = stop.recv() => info!(reason, "shutting down: draining connections"),
     }
-    draining.notify_one();
+    drain.send_replace(true);
+    let all = async {
+        while let Some(joined) = running.join_next().await {
+            ended(joined)?;
+        }
+        io::Result::Ok(())
+    };
     tokio::select! {
-        result = &mut server => result?,
-        () = tokio::time::sleep(drain) => warn!(?drain, "connections still open after the drain time; closing them"),
+        result = all => result?,
+        () = tokio::time::sleep(drain_time) => warn!(?drain_time, "connections still open after the drain time; closing them"),
         Some(reason) = stop.recv() => warn!(reason, "second stop request; closing connections now"),
     }
     Ok(())
@@ -184,13 +267,17 @@ mod tests {
     use tokio::{
         io::{AsyncReadExt as _, AsyncWriteExt as _},
         net::{TcpListener, TcpStream},
-        sync::{Notify, mpsc},
+        sync::{Notify, mpsc, watch},
         task::JoinHandle,
         time::timeout,
     };
 
-    use super::serve_until;
-    use crate::{http, ui::EMBEDDED};
+    use super::{http_server, https_server, serve_until};
+    use crate::{
+        http,
+        tls::{Tls, listener::TlsListener},
+        ui::EMBEDDED,
+    };
 
     async fn start(
         app: Router,
@@ -203,11 +290,20 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (tx, rx) = mpsc::channel(2);
-        (
-            addr,
-            tx,
-            tokio::spawn(serve_until(listener, app, rx, drain)),
-        )
+        let (drain_tx, draining) = watch::channel(false);
+        let servers = vec![http_server(listener, app, draining)];
+        let server = tokio::spawn(async move { serve_until(servers, &drain_tx, rx, drain).await });
+        (addr, tx, server)
+    }
+
+    async fn fetch(addr: SocketAddr, path: &str) -> String {
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: uniwrt.lan:8080\r\nConnection: close\r\n\r\n");
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        response
     }
 
     /// Starts a server whose only route never answers, with one request stuck inside it.
@@ -238,14 +334,51 @@ mod tests {
 
     #[tokio::test]
     async fn serves_then_stops_on_request() {
-        let (addr, stop, server) = start(http::router(&EMBEDDED), Duration::from_secs(5)).await;
-        let mut stream = TcpStream::connect(addr).await.unwrap();
-        stream
-            .write_all(b"GET /api/v1/health HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n")
+        let app = http::router(&EMBEDDED, Tls::for_tests());
+        let (addr, stop, server) = start(app, Duration::from_secs(5)).await;
+        let response = fetch(addr, "/api/v1/health").await;
+        assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
+
+        stop.send("test").await.unwrap();
+        timeout(Duration::from_secs(2), server)
             .await
+            .unwrap()
+            .unwrap()
             .unwrap();
-        let mut response = String::new();
-        stream.read_to_string(&mut response).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn https_and_the_redirecting_http_listener_stop_together() {
+        let tls = Tls::for_tests();
+        let https = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_addr = http.local_addr().unwrap();
+        let app = http::router(&EMBEDDED, tls.clone());
+        let plain = http::plain::router(app.clone(), 8443, Vec::new());
+        let (drain_tx, draining) = watch::channel(false);
+        let servers = vec![
+            https_server(
+                TlsListener::new(https, tls.server_config().unwrap()).unwrap(),
+                app,
+                draining.clone(),
+            ),
+            http_server(http, plain, draining),
+        ];
+        let (stop, rx) = mpsc::channel(2);
+        let server = tokio::spawn(async move {
+            serve_until(servers, &drain_tx, rx, Duration::from_secs(5)).await
+        });
+
+        let response = fetch(http_addr, "/nodes").await;
+        assert!(
+            response.starts_with("HTTP/1.1 307 Temporary Redirect\r\n"),
+            "{response}"
+        );
+        assert!(
+            response.contains("location: https://uniwrt.lan:8443/nodes\r\n"),
+            "{response}"
+        );
+        let response = fetch(http_addr, "/api/v1/health").await;
         assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
 
         stop.send("test").await.unwrap();

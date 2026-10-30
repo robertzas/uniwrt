@@ -4,7 +4,6 @@
 mod facts;
 mod host_keys;
 mod nodes;
-mod vault;
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
@@ -59,8 +58,7 @@ pub trait HostKeyRepo: Send + Sync {
 /// A secret's bytes, wiped from memory when dropped.
 pub type Secret = Zeroizing<Vec<u8>>;
 
-/// Secrets by name, such as `controller/ssh_key`. **A stub until M1.6:** values are stored
-/// unencrypted; the vault then seals them with XChaCha20-Poly1305 (features/security.md).
+/// Secrets by name, such as `controller/ssh_key`, sealed at rest ([`Vault`](crate::Vault)).
 pub trait VaultRepo: Send + Sync {
     /// Stores a secret, replacing any with the same name.
     fn put_secret(&self, name: &str, value: Secret) -> impl Future<Output = Result<()>> + Send;

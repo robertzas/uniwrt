@@ -56,15 +56,20 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.5 Simulator + demo mode** (M) → M1.4
   - `sim` crate implementing `NodeLink`: a gateway, 3 APs and about 30 clients, with roaming, signal drift, events and logs. Deterministic seed. `uniwrt serve --demo`.
   - Done (D-038): a seeded world (path loss and fading, 802.11r roams, clients that leave and come back, bursty traffic, lease renewals, a wired AP and a multi-hop batman mesh, AP reboots) rendered in the agent's raw shapes, so the real parsers run; `SimLink` answers the event-loop agent's ops and pushes events, ticks and both log modes. `serve --demo [--demo-seed]` runs the engine on `FleetLink` over a fresh database in the data directory, deleted at exit; `just demo`. Tested through the node crate's parsers and with the engine on tokio's paused clock.
-- [ ] **M1.6 API foundation, auth, TLS** (M) → M1.4
-  - axum route skeleton, problem+json errors, a WS hub with topics and deltas, ts-rs codegen (`just gen`), first-run admin setup, login and sessions (Argon2id), a self-signed TLS certificate (rcgen) on 8443 that the user can download, and the real vault: XChaCha20-Poly1305 under the master key, resealing the stub's `alg = 'plain'` rows (D-032).
-- [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6
+- [x] **M1.6 Vault and TLS** (M) → M1.4 (split from M1.6, owner's choice: auth moved to M1.6b, REST and WS to M1.6c)
+  - The real vault: XChaCha20-Poly1305 under the master key (`master.key`, `UNIWRT_MASTER_KEY_FILE` or `UNIWRT_MASTER_KEY`), resealing the stub's `alg = 'plain'` rows (D-032). HTTPS on 8443 with a certificate the user can download and trust.
+  - Done (D-039): a name-constrained local CA and the leaf it signs (rcgen), both in the vault; rustls with ring, HTTP/2 and a hot-swapped leaf renewed by a daily check; `GET /api/v1/tls` and `/api/v1/tls/ca.crt`; plain HTTP redirects except the health check and `--trusted-proxies`; `--tls-names`. Tested with webpki (chains, name constraints, validity), a TLS handshake, and the binary in CI's smoke test.
+- [ ] **M1.6b api crate, auth and sessions** (M) → M1.6
+  - The `api` crate (the routes, problem+json errors and security headers move there from `server/src/http`), first-run admin setup, login and sessions (Argon2id), CSRF defenses (SameSite, Origin, a custom header), login rate limiting and lockout, and the audit of logins (features/security.md). `ConnectInfo<Peer>` gives the client's address; behind a trusted proxy, `X-Forwarded-For` and `X-Forwarded-Proto`.
+- [ ] **M1.6c REST and the WS hub** (M) → M1.6b
+  - Node and fleet routes over `Engine<FleetLink>`, a WS hub with topics and deltas (at most 10 per second per topic), and ts-rs codegen (`just gen`) for the DTOs; tested against `serve --demo`.
+- [ ] **M1.7 Adopt existing node (observe mode)** (M) → M1.6c
   - API and UI wizard: IP + root password → confirm the host-key fingerprint → install the key → inventory and config backup → live view. Batch-adopt the rest from the gateway's DHCP leases.
   - Acceptance: the owner's 4 nodes are adopted, with zero config changes other than `authorized_keys`.
-- [ ] **M1.8 App shell & design system v1** (L) → M1.6
+- [ ] **M1.8 App shell & design system v1** (L) → M1.6c
   - Decision gates: is Solid 2.0 GA, and is the ecosystem ready? Settle the UI direction (O-5) by showing the owner 3 rendered mockups.
   - Tokens and primitives (Button, Card, Badge, virtualized Table, Tabs, Dialog, Drawer, Tooltip, Toast, Stat, Sparkline), layout, sidebar, top bar, ⌘K palette, theme toggle, plus a Devices list and a live Device overview.
-- [ ] **M1.9 Dev accelerators** (S) → M1.6
+- [ ] **M1.9 Dev accelerators** (S) → M1.6b
   - `just new-feature <area>` (scaffolds the files in the feature recipe) and `just arch-check` (enforces the layering rules from ARCHITECTURE.md), both wired into `just check` and CI.
 
 ## M2 — Observability ("understand your network")

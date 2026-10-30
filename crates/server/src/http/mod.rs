@@ -1,8 +1,11 @@
-//! The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share.
+//! The HTTP surface: `/api` routes, the embedded UI as the fallback, and the middleware both share;
+//! the HTTPS listener serves [`router`], the plain HTTP listener [`plain::router`] around it.
 
 mod health;
+pub(crate) mod plain;
 mod problem;
 mod security;
+mod tls;
 
 use axum::{
     Router,
@@ -12,14 +15,20 @@ use axum::{
 };
 use tower_http::{catch_panic::CatchPanicLayer, trace::TraceLayer};
 
-use crate::ui::{self, Assets};
+use crate::{
+    tls::Tls,
+    ui::{self, Assets},
+};
 
 /// The application router. `assets` is the embedded UI (`ui::EMBEDDED`, or a table in tests).
-pub(crate) fn router(assets: &'static Assets) -> Router {
+pub(crate) fn router(assets: &'static Assets, tls: Tls) -> Router {
     let api = Router::new()
         .route("/v1/health", get(health::get))
+        .route("/v1/tls", get(tls::info))
+        .route("/v1/tls/ca.crt", get(tls::ca))
         .fallback(problem::not_found)
-        .method_not_allowed_fallback(problem::method_not_allowed);
+        .method_not_allowed_fallback(problem::method_not_allowed)
+        .with_state(tls);
     Router::new()
         .nest("/api", api)
         .fallback(
@@ -49,14 +58,14 @@ mod tests {
     use tower::ServiceExt as _;
 
     use super::router;
-    use crate::{build_info, ui::EMBEDDED};
+    use crate::{build_info, tls::Tls, ui::EMBEDDED};
 
     async fn send(method: &str, uri: &str, headers: &[(&str, &str)]) -> Response {
         let mut request = Request::builder().method(method).uri(uri);
         for &(name, value) in headers {
             request = request.header(name, value);
         }
-        router(&EMBEDDED)
+        router(&EMBEDDED, Tls::for_tests())
             .oneshot(request.body(Body::empty()).unwrap())
             .await
             .unwrap()
@@ -91,6 +100,40 @@ mod tests {
                 "built_at": build_info::BUILT_AT,
             })
         );
+    }
+
+    #[tokio::test]
+    async fn the_ca_and_what_the_certificate_covers_are_public() {
+        let res = send("GET", "/api/v1/tls", &[]).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(header(&res, "cache-control"), Some("no-store"));
+        let json: Value = serde_json::from_slice(&body(res).await).unwrap();
+        assert!(
+            json["ca_name"]
+                .as_str()
+                .unwrap()
+                .starts_with("uniwrt local CA ")
+        );
+        assert_eq!(json["ca_sha256"].as_str().unwrap().len(), 95);
+        assert!(
+            json["names"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("uniwrt.lan"))
+        );
+
+        let res = send("GET", "/api/v1/tls/ca.crt", &[]).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            header(&res, "content-type"),
+            Some("application/x-x509-ca-cert")
+        );
+        assert_eq!(
+            header(&res, "content-disposition"),
+            Some("attachment; filename=\"uniwrt-ca.crt\"")
+        );
+        let pem = body(res).await;
+        assert!(pem.starts_with(b"-----BEGIN CERTIFICATE-----"));
     }
 
     #[tokio::test]

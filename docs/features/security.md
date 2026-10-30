@@ -1,7 +1,7 @@
 # Security
 
 Read this when working on authentication, sessions, TLS, secrets, node hardening, the container, or supply chain and releases.
-Milestones: M1.6 (auth, TLS, vault), M3.1 (vault for config secrets), M9.3 (review, fuzzing).
+Milestones: M1.6 (TLS, vault), M1.6b (auth and sessions), M3.1 (vault for config secrets), M9.3 (review, fuzzing).
 
 ## Threat model (home LAN)
 
@@ -38,14 +38,21 @@ Every response carries these headers (`crates/server/src/http/security.rs`); a h
 
 ## TLS
 
-- First run generates a self-signed ECDSA certificate (SANs: hostname, `uniwrt.lan`, IPs). It can be downloaded so devices can trust it.
-- Custom certificate upload is supported; ACME DNS-01 is in the backlog. HSTS is enabled once a trusted certificate is configured.
-- Plain HTTP only redirects to HTTPS. The one exception is the ZTP hello endpoint, which carries only public data.
+The controller is its own small CA (D-039, `crates/server/src/tls/`):
+
+- **The local CA:** ECDSA P-256, 10 years, `pathlen:0`, created on the first run and kept in the vault (`tls/ca`). Its critical name constraints permit only `localhost`, `lan`, `home.arpa`, `local`, `internal`, the loopback, private (RFC 1918, RFC 4193), shared (100.64.0.0/10) and link-local ranges, plus the names the first run's leaf needed beyond them (the host name, `--tls-names`). So a device that trusts it cannot be fooled about any other site, even by someone who stole the CA's key. Its key is read from the vault only to sign.
+- **The leaf:** ECDSA P-256, 397 days (Apple's limit is 398), server authentication only, served with the CA as its chain. It covers `localhost`, `uniwrt.lan`, the host name and `<host>.lan` (not Docker's 12-digit container IDs), loopback, the HTTPS listen address, the private addresses the host routes from, and `--tls-names` (`UNIWRT_TLS_NAMES`). A daily check reissues it 30 days before expiry, or when its names or its CA change, and swaps it in without a restart. Names the CA may not sign are left out, with a warning: configure them before the first run.
+- **Trust:** `GET /api/v1/tls/ca.crt` downloads the CA (PEM, `application/x-x509-ca-cert`), and `GET /api/v1/tls` shows its SHA-256 fingerprint, which the log also prints at startup, to compare on the device. Trusting it once removes the warnings for good.
+- **rustls** with the ring provider: TLS 1.3 and 1.2 with rustls' safe defaults, ALPN `h2` and `http/1.1`. Handshakes run concurrently, at most 128 at once and 10 s each.
+- **Plain HTTP** (8080) redirects to HTTPS with a 307 (not cached, unlike 308). The exceptions carry only public data or come from a TLS-terminating proxy: the health check (Docker probes it), requests from `--trusted-proxies` (`UNIWRT_TRUSTED_PROXIES`, networks; they get the whole application), and later the ZTP hello endpoint.
+- **No HSTS** while the certificate comes from the local CA: on a device that does not trust it, HSTS would make the warning impossible to click through. Custom certificate upload and ACME DNS-01 are in the backlog; HSTS comes with them.
 
 ## Secrets vault
 
-- Each secret is encrypted with XChaCha20-Poly1305. The master key is `/data/master.key` (mode 0600) or `UNIWRT_MASTER_KEY`.
-- Until M1.6, the vault is a stub (D-032): the `vault` table stores values unencrypted, marked `alg = 'plain'`, and M1.6 reseals those rows when it opens. The first secret is the controller's SSH key (`controller/ssh_key`), generated on the first run.
+- Each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the master key (`uniwrt vault v1`), with a random 192-bit nonce and the secret's name as associated data, so a sealed value cannot be moved to another name (`crates/store/src/vault/`).
+- **The master key** is 32 random bytes, kept as 64 hexadecimal digits: in `UNIWRT_MASTER_KEY`, or in a file, by default `/data/master.key` (mode 0600, created on the first run; a warning if others can read it). `--master-key-file` (`UNIWRT_MASTER_KEY_FILE`) puts the file elsewhere, such as a Docker secret, so that a copy of the data volume alone does not open the vault. Back the key up apart from the database: without it the secrets are lost.
+- **Opening** the vault tries the key on every sealed row and refuses to start if any does not open, so a wrong key fails at once. A missing key file is replaced by a new key only while nothing is sealed. Opening also reseals the rows that the M1.2 stub stored unencrypted (`alg = 'plain'`, D-032). Demo mode's key exists only in memory.
+- The first secrets are the controller's SSH key (`controller/ssh_key`), the local CA (`tls/ca`) and the HTTPS certificate (`tls/leaf`).
 - It holds: the controller SSH private key, node root passwords, Wi-Fi passphrases, mesh and FT keys, PPPoE credentials, WireGuard keys and notifier tokens.
 - Config revisions store only references. Viewing a secret is admin-only and audited.
 

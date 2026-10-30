@@ -57,10 +57,10 @@ Values must be at most 64 printable ASCII characters. While `web/dist` is missin
 |---|---|
 | User | 65532:65532 |
 | Data | `/data` volume (`UNIWRT_DATA_DIR`), owned by 65532 with mode 0700. A new named volume inherits both; a bind-mounted host directory must be writable by UID 65532. |
-| Ports | 8443/tcp HTTPS UI and API (from M1.6) · 8080/tcp HTTP (serves the UI in M0, redirects later) · 5514/tcp+udp syslog |
+| Ports | 8443/tcp HTTPS UI and API · 8080/tcp HTTP: redirects to HTTPS, except the health check and trusted proxies (D-039) · 5514/tcp+udp syslog. The redirect keeps the host and uses the HTTPS listener's port, so publish 8443 as 8443. |
 | Networking | `--network host` is recommended (L2 discovery, simple syslog). Bridge mode works with published ports. |
 | Health | `HEALTHCHECK CMD ["/uniwrt","healthcheck"]` every 30 s, and every 1 s during the first 30 s, with a 5 s timeout: `GET /api/v1/health` on loopback must answer 200 within 3 s |
-| Config | Flag or env: `--http-listen`/`UNIWRT_HTTP_LISTEN` (default `0.0.0.0:8080`), `--data-dir`/`UNIWRT_DATA_DIR` (default `./data`, created at start), `--log`/`UNIWRT_LOG` (tracing `EnvFilter` syntax, default `info`; logs go to stderr) |
+| Config | Flag or env: `--http-listen`/`UNIWRT_HTTP_LISTEN` (default `0.0.0.0:8080`), `--https-listen`/`UNIWRT_HTTPS_LISTEN` (default `0.0.0.0:8443`), `--data-dir`/`UNIWRT_DATA_DIR` (default `./data`, created at start), `--log`/`UNIWRT_LOG` (tracing `EnvFilter` syntax, default `info`; logs go to stderr), `--tls-names`/`UNIWRT_TLS_NAMES` (more certificate names, comma-separated), `--trusted-proxies`/`UNIWRT_TRUSTED_PROXIES` (networks, comma-separated), `--master-key-file`/`UNIWRT_MASTER_KEY_FILE` (default `<data dir>/master.key`) or the key itself in `UNIWRT_MASTER_KEY` (features/security.md) |
 | Shutdown | SIGTERM or SIGINT: stop accepting, let in-flight requests finish for up to 5 s, then exit 0. A second signal closes everything at once. |
 
 The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs under emulation:
@@ -116,7 +116,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | Recipe | What it does |
 |---|---|
 | `just setup` | Install cargo-nextest and cargo-deny at the versions CI pins, plus the web dependencies |
-| `just dev` | `uniwrt serve` on 127.0.0.1:8080 plus the Vite dev server, which proxies `/api` to it; Ctrl-C stops both |
+| `just dev` | `uniwrt serve` on 127.0.0.1 (HTTP 8080, HTTPS 8443) plus the Vite dev server, which proxies `/api` to the HTTP port; loopback is a trusted proxy, so it gets the app rather than a redirect. Ctrl-C stops both |
 | `just check` | Everything CI gates on, one line per step (`scripts/check.sh`): rustfmt, clippy, the Rust tests (nextest; they also refresh `web/src/api/gen`), the code map (regenerated when stale), cargo-deny, the script tests, the web check, and shellcheck when installed. A failing step prints the first 150 lines of its output; full logs stay in `target/check/`. |
 | `just test` | Rust and web tests, with full output |
 | `just test-dropbear [image…]` | The transport tests against dropbear in OpenWrt rootfs containers (needs Docker); the CI job `transport` runs the same script |

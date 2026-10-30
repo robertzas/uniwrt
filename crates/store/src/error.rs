@@ -54,6 +54,21 @@ pub enum Error {
         #[source]
         source: serde_json::Error,
     },
+    #[error("the master key must be 64 hexadecimal digits")]
+    MasterKey,
+    #[error(
+        "the master key cannot open {unreadable} of the vault's {total} secrets; \
+         is it the key this database was sealed with?"
+    )]
+    WrongMasterKey { unreadable: usize, total: usize },
+    #[error("secret {name} cannot be opened: it was altered or sealed under another key")]
+    Unseal { name: String },
+    #[error("secret {name} is sealed with {alg}, which this uniwrt does not know")]
+    UnknownSeal { name: String, alg: String },
+    #[error("cannot seal secret {name}")]
+    Seal { name: String },
+    #[error("the system's random number generator failed")]
+    Random,
     /// The write succeeded inside its batch, but the batch did not commit.
     #[error("the write batch did not commit")]
     Commit(#[source] Arc<rusqlite::Error>),

@@ -35,7 +35,7 @@ mod tests {
     use std::sync::Arc;
 
     use uniwrt_core::SystemClock;
-    use uniwrt_store::Store;
+    use uniwrt_store::{MasterKey, Store, Vault};
 
     use super::load_or_generate;
 
@@ -43,12 +43,17 @@ mod tests {
     async fn the_key_is_generated_once_and_then_loaded() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("uniwrt.db");
+        let key = MasterKey::generate().unwrap();
         let store = Store::open(&path, Arc::new(SystemClock)).await.unwrap();
-        let first = load_or_generate(&store).await.unwrap();
+        let first = load_or_generate(&Vault::open(&store, &key).await.unwrap())
+            .await
+            .unwrap();
         store.close().await;
 
         let store = Store::open(&path, Arc::new(SystemClock)).await.unwrap();
-        let again = load_or_generate(&store).await.unwrap();
+        let again = load_or_generate(&Vault::open(&store, &key).await.unwrap())
+            .await
+            .unwrap();
         assert_eq!(again.fingerprint(), first.fingerprint());
         store.close().await;
     }

@@ -224,10 +224,15 @@ jobs:
           "$bin" version --json | tee version.json
           jq -e --arg target "$TARGET" --arg version "$UNIWRT_VERSION" \
             '.target == $target and .version == $version and .ui == "embedded"' version.json
-          "$bin" serve --http-listen 127.0.0.1:18080 --data-dir "$RUNNER_TEMP/data" &
+          "$bin" serve --http-listen 127.0.0.1:18080 --https-listen 127.0.0.1:18443 --data-dir "$RUNNER_TEMP/data" &
           pid=$!
           for _ in $(seq 60); do "$bin" healthcheck --http-listen 127.0.0.1:18080 2>/dev/null && break; sleep 0.5; done
           "$bin" healthcheck --http-listen 127.0.0.1:18080
+          # HTTPS verifies with the local CA alone (D-039), and plain HTTP redirects to it.
+          curl -fsSk -o ca.crt https://127.0.0.1:18443/api/v1/tls/ca.crt
+          curl -fsS --cacert ca.crt https://127.0.0.1:18443/api/v1/health
+          curl -fsS --cacert ca.crt https://localhost:18443/api/v1/tls | jq -e '.names | index("localhost")'
+          test "$(curl -s -o /dev/null -w '%{redirect_url}' http://127.0.0.1:18080/)" = https://127.0.0.1:18443/
           kill "$pid"
           wait "$pid" # graceful shutdown exits 0
       - name: Package

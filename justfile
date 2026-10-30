@@ -10,7 +10,8 @@ platforms := "linux/amd64,linux/386,linux/arm/v7,linux/arm64"
 default:
     @just --list --unsorted
 
-# Backend on 127.0.0.1:8080 plus the Vite dev server, which proxies /api to it; args go to serve
+# Backend on 127.0.0.1 (HTTP 8080, HTTPS 8443) plus the Vite dev server, which proxies /api to
+# the HTTP port as a trusted proxy (D-039); args go to serve
 dev *args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -25,7 +26,8 @@ dev *args:
     }
     trap 'stop 0' INT TERM
     trap 'stop $?' EXIT
-    UNIWRT_HTTP_LISTEN=127.0.0.1:8080 cargo run --quiet -- serve {{ args }} </dev/null &
+    UNIWRT_HTTP_LISTEN=127.0.0.1:8080 UNIWRT_HTTPS_LISTEN=127.0.0.1:8443 \
+        UNIWRT_TRUSTED_PROXIES=127.0.0.1/32,::1/128 cargo run --quiet -- serve {{ args }} </dev/null &
     # Vite itself rather than `bun run dev`, whose exit-code report would add noise on Ctrl-C.
     (cd web && exec node_modules/.bin/vite) </dev/null &
     wait -n
