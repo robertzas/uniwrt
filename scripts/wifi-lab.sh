@@ -39,6 +39,13 @@ host_root() {
 hwsim_phy() { ls "/sys/devices/virtual/mac80211_hwsim/hwsim$1/ieee80211"; }
 
 modules() {
+  mkdir -p target # a fresh checkout has none
+  # Without the regulatory database the kernel keeps the world domain, where channel 36 is
+  # no-initiate-radiation, and the 5 GHz APs and the mesh never start.
+  if [[ ! -e /lib/firmware/regulatory.db ]]; then
+    echo "the lab needs the kernel's regulatory database: install wireless-regdb, then run 'iw reg reload' as root" >&2
+    exit 1
+  fi
   if [[ ! -d /sys/module/mac80211_hwsim || ! -d /sys/module/batman_adv ]]; then
     [[ -d /sys/module/mac80211_hwsim ]] || touch "$LOADED"
     host_root "modprobe mac80211_hwsim radios=$HWSIM_RADIOS && modprobe batman-adv"
@@ -77,6 +84,12 @@ SETUP='
 # through b and the mesh.
 # shellcheck disable=SC2016
 READY='for i in wwan wwan5; do ubus -S call network.interface.$i status | grep -q "\"ipv4-address\":\[{" || exit 1; done'
+# The gateway is ready when its 802.11s peer link with b is established and batman sees b over
+# both the air and the backhaul: the client's addresses can arrive over the backhaul alone.
+# shellcheck disable=SC2016
+READY_GW='mesh=$(iw dev | awk "/Interface/ { i = \$2 } /type mesh point/ { print i }")
+  [ -n "$mesh" ] && iw dev "$mesh" station dump | grep -q "mesh plink:.*ESTAB" &&
+  [ "$(batctl meshif bat0 n -H | wc -l)" -ge 2 ]'
 
 up() {
   modules
@@ -105,7 +118,8 @@ up() {
   host_root "ip link add bh0 mtu 1532 netns ${pid[a]} type veth peer name bh0 mtu 1532 \
     netns ${pid[b]} && ${moves}true"
   for _ in $(seq 120); do
-    if docker exec uniwrt-wifi-c /bin/sh -c "$READY" 2>/dev/null; then
+    if docker exec uniwrt-wifi-c /bin/sh -c "$READY" 2>/dev/null &&
+      docker exec uniwrt-wifi-a /bin/sh -c "$READY_GW" 2>/dev/null; then
       local port_a port_b
       port_a=$(docker port uniwrt-wifi-a 22/tcp | head -n1 | sed 's/.*://')
       port_b=$(docker port uniwrt-wifi-b 22/tcp | head -n1 | sed 's/.*://')
@@ -116,8 +130,22 @@ up() {
     fi
     sleep 1
   done
-  echo "the lab did not come up: client c has no addresses" >&2
+  echo "the lab did not come up: client c has no addresses, or a's mesh is not up" >&2
+  diagnose >&2
   exit 1
+}
+
+# What each node's radios, mesh and uplinks look like, for a lab that did not come up.
+diagnose() {
+  local role
+  for role in "${ROLES[@]}"; do
+    echo "== $role"
+    # shellcheck disable=SC2016 # expanded by the container's shell
+    docker exec "uniwrt-wifi-$role" /bin/sh -c '
+      iw dev; ubus call network.wireless status | grep -E "\"(up|pending|autostart|disabled)\"|errors" -A1
+      for i in $(iw dev | awk "/Interface/ { print \$2 }"); do echo "-- $i"; iw dev "$i" station dump | grep -E "^Station|plink|authorized"; done
+      batctl meshif bat0 n 2>&1; ip -4 -br addr; logread | tail -n 40' 2>&1 || true
+  done
 }
 
 down_containers() {

@@ -84,6 +84,30 @@ jobs:
         run: bun run typecheck
       - name: Test
         run: bun run test
+
+  # The web UI the binaries embed, apart from web's checks so the builds start sooner; the image
+  # still waits for web.
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('web/bun.lock') }}
+      - run: bun install --frozen-lockfile
       - name: Build
         run: bun run build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -133,10 +157,17 @@ jobs:
 
   # The transport against dropbear on real OpenWrt, in rootfs containers (TESTING.md, Transport).
   transport:
+    name: transport (${{ matrix.release }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["24.10.8", "25.12.6"] # the releases in TESTING.md's matrix
+    env:
+      RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,15 +178,22 @@ jobs:
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148 # keep in line with `just setup`
-      - name: Dropbear on OpenWrt 24.10 and 25.12
-        run: scripts/test-dropbear.sh
+      - name: Dropbear on OpenWrt ${{ matrix.release }}
+        run: scripts/test-dropbear.sh "openwrt/rootfs:x86-64-$RELEASE"
 
   # The node agent on OpenWrt booted with procd, in rootfs containers (TESTING.md, Agent).
   agent:
+    name: agent (${{ matrix.release }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["24.10.8", "25.12.6"] # the releases in TESTING.md's matrix
+    env:
+      RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -166,12 +204,46 @@ jobs:
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.148 # keep in line with `just setup`
-      - name: The agent on OpenWrt 24.10 and 25.12
-        run: scripts/test-agent.sh
+      - name: The agent on OpenWrt ${{ matrix.release }}
+        run: scripts/test-agent.sh "openwrt/rootfs:x86-64-$RELEASE"
+
+  # The Wi-Fi and mesh sets in the hwsim lab (TESTING.md, Wi-Fi lab): mac80211_hwsim radios and
+  # batman-adv from the runner's kernel, in OpenWrt 25.12 and 24.10 containers (D-043).
+  wifi:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The radios need the regulatory database: in the world domain, channel 36 can't start an AP
+      # or a mesh.
+      - name: The kernel's mac80211_hwsim, batman-adv and regulatory database, and iw
+        run: |
+          packages=()
+          modinfo mac80211_hwsim batman-adv >/dev/null 2>&1 || packages+=("linux-modules-extra-$(uname -r)")
+          command -v iw >/dev/null || packages+=(iw)
+          [[ -e /lib/firmware/regulatory.db ]] || packages+=(wireless-regdb)
+          if ((${#packages[@]})); then
+            sudo apt-get update -q
+            sudo apt-get install -yq --no-install-recommends "${packages[@]}"
+          fi
+          sudo iw reg reload
+          modinfo -F filename mac80211_hwsim batman-adv
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install && rustc --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest@0.9.148 # keep in line with `just setup`
+      - name: The hwsim lab
+        run: scripts/wifi-lab.sh test
 
   build:
     name: build (${{ matrix.target }})
-    needs: [version, web]
+    needs: [version, ui]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -257,7 +329,7 @@ jobs:
           retention-days: 7
 
   image:
-    needs: [version, rust, transport, agent, build]
+    needs: [version, web, rust, transport, agent, wifi, build]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
