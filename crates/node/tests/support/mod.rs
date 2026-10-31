@@ -162,7 +162,7 @@ impl server::Handler for Connection {
     fn auth_publickey(
         &mut self,
         user: &str,
-        key: &PublicKey,
+        key: server::VerifiedPublicKey<'_>,
     ) -> impl Future<Output = Result<Auth, Self::Error>> + Send {
         let known = self
             .shared
@@ -170,7 +170,7 @@ impl server::Handler for Connection {
             .lock()
             .unwrap()
             .iter()
-            .any(|authorized| authorized.key_data() == key.key_data());
+            .any(|authorized| authorized.key_data() == key.public_key.key_data());
         ready(Ok(self.login(user == "root" && known)))
     }
 

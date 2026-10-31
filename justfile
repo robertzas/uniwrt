@@ -88,16 +88,12 @@ image tag="uniwrt:dev": cross
 map:
     @scripts/gen-map.sh
 
-# Publish dates of the crates Cargo.lock adds against a revision; fails inside the 7-day cooldown
-crate-age rev="HEAD":
-    @scripts/crate-age.sh {{ rev }}
-
 # `just dev` against the simulated fleet (a gateway, 3 access points, 30 clients); the seed is optional
 demo seed="": (dev "--demo" (if seed == "" { "" } else { "--demo-seed " + seed }))
 
 # Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
-    cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2
+    cargo install --locked cargo-nextest@0.9.150 cargo-deny@0.20.2
     cd web && bun install --frozen-lockfile
 
 [private]

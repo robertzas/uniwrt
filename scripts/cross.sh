@@ -4,8 +4,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Pinned by digest; bump deliberately and keep its zig version in line with CI (BUILD.md).
-image=ghcr.io/rust-cross/cargo-zigbuild:0.23.4@sha256:d8313491ec5798de0633fdc1c5753761bff79967bea69076020dc78121b2cca8
+# Pinned by digest; bump deliberately and keep cargo-zigbuild in line with CI (BUILD.md).
+image=ghcr.io/rust-cross/cargo-zigbuild:0.24.0@sha256:eb5578cfc06e070a09deb7b5852474bd128a4e561f9f123261b5ed2405e478b1
+# CI's zig, which is newer than the image's (0.16.0): downloaded once, checked against
+# ziglang.org's index, and run in place of the image's own.
+zig_version=0.17.0
+case $(uname -m) in
+  x86_64) zig_arch=x86_64 zig_sha256=1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026 ;;
+  aarch64) zig_arch=aarch64 zig_sha256=9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8 ;;
+  *)
+    echo "unsupported host: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
 
 # Docker's TARGETARCH plus TARGETVARIANT for each release target.
 arch() {
@@ -27,11 +38,21 @@ if (($# == 0)); then
 fi
 for target; do arch "$target" >/dev/null; done
 
-# The toolchain from rust-toolchain.toml, the crate registry, zig's cache and the build persist in
-# target/cross/, so repeat builds are incremental. The directories exist before `docker run`, so
-# Docker doesn't create them as root.
+# The toolchain from rust-toolchain.toml, the crate registry, zig, its cache and the build persist
+# in target/cross/, so repeat builds are incremental. The directories exist before `docker run`,
+# so Docker doesn't create them as root.
 cache=target/cross
 mkdir -p "$cache"/{rustup,registry,home,build} dist
+
+zig=$cache/zig-$zig_version
+if [[ ! -x $zig/zig ]]; then
+  tarball=$cache/zig-$zig_version.tar.xz
+  curl -fsSL -o "$tarball" "https://ziglang.org/download/$zig_version/zig-$zig_arch-linux-$zig_version.tar.xz"
+  echo "$zig_sha256  $tarball" | sha256sum -c --quiet
+  mkdir -p "$zig"
+  tar -xJf "$tarball" -C "$zig" --strip-components 1
+  rm "$tarball"
+fi
 
 docker run --rm --user "$(id -u):$(id -g)" \
   --volume "$PWD:/src" --workdir /src \
@@ -39,6 +60,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
   --volume "$PWD/$cache/registry:/usr/local/cargo/registry" \
   --env HOME="/src/$cache/home" --env XDG_CACHE_HOME="/src/$cache/home" \
   --env CARGO_TARGET_DIR="/src/$cache/build" \
+  --env CARGO_ZIGBUILD_ZIG_PATH="/src/$zig/zig" \
   --env UNIWRT_WEB_DIST=web/dist \
   --env UNIWRT_VERSION --env UNIWRT_COMMIT --env SOURCE_DATE_EPOCH \
   "$image" bash -euc '

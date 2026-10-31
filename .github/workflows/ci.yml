@@ -24,13 +24,13 @@ defaults:
 
 env:
   CARGO_TERM_COLOR: always
-  # Keep in line with the local tools: bun in docs/STATUS.md, zig in scripts/cross.sh's image.
+  # Keep in line with the local tools: bun in docs/STATUS.md, zig in scripts/cross.sh.
   BUN_VERSION: "1.4.4"
-  ZIG_VERSION: "0.16.0"
+  ZIG_VERSION: "0.17.0"
 
 jobs:
   version:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -60,7 +60,7 @@ jobs:
           echo "Version \`$version\` (release: $release)" >>"$GITHUB_STEP_SUMMARY"
 
   web:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
   # The web UI the binaries embed, apart from web's checks so the builds start sooner; the image
   # still waits for web.
   ui:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -120,7 +120,7 @@ jobs:
           retention-days: 7
 
   rust:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -133,9 +133,9 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: cargo-nextest@0.9.148,cargo-deny@0.20.2 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.150,cargo-deny@0.20.2 # keep in line with `just setup`
       - name: Format
         run: cargo fmt --all --check
       - name: Code map is fresh
@@ -161,7 +161,7 @@ jobs:
 
   # The transport against dropbear on real OpenWrt, in rootfs containers (TESTING.md, Transport).
   transport:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -176,15 +176,15 @@ jobs:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: false
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: cargo-nextest@0.9.148 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
       - name: Dropbear on OpenWrt 24.10 and 25.12
         run: scripts/test-dropbear.sh
 
   # The node agent on OpenWrt booted with procd, in rootfs containers (TESTING.md, Agent).
   agent:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -199,16 +199,16 @@ jobs:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: cargo-nextest@0.9.148 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
       - name: The agent on OpenWrt 24.10 and 25.12
         run: scripts/test-agent.sh
 
   # The Wi-Fi and mesh sets in the hwsim lab (TESTING.md, Wi-Fi lab): mac80211_hwsim radios and
   # batman-adv from the runner's kernel, in OpenWrt 25.12 and 24.10 containers (D-043).
   wifi:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -237,16 +237,16 @@ jobs:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: false
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: cargo-nextest@0.9.148 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
       - name: The hwsim lab
         run: scripts/wifi-lab.sh test
 
   build:
     name: build (${{ matrix.target }})
     needs: [version, ui]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -282,9 +282,9 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ env.ZIG_VERSION }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: cargo-zigbuild@0.23.4,cargo-auditable@0.7.7
+          tool: cargo-zigbuild@0.24.0,cargo-auditable@0.7.7
       - name: Build
         # cargo-auditable embeds the dependency list, so the image SBOM and `cargo audit bin` see it.
         run: SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) cargo auditable zigbuild --release --locked --target "$TARGET"
@@ -335,7 +335,7 @@ jobs:
   # the simulated fleet, in the runner's own Chrome. The image waits for it.
   e2e:
     needs: [build]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -373,7 +373,7 @@ jobs:
   image:
     needs: [version, web, rust, transport, agent, wifi, build, e2e]
     if: needs.version.outputs.release == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -456,7 +456,7 @@ jobs:
   release:
     needs: [version, image]
     if: needs.version.outputs.release == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write

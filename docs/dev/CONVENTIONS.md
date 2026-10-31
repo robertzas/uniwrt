@@ -19,7 +19,7 @@ These apply to humans and agents alike. Read only the section you need.
 - Keep files to about 400 lines or fewer and organize modules by concept. No `utils.rs` grab-bags.
 - Tests live next to the code (`#[cfg(test)]`). Use snapshots via `insta` (review with `cargo insta review`) and property tests via `proptest` for parsers, IPAM and the planner.
 - Performance: share large facts through `Arc` instead of cloning them, use bounded channels, and batch DB writes.
-- Dependencies: crate versions, transitive ones included, must be at least 7 days old (D-029, D-031). After changing `Cargo.lock`, run `just crate-age`, which lists the crates it adds and fails inside the cooldown; pin a fresh one back with `cargo update -p <crate> --precise <version>`. The one exception is the lowest release that fixes a RustSec advisory: list it with the advisory ID in `scripts/crate-age.sh`, and drop the entry once it ages out (D-033).
+- Dependencies: take the newest release, majors included, with no cooldown (D-049). A crate held back is held by another crate's requirement (such as tokio-tungstenite at the version axum pins); note why where it is pinned.
 
 ## TypeScript / Solid
 

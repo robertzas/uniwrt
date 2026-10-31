@@ -32,7 +32,7 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 data-encoding = "2.11.1"
 ipnet = { version = "2.12.2", features = ["serde"] }
 # SQLite compiled in (D-001, D-009): a static binary has no system library to link.
-rusqlite = { version = "0.40.2", default-features = false, features = ["bundled", "cache"] }
+rusqlite = { version = "0.41.1", default-features = false, features = ["bundled", "cache"] }
 # Key generation, HKDF and digests; already in the tree through russh.
 ring = "0.17.14"
 # The controller's local CA and its leaf certificates (D-039); ring, not aws-lc-rs (deny.toml).
@@ -41,7 +41,7 @@ rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 # SSH client (D-003). ring, not aws-lc-rs (deny.toml); no RSA: OpenWrt's dropbear has ed25519
 # host keys, and the rsa crate carries an unfixed timing advisory (D-032).
-russh = { version = "0.64.1", default-features = false, features = ["ring"] }
+russh = { version = "0.65.0", default-features = false, features = ["ring"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2.0.21"
@@ -57,7 +57,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # TypeScript types for API DTOs (D-017); exported into web/src/api/gen by `cargo test`.
 ts-rs = { version = "12.0.1", default-features = false, features = ["serde-compat", "no-serde-warnings"] }
 # Build-time asset compression (crates/server/build)
-brotli = "9.0.0"
+brotli = "9.1.1"
 flate2 = "1.1.10"
 sha2 = "0.11.1"
 # Tests

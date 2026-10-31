@@ -73,7 +73,8 @@ describe("Dialog", () => {
     expect(await screen.findByRole("dialog", { name: "Reboot ap-upstairs?" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(trigger).toHaveFocus();
+    // Kobalte restores focus after the dialog unmounts, a tick later under load.
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
 

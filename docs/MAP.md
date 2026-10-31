@@ -302,7 +302,6 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 ## Scripts
 
 - `scripts/check.sh`: Runs everything CI gates on, one line per step (`just check`).
-- `scripts/crate-age.sh`: Lists the crates that Cargo.lock adds or changes against a git revision (default: HEAD), with their crates.io publish dates, and fails if any is younger than the 7-day cooldown (D-029).
 - `scripts/cross.sh`: Builds static musl binaries with cargo-zigbuild inside its container, so the host needs only Docker.
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
