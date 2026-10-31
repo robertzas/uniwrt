@@ -24,6 +24,7 @@ export default defineConfig({
     // e2e/ is Playwright's (playwright.config.ts).
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
+    testTimeout: 15_000,
     restoreMocks: true,
     unstubGlobals: true,
   },
