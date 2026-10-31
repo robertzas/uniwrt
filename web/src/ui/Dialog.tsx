@@ -23,13 +23,15 @@ const overlay =
 
 /** A modal dialog: focus is trapped inside, and Escape or a click outside closes it. */
 export function Dialog(props: DialogProps) {
+  const focus = createFocusReturn();
   return (
     <KDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <KDialog.Portal>
         <KDialog.Overlay class={overlay} />
         <div class="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]">
           <KDialog.Content
-            onOpenAutoFocus={(event) => focusInitial(event, props.initialFocus)}
+            onOpenAutoFocus={(event) => focus.open(event, props.initialFocus)}
+            onCloseAutoFocus={focus.close}
             class={[
               "relative w-full max-w-lg rounded-card border border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel data-expanded:animate-pop-in data-closed:animate-pop-out",
               props.class,
@@ -51,12 +53,14 @@ export interface DrawerProps extends DialogProps {
 /** A modal panel that slides in from a side of the screen. */
 export function Drawer(props: DrawerProps) {
   const left = () => props.side === "left";
+  const focus = createFocusReturn();
   return (
     <KDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <KDialog.Portal>
         <KDialog.Overlay class={overlay} />
         <KDialog.Content
-          onOpenAutoFocus={(event) => focusInitial(event, props.initialFocus)}
+          onOpenAutoFocus={(event) => focus.open(event, props.initialFocus)}
+          onCloseAutoFocus={focus.close}
           class={[
             "fixed inset-y-0 z-50 flex w-80 max-w-[85vw] flex-col border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel",
             left()
@@ -71,6 +75,29 @@ export function Drawer(props: DrawerProps) {
       </KDialog.Portal>
     </KDialog.Root>
   );
+}
+
+/**
+ * Kobalte returns focus to its `Trigger` on close, but these dialogs open from state, so there is
+ * none: this remembers what had focus when the dialog opened and returns focus there, if it is
+ * still in the page (an opener that unmounted, such as the ⌘K palette, leaves focus to the body).
+ */
+function createFocusReturn() {
+  let opener: HTMLElement | undefined;
+  return {
+    open(event: Event, target: DialogProps["initialFocus"]) {
+      const active = document.activeElement;
+      const content = event.currentTarget instanceof Element ? event.currentTarget : null;
+      if (active instanceof HTMLElement && active !== document.body && !content?.contains(active)) {
+        opener = active;
+      }
+      focusInitial(event, target);
+    },
+    close() {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+      opener = undefined;
+    },
+  };
 }
 
 /**

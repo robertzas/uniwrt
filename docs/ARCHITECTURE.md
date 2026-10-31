@@ -71,7 +71,8 @@ flowchart TB
 
 Rules:
 - Dependencies point only to the same layer or a lower one.
-- L0 crates do not depend on tokio and perform no IO. `just arch-check` enforces this (M1.9).
+- L0 crates do not depend on tokio and perform no IO.
+- `just arch-check` (in `just check` and CI) reads this table and enforces it: every crate is in it, depends only on what its row allows (dev-dependencies may also use the test crates), and no row allows a higher layer; L0 crates have no async runtime, socket, database or SSH crate in their tree and no IO or clock reads in their source.
 - A crate is created when its first WP starts, not before.
 - `server` is the one crate outside the tests that depends on `sim`, for demo mode. The engine runs on its `FleetLink` enum (SSH or simulated), so the API has one engine type (D-038). Its `DemoDial` reaches the simulated nodes for the job runner, so demo mode adopts through the real adopt job and discovery (D-048).
 - Packages are named `uniwrt-<crate>` (a library named `core` would shadow Rust's `core`); directories keep the short name.

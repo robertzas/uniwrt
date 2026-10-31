@@ -70,7 +70,10 @@ describe("Dialog", () => {
     ));
     const trigger = screen.getByRole("button", { name: "Open" });
     await user.click(trigger);
-    expect(await screen.findByRole("dialog", { name: "Reboot ap-upstairs?" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Reboot ap-upstairs?" });
+    // Under load, Kobalte moves focus into the dialog a tick after it appears; Escape before that
+    // would leave no focus to restore.
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     // Kobalte restores focus after the dialog unmounts, a tick later under load.

@@ -88,7 +88,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | version | all | On a push to `main`: the next version from the commits (`scripts/next-version.sh`), or no release if HEAD is already tagged. Otherwise: `0.0.0-dev.<run>+<sha7>`. |
 | web | all | `bun install --frozen-lockfile`, `biome ci` (with annotations), `tsc`, `vitest run`. The image waits for it. |
 | ui | all | `bun install --frozen-lockfile`, `vite build` → artifact `web-dist`; apart from web's checks, so the builds start sooner |
-| rust | all | `cargo fmt --check`, MAP.md freshness, shellcheck and the script tests, `clippy -D warnings`, `cargo nextest run`, committed ts-rs types, `cargo deny check` |
+| rust | all | `cargo fmt --check`, MAP.md freshness, shellcheck and the script tests, `arch-check`, `clippy -D warnings`, `cargo nextest run`, committed ts-rs types, `cargo deny check`, then the scaffold's test (`scripts/new-feature.test.sh`, about a minute on the warm target) |
 | transport | all | `scripts/test-dropbear.sh`: the `node` crate against dropbear in OpenWrt rootfs containers (24.10.8, 25.12.6): adoption with a password, key login, quoting through busybox ash, stdin, uploads, a jump host, keepalives and a ucode agent. The image waits for it. |
 | agent | all | `scripts/test-agent.sh`: the node agent in OpenWrt rootfs containers (24.10.8, 25.12.6) booted with procd: the bundle's install by hash, the ops in both loop modes, collect sets parsed into facts, the engine watching the node, and adoption. The image waits for it. |
 | wifi | all | `scripts/wifi-lab.sh test`: the hwsim lab (mac80211_hwsim and batman-adv from the runner's kernel, installing `linux-modules-extra`, `wireless-regdb` and `iw` if missing; D-043) with the Wi-Fi and mesh tests. The image waits for it. |
@@ -133,4 +133,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | `just cross [target…]` | Static musl binaries built in the zigbuild container, written to `dist/uniwrt-<arch>`; all four targets by default |
 | `just image [tag]` | The four cross binaries plus a local multi-arch image (default tag `uniwrt:dev`) |
 | `just map` | Regenerate `docs/MAP.md` (`scripts/gen-map.sh`; with `--check` it only reports staleness) |
+| `just arch-check` | The layering rules (`scripts/arch-check.sh`): crates per ARCHITECTURE.md's table, pure L0 crates, the web import directions; part of `just check` |
+| `just new-feature <area>` | Scaffolds a feature area along the recipe (`scripts/new-feature.sh`; CONVENTIONS.md) |
+| `just test-new-feature` | Runs the scaffold in a throwaway worktree and holds it to CI's checks; CI runs it, `just check` doesn't (it takes about a minute) |
 | `just demo [seed]` | `just dev` against the simulated fleet (`serve --demo`, D-038; log in as `demo` / `demo`); `just dev <args>` passes any arguments to `serve` |

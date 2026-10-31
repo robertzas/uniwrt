@@ -83,8 +83,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [x] **M1.8b Adoption wizard** (M) → M1.8c, M1.7b
   - Devices → Adopt: address and password → the fingerprint to confirm → the job's steps live (WS `jobs`) → the node's live view; Discovered nodes with batch adoption; failures explained by their code. A simulated adoption in demo mode.
   - Done (D-048): the demo leaves its last access point unadopted (owner's choice) and adopts it through the real job and discovery over `DemoDial`, the simulated node answering adoption's commands; the wizard is a dialog over Devices (owner's choice, `?adopt=1&host=…`, ⌘K), with failures explained and acted on by code; the Discovered card under the list (selection, batch dialog with a progress bar per device); `lib/jobs` for the `jobs` topic, `ui/Checkbox`. Tested with Vitest (105 tests), the demo's adoption in the server's tests, and Playwright adopting the demo's access point through the wizard. The owner's acceptance (4 nodes adopted, only `authorized_keys` changed) waits for their hardware.
-- [ ] **M1.9 Dev accelerators** (S) → M1.6b
+- [x] **M1.9 Dev accelerators** (S) → M1.6b
   - `just new-feature <area>` (scaffolds the files in the feature recipe) and `just arch-check` (enforces the layering rules from ARCHITECTURE.md), both wired into `just check` and CI.
+  - Done (D-050): `scripts/arch-check.sh` (crates per the table in ARCHITECTURE.md, read from the doc; pure L0 trees and sources; web import directions; in `just check` and CI, tested on fixture trees) and `scripts/new-feature.sh` (model, API, web and, with `--telemetry`, the collector and parser, wired in and compiling; tested end to end in CI by `scripts/new-feature.test.sh`). Dialog and Drawer now return focus to their opener.
 
 ## M2 — Observability ("understand your network")
 

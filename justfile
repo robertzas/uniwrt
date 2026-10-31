@@ -84,6 +84,18 @@ cross *targets=release_targets: web-build
 image tag="uniwrt:dev": cross
     docker buildx build --platform {{ platforms }} --tag {{ tag }} --load .
 
+# Scaffold a feature area (CONVENTIONS.md, Feature recipe), wired in and compiling: <area> [--path /page] [--telemetry]
+new-feature area *args:
+    @scripts/new-feature.sh {{ area }} {{ args }}
+
+# The layering rules: crate dependencies per ARCHITECTURE.md, pure L0 crates, web import directions
+arch-check:
+    @scripts/arch-check.sh
+
+# The scaffold's test: new-feature in a throwaway worktree, held to CI's checks (about a minute)
+test-new-feature:
+    @scripts/new-feature.test.sh
+
 # Regenerate docs/MAP.md
 map:
     @scripts/gen-map.sh

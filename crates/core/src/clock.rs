@@ -23,7 +23,7 @@ pub struct SystemClock;
 
 impl Clock for SystemClock {
     fn now(&self) -> Timestamp {
-        Timestamp::from_system_time(SystemTime::now())
+        Timestamp::from_system_time(SystemTime::now()) // arch-check: allow (the one wall clock)
     }
 }
 
