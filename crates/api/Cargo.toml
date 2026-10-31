@@ -24,6 +24,7 @@ uniwrt-jobs.workspace = true
 uniwrt-model = { workspace = true, features = ["ts"] }
 uniwrt-node.workspace = true
 uniwrt-store.workspace = true
+uniwrt-topo = { workspace = true, features = ["ts"] }
 zeroize.workspace = true
 
 [dev-dependencies]

@@ -19,6 +19,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::proto::ops::Set;
 use uniwrt_store::{NodeRepo as _, Store};
+use uniwrt_topo::{Member, Topology};
 
 use super::{message::ServerMessage, subs::Subscriptions};
 use crate::{Api, testing};
@@ -26,6 +27,7 @@ use crate::{Api, testing};
 #[derive(Default)]
 struct FakeFleet {
     views: Mutex<BTreeMap<NodeId, NodeView>>,
+    topology: Mutex<Arc<Topology>>,
 }
 
 impl FakeFleet {
@@ -60,6 +62,10 @@ impl Fleet for FakeFleet {
 
     fn subscribe(&self) -> broadcast::Receiver<Event> {
         broadcast::channel(1).1
+    }
+
+    fn topology(&self) -> Arc<Topology> {
+        Arc::clone(&self.topology.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }
 
@@ -386,11 +392,11 @@ async fn topics_are_replaced_and_bad_ones_refused() {
     assert_eq!(types(&out), ["fleet_snapshot", "node_snapshot"]);
     // Topics already held send no snapshot again.
     assert_eq!(h.set(&["fleet", &topic]).await, Vec::<Value>::new());
-    let out = h.set(&[&topic, "topology", "node:42"]).await;
+    let out = h.set(&[&topic, "weather", "node:42"]).await;
     assert_eq!(types(&out), ["error", "error"]);
     assert_eq!(out[0]["topic"], "node:42");
     assert_eq!(out[0]["message"], "There is no node 42");
-    assert_eq!(out[1]["topic"], "topology");
+    assert_eq!(out[1]["topic"], "weather");
     // The fleet went: its news is no longer gathered.
     h.apply(Event::Status {
         node,
@@ -424,5 +430,66 @@ async fn a_resync_snapshots_every_topic_and_drops_those_gone() {
     assert_eq!(out[0]["nodes"].as_array().unwrap().len(), 1);
     assert_eq!(out[2]["topic"], format!("node:{gone}").as_str());
     // What was pending before the resync is in the snapshot.
+    assert_eq!(h.flush(), Vec::<Value>::new());
+}
+
+/// The topology of one gateway with the canonical facts, as of `ms`.
+fn topology(ms: i64, clients: bool) -> Arc<Topology> {
+    let mut facts: NodeFacts =
+        serde_json::from_str(include_str!("../../../model/fixtures/facts/gateway.json")).unwrap();
+    facts.collected_at = Timestamp::from_unix_ms(ms);
+    if !clients {
+        facts.stations.clear();
+        facts.neighbors.clear();
+        facts.fdb.clear();
+        facts.batman.clear();
+    }
+    let member = Member {
+        id: NodeId::new(1),
+        role: NodeRole::Gateway,
+        mac: "02:00:00:00:00:01".parse().unwrap(),
+        state: NodeState::Online,
+        facts: Some(&facts),
+    };
+    Arc::new(uniwrt_topo::build(&[member], None))
+}
+
+#[tokio::test]
+async fn the_topology_topic_sends_what_changed_against_what_the_client_has() {
+    let mut h = harness().await;
+    *h.fleet.topology.lock().unwrap() = topology(1_000, true);
+    let snapshot = h.set(&["topology"]).await;
+    assert_eq!(snapshot[0]["type"], "topology_snapshot");
+    let clients = snapshot[0]["topology"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["kind"] == "client")
+        .count();
+    assert!(clients > 0);
+    assert_eq!(h.flush(), Vec::<Value>::new());
+    // Two builds between flushes: one delta, against the snapshot.
+    h.apply(Event::Topology {
+        topology: topology(2_000, true),
+    })
+    .await;
+    h.apply(Event::Topology {
+        topology: topology(3_000, false),
+    })
+    .await;
+    let delta = h.flush();
+    assert_eq!(delta.len(), 1);
+    assert_eq!(delta[0]["type"], "topology_delta");
+    let removed = delta[0]["delta"]["removed_nodes"].as_array().unwrap();
+    let gone = removed
+        .iter()
+        .filter(|id| id.as_str().unwrap().starts_with("client:"));
+    assert_eq!(gone.count(), clients);
+    assert_eq!(h.flush(), Vec::<Value>::new());
+    // A build that changes nothing sends nothing.
+    h.apply(Event::Topology {
+        topology: topology(3_000, false),
+    })
+    .await;
     assert_eq!(h.flush(), Vec::<Value>::new());
 }

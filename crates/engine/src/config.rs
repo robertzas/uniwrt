@@ -23,6 +23,9 @@ pub struct EngineConfig {
     pub roam_window: Duration,
     /// How long a request to an agent may take.
     pub request_timeout: Duration,
+    /// How long after a node's facts or status change the topology is built again; the changes
+    /// of that moment share one build.
+    pub topology_delay: Duration,
     /// Events the bus buffers for a subscriber that falls behind; it then skips ahead.
     pub bus_capacity: usize,
 }
@@ -36,6 +39,7 @@ impl Default for EngineConfig {
             refresh_delay: Duration::from_millis(500),
             roam_window: Duration::from_secs(15),
             request_timeout: Duration::from_secs(30),
+            topology_delay: Duration::from_secs(1),
             bus_capacity: 4096,
         }
     }

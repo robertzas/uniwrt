@@ -1,0 +1,25 @@
+[package]
+name = "uniwrt-topo"
+description = "uniwrt topology: the network graph that the nodes' facts describe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# TypeScript types (ts-rs) for the API's DTOs.
+ts = ["dep:ts-rs", "uniwrt-core/ts", "uniwrt-model/ts"]
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

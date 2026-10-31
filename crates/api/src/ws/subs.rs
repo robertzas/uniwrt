@@ -1,7 +1,8 @@
 //! A connection's subscriptions. Each topic answers with a snapshot when subscribed, then
 //! gathers what the bus announces about it until the next [`flush`](Subscriptions::flush),
 //! which turns it into at most one delta per topic: changes merge (a node's latest status, the
-//! union of the facts' changed parts), while events, roams and log entries queue up to a cap.
+//! union of the facts' changed parts, the topology against the one the client has), while
+//! events, roams and log entries queue up to a cap.
 
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -18,6 +19,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::proto::ops::Set;
 use uniwrt_store::NodeRepo as _;
+use uniwrt_topo::Topology;
 
 use super::{
     message::{FactsPatch, ServerMessage, TimedEvent, TimedRoam},
@@ -74,6 +76,11 @@ enum Pending {
     Jobs {
         /// The latest state of each job changed since the last flush.
         changed: BTreeMap<JobId, Arc<Job>>,
+    },
+    Topology {
+        /// The topology the client has, and the newest one announced since.
+        sent: Arc<Topology>,
+        latest: Option<Arc<Topology>>,
     },
 }
 
@@ -228,6 +235,15 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             };
             (sub(pending, None), snapshot)
         }
+        Topic::Topology => {
+            let sent = api.fleet().topology();
+            let snapshot = ServerMessage::TopologySnapshot {
+                topic,
+                topology: Arc::clone(&sent),
+            };
+            let pending = Pending::Topology { sent, latest: None };
+            (sub(pending, None), snapshot)
+        }
     })
 }
 
@@ -259,38 +275,7 @@ impl Pending {
                 sent,
                 dirty,
                 removed,
-            } => {
-                let Some(node) = event.node() else { return };
-                let known = records.contains_key(&node);
-                if !known || matches!(event, Event::Removed { .. }) {
-                    // A node adopted since the snapshot, or one the engine let go of, which
-                    // may still be adopted (it is then shown as stopped).
-                    match api.store().node(node).await {
-                        Ok(Some(record)) => {
-                            records.insert(node, record);
-                        }
-                        Ok(None) => {
-                            records.remove(&node);
-                            dirty.remove(&node);
-                            if sent.remove(&node).is_some() {
-                                removed.insert(node);
-                            }
-                            return;
-                        }
-                        Err(err) => {
-                            warn!(%err, node_id = %node, "cannot read a node for the fleet topic");
-                            return;
-                        }
-                    }
-                }
-                if matches!(
-                    event,
-                    Event::Status { .. } | Event::Facts { .. } | Event::Removed { .. }
-                ) {
-                    removed.remove(&node);
-                    dirty.insert(node);
-                }
-            }
+            } => fleet_news(api, event, records, sent, dirty, removed).await,
             Self::Node {
                 node,
                 status,
@@ -346,6 +331,11 @@ impl Pending {
                     let excess = entries.len().saturating_sub(MAX_LOG_ENTRIES);
                     entries.drain(..excess);
                     *dropped += excess as u64;
+                }
+            }
+            Self::Topology { latest, .. } => {
+                if let Event::Topology { topology } = event {
+                    *latest = Some(Arc::clone(topology));
                 }
             }
             Self::Jobs { .. } => {}
@@ -424,7 +414,55 @@ impl Pending {
                     .map(|job| (*job).clone())
                     .collect(),
             }),
+            Self::Topology { sent, latest } => {
+                let latest = latest.take()?;
+                let delta = sent.diff(&latest);
+                *sent = latest;
+                (!delta.is_empty()).then_some(ServerMessage::TopologyDelta { topic, delta })
+            }
         }
+    }
+}
+
+/// Notes what `event` changes for the `fleet` topic: a node that changed, or one adopted or
+/// let go of since the snapshot.
+async fn fleet_news(
+    api: &Api,
+    event: &Event,
+    records: &mut BTreeMap<NodeId, Node>,
+    sent: &mut BTreeMap<NodeId, NodeSummary>,
+    dirty: &mut BTreeSet<NodeId>,
+    removed: &mut BTreeSet<NodeId>,
+) {
+    let Some(node) = event.node() else { return };
+    let known = records.contains_key(&node);
+    if !known || matches!(event, Event::Removed { .. }) {
+        // A node adopted since the snapshot, or one the engine let go of, which
+        // may still be adopted (it is then shown as stopped).
+        match api.store().node(node).await {
+            Ok(Some(record)) => {
+                records.insert(node, record);
+            }
+            Ok(None) => {
+                records.remove(&node);
+                dirty.remove(&node);
+                if sent.remove(&node).is_some() {
+                    removed.insert(node);
+                }
+                return;
+            }
+            Err(err) => {
+                warn!(%err, node_id = %node, "cannot read a node for the fleet topic");
+                return;
+            }
+        }
+    }
+    if matches!(
+        event,
+        Event::Status { .. } | Event::Facts { .. } | Event::Removed { .. }
+    ) {
+        removed.remove(&node);
+        dirty.insert(node);
     }
 }
 

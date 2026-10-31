@@ -17,6 +17,7 @@ use uniwrt_model::{
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
+use uniwrt_topo::{Topology, TopologyDelta};
 
 use crate::nodes::{NodeDetail, NodeSummary};
 
@@ -84,6 +85,16 @@ pub enum ServerMessage {
     JobsDelta {
         topic: String,
         jobs: Vec<Job>,
+    },
+    /// The fleet's topology, when `topology` is subscribed and after a resync.
+    TopologySnapshot {
+        topic: String,
+        topology: Arc<Topology>,
+    },
+    /// What changed in the topology since the last message.
+    TopologyDelta {
+        topic: String,
+        delta: TopologyDelta,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

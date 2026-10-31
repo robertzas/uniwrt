@@ -19,6 +19,7 @@ use tracing::{Instrument as _, error, info_span};
 use uniwrt_core::{Clock, NodeId};
 use uniwrt_model::{facts::NodeFacts, status::NodeStatus};
 use uniwrt_node::NodeLink;
+use uniwrt_topo::Topology;
 
 use crate::{
     EngineConfig, Event, Interest, NodeView,
@@ -27,6 +28,7 @@ use crate::{
     live::Live,
     roam::RoamTracker,
     status::{self, Health},
+    topology::{self, Identity, TopologyState},
 };
 
 /// An actor that panicked starts again after this, doubling up to `RESTART_MAX`; one that ran
@@ -42,11 +44,18 @@ pub(crate) struct Context {
     pub(crate) live: Live,
     bus: broadcast::Sender<Event>,
     roams: Mutex<RoamTracker>,
+    pub(crate) topology: TopologyState,
 }
 
 impl Context {
     /// Announces an event; nobody listening is fine.
     pub(crate) fn publish(&self, event: Event) {
+        if matches!(
+            event,
+            Event::Status { .. } | Event::Facts { .. } | Event::Removed { .. }
+        ) {
+            self.topology.changed();
+        }
         let _ = self.bus.send(event);
     }
 
@@ -72,6 +81,8 @@ impl<L> Clone for Engine<L> {
 struct Inner<L> {
     ctx: Arc<Context>,
     nodes: Mutex<BTreeMap<NodeId, Entry<L>>>,
+    /// The topology's builder, started with the first node.
+    builder: Mutex<Option<Task>>,
 }
 
 struct Entry<L> {
@@ -89,19 +100,22 @@ impl<L: NodeLink> Engine<L> {
             clock,
             live: Live::default(),
             roams,
+            topology: TopologyState::default(),
         };
         Self {
             inner: Arc::new(Inner {
                 ctx: Arc::new(ctx),
                 nodes: Mutex::default(),
+                builder: Mutex::default(),
             }),
         }
     }
 
     /// Watches a node over `link`, replacing an earlier link to it (and its actor). `last` is
     /// its latest stored snapshot, shown until fresh facts arrive; without one, the facts of
-    /// the link replaced stay, as do the interests held in it.
-    pub async fn add(&self, node: NodeId, link: L, last: Option<NodeFacts>) {
+    /// the link replaced stay, as do the interests held in it. `identity` places it in the
+    /// topology.
+    pub async fn add(&self, node: NodeId, identity: Identity, link: L, last: Option<NodeFacts>) {
         let replaced = self.nodes().remove(&node);
         let interests = match replaced {
             Some(replaced) => {
@@ -122,6 +136,12 @@ impl<L: NodeLink> Engine<L> {
             reasons,
         };
         ctx.live.insert(node, NodeView { status, facts });
+        ctx.topology.identify(node, identity);
+        self.inner
+            .builder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_or_insert_with(|| Task(Some(tokio::spawn(topology::run(Arc::clone(ctx))))));
         let actor = supervise(
             Arc::clone(ctx),
             node,
@@ -150,12 +170,22 @@ impl<L: NodeLink> Engine<L> {
         let ctx = &self.inner.ctx;
         ctx.live.remove(node);
         ctx.roams().forget(node);
+        ctx.topology.forget(node);
         ctx.publish(Event::Removed { node });
         true
     }
 
     /// Stops every actor; the live state stays readable, for a last snapshot.
     pub async fn shutdown(&self) {
+        let builder = self
+            .inner
+            .builder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(builder) = builder {
+            builder.stop().await;
+        }
         let nodes = std::mem::take(&mut *self.nodes());
         for entry in nodes.into_values() {
             entry.task.stop().await;
@@ -182,6 +212,12 @@ impl<L: NodeLink> Engine<L> {
     /// so that nothing falls between.
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
         self.inner.ctx.bus.subscribe()
+    }
+
+    /// The latest topology of the fleet, built a moment after its nodes changed
+    /// ([`EngineConfig::topology_delay`]); [`Event::Topology`] announces each new one.
+    pub fn topology(&self) -> Arc<Topology> {
+        self.inner.ctx.topology.current()
     }
 
     pub fn node(&self, node: NodeId) -> Option<NodeView> {

@@ -63,7 +63,7 @@ flowchart TB
 | L1 | `node` | SSH transport (russh), agent protocol, `NodeLink` trait, embedded agent bundle | core, model |
 | L1 | `syslog` | RFC 3164/5424 receiver and parser | core |
 | L1 | `firmware` | release catalog, ASU client, image cache and verification | core, model |
-| L2 services | `engine` | node actors, telemetry ingest, live state, event bus, alerts, schedulers | L0, L1 |
+| L2 services | `engine` | node actors, telemetry ingest, live state and topology, event bus, alerts, schedulers | L0, L1 |
 | L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7); apply, upgrade, rf-apply, backup later | L0, L1 |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
@@ -137,8 +137,9 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 - State-changing requests carry `X-Uniwrt-Csrf: 1`; responses are `Cache-Control: no-store`. The `api` crate owns the routes and security headers; the server nests them under `/api`, serves the UI as the fallback, and tells the API who each client is (`Client`).
 - HTTPS serves everything (8443). Plain HTTP (8080) redirects to it, except the health check and requests from `--trusted-proxies`, which get the whole application (D-039).
 - Nodes (M1.6c): `GET /api/v1/nodes` (summaries) and `GET /api/v1/nodes/{id}` (record, status, facts). The API reaches the engine through `uniwrt_engine::Fleet`, its link-free face (D-041).
+- Topology (M2.1): `GET /api/v1/topology`, the engine's latest build (features/observability.md, Topology; D-051); the WS topic `topology` keeps it current with deltas.
 - Adoption and jobs (M1.7): `POST /api/v1/adopt/probe` (the node's host key, for the user to confirm), `POST /api/v1/adopt` (202 with the job; audited), `GET /api/v1/jobs` and `GET /api/v1/jobs/{id}` (D-042).
-- WebSocket `/api/v1/ws`: each `{"sub":["fleet","node:<id>","logs?node=<id>&min=warning","jobs"]}` replaces the connection's topics (`topology` comes with M2.1). The server answers each new topic with a snapshot, then deltas merged per topic and flushed at most every 100 ms; messages are tagged by `type` and name their topic. Holding `node:<id>` raises that node's telemetry rate (adaptive polling). The upgrade is a GET over HTTP/1.1 and an extended CONNECT over HTTP/2 (RFC 8441); it needs a session and our `Origin`, and the connection closes with 4401 when the session ends (D-041).
+- WebSocket `/api/v1/ws`: each `{"sub":["fleet","node:<id>","logs?node=<id>&min=warning","jobs","topology"]}` replaces the connection's topics. The server answers each new topic with a snapshot, then deltas merged per topic and flushed at most every 100 ms; messages are tagged by `type` and name their topic. Holding `node:<id>` raises that node's telemetry rate (adaptive polling). The upgrade is a GET over HTTP/1.1 and an extended CONNECT over HTTP/2 (RFC 8441); it needs a session and our `Origin`, and the connection closes with 4401 when the session ends (D-041).
 - Types: Rust DTOs derive `TS` with `#[ts(export)]`, and `cargo test` (or `just gen`) writes them and the types they use to `web/src/api/gen/`. The `core` and `model` types derive `TS` behind their `ts` feature, which only `api` enables. JSON keeps the Rust field names (snake_case).
 
 ## Performance budgets

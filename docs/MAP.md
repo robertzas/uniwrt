@@ -32,13 +32,14 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
+- `src/topology.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
 - `src/ws/subs.rs`: A connection's subscriptions.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order) and `jobs`.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order), `jobs` and `topology`.
 
 ### `uniwrt-core` (crates/core)
 
@@ -52,7 +53,7 @@ Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and t
 
 ### `uniwrt-engine` (crates/engine)
 
-The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
+The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 
 - `src/actor/jobs.rs`: The requests an actor sends its agent, one at a time so a node that serves requests one at a time is never asked twice at once: a queue of [`Job`]s, the one running, and its [`Outcome`].
 - `src/actor/mod.rs`: [`NodeActor`]: one task per node.
@@ -63,13 +64,15 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
 - `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
-- `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
+- `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
 - `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
 - `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
 - `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
 - `src/status.rs`: A node's status (`model::status`) from its link's state and the health of its telemetry.
 - `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
+- `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed.
+- `src/topology_tests.rs`: The topology of the hwsim lab's captures (TESTING.md, Wi-Fi lab): node a (the gateway, 25.12) and node b (an access point, 24.10) meshed over 802.11s and a wired backhaul (`bh0`) with batman-adv over both; client c on a's 2g AP (`…:04:00`) and b's 5g AP (`…:05:00`).
 - `tests/agent.rs`: The engine watching real OpenWrt (TESTING.md, Agent): an actor over an SSH link to the agent, in both loop modes.
 
 ### `uniwrt-jobs` (crates/jobs)
@@ -228,7 +231,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/world/radio.rs`: Radio arithmetic: bands and channels, indoor path loss, and the rates a signal-to-noise ratio buys (MCS tables of 802.11n, ac and ax).
 - `src/world/tests.rs`: The world's dynamics over simulated hours: determinism, roaming, leaving, reboots.
 - `src/world/traffic.rs`: Traffic: what each client downloads and uploads per second (bursty, capped by its link), the retries a weak signal costs, and the counters it moves on its access point's radio, its uplink and the gateway's WAN port.
-- `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back.
+- `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 
 ### `uniwrt-store` (crates/store)
 
@@ -257,6 +260,29 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
 - `src/vault/tests.rs`: The vault over a real database: sealing, resealing the stub's rows and refusing a wrong key.
 - `src/writer.rs`: The writer: one thread owns the only write connection and commits queued operations in batches.
+
+### `uniwrt-topo` (crates/topo)
+
+The topology: the network graph that the adopted nodes' facts describe.
+
+- `src/clients.rs`: Who clients are (names and addresses from the DHCP leases and the neighbor caches), and the last way to place one: a node that has it in its neighbor cache, off its uplink.
+- `src/diff.rs`: What changed between two builds, by id: the WS topic sends it instead of the whole graph.
+- `src/fleet.rs`: Who is who: the adopted nodes ([`Member`]s) in build order, the MAC addresses each one owns, the vertex ids, and lookups in a node's facts.
+- `src/graph.rs`: The topology graph: what [`build`](crate::build) returns, the API serves and the WS topic `topology` keeps current.
+- `src/lib.rs`: The topology: the network graph that the adopted nodes' facts describe.
+- `src/links.rs`: The graph while it is built: vertices by id, and links by key, each merged from every end that reports it.
+- `src/mesh.rs`: The mesh: 802.11s peer links and batman-adv neighbors (over Wi-Fi a mesh link, over Ethernet a wired one), batman-adv's best paths toward the gateway, and the clients its translation tables place.
+- `src/quality.rs`: Link quality on one 0–100 scale, whatever measures it, and traffic rates between builds.
+- `src/tests/build.rs`: A whole build: the WAN, the fallback to neighbor caches, traffic rates between builds, deltas, and determinism.
+- `src/tests/mesh.rs`: The mesh: 802.11s and batman-adv links merged, batman-adv's best paths, peers that are not adopted, and the clients the translation tables place.
+- `src/tests/mod.rs`: Topologies of scenarios built in code (`scenario.rs`), one file per source of links.
+- `src/tests/scenario.rs`: Facts built in code, as small as each case needs.
+- `src/tests/wifi.rs`: Wi-Fi clients at their access point, and a bridge at the access point it is a station of.
+- `src/tests/wired.rs`: Wired links from the bridges' forwarding databases: cables, daisy chains, unmanaged switches.
+- `src/tree.rs`: Finishing a build: the tree view (the cheapest path from the roots to every vertex, where batman-adv's best paths, wires and a WAN are cheap and links that are down dear), every edge oriented downstream, and traffic rates against the previous build.
+- `src/wan.rs`: The internet and each gateway's links to it: its interfaces with a default route, or named like OpenWrt's WAN (`wan`, `wan6`, `wanb`), one link per device beneath them.
+- `src/wifi.rs`: Wi-Fi: each client at the access point it is associated with (the one it used last, while it roams), and nodes that are another node's stations (a bridge's uplink).
+- `src/wired.rs`: Wired links from the bridges' forwarding databases.
 
 ## Node agent (`node-agent`)
 
@@ -290,7 +316,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (99 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (106 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx

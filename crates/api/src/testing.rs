@@ -171,7 +171,14 @@ impl Demo {
                 })
                 .await
                 .unwrap();
-            engine.add(adopted.id, sim.link(index).unwrap(), None).await;
+            engine
+                .add(
+                    adopted.id,
+                    (&adopted).into(),
+                    sim.link(index).unwrap(),
+                    None,
+                )
+                .await;
             ids.push(adopted.id);
         }
         let fleet = Arc::new(engine.clone());

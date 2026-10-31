@@ -153,7 +153,7 @@ mod tests {
         let engine = Engine::new(EngineConfig::default(), clock.clone());
         let mut bus = engine.subscribe();
         let (link, script) = testing::link();
-        engine.add(node.id, link, None).await;
+        engine.add(node.id, (&node).into(), link, None).await;
         let snapshots = Snapshots::spawn(&engine, store.clone(), Duration::from_millis(20));
         script.set_state(running(hello(true)));
         let first = facts_event(&mut bus).await;

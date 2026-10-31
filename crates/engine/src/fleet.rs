@@ -1,13 +1,16 @@
 //! [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one
 //! `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 
+use std::sync::Arc;
+
 use tokio::sync::broadcast;
 use uniwrt_core::NodeId;
 use uniwrt_node::NodeLink;
+use uniwrt_topo::Topology;
 
 use crate::{Engine, Event, Interest, NodeView};
 
-/// The engine's link-free face: the live state, the bus and interest.
+/// The engine's link-free face: the live state, the topology, the bus and interest.
 pub trait Fleet: Send + Sync + 'static {
     /// See [`Engine::all`].
     fn all(&self) -> Vec<(NodeId, NodeView)>;
@@ -19,6 +22,8 @@ pub trait Fleet: Send + Sync + 'static {
     fn follow_logs(&self, node: NodeId) -> Option<Interest>;
     /// See [`Engine::subscribe`].
     fn subscribe(&self) -> broadcast::Receiver<Event>;
+    /// See [`Engine::topology`].
+    fn topology(&self) -> Arc<Topology>;
 }
 
 impl<L: NodeLink> Fleet for Engine<L> {
@@ -40,5 +45,9 @@ impl<L: NodeLink> Fleet for Engine<L> {
 
     fn subscribe(&self) -> broadcast::Receiver<Event> {
         Self::subscribe(self)
+    }
+
+    fn topology(&self) -> Arc<Topology> {
+        Self::topology(self)
     }
 }

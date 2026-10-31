@@ -53,7 +53,9 @@ impl Fleet {
                         warn!(node_id = %id, %err, "cannot read the node's last facts");
                         None
                     });
-                    engine.add(id, FleetLink::Ssh(link), last).await;
+                    engine
+                        .add(id, (&node).into(), FleetLink::Ssh(link), last)
+                        .await;
                 }
                 Err(err) => warn!(node_id = %id, "not watching the node: {err:#}"),
             }
@@ -91,7 +93,9 @@ impl Fleet {
                 .await
                 .context("cannot adopt a simulated node")?;
             let link = sim.link(index).context("a simulated node has no link")?;
-            engine.add(adopted.id, FleetLink::Sim(link), None).await;
+            engine
+                .add(adopted.id, (&adopted).into(), FleetLink::Sim(link), None)
+                .await;
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
         Ok(Self {
@@ -179,7 +183,9 @@ impl Watch for Watcher {
                 Some(link) => FleetLink::Sim(link),
                 None => FleetLink::Ssh(ssh_link(&node, host_key, &self.key, &self.clock)),
             };
-            self.engine.add(node.id, link, Some(facts)).await;
+            self.engine
+                .add(node.id, (&node).into(), link, Some(facts))
+                .await;
         })
     }
 }

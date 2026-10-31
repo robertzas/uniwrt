@@ -1,23 +1,28 @@
 //! The engine over the simulated fleet, on tokio's paused clock: the nodes come online with
 //! their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a
-//! rebooted access point goes offline and comes back.
+//! rebooted access point goes offline and comes back; the topology is the simulated house.
 
 use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::broadcast, time::Instant};
 use uniwrt_core::{NodeId, SystemClock};
-use uniwrt_engine::{Engine, EngineConfig, Event};
+use uniwrt_engine::{Engine, EngineConfig, Event, Identity};
 use uniwrt_model::status::NodeState;
 use uniwrt_sim::{SimConfig, SimFleet, SimLink};
+use uniwrt_topo::{Medium, TopoKind};
 
 async fn start(config: &SimConfig) -> (SimFleet, Engine<SimLink>, broadcast::Receiver<Event>) {
     let clock = Arc::new(SystemClock);
     let fleet = SimFleet::spawn(config, clock.as_ref());
     let engine = Engine::new(EngineConfig::default(), clock);
     let events = engine.subscribe();
-    for index in 0..fleet.nodes().len() {
+    for (index, node) in fleet.nodes().iter().enumerate() {
         let link = fleet.link(index).expect("a link per node");
-        engine.add(id(index), link, None).await;
+        let identity = Identity {
+            role: node.role,
+            mac: node.mac,
+        };
+        engine.add(id(index), identity, link, None).await;
     }
     (fleet, engine, events)
 }
@@ -113,4 +118,84 @@ async fn roams_logs_and_a_reboot_reach_the_bus() {
         facts.system.uptime_s
     );
     engine.shutdown().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_topology_is_the_house() {
+    let (_fleet, engine, mut events) = start(&SimConfig {
+        reboot_every: None,
+        ..SimConfig::default()
+    })
+    .await;
+    until(Duration::from_secs(10), || {
+        (0..4).all(|index| state(&engine, index) == NodeState::Online)
+    })
+    .await;
+    tokio::time::sleep(Duration::from_secs(40)).await;
+    let topology = engine.topology();
+    let announced = loop {
+        match events.try_recv() {
+            Ok(Event::Topology { topology }) => break Some(topology),
+            Ok(_) | Err(broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(_) => break None,
+        }
+    };
+    assert!(announced.is_some(), "the topology is announced");
+    let vertex = |id: &str| topology.nodes.iter().find(|node| node.id == id).unwrap();
+    assert_eq!(vertex("node:1").parent.as_deref(), Some("internet"));
+    let wan = topology
+        .edges
+        .iter()
+        .find(|edge| edge.medium == Medium::Wan)
+        .unwrap();
+    assert!(wan.up && wan.traffic.is_some(), "{wan:?}");
+    // One access point by wire, the others over the mesh, all in the tree.
+    let wired = topology.edges.iter().filter(|edge| {
+        edge.medium == Medium::Ethernet && edge.a == "node:1" && edge.b.starts_with("node:")
+    });
+    assert_eq!(wired.count(), 1);
+    for ap in ["node:2", "node:3", "node:4"] {
+        let parent = vertex(ap).parent.clone().unwrap_or_default();
+        assert!(parent.starts_with("node:"), "{ap} hangs from {parent:?}");
+    }
+    // Every Wi-Fi client is one vertex, at an access point it is associated with.
+    let mut stations = std::collections::BTreeMap::<String, Vec<String>>::new();
+    for (node, view) in engine.all() {
+        for station in &view.facts.unwrap().stations {
+            if station.peer_link.is_none() {
+                let client = format!("client:{}", station.mac);
+                stations
+                    .entry(client)
+                    .or_default()
+                    .push(format!("node:{node}"));
+            }
+        }
+    }
+    let clients: Vec<_> = topology
+        .nodes
+        .iter()
+        .filter(|node| node.kind == TopoKind::Client)
+        .collect();
+    for (client, aps) in &stations {
+        let parent = vertex(client).parent.clone().unwrap_or_default();
+        assert!(
+            aps.contains(&parent),
+            "{client} at {parent}, associated with {aps:?}"
+        );
+    }
+    let wired_clients = clients.len() - stations.len();
+    assert!(wired_clients >= 1, "the desktop and the NAS are wired");
+    for client in clients {
+        let edges = topology
+            .edges
+            .iter()
+            .filter(|edge| edge.b == client.id || edge.a == client.id);
+        assert_eq!(edges.count(), 1, "{}", client.id);
+    }
+    assert!(
+        !topology
+            .nodes
+            .iter()
+            .any(|node| matches!(node.kind, TopoKind::Switch | TopoKind::Peer))
+    );
 }

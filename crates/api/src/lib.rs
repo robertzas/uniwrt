@@ -12,10 +12,10 @@
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
-//!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]` and `v1/ws` (the hub: GET, or
-//!   CONNECT over HTTP/2; topics `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>`, `jobs`,
-//!   see `ws`). Handlers that need
-//!   a user take [`CurrentUser`].
+//!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology` and `v1/ws`
+//!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
+//!   `logs?node=<id>&min=<severity>`, `jobs`, `topology`, see `ws`). Handlers that need a user
+//!   take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
 //!   a time; unknown users cost the same as wrong passwords. Logins are throttled per client and
@@ -26,7 +26,7 @@
 //!   `Origin` ([`security`]). API responses are never cached. Errors never leak internals: a 500
 //!   says to read the log, which has the cause. Passwords and tokens are zeroized and never logged.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (with `ts`), `uniwrt-store`, `uniwrt-engine`
-//!   (`Fleet`, its events), `uniwrt-node` (collect sets), axum (with `ws`), argon2, ring
+//!   (`Fleet`, its events), `uniwrt-node` (collect sets), `uniwrt-topo` (with `ts`), axum (with `ws`), argon2, ring
 //!   (tokens, salts, digests), ts-rs for the DTOs (`web/src/api/gen`).
 //! - **Tests:** unit tests per module; `auth/tests.rs` drives the router with
 //!   `tower::ServiceExt::oneshot` over a temporary store, on tokio's paused clock where time
@@ -47,6 +47,7 @@ mod state;
 #[cfg(test)]
 mod testing;
 mod tls;
+mod topology;
 mod ws;
 
 use axum::{
@@ -86,6 +87,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/discovered", get(discovered::list))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
+        .route("/v1/topology", get(topology::get))
         // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).
         .route("/v1/ws", get(ws::upgrade).connect(ws::upgrade))
         .fallback(problem::not_found)

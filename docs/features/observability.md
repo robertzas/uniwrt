@@ -35,14 +35,20 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 
 ## Topology [M2.1–M2.2]
 
-The graph builder (`topo` crate, pure) works on these elements:
-- **Nodes:** the internet, the gateway, APs, inferred unmanaged switches, and clients.
-- **Wired edges:** from LLDP, from the bridge-FDB port where a node's MAC was learned, or from a batman neighbor heard on an Ethernet hard interface. When several node or client MACs share one port, an unmanaged switch is inferred there.
-- **Mesh edges:** batman neighbors on mesh hard interfaces, plus 802.11s station stats.
-- **Client edges:** the association list; the FDB port plus the batman translation table; names and IPs from DHCP.
+The graph builder (`topo` crate, pure; D-051) works on these elements:
+- **Nodes:** the internet, the gateway, APs and bridges, inferred unmanaged switches, mesh peers that are not adopted, and clients. Ids are stable across builds: `internet`, `node:<id>`, `switch:<node id>:<port>`, `peer:<mac>`, `client:<mac>`.
+- **WAN edges:** the gateway's interfaces with a default route, or named `wan*`, one edge per device beneath them (`wan` and `wan6` on `eth1` are one link).
+- **Wired edges:** from the bridge-FDB port where a node's MAC was learned, or from a batman neighbor heard on an Ethernet hard interface (LLDP once its collector exists). Of what a port sees, whatever another node there has on a port other than its port toward this node is behind that node; the rest share the port's segment. Segments that name each other are one: two ends make a cable, more an unmanaged switch. Wi-Fi and mesh clients don't count, so an AP's clients never make a switch.
+- **Mesh edges:** 802.11s peer links (established ones, and the others to adopted nodes, shown down) and batman neighbors on Wi-Fi hard interfaces, merged per pair and band, with the weaker end's signal and TQ.
+- **Wi-Fi edges:** each client at the AP it is associated with (the most recently active one while it roams); a bridge at the AP its station interface is associated with.
+- **Clients left:** the batman translation tables (behind a peer that is not adopted, or a node without facts), then the neighbor caches off each node's uplink. Names and IPs come from DHCP leases (the gateway's first) and neighbor caches.
+- **Per edge:** the ports at both ends, up or down, band and SSID, signal, TQ, capacity (Ethernet speed, expected throughput, batman throughput), quality 0–100 (signal: −90 dBm is 0, −50 dBm is 100; TQ as a share), and traffic from one end's counters with rates against the previous build.
+- **Tree:** the cheapest paths from the internet (a gateway that doesn't reach it is a root of its own): batman's best path toward the gateway and the WAN cost 1, Ethernet 2, Wi-Fi 3, other mesh links 6, a link that is down 1,000 more. Edges point downstream (`a` is upstream).
+
+**Delivery:** the engine builds the topology 1 s after a node's facts or status change, `GET /api/v1/topology` returns it, and the WS topic `topology` sends it as a snapshot, then as deltas (the vertices and edges new or changed, and the ids gone) against what the client has.
 
 **Views:**
-- **Tree:** rooted at the gateway, following batman best paths.
+- **Tree:** rooted at the internet, following batman best paths (each vertex's `parent`, `uplink` and `hops`).
 - **RF/mesh:** every mesh link, colored by quality.
 - **Clients:** APs with client clusters that expand and collapse.
 

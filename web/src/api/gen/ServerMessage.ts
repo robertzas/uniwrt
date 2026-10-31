@@ -8,6 +8,8 @@ import type { NodeStatus } from "./NodeStatus";
 import type { NodeSummary } from "./NodeSummary";
 import type { TimedEvent } from "./TimedEvent";
 import type { TimedRoam } from "./TimedRoam";
+import type { Topology } from "./Topology";
+import type { TopologyDelta } from "./TopologyDelta";
 
 export type ServerMessage = { "type": "fleet_snapshot", topic: string, nodes: Array<NodeSummary>, } | { "type": "fleet_delta", topic: string, nodes: Array<NodeSummary>, removed: Array<NodeId>, } | { "type": "node_snapshot", topic: string, node: NodeDetail, } | { "type": "node_delta", topic: string, status?: NodeStatus, facts?: FactsPatch, events: Array<TimedEvent>, 
 /**
@@ -17,4 +19,4 @@ roams: Array<TimedRoam>,
 /**
  * The controller stopped watching the node.
  */
-removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<LogEntry>, } | { "type": "log_delta", topic: string, entries: Array<LogEntry>, dropped: number, } | { "type": "jobs_snapshot", topic: string, jobs: Array<Job>, } | { "type": "jobs_delta", topic: string, jobs: Array<Job>, } | { "type": "error", topic: string | null, message: string, };
+removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<LogEntry>, } | { "type": "log_delta", topic: string, entries: Array<LogEntry>, dropped: number, } | { "type": "jobs_snapshot", topic: string, jobs: Array<Job>, } | { "type": "jobs_delta", topic: string, jobs: Array<Job>, } | { "type": "topology_snapshot", topic: string, topology: Topology, } | { "type": "topology_delta", topic: string, delta: TopologyDelta, } | { "type": "error", topic: string | null, message: string, };

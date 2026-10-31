@@ -15,6 +15,7 @@ uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-store.workspace = true
+uniwrt-topo.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true

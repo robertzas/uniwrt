@@ -1,10 +1,12 @@
-//! The engine: an actor per node over its `NodeLink`, the live state of the fleet, the event
-//! bus, telemetry intervals that follow interest, snapshots, and each node's status.
+//! The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology,
+//! the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 //!
-//! - **API:** [`Engine`] ([`add`](Engine::add) a node with its link, [`remove`](Engine::remove)
+//! - **API:** [`Engine`] ([`add`](Engine::add) a node with its [`Identity`] (role and adoption
+//!   MAC) and link, [`remove`](Engine::remove)
 //!   it, read it with [`node`](Engine::node) and [`all`](Engine::all) as [`NodeView`]s, take its
 //!   [`link`](Engine::link) for requests of one's own, [`subscribe`](Engine::subscribe) to the
-//!   bus's [`Event`]s); [`Fleet`], its link-free face for the API (`Arc<dyn Fleet>`);
+//!   bus's [`Event`]s, read the [`topology`](Engine::topology)); [`Fleet`], its link-free face
+//!   for the API (`Arc<dyn Fleet>`);
 //!   [`Interest`] guards from [`Engine::focus`] (fast intervals while the UI has the node open)
 //!   and [`Engine::follow_logs`] (the node's log, as [`Event::Log`]);
 //!   [`EngineConfig`] with the [`Intervals`] of each collect set; [`Snapshots`] (the latest facts
@@ -15,6 +17,9 @@
 //!   event loop, or one that refuses ticks, is polled with `collect` instead. A pushed event is
 //!   announced at once and collects the set it touches again after a short delay. Roams are
 //!   inferred across nodes from station events ([`uniwrt_model::event::Roam`]).
+//! - **Topology** (`uniwrt_topo`): built again from the live state 1 s after a node's facts or
+//!   status change (the changes of that second share one build), against the previous build for
+//!   traffic rates, and announced as [`Event::Topology`] when it changed.
 //! - **Status** (`model::status`): offline while the link is not up (connecting, unreachable,
 //!   quarantined), degraded while the agent is not running or its telemetry is partial (failed
 //!   sets or requests) or late (none for three of its fastest intervals, at least 30 s: the
@@ -24,11 +29,11 @@
 //!   removed node's actor has stopped before [`Engine::remove`] returns. Timers use tokio's
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
-//!   parsers), `uniwrt-store` (`FactsRepo`), tokio, tracing.
+//!   parsers), `uniwrt-store` (`FactsRepo`), `uniwrt-topo`, tokio, tracing.
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
 //!   `actor/tests.rs` drives actors over a scripted link (`testing.rs`) with tokio's paused
-//!   clock, answering collects with the hwsim lab's capture (`cargo nextest run -p
-//!   uniwrt-engine`).
+//!   clock, answering collects with the hwsim lab's capture; `topology_tests.rs` builds the
+//!   topology of the lab's captures (`cargo nextest run -p uniwrt-engine`).
 
 mod actor;
 mod bus;
@@ -43,6 +48,7 @@ mod snapshots;
 mod status;
 #[cfg(test)]
 mod testing;
+mod topology;
 
 pub use bus::Event;
 pub use config::EngineConfig;
@@ -52,3 +58,4 @@ pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
+pub use topology::Identity;

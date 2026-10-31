@@ -1,8 +1,8 @@
 # Status
 
 **Milestone:** M2 — Observability (M1 is done; the owner's acceptance of M1.7b/M1.8b waits for their hardware)
-**Next WP:** M2.1 — Topology engine (read ROADMAP M2; docs/features/observability.md "Topology"; ARCHITECTURE.md "Crates and layering"; docs/dev/CONVENTIONS.md "Feature recipe"). The `topo` crate is new: add it to ARCHITECTURE.md's table, which `just arch-check` reads.
-**Last done:** M1.9 — `just arch-check` and `just new-feature` (2026-10-30)
+**Next WP:** M2.2 — Topology view (L; read ROADMAP M2; docs/features/observability.md "Topology"; docs/features/ui.md "Signature visualizations" and "Performance budgets"; docs/dev/CONVENTIONS.md "TypeScript / Solid"). The data is ready: `GET v1/topology` and the WS topic `topology` (snapshot, then `TopologyDelta`s to apply by id), types in `web/src/api/gen/Topo*.ts`. Vertices carry `parent`/`uplink`/`hops` for the tree view, edges `a` (upstream) → `b`, quality 0–100, capacity and traffic rates. Node names: join `node` ids with the `fleet` store. Likely an L: split it (canvas + worker layout, then views/replay) when starting.
+**Last done:** M2.1 — the topology engine (2026-10-30)
 
 ## Open questions for the owner
 
@@ -22,8 +22,8 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
+- 2026-10-30 — M2.1 done: pure `topo` crate (WAN, FDB segments and inferred switches, 802.11s/batman mesh, Wi-Fi, translation tables, neighbor-cache fallback; tree by cheapest path; rates; diff/apply), rebuilt by the engine 1 s after changes (`Engine::add` takes an `Identity`), `GET v1/topology` and WS `topology`. Tested on scenarios, the hwsim captures and the simulated house. D-051. Dependabot's tokio-tungstenite 0.30 stays held (axum 0.8.9, D-049).
 - 2026-10-30 — M1.9 done: `just arch-check` (crates from ARCHITECTURE.md's table, pure L0, web import directions) and `just new-feature` (tested in CI); Dialog and Drawer return focus to their opener. D-050. Before it, the owner's version sweep with no cooldown (D-049): crates, npm, tools, actions and ubuntu-26.04; CI green, v0.18.0.
 - 2026-10-30 — M1.8b done: wizard dialog over Devices (`?adopt=1`), Discovered card and batch dialog, failures acted on by code; the demo leaves its last AP unadopted and adopts it through the real job over `DemoDial` (owner's choices). D-048. M1 is complete but M1.9.
 - 2026-10-30 — M1.8c done: sign-in gate, live socket and stores, Devices list and overview, ⌘K devices, Playwright e2e job gating the image. D-047.
 - 2026-10-30 — M1.8 done: Solid 2 RC (router 2, query 6, Kobalte 2 patched; D-045), three skins chosen per browser (D-046), primitives, shell, ⌘K, gallery. Split: M1.8c (sign-in, live devices).
-- 2026-10-30 — M1.7b done: `GET v1/discovered` (leases, LAN neighbors and batman, probed by SSH banner and host key), `POST v1/adopt/batch`, at most 4 adoptions at once. D-044.

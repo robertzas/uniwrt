@@ -20,7 +20,7 @@ use uniwrt_node::{AgentState, Error, LinkState, proto::ops::Set};
 
 use crate::{
     Engine, EngineConfig, Event,
-    testing::{self, Script, SharedLink, collected, hello, running},
+    testing::{self, Script, SharedLink, collected, hello, identity, running},
 };
 
 const NODE: NodeId = NodeId::new(1);
@@ -51,7 +51,7 @@ impl Fleet {
     /// Adds a node whose agent runs, with an event loop or without.
     async fn node(&self, node: NodeId, events: bool) -> Script {
         let (link, script) = testing::link();
-        self.engine.add(node, link, None).await;
+        self.engine.add(node, identity(), link, None).await;
         script.set_state(running(hello(events)));
         script
     }
@@ -263,7 +263,7 @@ async fn an_agent_without_an_event_loop_is_polled() {
 async fn link_states_become_statuses() {
     let mut fleet = Fleet::new();
     let (link, script) = testing::link();
-    fleet.engine.add(NODE, link, None).await;
+    fleet.engine.add(NODE, identity(), link, None).await;
     let connecting = fleet.status(NODE).await;
     assert_eq!(
         (connecting.state, connecting.reasons),
@@ -338,7 +338,7 @@ async fn failing_sets_degrade_the_node_until_they_are_collected() {
             Ok(answer)
         })
     });
-    fleet.engine.add(NODE, link, None).await;
+    fleet.engine.add(NODE, identity(), link, None).await;
     script.set_state(running(hello(true)));
     let degraded = fleet.status_of(NODE, NodeState::Degraded).await;
     assert_eq!(
@@ -366,7 +366,7 @@ async fn an_agent_that_refuses_ticks_is_polled() {
             })
         })
     });
-    fleet.engine.add(NODE, link, None).await;
+    fleet.engine.add(NODE, identity(), link, None).await;
     script.set_state(running(hello(true)));
     let degraded = fleet.status_of(NODE, NodeState::Degraded).await;
     assert_eq!(
@@ -465,7 +465,7 @@ async fn an_actor_that_panics_starts_again() {
         );
         None
     });
-    fleet.engine.add(NODE, link, None).await;
+    fleet.engine.add(NODE, identity(), link, None).await;
     script.set_state(running(hello(true)));
     assert_eq!(script.call_of("collect").await.op, "collect");
     // The new actor finds the agent running and starts over.
@@ -484,7 +484,7 @@ async fn a_replaced_link_keeps_the_facts_and_the_interests() {
     assert_eq!(schedule(&mut script, 6).await[0].0, 2_000);
     // An admin re-trusted the node: a new link replaces the old one.
     let (link, mut replacement) = testing::link();
-    fleet.engine.add(NODE, link, None).await;
+    fleet.engine.add(NODE, identity(), link, None).await;
     assert!(fleet.engine.node(NODE).unwrap().facts.is_some());
     replacement.set_state(running(hello(true)));
     assert_eq!(replacement.call().await.op, "subscribe");

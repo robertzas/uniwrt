@@ -13,7 +13,7 @@ Adopt, configure, visualize, troubleshoot and upgrade every OpenWrt router in yo
 </div>
 
 > [!NOTE]
-> **Status: early development.** The plan is complete and the foundation (M0) is being built. Track progress in [docs/STATUS.md](docs/STATUS.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: early development.** The foundation (M0) and read-only adoption (M1) are done; observability (M2) is under way. Track progress in [docs/STATUS.md](docs/STATUS.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Why
 

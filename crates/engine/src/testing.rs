@@ -9,7 +9,8 @@ use std::{
 use bytes::Bytes;
 use serde_json::{Value, json, value::RawValue};
 use tokio::sync::{broadcast, mpsc, watch};
-use uniwrt_core::Timestamp;
+use uniwrt_core::{MacAddr, Timestamp};
+use uniwrt_model::node::NodeRole;
 use uniwrt_node::{
     AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, Hello, LinkState, NodeLink,
     Result,
@@ -18,6 +19,8 @@ use uniwrt_node::{
         ops::{Set, Topic},
     },
 };
+
+use crate::Identity;
 
 /// The lab gateway's collect answer, every set.
 static CAPTURE: LazyLock<Value> = LazyLock::new(|| {
@@ -68,6 +71,14 @@ pub(crate) fn link() -> (SharedLink, Script) {
 }
 
 /// The agent's hello: every set and, with `events`, every topic.
+/// An access point, as the topology knows it.
+pub(crate) const fn identity() -> Identity {
+    Identity {
+        role: NodeRole::Ap,
+        mac: MacAddr::new([2, 0, 0, 0, 0, 1]),
+    }
+}
+
 pub(crate) fn hello(events: bool) -> Hello {
     Hello {
         proto: 1,

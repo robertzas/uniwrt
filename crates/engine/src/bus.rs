@@ -11,6 +11,7 @@ use uniwrt_model::{
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
+use uniwrt_topo::Topology;
 
 /// One announcement. Clones are cheap: facts and log batches are shared.
 #[derive(Debug, Clone)]
@@ -44,10 +45,12 @@ pub enum Event {
     },
     /// The engine stopped watching a node.
     Removed { node: NodeId },
+    /// The topology changed ([`Engine::topology`](crate::Engine::topology)).
+    Topology { topology: Arc<Topology> },
 }
 
 impl Event {
-    /// The node it is about; `None` for a roam, which is about two.
+    /// The node it is about; `None` for a roam, which is about two, and the topology.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -55,7 +58,7 @@ impl Event {
             | Self::Node { node, .. }
             | Self::Log { node, .. }
             | Self::Removed { node } => Some(*node),
-            Self::Roam { .. } => None,
+            Self::Roam { .. } | Self::Topology { .. } => None,
         }
     }
 }

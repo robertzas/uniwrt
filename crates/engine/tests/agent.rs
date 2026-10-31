@@ -12,12 +12,17 @@ use std::{env, sync::Arc, time::Duration};
 
 use openwrt::{adopt, link, run};
 use tokio::sync::broadcast;
+use uniwrt_core::MacAddr;
 use uniwrt_core::{NodeId, SystemClock};
-use uniwrt_engine::{Engine, EngineConfig, Event};
-use uniwrt_model::status::NodeState;
+use uniwrt_engine::{Engine, EngineConfig, Event, Identity};
+use uniwrt_model::{node::NodeRole, status::NodeState};
 use uniwrt_node::{AgentLaunch, proto::ops::Set};
 
 const NODE: NodeId = NodeId::new(1);
+const IDENTITY: Identity = Identity {
+    role: NodeRole::Gateway,
+    mac: MacAddr::new([2, 0, 0, 0, 0, 1]),
+};
 
 /// Waits up to `limit` for the first event that `want` picks.
 async fn next<T>(
@@ -44,7 +49,7 @@ async fn the_engine_watches_a_node_and_speeds_up_while_focused() {
     let (link, hello) = link(&node, AgentLaunch::Bundle).await;
     let engine = Engine::new(EngineConfig::default(), Arc::new(SystemClock));
     let mut bus = engine.subscribe();
-    engine.add(NODE, link, None).await;
+    engine.add(NODE, IDENTITY, link, None).await;
 
     let facts = next(&mut bus, Duration::from_secs(20), |event| match event {
         Event::Facts { facts, .. } => Some(facts),

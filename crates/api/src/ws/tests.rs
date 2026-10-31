@@ -200,13 +200,13 @@ async fn topics_answer_with_a_snapshot_then_deltas_and_hold_focus() {
     sub(&mut ws, &["fleet"]).await;
     interests_become(&demo, gateway, Interests::default()).await;
 
-    sub(&mut ws, &["fleet", "topology", "node:999"]).await;
+    sub(&mut ws, &["fleet", "weather", "node:999"]).await;
     let errors = [
         until(&mut ws, |message| message["type"] == "error").await,
         next(&mut ws).await,
     ];
     assert_eq!(errors[0]["topic"], "node:999");
-    assert_eq!(errors[1]["topic"], "topology");
+    assert_eq!(errors[1]["topic"], "weather");
     ws.send(Message::text("hello")).await.unwrap();
     let error = until(&mut ws, |message| message["type"] == "error").await;
     assert_eq!(error["topic"], Value::Null);

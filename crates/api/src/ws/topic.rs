@@ -1,5 +1,6 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min`
-//! is optional: every entry by default; the parameters may come in any order) and `jobs`.
+//! is optional: every entry by default; the parameters may come in any order), `jobs` and
+//! `topology`.
 
 use std::fmt;
 
@@ -19,6 +20,8 @@ pub(crate) enum Topic {
     Logs { node: NodeId, min: Severity },
     /// The latest jobs, and every change to a job.
     Jobs,
+    /// The fleet's topology, then what changes in it.
+    Topology,
 }
 
 /// Why a topic name is refused.
@@ -42,6 +45,9 @@ impl Topic {
         if name == "jobs" {
             return Ok(Self::Jobs);
         }
+        if name == "topology" {
+            return Ok(Self::Topology);
+        }
         if let Some(id) = name.strip_prefix("node:") {
             return node_id(id).map(Self::Node);
         }
@@ -49,7 +55,8 @@ impl Topic {
             return logs(query);
         }
         Err(BadTopic(format!(
-            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity> or jobs"
+            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, jobs or \
+             topology"
         )))
     }
 }
@@ -94,6 +101,7 @@ mod tests {
     #[test]
     fn parses_each_kind() {
         assert_eq!(Topic::parse("fleet"), Ok(Topic::Fleet));
+        assert_eq!(Topic::parse("topology"), Ok(Topic::Topology));
         assert_eq!(Topic::parse("node:7"), Ok(Topic::Node(NodeId::new(7))));
         let logs = Topic::Logs {
             node: NodeId::new(3),
@@ -115,7 +123,7 @@ mod tests {
         for bad in [
             "",
             "fleet ",
-            "topology",
+            "topology?",
             "node:",
             "node:0",
             "node:-1",
