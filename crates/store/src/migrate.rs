@@ -22,6 +22,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0002_vault_host_keys",
     "0003_users_sessions_audit",
     "0004_jobs_inventory_backups",
+    "0005_topology",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

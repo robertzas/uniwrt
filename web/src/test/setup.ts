@@ -18,3 +18,20 @@ globalThis.ResizeObserver ??= class {
 
 // Nor does it scroll; Kobalte scrolls the focused option of lists and menus into view.
 Element.prototype.scrollIntoView ??= () => {};
+
+// Nor does it match media queries; the topology follows the theme and reduced motion with them.
+window.matchMedia ??= (query: string) =>
+  ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => false,
+  }) as MediaQueryList;
+
+// Nor does it paint: a canvas has no context (rather than jsdom's "not implemented" error).
+HTMLCanvasElement.prototype.getContext = (() =>
+  null) as typeof HTMLCanvasElement.prototype.getContext;

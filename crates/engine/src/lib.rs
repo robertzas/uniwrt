@@ -10,7 +10,9 @@
 //!   [`Interest`] guards from [`Engine::focus`] (fast intervals while the UI has the node open)
 //!   and [`Engine::follow_logs`] (the node's log, as [`Event::Log`]);
 //!   [`EngineConfig`] with the [`Intervals`] of each collect set; [`Snapshots`] (the latest facts
-//!   of each node, saved through `FactsRepo`).
+//!   of each node, saved through `FactsRepo`); [`TopologyHistory`] (the topology's history,
+//!   recorded through `TopologyRepo`: a keyframe every hour, deltas at most every 30 s, 24 h
+//!   kept; [`HistoryConfig`]) and [`replay`], which turns its frames back into a topology.
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -29,7 +31,8 @@
 //!   removed node's actor has stopped before [`Engine::remove`] returns. Timers use tokio's
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
-//!   parsers), `uniwrt-store` (`FactsRepo`), `uniwrt-topo`, tokio, tracing.
+//!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`), `uniwrt-topo`, tokio, tracing,
+//!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
 //!   `actor/tests.rs` drives actors over a scripted link (`testing.rs`) with tokio's paused
 //!   clock, answering collects with the hwsim lab's capture; `topology_tests.rs` builds the
@@ -40,6 +43,7 @@ mod bus;
 mod config;
 mod engine;
 mod fleet;
+mod history;
 mod interest;
 mod live;
 mod roam;
@@ -54,6 +58,7 @@ pub use bus::Event;
 pub use config::EngineConfig;
 pub use engine::Engine;
 pub use fleet::Fleet;
+pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use schedule::Intervals;

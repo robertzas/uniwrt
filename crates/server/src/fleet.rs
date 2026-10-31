@@ -1,5 +1,5 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
-//! latest snapshot, and the snapshot writer. In demo mode the nodes are simulated instead,
+//! latest snapshot, the snapshot writer and the topology's history. In demo mode the nodes are simulated instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
 //! ([`Watcher`]).
@@ -9,7 +9,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
-use uniwrt_engine::{Engine, EngineConfig, Snapshots};
+use uniwrt_engine::{Engine, EngineConfig, HistoryConfig, Snapshots, TopologyHistory};
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
@@ -32,6 +32,7 @@ const DEMO_UNADOPTED: usize = 1;
 pub(crate) struct Fleet {
     pub(crate) engine: Engine<FleetLink>,
     snapshots: Snapshots,
+    history: TopologyHistory,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
 }
@@ -61,9 +62,11 @@ impl Fleet {
             }
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
+        let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
         Ok(Self {
             engine,
             snapshots,
+            history,
             sim: None,
         })
     }
@@ -98,9 +101,11 @@ impl Fleet {
                 .await;
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
+        let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
         Ok(Self {
             engine,
             snapshots,
+            history,
             sim: Some((sim, dial)),
         })
     }
@@ -121,6 +126,7 @@ impl Fleet {
             .collect();
         self.engine.shutdown().await;
         self.snapshots.stop().await;
+        self.history.stop().await;
         drop(self.sim);
         let disconnect = async {
             for link in &links {

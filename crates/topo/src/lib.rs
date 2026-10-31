@@ -5,7 +5,7 @@
 //!   internet, the nodes, inferred switches, mesh peers that are not adopted, clients) and
 //!   [`TopoEdge`]s (WAN, Ethernet, mesh and Wi-Fi links, each with its ports, quality, capacity
 //!   and [`Traffic`]). [`Topology::diff`] and [`Topology::apply`] turn one build into the next
-//!   with a [`TopologyDelta`].
+//!   with a [`TopologyDelta`]; [`Topology::for_history`] is what the replay keeps of a build.
 //! - **How** (features/observability.md, Topology): a gateway's interfaces with a default route
 //!   (or named `wan*`) link it to the internet; Wi-Fi stations place clients at their access
 //!   point (the most recently active one while a client roams) and link a bridge to its access
@@ -29,6 +29,7 @@ mod clients;
 mod diff;
 mod fleet;
 mod graph;
+mod history;
 mod links;
 mod mesh;
 mod quality;

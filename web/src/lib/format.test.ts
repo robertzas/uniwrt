@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatDuration, formatPercent, formatRate, NONE } from "./format";
+import {
+  formatBitrate,
+  formatBytes,
+  formatDuration,
+  formatPercent,
+  formatRate,
+  NONE,
+} from "./format";
 
 describe("format", () => {
   it("keeps the two largest units of a duration", () => {
@@ -17,6 +24,11 @@ describe("format", () => {
     expect(formatRate(866_700)).toBe("867 Mb/s");
     expect(formatRate(6_500)).toBe("6.5 Mb/s");
     expect(formatRate(2_402_000)).toBe("2.4 Gb/s");
+    expect(formatBitrate(840)).toBe("840 b/s");
+    expect(formatBitrate(12_400)).toBe("12 kb/s");
+    expect(formatBitrate(3_420_000)).toBe("3.4 Mb/s");
+    expect(formatBitrate(1_200_000_000)).toBe("1.2 Gb/s");
+    expect(formatBitrate(null)).toBe(NONE);
     expect(formatPercent(12.6)).toBe("13 %");
     expect(formatPercent(null)).toBe(NONE);
   });

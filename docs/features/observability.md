@@ -47,18 +47,21 @@ The graph builder (`topo` crate, pure; D-051) works on these elements:
 
 **Delivery:** the engine builds the topology 1 s after a node's facts or status change, `GET /api/v1/topology` returns it, and the WS topic `topology` sends it as a snapshot, then as deltas (the vertices and edges new or changed, and the ids gone) against what the client has.
 
-**Views:**
-- **Tree:** rooted at the internet, following batman best paths (each vertex's `parent`, `uplink` and `hops`).
-- **RF/mesh:** every mesh link, colored by quality.
-- **Clients:** APs with client clusters that expand and collapse.
+**Views** (M2.2; `/topology?view=tree|rf|clients`):
+- **Tree:** rooted at the internet, following batman best paths (each vertex's `parent`, `uplink` and `hops`), laid out as a tidy tree: the uplinks only, each host's clients grouped into one vertex until expanded.
+- **RF/mesh:** the nodes, switches and mesh peers (not the internet, nor clients) and every link between them, mesh links colored by quality and labeled with their signal (or batman-adv's TQ).
+- **Clients:** everything, each AP's clients around it; a host's clients collapse into a group and expand again (double-click, or the details panel).
 
 **Live behavior:**
-- Edge width shows throughput and color shows quality, with animated flow particles.
-- Rings around each node show health and CPU.
-- Click anything for a details panel; drag to pin (positions are saved).
-- A replay slider covers the last 24 h from snapshots, answering "what did the network look like when it broke?"
+- Edge width shows throughput (log scale) and color shows quality (the link ramp; wired links neutral, links that are down dashed red), with flow particles both ways (more and faster with more traffic; none under reduced motion).
+- Rings around each adopted node show its status (green, amber, red) and its CPU (an arc colored by load); clients are dots in their band's color.
+- Click a vertex or link for the details panel (status, addresses, uplink, signal, TQ, capacity, traffic; "Open device"); a selection dims all but its neighbours. In the force views (RF, clients), dragging a vertex pins it where it is dropped: the controller keeps the pins (`topology_layout`), one layout for every user and browser, shared by both views, and "Unpin" / "Unpin all" release them. Browsers load the pins when they open the page (not live).
+- A replay slider covers the last 24 h, its changes marked, answering "what did the network look like when it broke?" Moving it shows the topology at that time (without traffic or load); "Back to live" returns.
+- Keyboard: the canvas takes `+`, `-`, `0` (fit), the arrows (pan) and Escape; a visually hidden list of every vertex selects them for keyboards and screen readers. The view fits itself until the user pans or zooms.
 
-**Rendering:** Canvas 2D (WebGL above about 2,000 entities), with the d3-force layout running in a Web Worker.
+**History:** the engine records each build as `Topology::for_history` keeps it (no traffic or load, signals to 2 dB, quality to 5 points, so noise is no change): a keyframe every hour and deltas between, at most every 30 s (the changes of that time share one), pruned at each keyframe to the last 24 h (`TopologyHistory`, D-052).
+
+**Rendering:** Canvas 2D (WebGL above about 2,000 entities), with the d3-force layout running in a Web Worker (on the main thread where there are no workers). Lucide icons are drawn as paths, colors are read from the design tokens and follow the skin and theme, and the canvas draws only while something moves.
 
 ## Clients [M2.3]
 

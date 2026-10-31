@@ -9,8 +9,12 @@ import type { Job } from "../api/gen/Job";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { Topology } from "../api/gen/Topology";
+import type { TopologyPin } from "../api/gen/TopologyPin";
+import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UserInfo } from "../api/gen/UserInfo";
 
 /** A failed API call. Problem details (RFC 9457) from the server fill `title` and `message`. */
@@ -42,7 +46,7 @@ export function onSessionEnded(handler: () => void): () => void {
 }
 
 interface Options {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   signal?: AbortSignal | undefined;
   /** A 401 means the session ended (default); false for sign-in, whose 401 is a wrong password. */
@@ -111,4 +115,19 @@ export const api = {
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),
+  /** The live topology comes over the WS topic `topology`; these serve its replay and layout. */
+  topology: {
+    /** How far back the replay goes, and when the topology changed. */
+    timeline: (signal?: AbortSignal) => request<TopologyTimeline>("/topology/timeline", { signal }),
+    /** The topology at a time, as the history keeps it (no traffic or load). */
+    at: (ms: number, signal?: AbortSignal) =>
+      request<Topology>(`/topology/at/${Math.round(ms)}`, { signal }),
+    /** The pinned vertices, shared by every user and browser. */
+    layout: (signal?: AbortSignal) => request<TopologyPin[]>("/topology/layout", { signal }),
+    pin: (vertex: string, at: PinRequest) =>
+      request<void>(`/topology/layout/${encodeURIComponent(vertex)}`, { method: "PUT", body: at }),
+    unpin: (vertex: string) =>
+      request<void>(`/topology/layout/${encodeURIComponent(vertex)}`, { method: "DELETE" }),
+    unpinAll: () => request<void>("/topology/layout", { method: "DELETE" }),
+  },
 };

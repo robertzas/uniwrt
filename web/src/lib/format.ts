@@ -40,6 +40,23 @@ export function formatRate(kbps: number | null | undefined): string {
   return `${(mbps >= 10 ? integer : decimal).format(mbps)} Mb/s`;
 }
 
+/** A traffic rate in bits per second: `840 b/s`, `12 kb/s`, `3.4 Mb/s`, `1.2 Gb/s`. */
+export function formatBitrate(bps: number | null | undefined): string {
+  if (bps == null) return NONE;
+  const steps: [number, string][] = [
+    [1e9, "Gb/s"],
+    [1e6, "Mb/s"],
+    [1e3, "kb/s"],
+  ];
+  for (const [size, unit] of steps) {
+    if (bps >= size) {
+      const value = bps / size;
+      return `${(value >= 10 ? integer : decimal).format(value)} ${unit}`;
+    }
+  }
+  return `${integer.format(bps)} b/s`;
+}
+
 /** The two largest units of a duration: `3d 4h`, `5h 12m`, `12m 3s`, `40s`. */
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null) return NONE;

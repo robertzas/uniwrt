@@ -92,3 +92,57 @@ test("adopts the discovered access point through the wizard", async ({ page }) =
   await expect(discovered).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test("maps the network, details a device and pins it", async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors = watchErrors(page);
+  await signIn(page);
+  await expect(page.getByRole("table", { name: "Devices" })).toBeVisible();
+  await page.getByRole("link", { name: "Topology" }).click();
+  await expect(
+    page.getByRole("img", { name: /^Network map: \d devices and \d+ clients$/ }),
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // The vertex list stands in for the canvas for keyboards and screen readers.
+  await page.getByRole("button", { name: /, Gateway$/ }).focus();
+  const details = page.getByRole("region", { name: "Details" });
+  await expect(details.getByText("Online")).toBeVisible();
+  await expect(details.getByRole("link", { name: "Open device" })).toBeVisible();
+
+  // Dragging a device in a force view pins it on the controller, for every browser.
+  await page.getByRole("radio", { name: "Clients" }).click({ force: true });
+  await expect(page).toHaveURL(/view=clients/);
+  await page.waitForTimeout(2_000);
+  const canvas = page.getByRole("img", { name: /^Network map/ });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas");
+  const pinned = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" && response.url().includes("/topology/layout/"),
+  );
+  // Find a device under the pointer (its cursor says it moves), then drag it.
+  let start: { x: number; y: number } | undefined;
+  for (let row = 1; row < 10 && !start; row++) {
+    for (let column = 1; column < 10 && !start; column++) {
+      const at = { x: box.x + (box.width * column) / 10, y: box.y + (box.height * row) / 10 };
+      await page.mouse.move(at.x, at.y);
+      if ((await canvas.evaluate((element) => element.style.cursor)) === "move") start = at;
+    }
+  }
+  if (!start) throw new Error("no device found on the canvas");
+  await page.mouse.down();
+  await page.mouse.move(start.x + 40, start.y + 30, { steps: 5 });
+  await page.mouse.up();
+  expect((await pinned).status()).toBe(204);
+
+  // A replay asks the controller for the past.
+  const slider = page.getByRole("slider", { name: "Replay the last 24 hours" });
+  await slider.focus();
+  await page.keyboard.press("Home");
+  await expect(page.getByText("Replaying")).toBeVisible();
+  await page.getByRole("button", { name: "Back to live" }).click();
+  await expect(page.getByText("Replaying")).toBeHidden();
+  expect(errors).toEqual([]);
+});

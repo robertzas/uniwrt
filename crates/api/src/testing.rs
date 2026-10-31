@@ -8,7 +8,7 @@ use axum::{
     Router,
     body::{self, Body},
     extract::Request,
-    http::{StatusCode, header},
+    http::{Method, StatusCode, header},
     middleware::{self, Next},
     response::Response,
 };
@@ -232,14 +232,29 @@ impl Demo {
 }
 
 pub(crate) fn post(uri: &str, body: &Value, cookie: Option<&str>) -> Request {
-    let mut request = Request::post(uri)
+    request(Method::POST, uri, Some(body), cookie)
+}
+
+/// A state-changing request, as the UI sends it, with a JSON body or none.
+pub(crate) fn request(
+    method: Method,
+    uri: &str,
+    body: Option<&Value>,
+    cookie: Option<&str>,
+) -> Request {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
         .header("x-uniwrt-csrf", "1")
-        .header(header::ORIGIN, ORIGIN)
-        .header(header::CONTENT_TYPE, "application/json");
+        .header(header::ORIGIN, ORIGIN);
+    if body.is_some() {
+        request = request.header(header::CONTENT_TYPE, "application/json");
+    }
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
     }
-    request.body(Body::from(body.to_string())).unwrap()
+    let body = body.map_or_else(Body::empty, |body| Body::from(body.to_string()));
+    request.body(body).unwrap()
 }
 
 fn with_client(mut request: Request) -> Request {

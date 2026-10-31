@@ -32,7 +32,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
-- `src/topology.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
+- `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
+- `src/topology/layout.rs`: The topology view's layout: where users pinned its vertices, one layout for every user and browser.
+- `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
@@ -63,6 +65,8 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/config.rs`: The engine's settings.
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
 - `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
+- `src/history.rs`: The topology's history, for the replay (features/observability.md, Topology): each build as [`Topology::for_history`] keeps it, recorded through [`TopologyRepo`] as a keyframe every hour and as deltas between, at most every 30 s, and pruned to the last 24 h.
+- `src/history_tests.rs`: The history's frames: the policy over hand-made topologies, then the recorder over a store.
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
@@ -184,7 +188,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, and the snapshot writer.
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer and the topology's history.
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -251,6 +255,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
+- `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
@@ -269,11 +274,13 @@ The topology: the network graph that the adopted nodes' facts describe.
 - `src/diff.rs`: What changed between two builds, by id: the WS topic sends it instead of the whole graph.
 - `src/fleet.rs`: Who is who: the adopted nodes ([`Member`]s) in build order, the MAC addresses each one owns, the vertex ids, and lookups in a node's facts.
 - `src/graph.rs`: The topology graph: what [`build`](crate::build) returns, the API serves and the WS topic `topology` keeps current.
+- `src/history.rs`: What the topology's history keeps of a build, for the replay (features/observability.md, Topology): its shape, states and link quality, without what changes at every build.
 - `src/lib.rs`: The topology: the network graph that the adopted nodes' facts describe.
 - `src/links.rs`: The graph while it is built: vertices by id, and links by key, each merged from every end that reports it.
 - `src/mesh.rs`: The mesh: 802.11s peer links and batman-adv neighbors (over Wi-Fi a mesh link, over Ethernet a wired one), batman-adv's best paths toward the gateway, and the clients its translation tables place.
 - `src/quality.rs`: Link quality on one 0–100 scale, whatever measures it, and traffic rates between builds.
 - `src/tests/build.rs`: A whole build: the WAN, the fallback to neighbor caches, traffic rates between builds, deltas, and determinism.
+- `src/tests/history.rs`: What the history keeps of a build: its shape, without traffic and load.
 - `src/tests/mesh.rs`: The mesh: 802.11s and batman-adv links merged, batman-adv's best paths, peers that are not adopted, and the clients the translation tables place.
 - `src/tests/mod.rs`: Topologies of scenarios built in code (`scenario.rs`), one file per source of links.
 - `src/tests/scenario.rs`: Facts built in code, as small as each case needs.
@@ -316,12 +323,15 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (106 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (109 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
 - `features/devices/`: ClientsCard.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
+- `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyCanvas.tsx, TopologyPage.tsx, ViewSwitch.tsx, graph.ts, replay.ts, scene.ts
+- `features/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
+- `features/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
 - `lib/`: api.ts, appearance.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 

@@ -1,5 +1,9 @@
 //! `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md,
-//! Topology), which the WS topic `topology` keeps current.
+//! Topology), which the WS topic `topology` keeps current. Its [`history`] serves the replay and
+//! its [`layout`] the view's pinned vertices.
+
+pub(crate) mod history;
+pub(crate) mod layout;
 
 use std::sync::Arc;
 

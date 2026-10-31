@@ -90,7 +90,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 ## M2 — Observability ("understand your network")
 
 - [x] **M2.1 Topology engine** (M): the pure `topo` crate builds the graph from facts; API and WS topic; fixture-based tests.
-- [ ] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
+- [x] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
 - [ ] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, actions (rename, kick, block).
 - [ ] **M2.4 Metrics & dashboard** (M): rollups, retention, LTTB downsampling, uPlot charts, dashboard v1.
 - [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`). The WS `logs` topic's snapshot (empty since M1.6c) then comes from storage.

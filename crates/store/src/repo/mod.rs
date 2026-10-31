@@ -8,6 +8,7 @@ mod host_keys;
 mod jobs;
 mod nodes;
 mod sessions;
+mod topology;
 mod users;
 
 use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
@@ -176,4 +177,54 @@ pub trait AuditRepo: Send + Sync {
 
     /// The latest `limit` entries, newest first.
     fn audit_log(&self, limit: usize) -> impl Future<Output = Result<Vec<AuditEntry>>> + Send;
+}
+
+/// One recorded state of the topology, as JSON the engine encodes: a keyframe (a whole
+/// topology) or a delta from the frame before it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopologyFrame {
+    pub at: Timestamp,
+    pub keyframe: bool,
+    pub data: String,
+}
+
+/// A vertex of the topology view pinned at a place, in the view's world coordinates.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pin {
+    pub vertex: String,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// The topology's history, for the replay, and the topology view's layout.
+pub trait TopologyRepo: Send + Sync {
+    /// Appends a frame.
+    fn record_topology(&self, frame: TopologyFrame) -> impl Future<Output = Result<()>> + Send;
+
+    /// The frames that make the topology at `at`: the newest keyframe at or before it, then the
+    /// deltas after it up to `at`, in the order recorded. Empty before the first keyframe.
+    fn topology_frames(
+        &self,
+        at: Timestamp,
+    ) -> impl Future<Output = Result<Vec<TopologyFrame>>> + Send;
+
+    /// When each frame was recorded and whether it is a keyframe, in the order recorded.
+    fn topology_times(&self) -> impl Future<Output = Result<Vec<(Timestamp, bool)>>> + Send;
+
+    /// Deletes the frames that no topology at or after `before` needs: those older than the
+    /// newest keyframe at or before it. Returns how many.
+    fn prune_topology(&self, before: Timestamp) -> impl Future<Output = Result<usize>> + Send;
+
+    /// Every pin, by vertex id.
+    fn pins(&self) -> impl Future<Output = Result<Vec<Pin>>> + Send;
+
+    /// Pins a vertex, or moves its pin; false (and nothing pinned) when the vertex is new and
+    /// `max` vertices are pinned already.
+    fn pin(&self, pin: Pin, max: usize) -> impl Future<Output = Result<bool>> + Send;
+
+    /// False when the vertex was not pinned.
+    fn unpin(&self, vertex: &str) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Returns how many pins there were.
+    fn unpin_all(&self) -> impl Future<Output = Result<usize>> + Send;
 }
