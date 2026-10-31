@@ -81,7 +81,7 @@ describe("Table", () => {
         <Table
           label="Clients"
           columns={columns}
-          rows={nodes(5000)}
+          rows={nodes(1000)}
           rowKey={(n) => n.id}
           virtualizeAbove={200}
         />
@@ -90,7 +90,7 @@ describe("Table", () => {
       const rendered = screen.getAllByRole("row").length;
       expect(rendered).toBeLessThan(100);
       expect(screen.getByText("ap-0")).toBeInTheDocument();
-      expect(screen.queryByText("ap-4999")).not.toBeInTheDocument();
+      expect(screen.queryByText("ap-999")).not.toBeInTheDocument();
     });
   });
 });

@@ -382,7 +382,7 @@ cargo fmt --all
 mapfile -t web_files < <(printf '%s\n' "${created[@]}" "${edited[@]}" |
   sed -n 's|^web/||p' | grep -E '\.tsx?$' | sort -u)
 (cd web && node_modules/.bin/biome check --write "${web_files[@]}" >/dev/null 2>&1)
-just --quiet gen >/dev/null
+cargo test --workspace --locked --quiet export_bindings >/dev/null
 
 printf 'new-feature %s: created\n' "$area"
 printf '  %s\n' "${created[@]}"

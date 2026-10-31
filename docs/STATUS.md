@@ -18,6 +18,7 @@
 - Web on Solid 2 RC (rc.20, D-045, D-049): raise the RC set by hand. In rc.16 `reconcile(…, key)` on an array replaces items (D-047): merge rows in place. Store writes in a component body or `createRoot` body throw (owned scope); tests create sockets before `render`. Pending async data on a page (a solid-query that is often in flight) holds navigations away from it: poll slow endpoints into a signal (D-048). Kobalte dialogs call `onOpenChange(false)` when they unmount.
 - Visual checks: `just e2e` builds the debug binary with the UI; for screenshots run that binary with `serve --demo --http-listen 127.0.0.1:18080 --https-listen 127.0.0.1:18443` in the background and drive Chrome with a script in `web/` importing `@playwright/test` (`ignoreHTTPSErrors`, `channel: "chrome"`). The dev gallery is at `/dev/ui?skin=…&theme=…` under `vite`.
 - Cargo's sparse index can lag: `cargo info <crate>` refreshes it.
+- Follow-up: CI's vitest logs Solid dev diagnostics that a local run doesn't (since rc.16 at least): `STRICT_READ_UNTRACKED` in ThemeToggle's SegmentedControl, `createGatewayLeases.gateway`, a `<Show>` condition and effect callbacks, and `ASYNC_OUTSIDE_LOADING_BOUNDARY`. Each may be UI that doesn't update; find why they're CI-only, then fix them.
 
 ## Session log (newest first; keep ≤ 5 entries)
 
