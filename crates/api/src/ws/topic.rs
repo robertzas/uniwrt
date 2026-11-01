@@ -1,6 +1,6 @@
-//! WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min`
-//! is optional: every entry by default; the parameters may come in any order), `jobs`,
-//! `topology`, `clients` and `client:<mac>`.
+//! WS topics as clients name them: `fleet`, `node:<id>`, `logs` or
+//! `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every
+//! source and every entry by default), `jobs`, `topology`, `clients` and `client:<mac>`.
 
 use std::fmt;
 
@@ -10,14 +10,18 @@ use uniwrt_model::log::Severity;
 /// The longest topic name accepted.
 pub(crate) const MAX_LEN: usize = 128;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Topic {
     /// Every node's summary.
     Fleet,
     /// One node: its status, facts, events and roams; viewing it speeds up its telemetry.
     Node(NodeId),
-    /// One node's log entries at `min` or more severe.
-    Logs { node: NodeId, min: Severity },
+    /// Stored log entries at `min` or more severe: every source's, or one node's or host's.
+    Logs {
+        node: Option<NodeId>,
+        host: Option<String>,
+        min: Severity,
+    },
     /// The latest jobs, and every change to a job.
     Jobs,
     /// The fleet's topology, then what changes in it.
@@ -64,7 +68,12 @@ impl Topic {
         if let Some(id) = name.strip_prefix("node:") {
             return node_id(id).map(Self::Node);
         }
-        if let Some(query) = name.strip_prefix("logs?") {
+        if name == "logs" {
+            return logs("");
+        }
+        if let Some(query) = name.strip_prefix("logs?")
+            && !query.is_empty()
+        {
             return logs(query);
         }
         Err(BadTopic(format!(
@@ -83,25 +92,42 @@ fn node_id(text: &str) -> Result<NodeId, BadTopic> {
 }
 
 fn logs(query: &str) -> Result<Topic, BadTopic> {
-    let mut node = None;
-    let mut min = Severity::Debug;
-    for pair in query.split('&') {
+    let (mut node, mut host, mut min) = (None, None, None);
+    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
         match pair.split_once('=') {
             Some(("node", id)) if node.is_none() => node = Some(node_id(id)?),
-            Some(("min", severity)) => {
-                min = serde_json::from_value(serde_json::Value::String(severity.to_owned()))
-                    .map_err(|_| {
-                        BadTopic(format!(
-                            "{severity:?} is not a severity: use emergency, alert, critical, \
-                             error, warning, notice, info or debug"
-                        ))
-                    })?;
+            Some(("host", name)) if host.is_none() && valid_host(name) => {
+                host = Some(name.to_owned());
+            }
+            Some(("min", severity)) if min.is_none() => {
+                min = Some(Severity::parse(severity).ok_or_else(|| {
+                    BadTopic(format!(
+                        "{severity:?} is not a severity: use emergency, alert, critical, error, \
+                         warning, notice, info or debug"
+                    ))
+                })?);
             }
             _ => return Err(BadTopic(format!("Unexpected {pair:?} in a logs topic"))),
         }
     }
-    let node = node.ok_or_else(|| BadTopic("A logs topic names its node=<id>".to_owned()))?;
-    Ok(Topic::Logs { node, min })
+    if node.is_some() && host.is_some() {
+        return Err(BadTopic(
+            "A logs topic names a node or a host, not both".to_owned(),
+        ));
+    }
+    Ok(Topic::Logs {
+        node,
+        host,
+        min: min.unwrap_or(Severity::Debug),
+    })
+}
+
+/// A host's name or address, as the logs name other hosts.
+fn valid_host(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b".-_:".contains(&b))
 }
 
 #[cfg(test)]
@@ -121,18 +147,26 @@ mod tests {
             Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))
         );
         assert_eq!(Topic::parse("node:7"), Ok(Topic::Node(NodeId::new(7))));
-        let logs = Topic::Logs {
-            node: NodeId::new(3),
-            min: Severity::Warning,
+        let logs = |node: Option<i64>, host: Option<&str>, min| Topic::Logs {
+            node: node.map(NodeId::new),
+            host: host.map(str::to_owned),
+            min,
         };
-        assert_eq!(Topic::parse("logs?node=3&min=warning"), Ok(logs));
-        assert_eq!(Topic::parse("logs?min=warning&node=3"), Ok(logs));
+        let warning = logs(Some(3), None, Severity::Warning);
+        assert_eq!(Topic::parse("logs?node=3&min=warning"), Ok(warning.clone()));
+        assert_eq!(Topic::parse("logs?min=warning&node=3"), Ok(warning));
         assert_eq!(
             Topic::parse("logs?node=3"),
-            Ok(Topic::Logs {
-                node: NodeId::new(3),
-                min: Severity::Debug
-            })
+            Ok(logs(Some(3), None, Severity::Debug))
+        );
+        assert_eq!(Topic::parse("logs"), Ok(logs(None, None, Severity::Debug)));
+        assert_eq!(
+            Topic::parse("logs?min=err"),
+            Ok(logs(None, None, Severity::Error))
+        );
+        assert_eq!(
+            Topic::parse("logs?host=192.0.2.9"),
+            Ok(logs(None, Some("192.0.2.9"), Severity::Debug))
         );
     }
 
@@ -147,7 +181,10 @@ mod tests {
             "node:-1",
             "node:x",
             "logs?",
-            "logs?min=warning",
+            "logs?node=3&host=sw",
+            "logs?host=a/b",
+            "logs?host=",
+            "logs?min=info&min=debug",
             "logs?node=3&min=loud",
             "logs?node=3&node=4",
             "logs?node=3&level=info",

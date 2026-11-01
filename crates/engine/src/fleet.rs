@@ -21,8 +21,6 @@ pub trait Fleet: Send + Sync + 'static {
     fn node(&self, node: NodeId) -> Option<NodeView>;
     /// See [`Engine::focus`].
     fn focus(&self, node: NodeId) -> Option<Interest>;
-    /// See [`Engine::follow_logs`].
-    fn follow_logs(&self, node: NodeId) -> Option<Interest>;
     /// See [`Engine::subscribe`].
     fn subscribe(&self) -> broadcast::Receiver<Event>;
     /// See [`Engine::topology`].
@@ -46,10 +44,6 @@ impl<L: NodeLink> Fleet for Engine<L> {
 
     fn focus(&self, node: NodeId) -> Option<Interest> {
         Self::focus(self, node)
-    }
-
-    fn follow_logs(&self, node: NodeId) -> Option<Interest> {
-        Self::follow_logs(self, node)
     }
 
     fn subscribe(&self) -> broadcast::Receiver<Event> {

@@ -47,6 +47,10 @@ ids! {
     JobId = "job";
     /// A node's configuration backup.
     BackupId = "backup";
+    /// A stored log entry; ids grow in the order entries were stored.
+    LogId = "log";
+    /// A saved log search.
+    SearchId = "search";
 }
 
 #[cfg(test)]

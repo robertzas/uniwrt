@@ -250,22 +250,37 @@ async fn the_jobs_topic_has_the_latest_jobs_then_their_changes() {
 }
 
 #[tokio::test]
-async fn a_logs_topic_follows_the_log_while_held() {
-    let demo = Demo::start().await;
-    let mut ws = open(&demo).await;
+async fn a_logs_topic_follows_what_is_stored() {
+    let mut demo = Demo::start().await;
+    demo.record_logs().await;
     let gateway = demo.ids[0];
+    // The recorder has every node's log followed, whoever watches.
+    interests_become(&demo, gateway, Interests { focus: 0, logs: 1 }).await;
+    let mut ws = open(&demo).await;
     let topic = format!("logs?node={gateway}&min=info");
     sub(&mut ws, &[&topic]).await;
     let snapshot = next(&mut ws).await;
     assert_eq!(snapshot["type"], "log_snapshot");
-    interests_become(&demo, gateway, Interests { focus: 0, logs: 1 }).await;
-    // Following starts with the agent's backfill.
-    let delta = until(&mut ws, |message| message["type"] == "log_delta").await;
+    // The agent's backfill is stored, then sent.
+    let delta = until(&mut ws, |message| {
+        message["type"] == "log_delta"
+            || message["entries"].as_array().is_some_and(|e| !e.is_empty())
+    })
+    .await;
     let entries = delta["entries"].as_array().unwrap();
     assert_ne!(entries.len(), 0);
-    assert!(entries.iter().all(|entry| entry["severity"] != "debug"));
+    assert!(
+        entries
+            .iter()
+            .all(|entry| entry["severity"] != "debug" && entry["node"] == gateway.get())
+    );
+    assert!(
+        entries
+            .iter()
+            .all(|entry| entry["id"].is_number() && entry["via"] == "agent")
+    );
     sub(&mut ws, &[]).await;
-    interests_become(&demo, gateway, Interests::default()).await;
+    interests_become(&demo, gateway, Interests { focus: 0, logs: 1 }).await;
 }
 
 #[tokio::test]

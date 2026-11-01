@@ -1,6 +1,7 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
-//! latest snapshot, the snapshot writer, the topology's history, the metrics recorder and the
-//! clients' recorder (which restores the clients first). In demo mode the nodes are simulated
+//! latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the
+//! clients' recorder (which restores the clients first) and the log recorder (with the syslog
+//! receiver, when it listens). In demo mode the nodes are simulated
 //! instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
@@ -12,8 +13,8 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    ClientRecorder, Engine, EngineConfig, HistoryConfig, MetricsConfig, MetricsRecorder,
-    RecorderConfig, Snapshots, TopologyHistory,
+    ClientRecorder, Engine, EngineConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig,
+    MetricsRecorder, RecorderConfig, Snapshots, TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -23,6 +24,7 @@ use uniwrt_model::{
 use uniwrt_node::{AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, SshLink, Target};
 use uniwrt_sim::{SimConfig, SimFleet};
 use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store, Vault};
+use uniwrt_syslog::{Receiver, ReceiverConfig};
 
 use crate::{demo::DemoDial, fleet_link::FleetLink};
 
@@ -40,18 +42,22 @@ pub(crate) struct Fleet {
     history: TopologyHistory,
     clients: ClientRecorder,
     metrics: MetricsRecorder,
+    logs: LogRecorder,
+    syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
 }
 
 impl Fleet {
     /// Connects to every adopted node. A node that cannot be connected to is skipped with a
-    /// warning; the others are not held up by it.
+    /// warning; the others are not held up by it. Syslog is received at `syslog` when given.
     pub(crate) async fn start(
         store: &Store,
         key: &ControllerKey,
         clock: Arc<dyn Clock>,
+        syslog: Option<std::net::SocketAddr>,
     ) -> anyhow::Result<Self> {
+        let syslog = receive_syslog(syslog, &clock).await?;
         let engine = Engine::new(EngineConfig::default(), Arc::clone(&clock));
         let clients =
             ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
@@ -73,23 +79,31 @@ impl Fleet {
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
         let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
         let metrics = MetricsRecorder::spawn(&engine, store.clone(), MetricsConfig::default());
+        let (syslog, received) = syslog.unzip();
+        let logs =
+            LogRecorder::start(&engine, store.clone(), received, LogsConfig::default()).await;
         Ok(Self {
             engine,
             snapshots,
             history,
             clients,
             metrics,
+            logs,
+            syslog,
             sim: None,
         })
     }
 
     /// Simulates the fleet `config` describes, adopting all its nodes but the last into
-    /// `store`, which should be empty (the demo's own).
+    /// `store`, which should be empty (the demo's own). Syslog is received at `syslog` when
+    /// given.
     pub(crate) async fn demo(
         store: &Store,
         config: &SimConfig,
         clock: Arc<dyn Clock>,
+        syslog: Option<std::net::SocketAddr>,
     ) -> anyhow::Result<Self> {
+        let syslog = receive_syslog(syslog, &clock).await?;
         let sim = SimFleet::spawn(config, clock.as_ref());
         let dial = Arc::new(DemoDial::new(&sim).context("cannot make the demo's host keys")?);
         let engine = Engine::new(EngineConfig::default(), clock);
@@ -117,12 +131,17 @@ impl Fleet {
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
         let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
         let metrics = MetricsRecorder::spawn(&engine, store.clone(), MetricsConfig::default());
+        let (syslog, received) = syslog.unzip();
+        let logs =
+            LogRecorder::start(&engine, store.clone(), received, LogsConfig::default()).await;
         Ok(Self {
             engine,
             snapshots,
             history,
             clients,
             metrics,
+            logs,
+            syslog,
             sim: Some((sim, dial)),
         })
     }
@@ -141,7 +160,11 @@ impl Fleet {
             .into_iter()
             .filter_map(|(id, _)| self.engine.link(id))
             .collect();
+        if let Some(syslog) = self.syslog {
+            syslog.stop().await;
+        }
         self.engine.shutdown().await;
+        self.logs.stop().await;
         self.snapshots.stop().await;
         self.history.stop().await;
         self.clients.stop().await;
@@ -190,6 +213,31 @@ impl Fleet {
         .await
         .context("cannot start the jobs")
     }
+}
+
+/// The syslog receiver on UDP and TCP at `addr`, when given.
+async fn receive_syslog(
+    addr: Option<std::net::SocketAddr>,
+    clock: &Arc<dyn Clock>,
+) -> anyhow::Result<
+    Option<(
+        Receiver,
+        tokio::sync::mpsc::Receiver<uniwrt_syslog::Received>,
+    )>,
+> {
+    let Some(addr) = addr else {
+        return Ok(None);
+    };
+    let config = ReceiverConfig {
+        udp: Some(addr),
+        tcp: Some(addr),
+        ..ReceiverConfig::default()
+    };
+    let receiver = Receiver::bind(&config, Arc::clone(clock))
+        .await
+        .with_context(|| format!("cannot listen for syslog on {addr}"))?;
+    tracing::info!(%addr, "receiving syslog over UDP and TCP");
+    Ok(Some(receiver))
 }
 
 /// Watches each node the job runner adopts over an SSH link, as [`Fleet::start`] does with the
@@ -295,7 +343,7 @@ mod tests {
             .unwrap();
         let unpinned = store.create_node(new_node(2, port)).await.unwrap();
 
-        let fleet = Fleet::start(&store, &key, clock).await.unwrap();
+        let fleet = Fleet::start(&store, &key, clock, None).await.unwrap();
         let view = fleet.engine.node(pinned.id).unwrap();
         assert_eq!(view.status.state, NodeState::Offline);
         assert!(fleet.engine.node(unpinned.id).is_none());
@@ -312,9 +360,18 @@ mod tests {
         let store = Store::open(dir.path().join("uniwrt.db"), clock.clone())
             .await
             .unwrap();
-        let fleet = Fleet::demo(&store, &uniwrt_sim::SimConfig::default(), clock)
+        // Syslog on a free port of loopback.
+        let syslog = "127.0.0.1:0".parse().ok();
+        let fleet = Fleet::demo(&store, &uniwrt_sim::SimConfig::default(), clock, syslog)
             .await
             .unwrap();
+        assert!(
+            fleet
+                .syslog
+                .as_ref()
+                .and_then(uniwrt_syslog::Receiver::udp_addr)
+                .is_some()
+        );
         // The last access point waits to be adopted (`demo::tests`).
         let nodes = store.nodes().await.unwrap();
         assert_eq!(nodes.len(), 3);

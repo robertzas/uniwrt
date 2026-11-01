@@ -14,7 +14,10 @@
 //!   recorded through `TopologyRepo`: a keyframe every hour, deltas at most every 30 s, 24 h
 //!   kept; [`HistoryConfig`]) and [`replay`], which turns its frames back into a topology;
 //!   the clients ([`Engine::clients`], [`Engine::client`], [`Engine::rename_client`]) and
-//!   [`ClientRecorder`], which restores their book and keeps it through `ClientRepo`.
+//!   [`ClientRecorder`], which restores their book and keeps it through `ClientRepo`;
+//!   [`LogRecorder`] ([`LogsConfig`]), which has every node's log followed by its agent until
+//!   syslog delivers it (D-059), takes in other hosts' syslog, annotates and stores the entries
+//!   through `LogRepo` (announced as [`Event::Logged`]), and prunes them (14 days, 1 GiB).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -36,8 +39,9 @@
 //!   removed node's actor has stopped before [`Engine::remove`] returns. Timers use tokio's
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
-//!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`), `uniwrt-topo`,
-//!   `uniwrt-clients`, tokio, tracing,
+//!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
+//!   `LogRepo`), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
+//!   receiver hands on, the annotations), tokio, tracing,
 //!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
 //!   `actor/tests.rs` drives actors over a scripted link (`testing.rs`) with tokio's paused
@@ -53,6 +57,7 @@ mod fleet;
 mod history;
 mod interest;
 mod live;
+mod logs;
 mod metrics;
 mod roam;
 mod schedule;
@@ -70,6 +75,7 @@ pub use fleet::Fleet;
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use live::NodeView;
+pub use logs::{LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;

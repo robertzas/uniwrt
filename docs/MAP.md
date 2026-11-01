@@ -27,6 +27,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
+- `src/logs.rs`: The logs routes, with a session (features/observability.md, Logs):
+- `src/logs_tests.rs`: The logs routes over the demo's store, with entries recorded by hand.
 - `src/metrics.rs`: The metrics routes, with a session (features/observability.md, Metrics): `GET /api/v1/metrics?entity=<entity>&metrics=<a,b>&from=<ms>&to=<ms>&width=<points>` reads an entity's series over a time range at the resolution that holds it, reduced with LTTB to about `width` points ([`MetricsResponse`]); `GET /api/v1/metrics/series?under=<entity>` lists the series kept ([`SeriesInfo`]), for every entity or for one and those below it.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
@@ -45,7 +47,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order), `jobs`, `topology`, `clients` and `client:<mac>`.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `jobs`, `topology`, `clients` and `client:<mac>`.
 
 ### `uniwrt-clients` (crates/clients)
 
@@ -90,6 +92,9 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
+- `src/logs/mod.rs`: Recording logs (features/observability.md, Logs; D-059): every watched node's log, followed by its agent or received by syslog ([`source`]), and other hosts' syslog, annotated (`uniwrt_syslog::Patterns`), stored in batches through [`LogRepo`] and announced as [`Event::Logged`] once stored; retention runs beside it.
+- `src/logs/source.rs`: Where one node's log comes from, and what to skip so that each entry is stored once (D-059): the agent follows the log until syslog arrives from the node, and again once its syslog stops (TCP closed, or quiet for a while over UDP).
+- `src/logs/tests.rs`: The recorder over a store, an engine with one node (its link never connects) and syslog fed by hand: the agent follows the log, resumes after what is stored, gives way to syslog and takes over again when syslog goes quiet or closes; other hosts are stored by name.
 - `src/metrics.rs`: Recording metrics (`uniwrt_metrics`; features/observability.md, Metrics): a sampler fed by the bus (facts, topology builds, clients' samples) whose closed windows are written every [`MetricsConfig::flush_every`], and the store's upkeep beside it: rollups every [`MetricsConfig::roll_up_every`], retention every [`MetricsConfig::prune_every`].
 - `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
 - `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
@@ -147,7 +152,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
-- `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
+- `src/log.rs`: Log entries (observability.md, Logs): what nodes log, read through the node agent or received by syslog, and what other hosts send by syslog; stored as [`LogRecord`]s, found with a [`LogFilter`], counted in [`LogBucket`]s, explained by [`LogPattern`]s, and kept as [`SavedSearch`]es.
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
@@ -221,7 +226,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder and the clients' recorder (which restores the clients first).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -286,6 +291,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/jobs.rs`: [`JobRepo`] on SQLite: the `jobs` table, each job's steps and error as JSON.
+- `src/repo/logs.rs`: [`LogRepo`] on SQLite: the `logs`, `logs_fts`, `log_sources` and `log_searches` tables.
+- `src/repo/logs_tests.rs`: Logs over a real database: recording, filters and full-text search, pages, context, the histogram, sources, retention by age and size, and saved searches.
 - `src/repo/metrics.rs`: [`MetricsRepo`] on SQLite: the `metric_series`, `metrics_raw`, `metrics_1m`, `metrics_1h` and `metric_rollups` tables.
 - `src/repo/metrics_tests.rs`: Metrics over a real database: recording, rollups with their envelopes and weights, reading with tails from finer resolutions, the series catalogue, and retention.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
@@ -301,6 +308,16 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
 - `src/vault/tests.rs`: The vault over a real database: sealing, resealing the stub's rows and refusing a wrong key.
 - `src/writer.rs`: The writer: one thread owns the only write connection and commits queued operations in batches.
+
+### `uniwrt-syslog` (crates/syslog)
+
+Syslog: the RFC 3164/5424 parser, the UDP and TCP receiver, and the annotations that explain log entries (observability.md, Logs).
+
+- `src/annotate.rs`: Annotations (observability.md, Logs): `data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to what it means ([`LogPattern`]).
+- `src/frame.rs`: Syslog over TCP (RFC 6587): each frame is octet-counted (`LEN SP MSG`) or ends with a line feed or a NUL (non-transparent framing; logd ends its messages with `\n`, or `\0` with `log_trailer_null`).
+- `src/lib.rs`: Syslog: the RFC 3164/5424 parser, the UDP and TCP receiver, and the annotations that explain log entries (observability.md, Logs).
+- `src/parse.rs`: Parsing one syslog message (RFC 5424, else RFC 3164 as BSD syslog and OpenWrt's logd send it).
+- `src/receiver.rs`: The receiver: syslog over UDP and TCP, each message parsed and handed on with its sender's address.
 
 ### `uniwrt-topo` (crates/topo)
 
@@ -359,7 +376,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (127 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (143 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx

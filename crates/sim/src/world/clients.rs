@@ -97,7 +97,7 @@ impl World {
         {
             client.farewell = None;
             let mac = client.mac;
-            self.disassociated(node, band, mac, 0, out);
+            self.disassociated(node, band, mac, true, out);
         }
     }
 
@@ -122,7 +122,7 @@ impl World {
         client.target = None;
         if let Some(assoc) = client.assoc.take() {
             let mac = client.mac;
-            self.disassociated(assoc.node, assoc.band, mac, 0, out);
+            self.disassociated(assoc.node, assoc.band, mac, true, out);
         }
     }
 
@@ -187,7 +187,7 @@ impl World {
             let mac = self.clients[c].mac;
             self.clients[c].assoc = None;
             self.clients[c].hold_until = now + 5;
-            self.disassociated(node, band, mac, 0, out);
+            self.disassociated(node, band, mac, true, out);
             return;
         }
         if let Some(assoc) = &mut self.clients[c].assoc {
@@ -209,7 +209,7 @@ impl World {
             let at = now + 1 + self.rng.below(3);
             self.clients[c].farewell = Some((at, node, band));
         } else {
-            self.disassociated(node, band, mac, 0, out);
+            self.disassociated(node, band, mac, false, out);
             let gap = 300 + self.rng.below(600) as i64;
             self.connect(
                 c,
@@ -331,24 +331,37 @@ impl World {
     }
 
     /// hostapd on `node` sees `mac` leave.
+    /// Client `mac` leaves access point `node`: it said so (a roam), or the access point gave up
+    /// on it (`inactive`: it left or lost the signal), as hostapd logs each.
     pub(super) fn disassociated(
         &mut self,
         node: usize,
         band: Band,
         mac: uniwrt_core::MacAddr,
-        offset_ms: i64,
+        inactive: bool,
         out: &mut Vec<Happening>,
     ) {
         if !self.nodes[node].up() {
             return;
         }
-        let at = self.now_ms() + offset_ms;
+        let at = self.now_ms();
         out.push(Happening {
             node,
             at: uniwrt_core::Timestamp::from_unix_ms(at),
             what: What::Disassoc { mac, band },
         });
         let iface = band.ap_iface();
+        let why = if inactive {
+            "deauthenticated due to inactivity (timer DEAUTH/REMOVE)"
+        } else {
+            "disassociated"
+        };
+        self.log(
+            node,
+            at,
+            30,
+            format!("hostapd: {iface}: STA {mac} IEEE 802.11: {why}"),
+        );
         self.log(
             node,
             at,

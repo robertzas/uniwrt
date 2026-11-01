@@ -8,7 +8,8 @@
 //!   (the audit log), [`JobRepo`] (jobs as history), [`InventoryRepo`] (packages and backups
 //!   of adopted nodes) and [`TopologyRepo`] (the topology's history as opaque [`TopologyFrame`]s,
 //!   and the topology view's [`Pin`]s), [`ClientRepo`] (clients' records, aliases and
-//!   sessions), [`MetricsRepo`] (metric series: raw windows, rollups, retention); [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
+//!   sessions), [`MetricsRepo`] (metric series: raw windows, rollups, retention), [`LogRepo`] (log
+//!   entries with an FTS5 index, retention by age and size, saved searches); [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
 //!   from the store and the [`MasterKey`]; it also seals configuration backups
 //!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them. Errors are [`Error`].
@@ -49,9 +50,9 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AuditRepo, ClientRepo, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, MetricsPrune,
-    MetricsRepo, NewSession, NodeRepo, Pin, Secret, SessionRepo, TopologyFrame, TopologyRepo,
-    UserRepo, VaultRepo,
+    Adoption, AuditRepo, ClientRepo, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo,
+    LogsPrune, MetricsPrune, MetricsRepo, NewSession, NodeRepo, Pin, Secret, SessionRepo,
+    TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, SealedBackup, Vault};

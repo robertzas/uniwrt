@@ -10,15 +10,15 @@ use std::{
 };
 
 use tracing::warn;
-use uniwrt_core::{JobId, NodeId};
+use uniwrt_core::{JobId, LogId, NodeId};
 use uniwrt_engine::{Event, Interest};
 use uniwrt_model::{
     job::Job,
-    log::{LogEntry, Severity},
+    log::{LogFilter, LogRecord, Severity},
     node::Node,
 };
 use uniwrt_node::proto::ops::Set;
-use uniwrt_store::NodeRepo as _;
+use uniwrt_store::{LogRepo as _, NodeRepo as _};
 use uniwrt_topo::Topology;
 
 use super::{
@@ -38,6 +38,8 @@ pub(crate) const MAX_TOPICS: usize = 32;
 const MAX_EVENTS: usize = 256;
 /// The most log entries a logs topic keeps between flushes; older ones are dropped and counted.
 const MAX_LOG_ENTRIES: usize = 1_000;
+/// The stored entries a logs topic's snapshot carries, the newest.
+const LOG_SNAPSHOT: usize = 200;
 
 #[derive(Default)]
 pub(crate) struct Subscriptions {
@@ -47,7 +49,7 @@ pub(crate) struct Subscriptions {
 
 struct Sub {
     pending: Pending,
-    /// Fast telemetry for a viewed node, or its log followed.
+    /// Fast telemetry for a viewed node.
     _interest: Option<Interest>,
 }
 
@@ -69,9 +71,10 @@ enum Pending {
         removed: bool,
     },
     Logs {
-        node: NodeId,
-        min: Severity,
-        entries: VecDeque<LogEntry>,
+        filter: LogFilter,
+        /// The newest entry the snapshot had: entries stored before it are not sent again.
+        after: Option<LogId>,
+        entries: VecDeque<LogRecord>,
         dropped: u64,
     },
     Jobs {
@@ -165,6 +168,33 @@ impl Subscriptions {
     }
 }
 
+/// A logs topic: the newest entries stored, then those stored after them.
+async fn logs(
+    api: &Api,
+    topic: String,
+    filter: LogFilter,
+) -> Result<(Sub, ServerMessage), BadTopic> {
+    let mut entries = api
+        .store()
+        .logs(filter.clone(), None, LOG_SNAPSHOT)
+        .await
+        .map_err(|err| {
+            warn!(%err, "cannot read the logs for a WS topic");
+            BadTopic("The controller cannot read its logs; its log has the details".to_owned())
+        })?;
+    entries.reverse();
+    let pending = Pending::Logs {
+        filter,
+        after: entries.iter().map(|record| record.id).max(),
+        entries: VecDeque::new(),
+        dropped: 0,
+    };
+    Ok((
+        sub(pending, None),
+        ServerMessage::LogSnapshot { topic, entries },
+    ))
+}
+
 /// Subscribes to the topic named `name`: its state and snapshot.
 async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTopic> {
     let topic = name.to_owned();
@@ -212,20 +242,14 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             };
             (sub(pending, interest), snapshot)
         }
-        Topic::Logs { node, min } => {
-            read_node(api, node).await?;
-            let interest = api.fleet().follow_logs(node);
-            let snapshot = ServerMessage::LogSnapshot {
-                topic,
-                entries: Vec::new(),
+        Topic::Logs { node, host, min } => {
+            let filter = LogFilter {
+                nodes: node.into_iter().collect(),
+                hosts: host.into_iter().collect(),
+                min: (min != Severity::Debug).then_some(min),
+                ..LogFilter::default()
             };
-            let pending = Pending::Logs {
-                node,
-                min,
-                entries: VecDeque::new(),
-                dropped: 0,
-            };
-            (sub(pending, interest), snapshot)
+            logs(api, topic, filter).await?
         }
         Topic::Jobs => {
             let jobs = api.jobs().jobs(DEFAULT_LIMIT).await.map_err(|err| {
@@ -325,20 +349,19 @@ impl Pending {
                 _ => {}
             },
             Self::Logs {
-                node,
-                min,
+                filter,
+                after,
                 entries,
                 dropped,
             } => {
-                if let Event::Log {
-                    node: of,
-                    entries: new,
-                    dropped: lost,
-                } = event
-                    && of == node
-                {
-                    *dropped += lost;
-                    entries.extend(new.iter().filter(|entry| entry.severity <= *min).cloned());
+                if let Event::Logged { records } = event {
+                    entries.extend(
+                        records
+                            .iter()
+                            .filter(|record| after.is_none_or(|after| record.id > after))
+                            .filter(|record| filter.admits(record))
+                            .cloned(),
+                    );
                     let excess = entries.len().saturating_sub(MAX_LOG_ENTRIES);
                     entries.drain(..excess);
                     *dropped += excess as u64;

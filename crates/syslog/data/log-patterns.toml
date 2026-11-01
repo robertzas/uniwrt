@@ -1,0 +1,167 @@
+# Log annotations (docs/features/observability.md, Logs): each [[pattern]] maps a regex over an
+# entry's text, for the listed programs (all when `programs` is absent), to what it means.
+# The first pattern that matches wins, so specific ones go first. Fields: id (stable: stored
+# with each entry it annotates), programs, regex (Rust `regex` syntax; use '''…''' when it holds
+# a quote), severity (how much it matters: emergency … debug), meaning, hint, link.
+# Every pattern needs a real example line in `src/annotate.rs`'s tests.
+
+# --- Wi-Fi (hostapd) ---
+
+[[pattern]]
+id = "wifi-wrong-password"
+programs = ["hostapd"]
+regex = 'AP-STA-POSSIBLE-PSK-MISMATCH|invalid MIC in msg 2/4 of 4-Way Handshake'
+severity = "warning"
+meaning = "A client tried to join with the wrong Wi-Fi password."
+hint = "A device with an old password keeps retrying. Repeated attempts from an unknown device may be someone guessing."
+
+[[pattern]]
+id = "wifi-inactivity"
+programs = ["hostapd"]
+regex = '(?:deauthenticated|disassociated) due to inactivity'
+severity = "info"
+meaning = "The access point dropped a client that stopped answering."
+hint = "Usual when a device leaves or sleeps. If a device that stays close keeps dropping, check its signal and power saving."
+
+[[pattern]]
+id = "wifi-local-deauth"
+programs = ["hostapd"]
+regex = 'deauthenticated due to local deauth request'
+severity = "notice"
+meaning = "The access point disconnected the client itself."
+hint = "Band steering, a kick, or a Wi-Fi reload does this. Many at once usually mean the radio restarted."
+
+[[pattern]]
+id = "dfs-radar"
+programs = ["hostapd"]
+regex = 'DFS-RADAR-DETECTED'
+severity = "warning"
+meaning = "Radar was detected on a DFS channel; the radio had to leave it."
+hint = "The channel is closed for 30 minutes. If it happens often, plan a non-DFS channel for this access point."
+
+[[pattern]]
+id = "dfs-cac"
+programs = ["hostapd"]
+regex = 'DFS-CAC-START'
+severity = "notice"
+meaning = "The radio is checking a DFS channel for radar before using it."
+hint = "The 5 GHz network is off the air until the check ends (usually 60 s, up to 10 minutes on weather-radar channels)."
+
+# --- Links and interfaces (netifd) ---
+
+[[pattern]]
+id = "interface-link-loss"
+programs = ["netifd"]
+regex = '''Interface '[^']+' has link connectivity loss'''
+severity = "warning"
+meaning = "An interface lost its link."
+hint = "Check the cable and the device at the other end. On the WAN, the modem or ISP may have dropped."
+
+[[pattern]]
+id = "interface-down"
+programs = ["netifd"]
+regex = '''Interface '[^']+' is now down'''
+severity = "notice"
+meaning = "A network interface went down."
+
+[[pattern]]
+id = "link-down"
+programs = ["netifd"]
+regex = '''Network device '[^']+' link is down'''
+severity = "notice"
+meaning = "A port lost its link."
+hint = "Expected when a device is unplugged or turned off. Frequent flaps point to a bad cable or port."
+
+# --- DHCP (dnsmasq) ---
+
+[[pattern]]
+id = "dhcp-pool-full"
+programs = ["dnsmasq-dhcp", "dnsmasq"]
+regex = 'no address available'
+severity = "error"
+meaning = "The DHCP pool is full: a new device got no address."
+hint = "Enlarge the pool or shorten the lease time."
+
+# --- Kernel ---
+
+[[pattern]]
+id = "oom"
+programs = ["kernel"]
+regex = 'Out of memory: Kill|invoked oom-killer'
+severity = "critical"
+meaning = "The node ran out of memory and the kernel killed a program."
+hint = "Look at the node's memory chart, and remove packages it does not need."
+
+[[pattern]]
+id = "wifi-firmware-timeout"
+programs = ["kernel"]
+regex = 'mt7\w+ .*Message [0-9a-f]+ \(seq \d+\) timeout'
+severity = "error"
+meaning = "The Wi-Fi chip's firmware stopped answering the driver (mt76)."
+hint = "Clients may drop until the driver recovers. If it repeats, a newer OpenWrt release often carries a fixed firmware."
+
+[[pattern]]
+id = "wifi-firmware-crash"
+programs = ["kernel"]
+regex = 'firmware crashed'
+severity = "error"
+meaning = "The Wi-Fi chip's firmware crashed and was restarted."
+hint = "Clients were disconnected. If it repeats, update the node's firmware."
+
+[[pattern]]
+id = "bridge-loop"
+programs = ["kernel"]
+regex = 'received packet on \S+ with own address as source address'
+severity = "warning"
+meaning = "A bridge saw its own frames coming back: there may be a loop."
+hint = "Check for a cable that links two ports of the same network, or a mesh and a wired link that bridge the same segments without STP."
+
+[[pattern]]
+id = "conntrack-full"
+programs = ["kernel"]
+regex = 'nf_conntrack: table full'
+severity = "error"
+meaning = "The connection tracking table is full: new connections are dropped."
+hint = "A device may be opening connections in a flood (malware, a torrent client), or the table is too small for the traffic."
+
+[[pattern]]
+id = "batman-mtu"
+programs = ["kernel"]
+regex = 'The MTU of interface \S+ is too small'
+severity = "warning"
+meaning = "A mesh interface's MTU is too small for batman-adv: mesh traffic is fragmented."
+hint = "Raise the interface's MTU to the size the message names."
+
+[[pattern]]
+id = "flash-error"
+programs = ["kernel"]
+regex = 'SQUASHFS error|UBIFS error|jffs2: .*(?:[Ee]rror|CRC failed)'
+severity = "critical"
+meaning = "The node could not read its flash."
+hint = "The flash may be wearing out. Back the node up, then plan to reflash or replace it."
+
+[[pattern]]
+id = "segfault"
+programs = ["kernel"]
+regex = 'segfault at [0-9a-f]+ ip'
+severity = "error"
+meaning = "A program crashed."
+hint = "procd usually restarts it. If it crashes again, the program's package may need an update."
+
+# --- Access and WAN ---
+
+[[pattern]]
+id = "ssh-bad-password"
+programs = ["dropbear"]
+regex = 'Bad password attempt|Login attempt for nonexistent user'
+severity = "warning"
+meaning = "A failed SSH login."
+hint = "Attempts from addresses you don't know mean someone is trying to get in. Keep SSH off the WAN and use keys."
+
+[[pattern]]
+id = "ppp-down"
+programs = ["pppd"]
+regex = 'LCP terminated by peer|Connection terminated'
+severity = "warning"
+meaning = "The PPP connection to the ISP ended."
+hint = "netifd redials. If it keeps happening, check the line and the credentials."

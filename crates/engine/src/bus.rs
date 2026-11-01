@@ -8,7 +8,7 @@ use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     event::{NodeEvent, Roam},
     facts::NodeFacts,
-    log::LogEntry,
+    log::{LogEntry, LogRecord},
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
@@ -44,6 +44,9 @@ pub enum Event {
         entries: Arc<[LogEntry]>,
         dropped: u64,
     },
+    /// Log entries as stored ([`LogRecorder`](crate::LogRecorder)), from nodes and other
+    /// hosts, in the order they were stored.
+    Logged { records: Arc<[LogRecord]> },
     /// The engine stopped watching a node.
     Removed { node: NodeId },
     /// The topology changed ([`Engine::topology`](crate::Engine::topology)).
@@ -54,7 +57,8 @@ pub enum Event {
 }
 
 impl Event {
-    /// The node it is about; `None` for a roam, which is about two, the topology and clients.
+    /// The node it is about; `None` for a roam, which is about two, the topology, clients and
+    /// stored log entries.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -62,7 +66,10 @@ impl Event {
             | Self::Node { node, .. }
             | Self::Log { node, .. }
             | Self::Removed { node } => Some(*node),
-            Self::Roam { .. } | Self::Topology { .. } | Self::Clients { .. } => None,
+            Self::Roam { .. }
+            | Self::Topology { .. }
+            | Self::Clients { .. }
+            | Self::Logged { .. } => None,
         }
     }
 }

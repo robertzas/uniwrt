@@ -65,6 +65,10 @@ pub(crate) struct ServeArgs {
         value_delimiter = ','
     )]
     pub(crate) trusted_proxies: Vec<IpNet>,
+    /// Address and port of the syslog receiver, over UDP and TCP, or `off`. Default:
+    /// `0.0.0.0:5514`, and off in demo mode.
+    #[arg(long, env = "UNIWRT_SYSLOG_LISTEN", value_name = "ADDR:PORT|off", value_parser = parse_syslog_listen)]
+    pub(crate) syslog_listen: Option<SyslogListen>,
     /// The vault's master key file (default: `master.key` in the data directory), created on
     /// the first run. `UNIWRT_MASTER_KEY` may hold the key itself (64 hexadecimal digits).
     #[arg(long, env = "UNIWRT_MASTER_KEY_FILE", value_name = "FILE")]
@@ -93,6 +97,34 @@ pub(crate) struct ServeArgs {
     /// The simulation's seed: the same seed gives the same fleet and story.
     #[arg(long, env = "UNIWRT_DEMO_SEED", value_name = "SEED", default_value_t = SimConfig::DEFAULT_SEED, requires = "demo")]
     pub(crate) demo_seed: u64,
+}
+
+/// Where the syslog receiver listens, if at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SyslogListen {
+    Off,
+    On(SocketAddr),
+}
+
+impl ServeArgs {
+    /// The syslog receiver's address: as configured, else the default (none in demo mode).
+    pub(crate) fn syslog_addr(&self) -> Option<SocketAddr> {
+        match self.syslog_listen {
+            Some(SyslogListen::On(addr)) => Some(addr),
+            Some(SyslogListen::Off) => None,
+            None => (!self.demo).then(|| SocketAddr::from(([0, 0, 0, 0], 5514))),
+        }
+    }
+}
+
+fn parse_syslog_listen(value: &str) -> Result<SyslogListen, String> {
+    if value.eq_ignore_ascii_case("off") {
+        return Ok(SyslogListen::Off);
+    }
+    value
+        .parse()
+        .map(SyslogListen::On)
+        .map_err(|_| format!("{value:?} is not ADDR:PORT or off"))
 }
 
 #[derive(Debug, Args)]
@@ -150,6 +182,30 @@ mod tests {
         assert_eq!(args.https_listen.to_string(), "0.0.0.0:8443");
         assert!(args.tls_names.is_empty() && args.trusted_proxies.is_empty());
         assert!(args.master_key_file.is_none());
+        assert_eq!(
+            args.syslog_addr().map(|a| a.to_string()).as_deref(),
+            Some("0.0.0.0:5514")
+        );
+    }
+
+    #[test]
+    fn syslog_listens_where_told_or_not_at_all() {
+        let serve = |args: &[&str]| {
+            let cli = Cli::try_parse_from([&["uniwrt", "serve"], args].concat()).unwrap();
+            let Some(Command::Serve(args)) = cli.command else {
+                panic!("expected serve")
+            };
+            args.syslog_addr()
+        };
+        assert_eq!(
+            serve(&["--syslog-listen", "127.0.0.1:1514"]),
+            "127.0.0.1:1514".parse().ok()
+        );
+        assert_eq!(serve(&["--syslog-listen", "off"]), None);
+        // Off in demo mode unless asked for.
+        assert_eq!(serve(&["--demo"]), None);
+        assert!(serve(&["--demo", "--syslog-listen", "[::1]:5514"]).is_some());
+        assert!(Cli::try_parse_from(["uniwrt", "serve", "--syslog-listen", "5514"]).is_err());
     }
 
     #[test]

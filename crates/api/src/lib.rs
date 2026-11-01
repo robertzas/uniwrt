@@ -18,9 +18,13 @@
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
-//!   what is kept ([`SeriesInfo`])), and `v1/ws`
+//!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
+//!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
+//!   `GET v1/logs/patterns`, and saved searches: `GET` and `POST v1/logs/searches`,
+//!   `DELETE v1/logs/searches/{id}`; see `logs`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
-//!   `logs?node=<id>&min=<severity>`, `jobs`, `topology`, `clients`, `client:<mac>`, see `ws`). Handlers that need a user
+//!   `logs[?node=<id>|host=<name>&min=<severity>]`, `jobs`, `topology`, `clients`,
+//!   `client:<mac>`, see `ws`). Handlers that need a user
 //!   take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
@@ -47,6 +51,7 @@ mod clients;
 mod discovered;
 mod health;
 mod jobs;
+mod logs;
 mod metrics;
 mod nodes;
 pub mod problem;
@@ -60,7 +65,7 @@ mod ws;
 
 use axum::{
     Router, middleware,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
 };
 
 pub use adopt::{
@@ -71,6 +76,9 @@ pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
 pub use health::BuildInfo;
+pub use logs::{
+    LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
+};
 pub use metrics::{MetricSeries, MetricsResponse, SeriesInfo};
 pub use nodes::{NodeDetail, NodeSummary};
 pub use problem::{ApiError, ApiResult, no_route};
@@ -100,6 +108,16 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
+        .route("/v1/logs", get(logs::list))
+        .route("/v1/logs/histogram", get(logs::histogram))
+        .route("/v1/logs/sources", get(logs::sources))
+        .route("/v1/logs/patterns", get(logs::patterns))
+        .route(
+            "/v1/logs/searches",
+            get(logs::searches).post(logs::save_search),
+        )
+        .route("/v1/logs/searches/{id}", delete(logs::delete_search))
+        .route("/v1/logs/{id}/context", get(logs::context))
         .route("/v1/metrics", get(metrics::get))
         .route("/v1/metrics/series", get(metrics::series))
         .route("/v1/topology", get(topology::get))

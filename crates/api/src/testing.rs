@@ -15,7 +15,7 @@ use axum::{
 use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
-use uniwrt_engine::{Engine, EngineConfig, Fleet};
+use uniwrt_engine::{Engine, EngineConfig, Fleet, LogRecorder, LogsConfig};
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
@@ -136,6 +136,8 @@ pub(crate) struct Demo {
     pub(crate) cookie: String,
     /// The nodes' IDs: the gateway first.
     pub(crate) ids: Vec<NodeId>,
+    /// Stores the nodes' logs, once started.
+    logs: Option<LogRecorder>,
 }
 
 impl Demo {
@@ -196,9 +198,22 @@ impl Demo {
             api,
             cookie: String::new(),
             ids,
+            logs: None,
         };
         demo.cookie = login(&demo.api).await;
         demo
+    }
+
+    /// Stores the nodes' logs from now on (their agents follow them).
+    pub(crate) async fn record_logs(&mut self) {
+        let recorder = LogRecorder::start(
+            &self.engine,
+            self.store.clone(),
+            None,
+            LogsConfig::default(),
+        )
+        .await;
+        self.logs = Some(recorder);
     }
 
     pub(crate) fn router(&self) -> Router {

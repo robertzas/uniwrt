@@ -111,22 +111,27 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 
 ## Logs [M2.5]
 
-**Ingest:**
-- OpenWrt logd remote syslog (`log_ip`, `log_port`, `log_proto tcp`), enabled when a node becomes managed, or with consent in observe mode.
-- Zero-change alternative for observe mode: the agent's `log_follow` (D-036). By default it polls logd by sequence number every second; it can also stream `logread -f`. Either backfills the last N entries on request.
+Backend in M2.5a1 (D-059); the UI follows in M2.5a2.
 
-**Receiver:** RFC 3164/5424 over UDP and TCP (octet-counted or newline-framed) on port 5514. It parses host, program, PID, severity and facility, then maps the host to a node.
+**Ingest** (the engine's `LogRecorder`):
+- Every watched node's log is followed by its agent (`log_follow`, polling logd by sequence number every second; D-036), so observe mode needs no change on the node. The agent's backfill after a (re)start is skipped through the newest entry stored, so a controller restart neither loses nor repeats entries.
+- OpenWrt logd's remote syslog (`log_ip`, `log_port 5514`, `log_proto tcp`) takes over once it arrives from a node: the agent stops following, and follows again when the node's TCP connection closes or its UDP syslog is quiet for 10 minutes. Around each switch, an entry one source delivered is skipped when the other delivers it within 30 s. Managed mode configures remote syslog later (M3); until then the owner may set it by hand.
+- A syslog sender is a node when its address is one of a node's interface addresses, else when the host name in its messages is a node's. Loopback addresses, and addresses or names that several nodes share (the default `OpenWrt`), name no node. Everything else is stored under the sender's host name, or its address when it gives none.
 
-**Storage:** an SQLite FTS5 table plus metadata. Retention is by age and size (default 14 days / 1 GB).
+**Receiver** (`syslog` crate): RFC 5424 and RFC 3164 over UDP and TCP on port 5514 (`--syslog-listen`, off in demo mode unless given). TCP frames are octet-counted or end with a line feed or NUL (RFC 6587; logd's `log_trailer_null`). The parser is lenient: what doesn't parse becomes the text, and messages are cut at 8 KiB. An RFC 3164 time names no zone, so the arrival time is kept instead, unless logd's `[s.ms]` stamp (`log_timestamp`) is there. Each sender may send 200 messages a second (bursts of 2,000), at most 64 TCP connections are open at once, and a full queue drops messages; drops are counted and logged once a minute.
 
-**UI:**
+**Storage:** the `logs` table plus a contentless FTS5 index over program and text. Entries are written in batches every 250 ms and announced once stored. Retention: 14 days by arrival, and 1 GiB, estimated from the newest entries' size. Both are pruned every 15 minutes, at most 10,000 entries per call. The hosts and programs that logged (`log_sources`) feed the filters.
+
+**API:** pages, a histogram, context and saved searches (ARCHITECTURE.md, API). A filter takes nodes, hosts, programs, the least severity, full text (every word must appear, `"a phrase"` as written, `word*` as a prefix, `-word` must not appear), annotated only, and a time range. The WS topic `logs[?node=<id>|host=<name>&min=<severity>]` sends the newest 200 stored entries, then each one stored after them.
+
+**UI** (M2.5a2):
 - live tail (pause, resume, follow)
 - filters (node, program, severity, time) and full-text search
 - a severity histogram and saved searches
 - jump to context: ± N lines across all nodes
 - correlation: click an event to see the logs around it
 
-**Annotations:** `log-patterns.toml`, embedded in the crate that annotates logs (D-025), maps a regex to a meaning, severity, hint and link. Examples: hostapd deauth reasons, DFS radar, netifd link flaps, dnsmasq DHCP pool exhaustion, kernel OOM, mt76 firmware errors.
+**Annotations:** `crates/syslog/data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to a meaning, severity, hint and link. The first match wins and its id is stored with the entry; `GET v1/logs/patterns` explains each id. Each pattern needs a real example line in the tests. The first set covers hostapd's wrong passwords, inactivity and local deauths, DFS radar and CAC, netifd link loss and interface and port downs, a full DHCP pool, kernel OOM, mt76 firmware timeouts and firmware crashes, bridge loops, a full conntrack table, the batman-adv MTU, flash read errors, segfaults, failed SSH logins and PPP drops.
 
 ## Events, alerts, notifications [M2.5]
 

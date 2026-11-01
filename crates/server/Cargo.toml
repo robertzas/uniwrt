@@ -44,6 +44,7 @@ uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-sim.workspace = true
 uniwrt-store.workspace = true
+uniwrt-syslog.workspace = true
 zeroize.workspace = true
 
 [build-dependencies]

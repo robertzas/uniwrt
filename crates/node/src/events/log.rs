@@ -5,7 +5,7 @@
 
 use serde::Deserialize;
 use uniwrt_core::Timestamp;
-use uniwrt_model::log::{LogEntry, Severity};
+use uniwrt_model::log::{LogEntry, Severity, split_tag};
 
 /// logd's source of the kernel's messages (`SOURCE_KLOG`), whose text has no tag.
 const KERNEL: u8 = 0;
@@ -76,36 +76,11 @@ fn line(text: &str) -> Option<LogEntry> {
         seq: None,
         time: Timestamp::from_unix_ms(ms),
         facility: facility_code(facility)?,
-        severity: severity_of(severity)?,
+        severity: Severity::parse(severity)?,
         program,
         pid,
         message,
     })
-}
-
-/// `dnsmasq-dhcp[2092]: DHCPACK…` → (`dnsmasq-dhcp`, 2092, `DHCPACK…`); a message without a
-/// tag is all text.
-fn split_tag(msg: &str) -> (Option<String>, Option<u32>, String) {
-    let end = msg
-        .find(|c: char| c == ':' || c == '[' || c.is_whitespace())
-        .unwrap_or(msg.len());
-    let (name, rest) = msg.split_at(end);
-    let (pid, rest) = match rest.strip_prefix('[') {
-        Some(rest) => match rest.split_once(']') {
-            Some((pid, rest)) => match pid.parse() {
-                Ok(pid) => (Some(pid), rest),
-                Err(_) => return (None, None, msg.to_owned()),
-            },
-            None => return (None, None, msg.to_owned()),
-        },
-        None => (None, rest),
-    };
-    match rest.strip_prefix(':') {
-        Some(text) if !name.is_empty() && (text.is_empty() || text.starts_with(' ')) => {
-            (Some(name.to_owned()), pid, text.trim_start().to_owned())
-        }
-        _ => (None, None, msg.to_owned()),
-    }
 }
 
 /// The codes of the facility names musl's `facilitynames` gives logread.
@@ -127,19 +102,5 @@ fn facility_code(name: &str) -> Option<u8> {
             let n: u8 = name.strip_prefix("local")?.parse().ok()?;
             return (n < 8).then_some(16 + n);
         }
-    })
-}
-
-fn severity_of(name: &str) -> Option<Severity> {
-    Some(match name {
-        "emerg" | "panic" => Severity::Emergency,
-        "alert" => Severity::Alert,
-        "crit" => Severity::Critical,
-        "err" | "error" => Severity::Error,
-        "warn" | "warning" => Severity::Warning,
-        "notice" => Severity::Notice,
-        "info" => Severity::Info,
-        "debug" => Severity::Debug,
-        _ => return None,
     })
 }

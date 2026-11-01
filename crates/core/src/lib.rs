@@ -21,7 +21,7 @@ mod mac;
 mod time;
 
 pub use clock::{Clock, ManualClock, SystemClock};
-pub use id::{BackupId, JobId, NodeId, UserId};
+pub use id::{BackupId, JobId, LogId, NodeId, SearchId, UserId};
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 pub use mac::{MacAddr, ParseMacError};
 pub use time::Timestamp;

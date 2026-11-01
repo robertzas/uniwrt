@@ -7,18 +7,20 @@ mod clients;
 mod facts;
 mod host_keys;
 mod jobs;
+mod logs;
 mod metrics;
 mod nodes;
 mod sessions;
 mod topology;
 mod users;
 
-use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp, UserId};
+use uniwrt_core::{JobId, LogId, MacAddr, NodeId, SearchId, Timestamp, UserId};
 use uniwrt_model::{
     client::{ClientRecord, ClientSession},
     facts::NodeFacts,
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
+    log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
     metric::{Entity, Metric, Point, Resolution, Sample},
     node::{HostKeyPin, NewNode, Node},
     user::{AuditEntry, Role, Session, User},
@@ -314,4 +316,73 @@ pub trait MetricsRepo: Send + Sync {
     /// Deletes what each resolution holds from before its time, and the series left empty.
     /// Returns how many points.
     fn prune_metrics(&self, before: MetricsPrune) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Before when, and above what size, logs are deleted ([`LogRepo::prune_logs`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LogsPrune {
+    /// Entries that arrived before this go.
+    pub before: Timestamp,
+    /// The oldest entries go while the logs take more than this, estimated from the newest
+    /// entries' size.
+    pub max_bytes: u64,
+}
+
+/// Logs (features/observability.md, Logs): entries with a full-text index, the hosts and
+/// programs that logged, and saved searches.
+pub trait LogRepo: Send + Sync {
+    /// Stores entries in order; returns them as stored, with their ids.
+    fn record_logs(&self, logs: Vec<NewLog>)
+    -> impl Future<Output = Result<Vec<LogRecord>>> + Send;
+
+    /// Up to `limit` entries that pass `filter`, newest first (by time, then id), from before
+    /// `before` (a time and id) when given.
+    fn logs(
+        &self,
+        filter: LogFilter,
+        before: Option<(Timestamp, LogId)>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<LogRecord>>> + Send;
+
+    /// The entry `id` with up to `around` entries logged before it and after it, from every
+    /// source, oldest first; empty when there is no such entry.
+    fn log_context(
+        &self,
+        id: LogId,
+        around: usize,
+    ) -> impl Future<Output = Result<Vec<LogRecord>>> + Send;
+
+    /// How many entries that pass `filter` were logged in each `step` from `from` to `to`, by
+    /// severity: every bucket, empty ones too.
+    fn log_histogram(
+        &self,
+        filter: LogFilter,
+        from: Timestamp,
+        to: Timestamp,
+        step: std::time::Duration,
+    ) -> impl Future<Output = Result<Vec<LogBucket>>> + Send;
+
+    /// The newest entry of a node, to resume after.
+    fn last_log(&self, node: NodeId) -> impl Future<Output = Result<Option<LogRecord>>> + Send;
+
+    /// The hosts and programs that logged since `since`, by name.
+    fn log_sources(&self, since: Timestamp) -> impl Future<Output = Result<LogSources>> + Send;
+
+    /// Deletes the oldest entries: those that arrived before `prune.before`, then more while
+    /// the logs are larger than `prune.max_bytes`. One call deletes a bounded number; it
+    /// returns how many, so a caller repeats while it deleted some.
+    fn prune_logs(&self, prune: LogsPrune) -> impl Future<Output = Result<usize>> + Send;
+
+    fn saved_searches(&self) -> impl Future<Output = Result<Vec<SavedSearch>>> + Send;
+
+    /// Saves a search; a name already used is an [`Error::Conflict`](crate::Error::Conflict).
+    fn save_search(
+        &self,
+        name: String,
+        filter: LogFilter,
+        by: Option<UserId>,
+    ) -> impl Future<Output = Result<SavedSearch>> + Send;
+
+    /// Deletes a saved search; false when there was none.
+    fn delete_search(&self, id: SearchId) -> impl Future<Output = Result<bool>> + Send;
 }

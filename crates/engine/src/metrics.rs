@@ -132,7 +132,11 @@ fn feed(sampler: &mut Sampler, event: &Event) {
         Event::Topology { topology } => sampler.topology(topology),
         Event::Clients { changes } => sampler.clients(&changes.samples),
         Event::Removed { node } => sampler.forget(*node),
-        Event::Status { .. } | Event::Node { .. } | Event::Roam { .. } | Event::Log { .. } => {}
+        Event::Status { .. }
+        | Event::Node { .. }
+        | Event::Roam { .. }
+        | Event::Log { .. }
+        | Event::Logged { .. } => {}
     }
 }
 

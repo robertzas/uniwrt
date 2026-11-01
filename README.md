@@ -54,7 +54,7 @@ flowchart LR
 
 - The controller keeps one SSH session open per node and runs an **ephemeral ucode agent** over it. (ucode is the scripting runtime built into OpenWrt.) The agent speaks JSON-RPC and pushes events in real time. It installs nothing permanent and works on every CPU architecture.
 - The controller owns the **desired state**. It renders each node's UCI config, diffs it against the node, and applies it as a **transaction**. A dead-man timer on the node rolls the change back if the controller can't confirm it.
-- Logs arrive through OpenWrt's built-in remote syslog. Firmware images come from OpenWrt's Attended Sysupgrade service.
+- Logs arrive through the agent, which follows each node's log with no change on the node, or through OpenWrt's built-in remote syslog when it is configured; other devices can send syslog too. Firmware images come from OpenWrt's Attended Sysupgrade service.
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

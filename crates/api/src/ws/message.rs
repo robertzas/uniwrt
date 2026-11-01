@@ -15,7 +15,7 @@ use uniwrt_model::{
         NeighborFacts, NodeFacts, PhyFacts, RadioFacts, StationFacts, SystemFacts,
     },
     job::Job,
-    log::LogEntry,
+    log::LogRecord,
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
@@ -70,15 +70,16 @@ pub enum ServerMessage {
         /// The controller stopped watching the node.
         removed: bool,
     },
-    /// The entries kept before the subscription (none until logs are stored, M2.5).
+    /// The newest entries stored before the subscription, oldest first.
     LogSnapshot {
         topic: String,
-        entries: Vec<LogEntry>,
+        entries: Vec<LogRecord>,
     },
-    /// New entries, oldest first; `dropped` counts those lost before them.
+    /// Entries stored since, oldest first; `dropped` counts those the topic could not keep up
+    /// with (the client can read them back).
     LogDelta {
         topic: String,
-        entries: Vec<LogEntry>,
+        entries: Vec<LogRecord>,
         dropped: u64,
     },
     /// The latest jobs, newest first.

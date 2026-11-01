@@ -5,7 +5,7 @@ import type { ClientSample } from "./ClientSample";
 import type { ClientSession } from "./ClientSession";
 import type { FactsPatch } from "./FactsPatch";
 import type { Job } from "./Job";
-import type { LogEntry } from "./LogEntry";
+import type { LogRecord } from "./LogRecord";
 import type { MacAddr } from "./MacAddr";
 import type { NodeDetail } from "./NodeDetail";
 import type { NodeId } from "./NodeId";
@@ -24,7 +24,7 @@ roams: Array<TimedRoam>,
 /**
  * The controller stopped watching the node.
  */
-removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<LogEntry>, } | { "type": "log_delta", topic: string, entries: Array<LogEntry>, dropped: number, } | { "type": "jobs_snapshot", topic: string, jobs: Array<Job>, } | { "type": "jobs_delta", topic: string, jobs: Array<Job>, } | { "type": "topology_snapshot", topic: string, topology: Topology, } | { "type": "topology_delta", topic: string, delta: TopologyDelta, } | { "type": "clients_snapshot", topic: string, clients: Array<Client>, } | { "type": "clients_delta", topic: string, clients: Array<Client>, removed: Array<MacAddr>, } | { "type": "client_snapshot", topic: string, client: ClientDetail, } | { "type": "client_delta", topic: string, client?: Client, samples: Array<ClientSample>, sessions: Array<ClientSession>, 
+removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<LogRecord>, } | { "type": "log_delta", topic: string, entries: Array<LogRecord>, dropped: number, } | { "type": "jobs_snapshot", topic: string, jobs: Array<Job>, } | { "type": "jobs_delta", topic: string, jobs: Array<Job>, } | { "type": "topology_snapshot", topic: string, topology: Topology, } | { "type": "topology_delta", topic: string, delta: TopologyDelta, } | { "type": "clients_snapshot", topic: string, clients: Array<Client>, } | { "type": "clients_delta", topic: string, clients: Array<Client>, removed: Array<MacAddr>, } | { "type": "client_snapshot", topic: string, client: ClientDetail, } | { "type": "client_delta", topic: string, client?: Client, samples: Array<ClientSample>, sessions: Array<ClientSession>, 
 /**
  * The client was forgotten.
  */

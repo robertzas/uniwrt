@@ -184,9 +184,9 @@ async fn start_fleet(
             config.access_points,
             config.clients
         );
-        Fleet::demo(store, &config, Arc::clone(clock)).await
+        Fleet::demo(store, &config, Arc::clone(clock), args.syslog_addr()).await
     } else {
-        Fleet::start(store, controller_key, Arc::clone(clock)).await
+        Fleet::start(store, controller_key, Arc::clone(clock), args.syslog_addr()).await
     }
 }
 

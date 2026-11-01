@@ -1,0 +1,27 @@
+[package]
+name = "uniwrt-syslog"
+description = "uniwrt syslog: the RFC 3164/5424 parser and the UDP/TCP receiver, and log annotations (log-patterns.toml)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+regex.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+time = { workspace = true, features = ["parsing"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+toml.workspace = true
+tracing.workspace = true
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

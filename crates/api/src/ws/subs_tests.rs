@@ -12,18 +12,18 @@ use std::{
 use serde_json::Value;
 use tokio::sync::broadcast;
 use uniwrt_clients::{Book, Client, Detail};
-use uniwrt_core::{MacAddr, NodeId, SystemClock, Timestamp};
+use uniwrt_core::{LogId, MacAddr, NodeId, SystemClock, Timestamp};
 use uniwrt_engine::{Event, Fleet, Interest, NodeView};
 use uniwrt_model::{
     client::ClientRecord,
     event::{Attachment, NodeEvent, Roam, StationChange, StationEvent},
     facts::NodeFacts,
-    log::{LogEntry, Severity},
+    log::{LogEntry, LogRecord, LogVia, NewLog, Severity},
     node::{NewNode, NodeRole},
     status::{NodeState, NodeStatus},
 };
 use uniwrt_node::proto::ops::Set;
-use uniwrt_store::{NodeRepo as _, Store};
+use uniwrt_store::{LogRepo as _, NodeRepo as _, Store};
 use uniwrt_topo::{Member, Topology};
 
 use super::{message::ServerMessage, subs::Subscriptions};
@@ -63,10 +63,6 @@ impl Fleet for FakeFleet {
     }
 
     fn focus(&self, _: NodeId) -> Option<Interest> {
-        None
-    }
-
-    fn follow_logs(&self, _: NodeId) -> Option<Interest> {
         None
     }
 
@@ -309,18 +305,49 @@ async fn events_and_roams_queue_in_order_up_to_a_cap() {
 }
 
 #[tokio::test]
-async fn logs_are_filtered_by_severity_and_overflow_is_counted() {
+async fn logs_start_from_storage_then_follow_what_is_stored() {
     let mut h = harness().await;
     let node = h.adopt(2).await;
+    let other = NodeId::new(99);
+    let new = |node: NodeId, severity| NewLog {
+        received: Timestamp::from_unix_ms(1),
+        node: Some(node),
+        host: None,
+        via: LogVia::Agent,
+        entry: log(severity),
+        pattern: None,
+    };
+    let earlier = h
+        .store
+        .record_logs(vec![
+            new(node, Severity::Warning),
+            new(node, Severity::Info),
+            new(other, Severity::Error),
+        ])
+        .await
+        .unwrap();
     let topic = format!("logs?node={node}&min=warning");
     let snapshot = h.set(&[&topic]).await;
     assert_eq!(snapshot[0]["type"], "log_snapshot");
-    assert_eq!(snapshot[0]["entries"], Value::Array(Vec::new()));
-    let entries = [Severity::Info, Severity::Warning, Severity::Error];
-    h.apply(Event::Log {
-        node,
-        entries: entries.map(log).into(),
-        dropped: 2,
+    let entries = snapshot[0]["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["id"], earlier[0].id.get());
+    assert_eq!(entries[0]["severity"], "warning");
+
+    // Stored entries that pass the filter follow; those in the snapshot are not sent again.
+    let later = h
+        .store
+        .record_logs(vec![
+            new(node, Severity::Info),
+            new(node, Severity::Warning),
+            new(other, Severity::Error),
+            new(node, Severity::Error),
+        ])
+        .await
+        .unwrap();
+    let records: Vec<_> = earlier.iter().chain(&later).cloned().collect();
+    h.apply(Event::Logged {
+        records: records.into(),
     })
     .await;
     let delta = h.flush();
@@ -332,13 +359,17 @@ async fn logs_are_filtered_by_severity_and_overflow_is_counted() {
         .map(|entry| entry["severity"].as_str().unwrap())
         .collect();
     assert_eq!(severities, ["warning", "error"]);
-    assert_eq!(delta[0]["dropped"], 2);
+    assert_eq!(delta[0]["dropped"], 0);
 
-    let many: Vec<_> = (0..1_500).map(|_| log(Severity::Error)).collect();
-    h.apply(Event::Log {
-        node,
-        entries: many.into(),
-        dropped: 0,
+    let template = &later[3];
+    let many: Vec<_> = (0..1_500)
+        .map(|i| LogRecord {
+            id: LogId::new(template.id.get() + 1 + i),
+            ..template.clone()
+        })
+        .collect();
+    h.apply(Event::Logged {
+        records: many.into(),
     })
     .await;
     let delta = h.flush();

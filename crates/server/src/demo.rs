@@ -202,7 +202,9 @@ mod tests {
             reboot_every: None,
             ..SimConfig::default()
         };
-        let fleet = Fleet::demo(&store, &config, clock.clone()).await.unwrap();
+        let fleet = Fleet::demo(&store, &config, clock.clone(), None)
+            .await
+            .unwrap();
         let vault = Vault::open(&store, &MasterKey::generate().unwrap())
             .await
             .unwrap();
