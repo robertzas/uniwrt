@@ -7,6 +7,7 @@ mod clients;
 mod facts;
 mod host_keys;
 mod jobs;
+mod metrics;
 mod nodes;
 mod sessions;
 mod topology;
@@ -18,6 +19,7 @@ use uniwrt_model::{
     facts::NodeFacts,
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
+    metric::{Entity, Metric, Point, Resolution, Sample},
     node::{HostKeyPin, NewNode, Node},
     user::{AuditEntry, Role, Session, User},
 };
@@ -266,4 +268,50 @@ pub trait ClientRepo: Send + Sync {
         &self,
         before: Timestamp,
     ) -> impl Future<Output = Result<(usize, usize)>> + Send;
+}
+
+/// Before when each resolution of the metrics is deleted ([`MetricsRepo::prune_metrics`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetricsPrune {
+    pub raw: Timestamp,
+    pub minute: Timestamp,
+    pub hour: Timestamp,
+}
+
+/// Metrics (features/observability.md, Metrics): series by entity and metric, as raw windows
+/// and their 1-minute and 1-hour rollups.
+pub trait MetricsRepo: Send + Sync {
+    /// Records samples, each replacing the value of its series' window.
+    fn record_metrics(&self, samples: Vec<Sample>) -> impl Future<Output = Result<()>> + Send;
+
+    /// A series' points from `from` (included) to `to` (excluded) at `resolution`, oldest
+    /// first, with the tail that rollups have not reached yet read from finer resolutions.
+    fn metric_points(
+        &self,
+        entity: &Entity,
+        metric: Metric,
+        resolution: Resolution,
+        from: Timestamp,
+        to: Timestamp,
+    ) -> impl Future<Output = Result<Vec<Point>>> + Send;
+
+    /// The metrics kept for each entity: every entity, or `under` and the entities below it
+    /// (a node's devices and radios), by entity.
+    fn metric_series(
+        &self,
+        under: Option<Entity>,
+    ) -> impl Future<Output = Result<Vec<(Entity, Vec<Metric>)>>> + Send;
+
+    /// Rolls raw windows up into the minutes that ended by `until`, and minutes into the hours
+    /// they complete, from where the last call stopped (from `earliest` the first time). One
+    /// call does a bounded amount; it returns whether more is due.
+    fn roll_up_metrics(
+        &self,
+        until: Timestamp,
+        earliest: Timestamp,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Deletes what each resolution holds from before its time, and the series left empty.
+    /// Returns how many points.
+    fn prune_metrics(&self, before: MetricsPrune) -> impl Future<Output = Result<usize>> + Send;
 }

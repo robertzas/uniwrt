@@ -16,6 +16,7 @@ uniwrt-clients = { path = "crates/clients" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-engine = { path = "crates/engine" }
 uniwrt-jobs = { path = "crates/jobs" }
+uniwrt-metrics = { path = "crates/metrics" }
 uniwrt-model = { path = "crates/model" }
 uniwrt-node = { path = "crates/node" }
 uniwrt-sim = { path = "crates/sim" }

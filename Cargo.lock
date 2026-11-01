@@ -2865,6 +2865,7 @@ dependencies = [
  "uniwrt-core",
  "uniwrt-engine",
  "uniwrt-jobs",
+ "uniwrt-metrics",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-sim",
@@ -2909,6 +2910,7 @@ dependencies = [
  "tracing",
  "uniwrt-clients",
  "uniwrt-core",
+ "uniwrt-metrics",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-store",
@@ -2933,11 +2935,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-metrics"
+version = "0.0.0"
+dependencies = [
+ "proptest",
+ "serde_json",
+ "uniwrt-clients",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-topo",
+]
+
+[[package]]
 name = "uniwrt-model"
 version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
+ "thiserror",
  "ts-rs",
  "uniwrt-core",
 ]

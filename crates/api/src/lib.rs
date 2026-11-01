@@ -16,7 +16,9 @@
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the clients
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
-//!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`), and `v1/ws`
+//!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`), the metrics (`GET v1/metrics`, an
+//!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
+//!   what is kept ([`SeriesInfo`])), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
 //!   `logs?node=<id>&min=<severity>`, `jobs`, `topology`, `clients`, `client:<mac>`, see `ws`). Handlers that need a user
 //!   take [`CurrentUser`].
@@ -45,6 +47,7 @@ mod clients;
 mod discovered;
 mod health;
 mod jobs;
+mod metrics;
 mod nodes;
 pub mod problem;
 pub mod security;
@@ -68,6 +71,7 @@ pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
 pub use health::BuildInfo;
+pub use metrics::{MetricSeries, MetricsResponse, SeriesInfo};
 pub use nodes::{NodeDetail, NodeSummary};
 pub use problem::{ApiError, ApiResult, no_route};
 pub use state::{Api, ApiConfig};
@@ -96,6 +100,8 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
+        .route("/v1/metrics", get(metrics::get))
+        .route("/v1/metrics/series", get(metrics::series))
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))

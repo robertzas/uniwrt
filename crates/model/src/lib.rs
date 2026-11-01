@@ -15,6 +15,9 @@
 //!   ([`inventory::Inventory`]) and configuration backups ([`inventory::Backup`]).
 //!   [`client`] is what the controller keeps about clients ([`client::ClientRecord`]) and where
 //!   they were connected ([`client::ClientSession`]).
+//!   [`metric`] names metric series ([`metric::Entity`], [`metric::Metric`] with its
+//!   [`metric::Unit`]) and carries their [`metric::Sample`]s and [`metric::Point`]s at a
+//!   [`metric::Resolution`].
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
@@ -24,7 +27,7 @@
 //!   never what should be; rendering decides from [`facts::Capabilities`], not version strings.
 //!   Facts are persisted, so a field added later must be an `Option` or `#[serde(default)]` for
 //!   older snapshots to keep parsing; renaming or removing a field needs a store migration.
-//! - **Dependencies:** `uniwrt-core`, `serde`.
+//! - **Dependencies:** `uniwrt-core`, `serde`, `thiserror`.
 //! - **Tests:** serde names per type, and canonical fixtures in `fixtures/facts/*.json` that must
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.
@@ -36,6 +39,7 @@ pub mod facts;
 pub mod inventory;
 pub mod job;
 pub mod log;
+pub mod metric;
 pub mod node;
 pub mod status;
 pub mod user;

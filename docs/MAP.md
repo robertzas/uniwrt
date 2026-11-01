@@ -27,6 +27,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
+- `src/metrics.rs`: The metrics routes, with a session (features/observability.md, Metrics): `GET /api/v1/metrics?entity=<entity>&metrics=<a,b>&from=<ms>&to=<ms>&width=<points>` reads an entity's series over a time range at the resolution that holds it, reduced with LTTB to about `width` points ([`MetricsResponse`]); `GET /api/v1/metrics/series?under=<entity>` lists the series kept ([`SeriesInfo`]), for every entity or for one and those below it.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
@@ -89,6 +90,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
+- `src/metrics.rs`: Recording metrics (`uniwrt_metrics`; features/observability.md, Metrics): a sampler fed by the bus (facts, topology builds, clients' samples) whose closed windows are written every [`MetricsConfig::flush_every`], and the store's upkeep beside it: rollups every [`MetricsConfig::roll_up_every`], retention every [`MetricsConfig::prune_every`].
 - `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
 - `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
 - `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
@@ -115,6 +117,16 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
+### `uniwrt-metrics` (crates/metrics)
+
+Metrics (features/observability.md, Metrics): what the controller records as series, and how it reads them back.
+
+- `src/downsample.rs`: Reducing a series to a chart's width: Largest-Triangle-Three-Buckets (Steinarsson, 2013) over each run of the series, where a run ends wherever the data stops for more than three steps (the line breaks there, with a row of `None`s).
+- `src/lib.rs`: Metrics (features/observability.md, Metrics): what the controller records as series, and how it reads them back.
+- `src/retention.rs`: How long each resolution is kept, and which one answers a query.
+- `src/sampler.rs`: [`Sampler`]: averaging what the engine announces into aligned windows, one value per series and window.
+- `src/sampler_tests.rs`: The windows over the canonical gateway's facts, hand-made topologies and client samples.
+
 ### `uniwrt-model` (crates/model)
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
@@ -136,6 +148,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
 - `src/log.rs`: Log entries from nodes (observability.md, Logs): what logd keeps, read through the node agent for now, and from remote syslog later (M2.5).
+- `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
@@ -208,7 +221,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history and the clients' recorder (which restores the clients first).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder and the clients' recorder (which restores the clients first).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -273,6 +286,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/jobs.rs`: [`JobRepo`] on SQLite: the `jobs` table, each job's steps and error as JSON.
+- `src/repo/metrics.rs`: [`MetricsRepo`] on SQLite: the `metric_series`, `metrics_raw`, `metrics_1m`, `metrics_1h` and `metric_rollups` tables.
+- `src/repo/metrics_tests.rs`: Metrics over a real database: recording, rollups with their envelopes and weights, reading with tails from finer resolutions, the series catalogue, and retention.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
@@ -344,7 +359,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (121 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (127 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx

@@ -1,8 +1,8 @@
 # Status
 
 **Milestone:** M2 — Observability (M1 is done; the owner's acceptance of M1.7b/M1.8b waits for their hardware)
-**Next WP:** M2.4 — Metrics & dashboard (M; read ROADMAP M2; docs/features/observability.md "Metrics" and "Dashboard"; docs/features/ui.md "Signature visualizations" and "Frontend structure"; docs/ARCHITECTURE.md "Persistence"). Rollups, retention, LTTB downsampling, uPlot charts, dashboard v1. The clients' Signal tab keeps an hour of samples in the engine's memory (`uniwrt_clients::Book`, `ClientSample`) until metrics are stored: M2.4 can move them into the metrics tables and give the client page its Traffic tab. `features/clients/LineChart.tsx` is a stopgap SVG chart that uPlot may replace.
-**Last done:** M2.3 — Clients (2026-10-31)
+**Next WP:** M2.4b — Charts on device and client pages, and the Metrics explorer (part b of M2.4 Metrics & dashboard; read ROADMAP M2 and D-056; docs/features/observability.md "Metrics"; docs/features/ui.md "Signature visualizations" and "Frontend structure"). Add uPlot (lazy, in a `web/src/viz/timeseries/` chart with a time-range control, gap rows as `null`, min/max bands); device page panels (CPU/memory/load/temperature, each device's throughput, radios' busy/noise/clients); the client page's Signal tab on the chart (in-memory samples for the last hour, stored series beyond) and a new Traffic tab, replacing `features/clients/LineChart.tsx`; the explorer at `/insights/metrics` (`GET v1/metrics/series` lists entities, then pick metrics and a range). Part c: the dashboard, after moving the topology renderer to `web/src/viz/topology`.
+**Last done:** M2.4a — Metrics storage & API (2026-10-31): the `metrics` crate, `model::metric`, migration 0007 and `MetricsRepo`, the engine's `MetricsRecorder` (in the server, demo mode too), `GET v1/metrics` and `GET v1/metrics/series`; TS types `MetricsResponse`, `MetricSeries`, `SeriesInfo`, `Metric`, `Unit`, `Resolution`.
 
 ## Open questions for the owner
 
@@ -23,8 +23,8 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
+- 2026-10-31 — M2.4 split (D-056, owner: new `metrics` crate, 15 s windows, renderer to `viz/`, also a Metrics explorer). M2.4a done: sampler, store tables and rollups, recorder, API. A demo run stores ~260 series for 3 nodes and ~25 clients.
 - 2026-10-31 — Roadmap: WPs that share context merged (D-054): M4.1 WAN, SQM & failover; M4.2 Networks & firewall; M5.1 WLANs & client actions (took in M3.8); M5.2 Roaming & steering; M7.3 Backups, restore & replace; M8.1 Network services & packages. Then D-055: M2.5 Logs, events & alerts; M3.3 render & harness; M3.4 Transactions, jobs & review UI; M6.1 RF planner & apply; M7.1 Firmware & rolling upgrades; M8.3 Diagnostics & troubleshooting. Merged WPs name split points (`Split: a | b`), each a checkpoint. Later WPs renumbered.
 - 2026-10-31 — M2.3 done: pure `clients` crate (book of sessions, samples, experience score v1, kinds, whole IEEE OUI registry via `just oui`), `ClientRepo` (migration 0006) and `ClientRecorder`, API and WS topics `clients`/`client:<mac>`, Clients list and client page (Overview, Timeline, Signal, rename; kick and block disabled until M5.1). D-053. Also fixed the topology replay asking for times before its history (an e2e flake).
 - 2026-10-30 — M2.2 done, unsplit (owner): Canvas renderer (tokens, Lucide paths, flows, status/CPU rings, pan/zoom/pinch, keyboard), d3-force in a worker, tree/RF/clients views with client groups, details panel, pins kept on the controller (owner), 24 h replay from a recorded history (hourly keyframes, 30 s deltas). D-052. e2e covers it. tokio-tungstenite 0.30 still held (axum 0.8.9).
 - 2026-10-30 — M2.1 done: pure `topo` crate (WAN, FDB segments and inferred switches, 802.11s/batman mesh, Wi-Fi, translation tables, neighbor-cache fallback; tree by cheapest path; rates; diff/apply), rebuilt by the engine 1 s after changes (`Engine::add` takes an `Identity`), `GET v1/topology` and WS `topology`. D-051.
-- 2026-10-30 — M1.9 done: `just arch-check` and `just new-feature` (tested in CI); Dialog and Drawer return focus to their opener. D-050. Before it, the owner's version sweep with no cooldown (D-049).

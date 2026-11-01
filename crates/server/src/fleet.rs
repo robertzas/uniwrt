@@ -1,6 +1,7 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
-//! latest snapshot, the snapshot writer, the topology's history and the clients' recorder (which
-//! restores the clients first). In demo mode the nodes are simulated instead,
+//! latest snapshot, the snapshot writer, the topology's history, the metrics recorder and the
+//! clients' recorder (which restores the clients first). In demo mode the nodes are simulated
+//! instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
 //! ([`Watcher`]).
@@ -11,7 +12,8 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    ClientRecorder, Engine, EngineConfig, HistoryConfig, RecorderConfig, Snapshots, TopologyHistory,
+    ClientRecorder, Engine, EngineConfig, HistoryConfig, MetricsConfig, MetricsRecorder,
+    RecorderConfig, Snapshots, TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -37,6 +39,7 @@ pub(crate) struct Fleet {
     snapshots: Snapshots,
     history: TopologyHistory,
     clients: ClientRecorder,
+    metrics: MetricsRecorder,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
 }
@@ -69,11 +72,13 @@ impl Fleet {
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
         let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
+        let metrics = MetricsRecorder::spawn(&engine, store.clone(), MetricsConfig::default());
         Ok(Self {
             engine,
             snapshots,
             history,
             clients,
+            metrics,
             sim: None,
         })
     }
@@ -111,11 +116,13 @@ impl Fleet {
         }
         let snapshots = Snapshots::spawn(&engine, store.clone(), SNAPSHOT_INTERVAL);
         let history = TopologyHistory::spawn(&engine, store.clone(), HistoryConfig::default());
+        let metrics = MetricsRecorder::spawn(&engine, store.clone(), MetricsConfig::default());
         Ok(Self {
             engine,
             snapshots,
             history,
             clients,
+            metrics,
             sim: Some((sim, dial)),
         })
     }
@@ -138,6 +145,7 @@ impl Fleet {
         self.snapshots.stop().await;
         self.history.stop().await;
         self.clients.stop().await;
+        self.metrics.stop().await;
         drop(self.sim);
         let disconnect = async {
             for link in &links {
