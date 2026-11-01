@@ -40,7 +40,8 @@ test("signs in and watches the simulated fleet live", async ({ page }) => {
   await expect(page).toHaveURL(/\/devices\/\d+$/);
   await expect(page.getByRole("heading", { level: 2, name: "Radios" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Wi-Fi clients" })).toBeVisible();
-  await expect(page.getByText("CPU", { exact: true })).toBeVisible();
+  // The stat tile's label; the CPU chart's legend says it too once its windows are stored.
+  await expect(page.getByText("CPU", { exact: true }).first()).toBeVisible();
 
   // ⌘K finds a device by name and opens it.
   await page.keyboard.press("ControlOrMeta+k");
@@ -84,6 +85,8 @@ test("charts a device's history and opens it in the Metrics explorer", async ({ 
 });
 
 test("shows the network at a glance on the dashboard", async ({ page }) => {
+  // The site's first throughput window is stored about 45 s after the server starts.
+  test.setTimeout(90_000);
   const errors = watchErrors(page);
   await signIn(page);
   await page.getByRole("table", { name: "Devices" }).waitFor();
@@ -91,8 +94,11 @@ test("shows the network at a glance on the dashboard", async ({ page }) => {
   const health = page.getByRole("region", { name: "Network health" });
   await expect(health.getByRole("link", { name: /Internet/ })).toContainText("Online");
   await expect(health.getByRole("link", { name: /Nodes/ })).toContainText("3/3");
-  // The previous test waited for stored windows: the WAN's throughput has some by now.
-  await expect(page.getByRole("img", { name: "Throughput" }).locator("canvas")).toBeVisible();
+  // The WAN's throughput needs two topology builds for a rate, then its 15 s window closed and
+  // flushed: up to about 45 s after the server starts, whatever ran before.
+  await expect(page.getByRole("img", { name: "Throughput" }).locator("canvas")).toBeVisible({
+    timeout: 60_000,
+  });
   await expect(page.getByRole("img", { name: /^Network map: 3 devices/ })).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Top clients" }).getByRole("listitem"),

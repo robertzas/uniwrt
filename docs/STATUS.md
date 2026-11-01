@@ -24,7 +24,7 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
-- 2026-11-01 — M2.5a split (D-059: agent always follows, syslog takes over; other hosts stored; a1 backend | a2 UI). M2.5a1 done: syslog crate, FTS5 storage and retention, recorder, API, WS topic from storage. The parser's proptest caught a UTF-8 boundary panic; a demo probe caught loopback addresses naming a node.
+- 2026-11-01 — M2.5a split (D-059: agent always follows, syslog takes over; other hosts stored; a1 backend | a2 UI). M2.5a1 done: syslog crate, FTS5 storage and retention, recorder, API, WS topic from storage. The parser's proptest caught a UTF-8 boundary panic; a demo probe caught loopback addresses naming a node. CI's e2e exposed a race in the dashboard test (the site's first throughput window is stored ~45 s after start, with or without the recorder, measured): it waits for it now, and the device page's "CPU" locator takes the first match.
 - 2026-11-01 — M2.4c done: renderer to `viz/topology`, the dashboard. A visual check caught the mini-map drawn at 0.6× (the page's overlay insets) with colliding labels: fixed maps get tight insets, and labels shrink with zoom below 1×. The health tests caught the score spread counting wired clients.
 - 2026-10-31 — M2.4b done: charts on the device and client pages, the Metrics explorer, the `viz/` layer (D-057). A visual check caught uPlot callbacks reading the props a plot was built with (stale time window); they read a getter now. The engine metrics test waits for stored windows before moving its clock.
 - 2026-10-31 — M2.4 split (D-056, owner: new `metrics` crate, 15 s windows, renderer to `viz/`, also a Metrics explorer). M2.4a done: sampler, store tables and rollups, recorder, API. A demo run stores ~260 series for 3 nodes and ~25 clients.
