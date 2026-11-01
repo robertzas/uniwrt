@@ -5,6 +5,8 @@ import { graphOf } from "../graph";
 import type { Point } from "../layout/tree";
 import { buildScene } from "../scene";
 import {
+  easeCamera,
+  easePositions,
   fitCamera,
   flowOf,
   hitTest,
@@ -99,5 +101,24 @@ describe("icons", () => {
     expect(d).toBe("M10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z M2 4h20v8h-20Z M1 2L3 4 M1 2L3 4");
     expect(iconPathData(Router)).toContain("M");
     expect(iconPathData(Wifi).length).toBeGreaterThan(10);
+  });
+});
+
+describe("easing", () => {
+  it("moves positions part of the way, snaps the last bit, and says while it moves", () => {
+    const shown = new Map([["a", { x: 0, y: 0 }]]);
+    const targets = new Map([["a", { x: 10, y: -10 }]]);
+    expect(easePositions(shown, targets, 0.5)).toBe(true);
+    expect(shown.get("a")).toEqual({ x: 5, y: -5 });
+    shown.set("a", { x: 9.97, y: -9.97 });
+    expect(easePositions(shown, targets, 0.5)).toBe(false);
+    expect(shown.get("a")).toEqual({ x: 10, y: -10 });
+  });
+
+  it("eases the camera toward the fit until it no longer moves visibly", () => {
+    const eased = easeCamera({ x: 0, y: 0, k: 1 }, { x: 100, y: 0, k: 2 }, 0.2);
+    expect(eased).toEqual({ camera: { x: 20, y: 0, k: 1.2 }, moving: true });
+    const settled = easeCamera({ x: 100, y: 0, k: 2 }, { x: 100.01, y: 0, k: 2 }, 0.2);
+    expect(settled.moving).toBe(false);
   });
 });

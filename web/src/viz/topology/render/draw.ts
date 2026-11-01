@@ -106,6 +106,8 @@ export function drawFrame(ctx: CanvasRenderingContext2D, frame: Frame) {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.lineJoin = "round";
+  // Below 1× the layout's room for each label shrinks: the labels shrink with it, to 9 px at least.
+  const scale = Math.min(1, Math.max(0.75, camera.k));
   for (const vertex of scene.vertices) {
     const p = screen.get(vertex.id);
     if (!p) continue;
@@ -117,9 +119,9 @@ export function drawFrame(ctx: CanvasRenderingContext2D, frame: Frame) {
     ctx.globalAlpha = alphaOf(vertex.id);
     const r = screenRadius(vertex, camera);
     const rings = vertex.node?.state ? 9 : 0;
-    ctx.font = `${client ? 400 : 500} ${client ? 11 : 12}px ${FONT}`;
+    ctx.font = `${client ? 400 : 500} ${(client ? 11 : 12) * scale}px ${FONT}`;
     const label = truncate(vertex.label);
-    const y = p.y + r + rings + 5;
+    const y = p.y + r + rings + 5 * scale;
     ctx.strokeStyle = palette.canvas;
     ctx.lineWidth = 3.5;
     ctx.strokeText(label, p.x, y);

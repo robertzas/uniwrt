@@ -82,6 +82,26 @@ test("charts a device's history and opens it in the Metrics explorer", async ({ 
   await expect(page.getByRole("heading", { name: "Whole network", level: 2 })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("shows the network at a glance on the dashboard", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.getByRole("table", { name: "Devices" }).waitFor();
+  await page.getByRole("navigation").getByRole("link", { name: "Dashboard" }).click();
+  const health = page.getByRole("region", { name: "Network health" });
+  await expect(health.getByRole("link", { name: /Internet/ })).toContainText("Online");
+  await expect(health.getByRole("link", { name: /Nodes/ })).toContainText("3/3");
+  // The previous test waited for stored windows: the WAN's throughput has some by now.
+  await expect(page.getByRole("img", { name: "Throughput" }).locator("canvas")).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Network map: 3 devices/ })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Top clients" }).getByRole("listitem"),
+  ).not.toHaveCount(0);
+  await page.getByRole("link", { name: /Open the map/ }).click();
+  await expect(page).toHaveURL(/\/topology$/);
+  expect(errors).toEqual([]);
+});
+
 test("adopts the discovered access point through the wizard", async ({ page }) => {
   const errors = watchErrors(page);
   await signIn(page);

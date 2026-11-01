@@ -1,7 +1,7 @@
 import { type Accessor, createSignal, onSettled } from "solid-js";
 import type { TopologyTimeline } from "../../api/gen/TopologyTimeline";
 import { api } from "../../lib/api";
-import { type Graph, graphOf } from "./graph";
+import { type Graph, graphOf } from "../../viz/topology/graph";
 
 /** The replay of the last 24 h: the live map until the user picks a time. */
 export interface Replay {

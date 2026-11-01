@@ -2,6 +2,7 @@ import { useNavigate } from "@solidjs/router";
 import { Search, Users } from "lucide";
 import { createEffect, createMemo, createSignal, For, Show, useContext } from "solid-js";
 import type { Client } from "../../api/gen/Client";
+import { averageScore, createClientsView, scoresByNode } from "../../lib/clientList";
 import { scoreTone } from "../../lib/clients";
 import { NONE } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
@@ -13,13 +14,7 @@ import { Icon } from "../../ui/Icon";
 import { Stat } from "../../ui/Stat";
 import { Table } from "../../ui/Table";
 import { clientColumns, createNow } from "./columns";
-import {
-  averageScore,
-  type ClientRow,
-  createClientsView,
-  groupClients,
-  scoresByNode,
-} from "./store";
+import { type ClientRow, groupClients } from "./store";
 
 const t = strings.clients;
 

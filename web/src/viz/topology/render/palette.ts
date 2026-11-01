@@ -1,5 +1,6 @@
 import type { Band } from "../../../api/gen/Band";
 import type { NodeState } from "../../../api/gen/NodeState";
+import { resolveColors, token } from "../../theme";
 
 /** The design tokens the canvas paints with, resolved to colors for the current skin and theme. */
 export interface Palette {
@@ -22,45 +23,32 @@ export interface Palette {
 }
 
 const tokens = {
-  canvas: "canvas",
-  surface: "surface",
-  raised: "raised",
-  edge: "edge",
-  edgeStrong: "edge-strong",
-  fg: "fg",
-  fgMuted: "fg-muted",
-  fgSubtle: "fg-subtle",
-  accent: "accent",
-  ok: "ok",
-  warn: "warn",
-  crit: "crit",
-  info: "info",
-  band2g: "band-2g",
-  band5g: "band-5g",
-  band6g: "band-6g",
-  link1: "link-1",
-  link2: "link-2",
-  link3: "link-3",
-  link4: "link-4",
-  link5: "link-5",
-} as const;
+  canvas: token("canvas"),
+  surface: token("surface"),
+  raised: token("raised"),
+  edge: token("edge"),
+  edgeStrong: token("edge-strong"),
+  fg: token("fg"),
+  fgMuted: token("fg-muted"),
+  fgSubtle: token("fg-subtle"),
+  accent: token("accent"),
+  ok: token("ok"),
+  warn: token("warn"),
+  crit: token("crit"),
+  info: token("info"),
+  band2g: token("band-2g"),
+  band5g: token("band-5g"),
+  band6g: token("band-6g"),
+  link1: token("link-1"),
+  link2: token("link-2"),
+  link3: token("link-3"),
+  link4: token("link-4"),
+  link5: token("link-5"),
+};
 
-/**
- * Reads the tokens through a probe element: a custom property holds `light-dark(…)` unresolved,
- * but a `color` set from it computes to the theme's color, which a canvas accepts.
- */
+/** The palette for the current skin and theme, resolved under `host`. */
 export function readPalette(host: Element): Palette {
-  const probe = document.createElement("span");
-  probe.hidden = true;
-  host.append(probe);
-  const read = (token: string) => {
-    probe.style.color = `var(--color-${token})`;
-    return getComputedStyle(probe).color || "currentColor";
-  };
-  const c = Object.fromEntries(
-    Object.entries(tokens).map(([key, token]) => [key, read(token)]),
-  ) as Record<keyof typeof tokens, string>;
-  probe.remove();
+  const c = resolveColors(host, tokens);
   return {
     canvas: c.canvas,
     surface: c.surface,

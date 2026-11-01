@@ -9,6 +9,9 @@ import { SectionPage } from "./SectionPage";
  * (`lazy(() => import(...))`), which keeps the initial bundle within the budget in ui.md.
  */
 const pages: Record<string, RouteDefinition["component"]> = {
+  "/": lazy(() =>
+    import("../features/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+  ),
   "/topology": lazy(() =>
     import("../features/topology/TopologyPage").then((m) => ({ default: m.TopologyPage })),
   ),

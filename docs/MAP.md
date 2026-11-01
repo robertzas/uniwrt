@@ -364,16 +364,18 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
 - `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
+- `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
-- `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyCanvas.tsx, TopologyPage.tsx, ViewSwitch.tsx, graph.ts, replay.ts, scene.ts
-- `features/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
-- `features/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
-- `lib/`: api.ts, appearance.ts, clients.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
+- `lib/`: api.ts, appearance.ts, clientList.ts, clients.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
+- `viz/topology/`: TopologyCanvas.tsx, graph.ts, scene.ts
+- `viz/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
+- `viz/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
 
 ## Scripts
 

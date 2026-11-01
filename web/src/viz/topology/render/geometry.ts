@@ -142,3 +142,44 @@ export function particleAt(seconds: number, speed: number, i: number, count: num
   const t = (seconds * speed + i / count) % 1;
   return t < 0 ? t + 1 : t;
 }
+
+/**
+ * Moves each shown position `ease` of the way to its target (snapping when within 0.05); true
+ * while any still moves.
+ */
+export function easePositions(
+  shown: ReadonlyMap<string, Point>,
+  targets: ReadonlyMap<string, Point>,
+  ease: number,
+): boolean {
+  let moving = false;
+  for (const [id, target] of targets) {
+    const at = shown.get(id);
+    if (!at) continue;
+    const dx = target.x - at.x;
+    const dy = target.y - at.y;
+    if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) {
+      at.x = target.x;
+      at.y = target.y;
+      continue;
+    }
+    at.x += dx * ease;
+    at.y += dy * ease;
+    moving = true;
+  }
+  return moving;
+}
+
+/** The camera `ease` of the way to `fit`, and whether that still moves it visibly. */
+export function easeCamera(
+  camera: Camera,
+  fit: Camera,
+  ease: number,
+): { camera: Camera; moving: boolean } {
+  const step = (from: number, to: number) => from + (to - from) * ease;
+  const next = { x: step(camera.x, fit.x), y: step(camera.y, fit.y), k: step(camera.k, fit.k) };
+  const moving =
+    Math.abs(next.x - camera.x) + Math.abs(next.y - camera.y) > 0.1 ||
+    Math.abs(next.k - camera.k) > 0.0005;
+  return { camera: next, moving };
+}

@@ -16,7 +16,7 @@ import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
-import type { Scene, SceneLink, SceneVertex } from "./scene";
+import type { Scene, SceneLink, SceneVertex } from "../../viz/topology/scene";
 
 const t = strings.topology;
 const d = t.details;

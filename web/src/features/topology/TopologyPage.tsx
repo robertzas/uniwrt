@@ -8,14 +8,21 @@ import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { showToast } from "../../ui/Toast";
+import { createLiveGraph } from "../../viz/topology/graph";
+import type { Point } from "../../viz/topology/layout/tree";
+import {
+  buildScene,
+  clusterId,
+  sceneCounts,
+  type ViewKind,
+  vertexLabel,
+  viewKinds,
+} from "../../viz/topology/scene";
+import { type CanvasControls, TopologyCanvas } from "../../viz/topology/TopologyCanvas";
 import { DetailsPanel } from "./DetailsPanel";
-import { createLiveGraph } from "./graph";
 import { Legend } from "./Legend";
-import type { Point } from "./layout/tree";
 import { ReplayBar } from "./ReplayBar";
 import { createReplay } from "./replay";
-import { buildScene, clusterId, sceneCounts, type ViewKind, vertexLabel, viewKinds } from "./scene";
-import { type CanvasControls, TopologyCanvas } from "./TopologyCanvas";
 import { ViewSwitch } from "./ViewSwitch";
 
 const t = strings.topology;

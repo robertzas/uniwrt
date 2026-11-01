@@ -1,7 +1,7 @@
 import { SegmentedControl } from "@kobalte/core/segmented-control";
 import { For } from "solid-js";
 import { strings } from "../../lib/strings";
-import { type ViewKind, viewKinds } from "./scene";
+import { type ViewKind, viewKinds } from "../../viz/topology/scene";
 
 /** Tree, RF / mesh or clients: a radio group, so it works with arrow keys and screen readers. */
 export function ViewSwitch(props: { value: ViewKind; onChange: (view: ViewKind) => void }) {

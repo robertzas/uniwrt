@@ -105,7 +105,8 @@ A part without data drops out; without signal or rate there is no score. Sticky 
   - **Device page** (Performance card, 24 h by default): CPU and memory, load, temperature (when the node reports it), one interface's throughput (the WAN's device by default, else the LAN's; a picker for the others) and the radios' channel utilization, Wi-Fi clients and noise floor, a line per radio in its band's color.
   - **Client page:** the Signal tab (signal; PHY rates down and up) and the Traffic tab (download and upload, with about how much moved in the range). The last hour comes from the samples in memory (live, every few seconds); 24 h, 7 d and 30 d from the stored series.
   - **Metrics explorer** (`/insights/metrics?entity=&metrics=&range=` or `&from=&to=` once zoomed): the entities with series, grouped (site; each node with its radios and interfaces; mesh links; clients) and filterable; the chosen entity's metrics as toggles (up to 8), one chart per unit. The device and client pages link to it.
-  - Still to come: the dashboard's charts (M2.4c), WAN latency, jitter and loss (the gateway's probes, M4.1) and the mesh link-quality matrix (M2.6).
+  - **Dashboard:** the site's WAN throughput (Dashboard, below).
+  - Still to come: WAN latency, jitter and loss (the gateway's probes, M4.1) and the mesh link-quality matrix (M2.6).
 - A Prometheus `/metrics` exporter is in the backlog.
 
 ## Logs [M2.5]
@@ -141,13 +142,21 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 
 **Notifiers:** in-app, browser push (PWA), email (SMTP), ntfy, Gotify, generic webhooks (Discord/Slack/Teams/Home Assistant templates), Pushover, Telegram.
 
-## Dashboard [M2.4, extended in M2.6]
+## Dashboard [M2.4, extended in M2.5 and M2.6]
 
-- a health header: internet, mesh, Wi-Fi, nodes, clients
-- a WAN card: status, ISP, IPs, latency sparkline, throughput
-- a topology mini-map
-- top clients, alerts, experience score
-- an RF summary and recent events
+`/` (`features/dashboard`, D-058): everything live except the WAN's history. With no device adopted, a welcome that opens the adoption wizard.
+
+- **Health header:** five tiles, each a link to its details, colored by its state.
+  - *Internet:* online while a gateway's WAN link has a default route (the topology's `wan` edges), offline when none has, unknown without a gateway or while it is offline; what the WAN carries now.
+  - *Mesh:* the mesh links between adopted nodes (peers not adopted aside): critical with one down, else the weakest link's quality (good from 60, fair from 40).
+  - *Wi-Fi experience:* the mean score of the online Wi-Fi clients, how many, and how many have a weak signal (below −75 dBm).
+  - *Nodes:* online of adopted; critical with one offline, fair with one degraded.
+  - *Clients online:* Wi-Fi and wired.
+- **Internet card:** state, download and upload now, the site's throughput (`site` `down_bps`/`up_bps`) over 1 h, 24 h or 7 d with a link to the Metrics explorer, and the gateway's WAN interfaces: protocol, IPv4 and IPv6 addresses, delegated prefix, gateways, DNS servers and how long it has been up. The addresses come from the gateway's record, read every 30 s while the page is visible (following its topic would collect it more often). ISP, latency, jitter and loss arrive with M4.1.
+- **Topology mini-map:** the tree view with each host's clients grouped and flows animated, on the topology renderer with a fixed camera (the page keeps the wheel and touch). A device opens its page, a client its own, anything else the full map.
+- **Top clients:** the five online clients moving the most traffic now, with bars of download and upload against the busiest.
+- **Wi-Fi experience:** the mean score as a ring, how the clients spread across good, fair and poor, and the weakest access point.
+- **Recent events:** a placeholder until M2.5; alerts join it there. M2.6 adds an RF summary.
 
 ## Diagnostics toolkit [M8.3]
 

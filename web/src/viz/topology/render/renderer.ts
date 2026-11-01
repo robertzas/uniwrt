@@ -1,7 +1,18 @@
 import type { Point } from "../layout/tree";
 import type { Scene, VertexKind } from "../scene";
 import { drawFrame } from "./draw";
-import { type Camera, fitCamera, flowOf, hitTest, toWorld, zoomAt } from "./geometry";
+import {
+  type Camera,
+  DEFAULT_INSETS,
+  easeCamera,
+  easePositions,
+  fitCamera,
+  flowOf,
+  hitTest,
+  type Insets,
+  toWorld,
+  zoomAt,
+} from "./geometry";
 import type { Palette } from "./palette";
 
 export interface RendererEvents {
@@ -11,6 +22,16 @@ export interface RendererEvents {
   activate(id: string): void;
   /** A vertex dragged to a point of the world; `done` once dropped. */
   drag(id: string, at: Point, done: boolean): void;
+}
+
+export interface RendererOptions {
+  /**
+   * The camera stays fitted: no pan, zoom or drag, so a small map in a scrolling page leaves the
+   * wheel and touch to the page. Pointers still hover and click (`select`).
+   */
+  fixed?: boolean;
+  /** The room the fitted camera keeps clear at each side; the topology page's overlays by default. */
+  insets?: Insets;
 }
 
 /** How far a pointer moves before a press becomes a drag, in screen pixels. */
@@ -35,6 +56,7 @@ export class TopologyRenderer {
   readonly #ctx: CanvasRenderingContext2D | null;
   readonly #events: RendererEvents;
   readonly #icons: ReadonlyMap<VertexKind, Path2D>;
+  readonly #insets: Insets;
   readonly #resize: ResizeObserver;
   readonly #pointers = new Map<number, Point>();
   readonly #listeners: [string, EventListener, AddEventListenerOptions?][] = [];
@@ -61,15 +83,29 @@ export class TopologyRenderer {
     events: RendererEvents,
     palette: Palette,
     icons: ReadonlyMap<VertexKind, Path2D>,
+    options: RendererOptions = {},
   ) {
     this.#canvas = canvas;
     this.#ctx = canvas.getContext("2d");
     this.#events = events;
     this.#palette = palette;
     this.#icons = icons;
+    this.#insets = options.insets ?? DEFAULT_INSETS;
     this.#resize = new ResizeObserver(() => this.#measure());
     this.#resize.observe(canvas);
     this.#measure();
+    if (options.fixed) {
+      this.#listen("pointermove", (event) => {
+        const hit = this.#hit(this.#point(event as PointerEvent));
+        this.#hover(hit?.id ?? null);
+        this.#canvas.style.cursor = hit ? "pointer" : "";
+      });
+      this.#listen("pointerleave", () => this.#hover(null));
+      this.#listen("click", (event) => {
+        this.#events.select(this.#hit(this.#point(event as MouseEvent))?.id ?? null);
+      });
+      return;
+    }
     this.#listen("pointerdown", (event) => this.#down(event as PointerEvent));
     this.#listen("pointermove", (event) => this.#move(event as PointerEvent));
     this.#listen("pointerup", (event) => this.#up(event as PointerEvent));
@@ -141,7 +177,12 @@ export class TopologyRenderer {
   /** Fits the view to the scene, and keeps it fitted while the layout moves. */
   fit() {
     this.#autoFit = true;
-    this.#camera = fitCamera(this.#targets.values(), this.#size.width, this.#size.height);
+    this.#camera = fitCamera(
+      this.#targets.values(),
+      this.#size.width,
+      this.#size.height,
+      this.#insets,
+    );
     this.#request();
   }
 
@@ -175,7 +216,7 @@ export class TopologyRenderer {
     this.#canvas.width = Math.max(1, Math.round(rect.width * dpr));
     this.#canvas.height = Math.max(1, Math.round(rect.height * dpr));
     if (this.#autoFit) {
-      this.#camera = fitCamera(this.#targets.values(), rect.width, rect.height);
+      this.#camera = fitCamera(this.#targets.values(), rect.width, rect.height, this.#insets);
     }
     this.#request();
   }
@@ -193,34 +234,14 @@ export class TopologyRenderer {
     const ctx = this.#ctx;
     const scene = this.#scene;
     if (!ctx || !scene) return false;
-    let moving = false;
     const ease = this.#reducedMotion ? 1 : EASE;
-    for (const [id, target] of this.#targets) {
-      const shown = this.#display.get(id);
-      if (!shown) continue;
-      const dx = target.x - shown.x;
-      const dy = target.y - shown.y;
-      if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) {
-        shown.x = target.x;
-        shown.y = target.y;
-        continue;
-      }
-      shown.x += dx * ease;
-      shown.y += dy * ease;
-      moving = true;
-    }
+    let moving = easePositions(this.#display, this.#targets, ease);
     if (this.#autoFit && this.#gesture === undefined) {
-      const fit = fitCamera(this.#targets.values(), this.#size.width, this.#size.height);
-      const c = this.#camera;
-      const step = (from: number, to: number) => from + (to - from) * ease;
-      const next = { x: step(c.x, fit.x), y: step(c.y, fit.y), k: step(c.k, fit.k) };
-      if (
-        Math.abs(next.x - c.x) + Math.abs(next.y - c.y) > 0.1 ||
-        Math.abs(next.k - c.k) > 0.0005
-      ) {
-        moving = true;
-      }
-      this.#camera = next;
+      const { width, height } = this.#size;
+      const fit = fitCamera(this.#targets.values(), width, height, this.#insets);
+      const eased = easeCamera(this.#camera, fit, ease);
+      this.#camera = eased.camera;
+      moving ||= eased.moving;
     }
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

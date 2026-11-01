@@ -1,5 +1,6 @@
 import { Cable, Globe, Network, RadioReceiver, RadioTower, Router, Wifi } from "lucide";
-import { createEffect, createMemo, onSettled } from "solid-js";
+import { createEffect, createMemo, onSettled, untrack } from "solid-js";
+import { watchTheme } from "../theme";
 import { createLayoutClient, type LayoutClient } from "./layout/client";
 import type { LayoutPositions } from "./layout/force";
 import { type Point, treeLayout } from "./layout/tree";
@@ -31,22 +32,30 @@ function shapeOf(scene: Scene): string {
   return `${scene.view}|${vertices}|${links}`;
 }
 
+const NO_PINS: Record<string, Point> = {};
+/** A fixed map has no overlays: room for the labels under the lowest vertices is enough. */
+const MINI_INSETS = { top: 20, right: 24, bottom: 36, left: 24 };
+
 /**
- * The map: the renderer on a canvas, laid out by the tree layout or by d3-force in a worker.
- * Dragging a vertex in a force view pins it where it is dropped (`onPin`).
+ * The map: the renderer on a canvas, laid out by the tree layout or by d3-force in a worker
+ * (started with the first force view). Dragging a vertex in a force view pins it where it is
+ * dropped (`onPin`). A `fixed` map keeps its camera fitted and takes no focus: a mini-map.
  */
 export function TopologyCanvas(props: {
   scene: Scene;
-  pins: Record<string, Point>;
-  selected: string | null;
+  pins?: Record<string, Point>;
+  selected?: string | null;
   flows: boolean;
   label: string;
+  fixed?: boolean;
   onSelect: (id: string | null) => void;
-  onActivate: (id: string) => void;
-  onPin: (id: string, at: Point) => void;
-  controls: (controls: CanvasControls) => void;
+  onActivate?: (id: string) => void;
+  onPin?: (id: string, at: Point) => void;
+  controls?: (controls: CanvasControls) => void;
 }) {
   let canvas!: HTMLCanvasElement;
+  // Whether the map is fixed is set once, by where it is used.
+  const fixed = untrack(() => props.fixed ?? false);
   let renderer: TopologyRenderer | undefined;
   let layout: LayoutClient | undefined;
   let seq = 0;
@@ -74,7 +83,8 @@ export function TopologyCanvas(props: {
       return;
     }
     sent = { seq, ids: scene.vertices.map((vertex) => vertex.id) };
-    layout?.send({
+    layout ??= createLayoutClient(onPositions);
+    layout.send({
       type: "scene",
       seq,
       vertices: scene.vertices.map(({ id, kind, radius }) => ({ id, kind, radius })),
@@ -103,30 +113,26 @@ export function TopologyCanvas(props: {
       canvas,
       {
         select: (id) => props.onSelect(id),
-        activate: (id) => props.onActivate(id),
+        activate: (id) => props.onActivate?.(id),
         drag: (id, at, done) => {
           if (!done) {
             layout?.send({ type: "drag", id, x: at.x, y: at.y });
             return;
           }
           layout?.send({ type: "release", id, pinned: true });
-          props.onPin(id, at);
+          props.onPin?.(id, at);
         },
       },
       readPalette(canvas),
       paths,
+      fixed ? { fixed, insets: MINI_INSETS } : {},
     );
     renderer = view;
-    layout = createLayoutClient(onPositions);
-    props.controls({ fit: () => view.fit(), zoom: (factor) => view.zoom(factor) });
+    props.controls?.({ fit: () => view.fit(), zoom: (factor) => view.zoom(factor) });
 
-    const repaint = () => view.setPalette(readPalette(canvas));
-    const themes = new MutationObserver(repaint);
-    themes.observe(document.documentElement, { attributeFilter: ["data-theme", "data-skin"] });
-    const dark = matchMedia("(prefers-color-scheme: dark)");
+    const unwatch = watchTheme(() => view.setPalette(readPalette(canvas)));
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
     const onMotion = () => view.setReducedMotion(motion.matches);
-    dark.addEventListener("change", repaint);
     motion.addEventListener("change", onMotion);
     onMotion();
     // The effects below may have run before the renderer existed: hand it what they had.
@@ -137,10 +143,10 @@ export function TopologyCanvas(props: {
     if (shaped) layOut(shaped);
     view.fit();
     return () => {
-      themes.disconnect();
-      dark.removeEventListener("change", repaint);
+      unwatch();
       motion.removeEventListener("change", onMotion);
       layout?.dispose();
+      layout = undefined;
       view.dispose();
       renderer = undefined;
     };
@@ -167,7 +173,7 @@ export function TopologyCanvas(props: {
     { defer: true },
   );
   createEffect(
-    () => props.pins,
+    () => props.pins ?? NO_PINS,
     (value) => {
       pins = value;
       renderer?.setPinned(new Set(Object.keys(value)));
@@ -175,7 +181,7 @@ export function TopologyCanvas(props: {
     },
   );
   createEffect(
-    () => props.selected,
+    () => props.selected ?? null,
     (value) => {
       selected = value;
       renderer?.setSelected(value);
@@ -192,10 +198,13 @@ export function TopologyCanvas(props: {
   return (
     <canvas
       ref={canvas}
-      tabindex="0"
+      tabindex={fixed ? undefined : "0"}
       role="img"
       aria-label={props.label}
-      class="block size-full touch-none select-none outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
+      class={[
+        "block size-full select-none outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2",
+        !fixed && "touch-none",
+      ]}
     />
   );
 }
