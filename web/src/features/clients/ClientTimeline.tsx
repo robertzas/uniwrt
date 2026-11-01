@@ -7,6 +7,7 @@ import { formatDateTime, formatDuration, formatTime } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
 import { strings } from "../../lib/strings";
 import { Card, CardHeader } from "../../ui/Card";
+import { Segmented } from "../../ui/Segmented";
 import { type Column, Table } from "../../ui/Table";
 import { createNow } from "./columns";
 import { mergeSessions } from "./store";
@@ -97,24 +98,12 @@ export function ClientTimeline(props: { detail: ClientDetail }) {
       <CardHeader
         title={t.title}
         actions={
-          <fieldset class="flex rounded-control border border-edge p-0.5">
-            <legend class="sr-only">{t.range}</legend>
-            <For each={["day", "week"] as const}>
-              {(option) => (
-                <button
-                  type="button"
-                  aria-pressed={range() === option ? "true" : "false"}
-                  onClick={() => setRange(option)}
-                  class={[
-                    "h-7 rounded-control px-2.5 font-medium text-xs transition-colors",
-                    range() === option ? "bg-raised text-fg" : "text-fg-subtle hover:text-fg",
-                  ]}
-                >
-                  {t[option]}
-                </button>
-              )}
-            </For>
-          </fieldset>
+          <Segmented
+            label={t.range}
+            value={range()}
+            options={(["day", "week"] as const).map((value) => ({ value, label: t[value] }))}
+            onChange={setRange}
+          />
         }
       />
       <Show

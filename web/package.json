@@ -22,7 +22,8 @@
     "@tanstack/virtual-core": "3.19.9",
     "d3-force": "3.0.0",
     "lucide": "1.65.0",
-    "solid-js": "2.0.0-rc.20"
+    "solid-js": "2.0.0-rc.20",
+    "uplot": "1.6.32"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

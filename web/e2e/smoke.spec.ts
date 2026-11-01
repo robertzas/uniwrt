@@ -59,6 +59,29 @@ test("signs in and watches the simulated fleet live", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("charts a device's history and opens it in the Metrics explorer", async ({ page }) => {
+  // The demo's first windows are stored about 35 s after it starts.
+  test.setTimeout(120_000);
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.getByRole("table", { name: "Devices" }).locator("tbody tr").first().click();
+  await expect(page.getByRole("heading", { name: "Performance" })).toBeVisible();
+  await page.getByRole("button", { name: "Last hour" }).click();
+  // The first windows are stored about 20 s after they end; uPlot draws on a canvas.
+  const cpu = page.getByRole("img", { name: "CPU and memory" });
+  await expect(cpu.locator("canvas")).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByRole("img", { name: "Channel utilization" }).locator("canvas"),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Open in Metrics" }).click();
+  await expect(page).toHaveURL(/\/insights\/metrics\?entity=node%3A\d+&range=1h$/);
+  await expect(page.getByRole("heading", { name: /^gateway$/i, level: 2 })).toBeVisible();
+  await expect(page.getByRole("img", { name: "CPU · Memory" }).locator("canvas")).toBeVisible();
+  await page.getByRole("navigation", { name: "Series" }).getByText("Whole network").click();
+  await expect(page.getByRole("heading", { name: "Whole network", level: 2 })).toBeVisible();
+  expect(errors).toEqual([]);
+});
 test("adopts the discovered access point through the wizard", async ({ page }) => {
   const errors = watchErrors(page);
   await signIn(page);

@@ -15,6 +15,7 @@ import { Icon } from "../../ui/Icon";
 import { Sparkline } from "../../ui/Sparkline";
 import { Stat } from "../../ui/Stat";
 import { ClientsCard, clientRows } from "./ClientsCard";
+import { DeviceCharts } from "./DeviceCharts";
 import { RadiosCard } from "./RadiosCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
 
@@ -142,6 +143,7 @@ function Overview(props: {
               </div>
               <Details detail={props.detail} facts={facts()} />
             </div>
+            <DeviceCharts id={props.detail.node.id} facts={facts()} />
             <ClientsCard facts={facts()} leases={props.leases} />
           </>
         )}

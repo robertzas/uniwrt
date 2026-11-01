@@ -17,10 +17,11 @@ import { ClientTimeline } from "./ClientTimeline";
 import { RenameDialog } from "./RenameDialog";
 import { SignalTab } from "./SignalTab";
 import { createClientView } from "./store";
+import { TrafficTab } from "./TrafficTab";
 
 const d = strings.client;
 
-/** `/clients/:mac`: one client, live: Overview · Timeline · Signal (ui.md, client page tabs). */
+/** `/clients/:mac`: one client, live: Overview · Timeline · Signal · Traffic (ui.md, client page tabs). */
 export function ClientPage() {
   const params = useParams<{ mac: string }>();
   const mac = () => decodeURIComponent(params.mac).toLowerCase();
@@ -127,6 +128,7 @@ function Client(props: { detail: ClientDetail }) {
           <Tab value="overview">{d.tabs.overview}</Tab>
           <Tab value="timeline">{d.tabs.timeline}</Tab>
           <Tab value="signal">{d.tabs.signal}</Tab>
+          <Tab value="traffic">{d.tabs.traffic}</Tab>
         </TabList>
         <TabPanel value="overview">
           <ClientOverview detail={props.detail} />
@@ -135,7 +137,10 @@ function Client(props: { detail: ClientDetail }) {
           <ClientTimeline detail={props.detail} />
         </TabPanel>
         <TabPanel value="signal">
-          <SignalTab samples={props.detail.samples} />
+          <SignalTab mac={client().mac} samples={props.detail.samples} />
+        </TabPanel>
+        <TabPanel value="traffic">
+          <TrafficTab mac={client().mac} samples={props.detail.samples} />
         </TabPanel>
       </Tabs>
       <RenameDialog

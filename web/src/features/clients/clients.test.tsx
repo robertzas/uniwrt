@@ -8,6 +8,7 @@ import type { ServerMessage } from "../../api/gen/ServerMessage";
 import { createAppRouter } from "../../app/routes";
 import { client, detail, NOW, session } from "../../test/clients";
 import { summary } from "../../test/fixtures";
+import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 
 const MAC = "f0:18:98:00:00:01";
@@ -26,6 +27,7 @@ function stubApi() {
         return Response.json([
           session(NOW - 5 * 86_400_000, { end: NOW - 4 * 86_400_000, ended_by: "left" }),
         ]);
+      if (key.startsWith("GET /api/v1/metrics?")) return Response.json(metricsAnswer(url));
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );
@@ -150,6 +152,41 @@ describe("a client's page", () => {
     await user.click(screen.getByRole("tab", { name: "Signal" }));
     expect(await screen.findByRole("img", { name: "Signal" })).toBeVisible();
     expect(screen.getByRole("img", { name: "Rates" })).toBeVisible();
+  });
+
+  it("charts signal and traffic, live for the last hour and stored beyond", async () => {
+    const user = userEvent.setup();
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: detail(),
+    });
+    const reads = () =>
+      calls
+        .filter(({ key }) => key.startsWith("GET /api/v1/metrics?"))
+        .map(({ key }) => new URL(key.slice(4), "http://test").searchParams);
+    await user.click(await screen.findByRole("tab", { name: "Signal" }));
+    expect(await screen.findByText("Live samples")).toBeVisible();
+    expect(screen.getByText("-58 dBm")).toBeVisible();
+    expect(reads()).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Last 24 hours" }));
+    await waitFor(() => expect(reads()).toHaveLength(1));
+    expect(reads()[0]?.get("entity")).toBe(`client:${MAC}`);
+    expect(reads()[0]?.get("metrics")).toBe("signal,tx_rate,rx_rate");
+    expect(await screen.findByText("15-second averages")).toBeVisible();
+    expect(await screen.findByText("42 dBm")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open in Metrics" })).toHaveAttribute(
+      "href",
+      `/insights/metrics?entity=client%3A${encodeURIComponent(MAC)}&range=24h`,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Traffic" }));
+    expect(await screen.findByRole("img", { name: "Throughput" })).toBeVisible();
+    // 2 Mb/s down and 100 kb/s up over the 5 s between the two samples.
+    expect(screen.getByText("1.3 MB")).toBeVisible();
+    expect(screen.getByText("62.5 KB")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Last 7 days" }));
+    await waitFor(() => expect(reads().at(-1)?.get("metrics")).toBe("down_bps,up_bps"));
   });
 
   it("renames the client", async () => {

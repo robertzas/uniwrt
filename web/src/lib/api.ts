@@ -10,12 +10,15 @@ import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { Health } from "../api/gen/Health";
 import type { Job } from "../api/gen/Job";
+import type { Metric } from "../api/gen/Metric";
+import type { MetricsResponse } from "../api/gen/MetricsResponse";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { SeriesInfo } from "../api/gen/SeriesInfo";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
@@ -93,6 +96,15 @@ async function toError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, title, undefined, retryAfter);
 }
 
+/** What `api.metrics.get` reads: an entity's metrics over a time range (ms). */
+export interface MetricsQuery {
+  entity: string;
+  metrics: readonly Metric[];
+  from: number;
+  to: number;
+  width: number;
+}
+
 /** The typed API client; components reach the server only through this (CONVENTIONS.md). */
 export const api = {
   health: (signal?: AbortSignal) => request<Health>("/health", { signal }),
@@ -131,6 +143,28 @@ export const api = {
     /** Gives the client an alias, or takes it away (blank or null); admins only. */
     rename: (mac: string, patch: ClientPatch) =>
       request<Client>(`/clients/${encodeURIComponent(mac)}`, { method: "PATCH", body: patch }),
+  },
+  /** Stored time series (observability.md, Metrics). */
+  metrics: {
+    /** An entity's series over `from`–`to` (ms), each reduced to about `width` points. */
+    get: (query: MetricsQuery, signal?: AbortSignal) => {
+      const params = new URLSearchParams({
+        entity: query.entity,
+        metrics: query.metrics.join(","),
+        from: String(Math.round(query.from)),
+        to: String(Math.round(query.to)),
+        width: String(Math.round(query.width)),
+      });
+      return request<MetricsResponse>(`/metrics?${params}`, { signal });
+    },
+    /** The series kept, for every entity, or for `under` and the entities below it. */
+    series: (under?: string, signal?: AbortSignal) =>
+      request<SeriesInfo[]>(
+        under === undefined
+          ? "/metrics/series"
+          : `/metrics/series?under=${encodeURIComponent(under)}`,
+        { signal },
+      ),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

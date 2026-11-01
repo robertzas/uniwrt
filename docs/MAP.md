@@ -363,18 +363,21 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
-- `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, LineChart.tsx, RenameDialog.tsx, SignalTab.tsx, columns.tsx, store.ts
-- `features/devices/`: ClientsCard.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
+- `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
+- `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
+- `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyCanvas.tsx, TopologyPage.tsx, ViewSwitch.tsx, graph.ts, replay.ts, scene.ts
 - `features/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
 - `features/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
 - `lib/`: api.ts, appearance.ts, clients.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
-- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
+- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
+- `viz/`: theme.ts
+- `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
 
 ## Scripts
 
-- `scripts/arch-check.sh`: Enforces the layering rules (`just arch-check`; `just check` and CI run it):   - each crate depends only on the crates that docs/ARCHITECTURE.md's table ("Crates and     layering") allows, read from the doc itself so the two cannot drift; dev-dependencies may     also use the test crates, whose own dev-dependencies are free;   - L0 crates have no async runtime, socket, database or SSH crate in their dependency tree,     and their source does no IO and reads no clock (CONVENTIONS.md, Architecture rules); a     line marked `arch-check: allow` is exempt, with the reason beside the marker;   - in web/src, features never import other features, ui/ imports only lib/strings from     outside itself, lib/ imports only api/, and only a feature's tests import app/.
+- `scripts/arch-check.sh`: Enforces the layering rules (`just arch-check`; `just check` and CI run it):   - each crate depends only on the crates that docs/ARCHITECTURE.md's table ("Crates and     layering") allows, read from the doc itself so the two cannot drift; dev-dependencies may     also use the test crates, whose own dev-dependencies are free;   - L0 crates have no async runtime, socket, database or SSH crate in their dependency tree,     and their source does no IO and reads no clock (CONVENTIONS.md, Architecture rules); a     line marked `arch-check: allow` is exempt, with the reason beside the marker;   - in web/src, features never import other features, ui/ imports only lib/strings from     outside itself, lib/ imports only api/, viz/ only ui/, lib/ and api/, and only a     feature's tests import app/.
 - `scripts/arch-check.test.sh`: Tests scripts/arch-check.sh against a small fixture workspace, one violation per case; `just check` and CI run it.
 - `scripts/check.sh`: Runs everything CI gates on, one line per step (`just check`).
 - `scripts/cross.sh`: Builds static musl binaries with cargo-zigbuild inside its container, so the host needs only Docker.

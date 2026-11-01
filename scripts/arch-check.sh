@@ -7,7 +7,8 @@
 #     and their source does no IO and reads no clock (CONVENTIONS.md, Architecture rules); a
 #     line marked `arch-check: allow` is exempt, with the reason beside the marker;
 #   - in web/src, features never import other features, ui/ imports only lib/strings from
-#     outside itself, lib/ imports only api/, and only a feature's tests import app/.
+#     outside itself, lib/ imports only api/, viz/ only ui/, lib/ and api/, and only a
+#     feature's tests import app/.
 # Usage: scripts/arch-check.sh [root]; scripts/arch-check.test.sh runs it on fixture trees.
 set -euo pipefail
 cd "${1:-$(dirname "$0")/..}"
@@ -195,7 +196,7 @@ if [[ -d web/src ]]; then
     case $src in
       features/*)
         case $dst in
-          api | lib | ui | test) ok=1 ;;
+          api | lib | ui | viz | test) ok=1 ;;
           app) [[ $from == *.test.ts || $from == *.test.tsx ]] && ok=1 ;;
           features/*) ;;
         esac
@@ -212,9 +213,13 @@ if [[ -d web/src ]]; then
       api)
         why="api/ imports nothing else"
         ;;
-      dev)
+      viz)
         [[ $dst == ui || $dst == lib || $dst == api || $dst == test ]] && ok=1
-        why="dev/ imports only ui/, lib/ and api/"
+        why="viz/ imports only ui/, lib/ and api/"
+        ;;
+      dev)
+        [[ $dst == ui || $dst == lib || $dst == api || $dst == viz || $dst == test ]] && ok=1
+        why="dev/ imports only ui/, lib/, viz/ and api/"
         ;;
       *) ok=1 ;;
     esac

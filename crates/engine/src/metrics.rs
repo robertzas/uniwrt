@@ -226,6 +226,30 @@ mod tests {
         let mut facts: NodeFacts =
             serde_json::from_str(include_str!("../../model/fixtures/facts/gateway.json")).unwrap();
         let node = NodeId::new(1);
+        let entity = Entity::Node(node);
+        // Sampling and upkeep are separate tasks on real time, while the test moves the clock
+        // in big steps: before the clock moves on, wait for the windows that closed to be
+        // stored, so a rollup (40 s behind the clock) never runs ahead of their flush.
+        let stored = |windows: usize| {
+            let (store, clock) = (store.clone(), clock.clone());
+            let entity = entity.clone();
+            async move {
+                let wait = async {
+                    while store
+                        .metric_points(&entity, Metric::Cpu, Resolution::Raw, start, clock.now())
+                        .await
+                        .unwrap()
+                        .len()
+                        < windows
+                    {
+                        tokio::time::sleep(Duration::from_millis(2)).await;
+                    }
+                };
+                tokio::time::timeout(Duration::from_secs(10), wait)
+                    .await
+                    .unwrap();
+            }
+        };
         // Facts every 5 s for three minutes, CPU climbing 1 point each time.
         for i in 0..36_u8 {
             facts.collected_at = clock.now();
@@ -237,10 +261,15 @@ mod tests {
             });
             tokio::time::sleep(Duration::from_millis(1)).await;
             clock.advance(Duration::from_secs(5));
+            // Window j (15 s) closes 5 s after it ends.
+            let elapsed = 5 * (u64::from(i) + 1);
+            stored(usize::try_from(elapsed.saturating_sub(5) / 15).unwrap()).await;
         }
+        // The last windows close; the last minute may not be rolled up yet (40 s behind).
+        clock.advance(Duration::from_secs(10));
+        stored(12).await;
         // Long enough for the three minutes to be rolled up.
         clock.advance(Duration::from_secs(60));
-        let entity = Entity::Node(node);
         let minutes = async {
             loop {
                 let minutes = store

@@ -7,6 +7,7 @@ import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
 import { detail, facts, summary } from "../../test/fixtures";
+import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 
 function renderAt(path: string) {
@@ -213,5 +214,54 @@ describe("Devices", () => {
     expect(fetch).toHaveBeenCalledWith("/api/v1/nodes/1", expect.anything());
     // The gateway's topic stays unsubscribed: its focus is not held.
     expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:2"] });
+  });
+
+  it("charts the device's history: one interface at a time, its radios by band", async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url === "/api/v1/metrics/series?under=node%3A1")
+          return Response.json([
+            { entity: "node:1", metrics: ["cpu", "memory", "load"] },
+            { entity: "node:1/dev:eth0", metrics: ["rx_bps", "tx_bps"] },
+            { entity: "node:1/dev:br-lan", metrics: ["rx_bps", "tx_bps"] },
+            { entity: "node:1/radio:radio1", metrics: ["busy", "noise", "stations"] },
+          ]);
+        if (url.startsWith("/api/v1/metrics?")) return Response.json(metricsAnswer(url));
+        return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
+      }),
+    );
+    const { ws } = renderAt("/devices/1");
+    sendFleet(ws, [summary(1, "gw", { role: "gateway" })]);
+    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:1"] }));
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(wirelessFacts()) });
+
+    expect(await screen.findByRole("heading", { name: "Performance" })).toBeVisible();
+    expect(await screen.findByRole("img", { name: "CPU and memory" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Load" })).toBeVisible();
+    expect(screen.queryByRole("img", { name: "Temperature" })).toBeNull();
+    expect(screen.getByRole("img", { name: "Channel utilization" })).toBeVisible();
+    expect(screen.getAllByText("5 GHz · radio1")).toHaveLength(3);
+    // The last day by default, every entity read once.
+    await waitFor(() =>
+      expect(calls.filter((u) => u.startsWith("/api/v1/metrics?"))).toHaveLength(3),
+    );
+    const entities = calls
+      .filter((u) => u.startsWith("/api/v1/metrics?"))
+      .map((u) => new URL(u, "http://test").searchParams.get("entity"));
+    expect(entities).toEqual(["node:1", "node:1/dev:br-lan", "node:1/radio:radio1"]);
+
+    expect(screen.getByRole("img", { name: "Throughput" })).toBeVisible();
+    expect(screen.getByLabelText("Interface")).toHaveValue("br-lan");
+    await user.selectOptions(screen.getByLabelText("Interface"), "eth0");
+    expect(screen.getByLabelText("Interface")).toHaveValue("eth0");
+    await waitFor(() => expect(calls.some((u) => u.includes("dev%3Aeth0"))).toBe(true));
+    expect(screen.getByRole("link", { name: "Open in Metrics" })).toHaveAttribute(
+      "href",
+      "/insights/metrics?entity=node%3A1&range=24h",
+    );
   });
 });

@@ -1,59 +1,97 @@
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import type { ClientSample } from "../../api/gen/ClientSample";
-import { formatBitrate, formatDbm, formatRate } from "../../lib/format";
+import { formatDbm, formatRate } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Card } from "../../ui/Card";
-import { LineChart } from "./LineChart";
+import { ChartToolbar, exploreHref } from "../../viz/timeseries/ChartToolbar";
+import { createMetricsFeed } from "../../viz/timeseries/feed";
+import { MetricChart } from "../../viz/timeseries/MetricChart";
+import type { Preset } from "../../viz/timeseries/ranges";
+import { TimeChart } from "../../viz/timeseries/TimeChart";
+import { CLIENT_RANGES, liveWindow, sampleLine } from "./history";
 
 const s = strings.client.signal;
 
 /**
- * The Signal tab: the last hour of the client's signal, PHY rates and throughput, a sample every
- * few seconds while it is online over Wi-Fi (kept in the controller's memory until M2.4's metrics).
+ * The Signal tab: the client's signal and PHY rates. The last hour comes from the samples the
+ * controller keeps in memory (every few seconds, live); longer ranges from the stored series.
  */
-export function SignalTab(props: { samples: readonly ClientSample[] }) {
-  const times = () => props.samples.map((sample) => sample.at);
-  const pick = (key: keyof Omit<ClientSample, "at">) => props.samples.map((sample) => sample[key]);
+export function SignalTab(props: { mac: string; samples: readonly ClientSample[] }) {
+  const [range, setRange] = createSignal<Preset>("1h");
+  const entity = () => `client:${props.mac}`;
+  const feed = createMetricsFeed(() =>
+    range() === "1h"
+      ? undefined
+      : {
+          queries: [{ entity: entity(), metrics: ["signal", "tx_rate", "rx_rate"] }],
+          range: { preset: range() },
+          width: 800,
+        },
+  );
+  const sync = () => `client-signal:${props.mac}`;
   return (
-    <Show
-      when={props.samples.length > 1}
-      fallback={<p class="py-12 text-center text-fg-subtle text-sm">{s.empty}</p>}
-    >
-      <div class="grid gap-4 xl:grid-cols-2">
-        <Card class="p-4 xl:col-span-2">
-          <LineChart
+    <div class="flex flex-col gap-4">
+      <ChartToolbar
+        range={range()}
+        onRange={setRange}
+        options={CLIENT_RANGES}
+        source={range() === "1h" ? "live" : feed.resolution()}
+        explore={exploreHref(entity(), range())}
+      />
+      <Show
+        when={range() !== "1h"}
+        fallback={
+          <div class="grid gap-4 xl:grid-cols-2">
+            <Card class="p-4 xl:col-span-2">
+              <TimeChart
+                title={s.title}
+                lines={[sampleLine(props.samples, s.series.signal, "info", "signal_dbm")]}
+                format={(v) => formatDbm(v)}
+                minSpan={20}
+                {...liveWindow(props.samples)}
+                sync={sync()}
+                empty={s.empty}
+              />
+            </Card>
+            <Card class="p-4 xl:col-span-2">
+              <TimeChart
+                title={s.rates}
+                lines={[
+                  sampleLine(props.samples, s.series.tx, "accent", "tx_kbps"),
+                  sampleLine(props.samples, s.series.rx, "warn", "rx_kbps"),
+                ]}
+                format={(v) => formatRate(v)}
+                min={0}
+                {...liveWindow(props.samples)}
+                sync={sync()}
+                empty={s.empty}
+              />
+            </Card>
+          </div>
+        }
+      >
+        <Card class="p-4">
+          <MetricChart
             title={s.title}
-            times={times()}
-            series={[{ label: s.series.signal, class: "text-info", values: pick("signal_dbm") }]}
-            format={(value) => formatDbm(value)}
-            minSpan={20}
+            feed={feed}
+            lines={[{ entity: entity(), metric: "signal", label: s.series.signal }]}
+            sync={sync()}
+            empty={s.stored}
           />
         </Card>
         <Card class="p-4">
-          <LineChart
+          <MetricChart
             title={s.rates}
-            times={times()}
-            series={[
-              { label: s.series.tx, class: "text-accent", values: pick("tx_kbps") },
-              { label: s.series.rx, class: "text-warn", values: pick("rx_kbps") },
+            feed={feed}
+            lines={[
+              { entity: entity(), metric: "tx_rate", label: s.series.tx },
+              { entity: entity(), metric: "rx_rate", label: s.series.rx },
             ]}
-            format={(value) => formatRate(value)}
-            min={0}
+            sync={sync()}
+            empty={s.stored}
           />
         </Card>
-        <Card class="p-4">
-          <LineChart
-            title={s.throughput}
-            times={times()}
-            series={[
-              { label: s.series.down, class: "text-ok", values: pick("down_bps") },
-              { label: s.series.up, class: "text-info", values: pick("up_bps") },
-            ]}
-            format={(value) => formatBitrate(value)}
-            min={0}
-          />
-        </Card>
-      </div>
-    </Show>
+      </Show>
+    </div>
   );
 }
