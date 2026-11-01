@@ -38,14 +38,20 @@ step() {
   fi
 }
 
-step 'scaffold clients with telemetry' bash scripts/new-feature.sh clients --telemetry
+# An area no real feature will take, so the scaffold never collides with one; the worktree
+# gives it the sidebar page and strings that a real area has before it is scaffolded.
+sed -i 's|^  { path: "/settings", |  { path: "/scaffold-probe", ...s.scaffoldProbe, icon: Settings },\n&|' \
+  web/src/app/nav.ts
+sed -i 's|^    settings: {$|    scaffoldProbe: { label: "Scaffold probe", description: "The scaffold test'"'"'s area." },\n&|' \
+  web/src/lib/strings.ts
+step 'scaffold an area with telemetry' bash scripts/new-feature.sh scaffold-probe --telemetry
 step 'clippy' cargo clippy --workspace --all-targets --locked -- -D warnings
 step 'the scaffolded tests' cargo nextest run --workspace --locked --status-level fail \
-  -E 'test(/clients/) | test(/bundle/)'
+  -E 'test(/scaffold_probe/) | test(/bundle/)'
 step 'web checks' bash -c 'cd web && bun run check'
 step 'arch-check' bash scripts/arch-check.sh
-step 'TS types are generated' test -f web/src/api/gen/ClientsOverview.ts
-step 'a second run refuses' bash -c "! bash scripts/new-feature.sh clients 2>/dev/null"
+step 'TS types are generated' test -f web/src/api/gen/ScaffoldProbeOverview.ts
+step 'a second run refuses' bash -c "! bash scripts/new-feature.sh scaffold-probe 2>/dev/null"
 step 'a page missing from nav.ts is refused' \
   bash -c "bash scripts/new-feature.sh widgets 2>&1 | grep -q 'has no page /widgets'"
 
