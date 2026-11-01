@@ -50,7 +50,7 @@ config interface 'bat0'
 	option gw_mode 'off'
 ```
 
-`bat0` and the client-facing LAN ports join `br-lan`. VLAN networks bridge `bat0.<vid>`. Exact option names are verified against each target OpenWrt version in the system harness (M3.7).
+`bat0` and the client-facing LAN ports join `br-lan`. VLAN networks bridge `bat0.<vid>`. Exact option names are verified against each target OpenWrt version in the system harness (M3.3).
 
 ## Mesh lifecycle operations
 

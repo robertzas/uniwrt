@@ -12,6 +12,7 @@ This is the entry point for AI coding agents working on **uniwrt**. Claude Code 
      `✅ Checkpoint — /clear recommended (<why>). Next: <WP id + title>. After clearing, say "continue".`
    - **Keeping is cheaper:** continue into the next WP without stopping (the owner's choice, D-024). If you must stop anyway, end with
      `✅ Checkpoint — keep context (<why>). Next: <WP id + title>. Say "continue" within 1 h; after that, /clear first.`
+   - **Split points:** a merged WP names its parts in ROADMAP.md (`Split: a | b`). Finishing a part is a checkpoint like finishing a WP (tests, docs, STATUS.md, commit, push, green CI), then the clear-or-keep test. A finished part usually leaves more unused context than the next part's reload costs, so clearing usually wins.
    - **Mid-WP:** apply the same test when a long context starts to hurt quality, or when the owner will be away for more than an hour (the cache expires). Make `docs/STATUS.md` carry the state before you stop.
 3. **Offer options.** Whenever you have a good idea, a suggested change or a recommendation, give the owner 2–4 options with a recommended default (use AskUserQuestion in interactive sessions), then record the outcome in `docs/DECISIONS.md`. For small, reversible implementation details, decide and note it.
 4. **Keep the docs true.** README.md, AGENTS.md and `docs/` capture every directive, the plan and all decisions. Update them in the same commit as the change that would make them stale.

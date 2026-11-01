@@ -42,10 +42,10 @@ The primary user is a technically minded home owner or prosumer running 1 gatewa
 | Adoption | adopt existing nodes (observe) · ZTP images · adoption port · one-liner · gateway first-run · pending-adoption inbox · roles (gateway/AP/bridge) | M1.7, M4.3, M5.4 | features/adoption.md |
 | Internet | ISP presets · DHCP/PPPoE/static/VLAN/6rd/DHCPv6-PD · live connectivity test · SQM · failover | M4.1 | features/wan.md |
 | Networks | 10.0.0.0/16 IPAM · VLAN networks (LAN/IoT/Guest) · DHCP and reservations · local DNS · IPv6 · firewall matrix · port forwards · UPnP · WireGuard · DNS filtering · DDNS · mDNS · WoL | M4.2, M8.1–M8.2 | features/network.md |
-| Wi-Fi | SSIDs and security · 802.11r/k/v · steering · RF insight · auto channel/width/power · floor-plan heatmap | M2.7, M5.1–M5.2, M6 | features/wifi.md |
+| Wi-Fi | SSIDs and security · 802.11r/k/v · steering · RF insight · auto channel/width/power · floor-plan heatmap | M2.6, M5.1–M5.2, M6 | features/wifi.md |
 | Mesh | batman-adv over 802.11s and wired links · VLANs over the mesh · mesh health and single-point-of-failure detection | M2, M5.3 | features/mesh.md |
 | Observability | live topology with replay · clients and experience score · metrics · logs · events and alerts · dashboard | M1.4, M2 | features/observability.md |
-| Troubleshooting | diagnostics toolkit · packet capture · web terminal · connection doctor · WAN quality monitor · support bundle | M8.3–M8.4 | features/observability.md |
+| Troubleshooting | diagnostics toolkit · packet capture · web terminal · connection doctor · WAN quality monitor · support bundle | M8.3 | features/observability.md |
 | Lifecycle | revisions · review and apply · drift detection · brownfield import · rolling upgrades via ASU · backups · replace/RMA | M3, M7 | features/lifecycle.md |
 | Platform | auth and TLS · secrets vault · demo mode · scratch multi-arch image · a release per commit | M0, M1 | features/security.md, dev/BUILD.md |
 | UI | design system · ⌘K command palette · staged changes · signature visualizations | M0.3, M1.8, all | features/ui.md |

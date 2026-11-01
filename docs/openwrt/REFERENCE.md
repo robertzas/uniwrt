@@ -1,7 +1,7 @@
 # OpenWrt reference
 
 These are the facts uniwrt relies on, collected here so sessions don't research them again.
-Marks: ✅ verified (release notes, a test, or a real device) · ⚠️ from documentation or memory. Verify ⚠️ items in the system harness (M3.7) or on a real node before depending on them, then flip the mark.
+Marks: ✅ verified (release notes, a test, or a real device) · ⚠️ from documentation or memory. Verify ⚠️ items in the system harness (M3.3) or on a real node before depending on them, then flip the mark.
 
 ## Releases
 

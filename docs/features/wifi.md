@@ -1,7 +1,7 @@
 # Wi-Fi: WLANs, roaming, steering & RF planning
 
 Read this when working on SSIDs, security modes, 802.11r/k/v, steering, scans/surveys, the channel planner or floor plans.
-Milestones: M2.7 (RF insight, read-only), M5.1 (WLANs, client kick/block), M5.2 (roaming, steering), M6.1–M6.3 (planner, apply, heatmap).
+Milestones: M2.6 (RF insight, read-only), M5.1 (WLANs, client kick/block), M5.2 (roaming, steering), M6.1 (planner, apply), M6.2 (heatmap).
 
 ## WLANs (SSIDs) [M5.1]
 
@@ -33,7 +33,7 @@ Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `w
 - **Phase 1 (default, O-2):** usteer on every AP, configured by the controller through profiles (Off / Conservative / Balanced / Aggressive). Each profile maps to thresholds: minimum SNR, roam scan/trigger SNR, band-steering threshold, load kick. usteer events feed the roaming and steering timeline.
 - **Phase 2 (optional):** controller-driven smart steering that uses global history (sticky-client detection) and sends BTM requests through hostapd ubus. Only clients that advertise 11v are steered, and steering simply stops while the controller is offline.
 
-## RF insight (read-only) [M2.7]
+## RF insight (read-only) [M2.6]
 
 - **Channel survey** (`iw survey dump`) every few minutes: channel utilization and noise floor.
 - **Neighbor scans** of foreign BSSs (channel, width, RSSI, SSID): staggered per radio, scheduled off-peak by default, kept 30 days.
@@ -41,7 +41,7 @@ Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `w
 - **DFS events** (radar detected, CAC, channel switch), from hostapd events and logs.
 - Views: channel occupancy per band, utilization over time, interference sources, "who is on my channel".
 
-## RF planner: auto channel, width and power [M6.1–M6.2]
+## RF planner: auto channel, width and power [M6.1]
 
 **Inputs:** radios and their capabilities (channels, widths, DFS flags, max tx power), the country's regulatory domain, foreign BSSs and survey data per channel, the inter-node RSSI matrix, and client load/airtime.
 
@@ -71,13 +71,13 @@ external   foreign BSSs weighted by RSSI + survey busy %
 
 **Power:** aim for neighbor-AP RSSI of about −65 to −72 dBm at each AP, which gives enough cell overlap for roaming. Keep 2.4 GHz below 5 GHz to bias clients toward 5 GHz, and never go below a floor.
 
-**Apply [M6.2]:**
+**Apply [M6.1]:**
 1. Show a preview, then run a job.
 2. Non-mesh radios change one node at a time, using CSA through hostapd `switch_chan` where supported, otherwise a reload.
 3. A mesh group changes in a **synchronized cutover**: every node switches at an agreed, NTP-synced timestamp, and everything rolls back if the mesh doesn't re-form within the window.
 4. A nightly optimizer runs in the maintenance window (default 03:30 local). It applies only if the score improves by at least 15% and no heavy traffic is active. This hysteresis prevents churn.
 
-## Coverage & floor plans [M6.3]
+## Coverage & floor plans [M6.2]
 
 - Upload a floor plan per floor, set its scale, and place the nodes.
 - The heatmap uses a log-distance path-loss model whose per-band exponent is fitted to the measured inter-node RSSI matrix. Walls can optionally be drawn with materials.

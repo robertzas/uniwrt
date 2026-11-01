@@ -1,7 +1,7 @@
 # Observability & troubleshooting
 
 Read this when working on telemetry, topology, clients, metrics, logs, events/alerts, the dashboard or diagnostics.
-Milestones: M1.4 (telemetry), M2.1–M2.7, M8.3–M8.4.
+Milestones: M1.4 (telemetry), M2.1–M2.6, M8.3.
 
 ## Telemetry pipeline
 
@@ -91,7 +91,7 @@ The inventory is keyed by MAC and kept by the `clients` crate's book (D-053): ev
 | Channel busy | 10 | 90 % | 40 % |
 | Roams in the last hour (flapping) | 10 | 12 | 4 |
 
-A part without data drops out; without signal or rate there is no score. Sticky clients need the inter-node RSSI matrix (M2.7), and latency from the AP needs probes (M8). The Clients page averages the score of online Wi-Fi clients for the site and per access point.
+A part without data drops out; without signal or rate there is no score. Sticky clients need the inter-node RSSI matrix (M2.6), and latency from the AP needs probes (M8). The Clients page averages the score of online Wi-Fi clients for the site and per access point.
 
 **API:** `GET v1/clients`, `GET v1/clients/{mac}` (the client, its samples and a day of sessions), `GET v1/clients/{mac}/sessions?since=<ms>` and `PATCH v1/clients/{mac}` (`{"alias": …}`); WS topics `clients` (snapshot, then changed clients by MAC and the ones forgotten) and `client:<mac>` (snapshot, then its view, new samples and changed sessions; holding it speeds up the telemetry of the node the client is at, following it as it roams).
 
@@ -121,7 +121,7 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 
 **Annotations:** `log-patterns.toml`, embedded in the crate that annotates logs (D-025), maps a regex to a meaning, severity, hint and link. Examples: hostapd deauth reasons, DFS radar, netifd link flaps, dnsmasq DHCP pool exhaustion, kernel OOM, mt76 firmware errors.
 
-## Events, alerts, notifications [M2.6]
+## Events, alerts, notifications [M2.5]
 
 **Events:**
 - nodes: online/offline/reboot, mesh link degraded, low flash
@@ -135,7 +135,7 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 
 **Notifiers:** in-app, browser push (PWA), email (SMTP), ntfy, Gotify, generic webhooks (Discord/Slack/Teams/Home Assistant templates), Pushover, Telegram.
 
-## Dashboard [M2.4, extended in M2.7]
+## Dashboard [M2.4, extended in M2.6]
 
 - a health header: internet, mesh, Wi-Fi, nodes, clients
 - a WAN card: status, ISP, IPs, latency sparkline, throughput
@@ -156,7 +156,7 @@ Everything runs from any node and streams live:
 - a browser **SSH terminal** (xterm.js over the controller's SSH session; audited)
 - a **UCI explorer**: read-only by default; edits go through the change pipeline
 
-## Troubleshooting assistants [M8.4]
+## Troubleshooting assistants [M8.3]
 
 - **Connection Doctor** (per client): one timeline merging association, roam, DHCP, DNS and log events, plus signal history and the experience breakdown. It flags detected issues (weak signal, sticky client, DHCP or DNS failures, band problems, 802.11r incompatibility) and suggests fixes.
 - **WAN quality monitor:** continuous ICMP/DNS/HTTP probes from the gateway to several targets, smokeping-style latency bands, and outage detection with evidence of where the fault lies (gateway, ONT or ISP hop).
