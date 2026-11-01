@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, Errored, onSettled, useContext } from "solid-js";
+import type { Client } from "../api/gen/Client";
+import { api } from "../lib/api";
 import { currentSkin } from "../lib/appearance";
 import { LiveContext } from "../lib/live";
 import { isPaletteShortcut } from "../lib/platform";
@@ -25,10 +27,23 @@ export function Shell(props: { children?: JSX.Element }) {
   const navigate = useNavigate();
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  // Read each time the palette opens, into a plain signal: nothing waits on it (D-048).
+  const [clients, setClients] = createSignal<readonly Client[]>([]);
+  createEffect(paletteOpen, (open) => {
+    if (!open) return;
+    const controller = new AbortController();
+    api.clients
+      .list(controller.signal)
+      // Anything but a list (a proxy's error page, say) must not break the palette.
+      .then((list) => setClients(Array.isArray(list) ? list : []))
+      .catch(() => {});
+    return () => controller.abort();
+  });
   const commands = createMemo(() =>
     appCommands({
       navigate: (path) => navigate(path),
       devices: live.fleet.nodes,
+      clients: clients(),
       signOut: () => void session.signOut(),
     }),
   );

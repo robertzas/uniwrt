@@ -51,6 +51,8 @@ pub enum AuditAction {
     Logout,
     /// A user started adopting a node (the detail names it and the job).
     Adopt,
+    /// A user gave a client an alias or took it away (the detail names the client and alias).
+    RenameClient,
 }
 
 /// One audit log entry.

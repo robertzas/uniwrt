@@ -12,7 +12,9 @@
 //!   [`EngineConfig`] with the [`Intervals`] of each collect set; [`Snapshots`] (the latest facts
 //!   of each node, saved through `FactsRepo`); [`TopologyHistory`] (the topology's history,
 //!   recorded through `TopologyRepo`: a keyframe every hour, deltas at most every 30 s, 24 h
-//!   kept; [`HistoryConfig`]) and [`replay`], which turns its frames back into a topology.
+//!   kept; [`HistoryConfig`]) and [`replay`], which turns its frames back into a topology;
+//!   the clients ([`Engine::clients`], [`Engine::client`], [`Engine::rename_client`]) and
+//!   [`ClientRecorder`], which restores their book and keeps it through `ClientRepo`.
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -22,6 +24,9 @@
 //! - **Topology** (`uniwrt_topo`): built again from the live state 1 s after a node's facts or
 //!   status change (the changes of that second share one build), against the previous build for
 //!   traffic rates, and announced as [`Event::Topology`] when it changed.
+//! - **Clients** (`uniwrt_clients`): each build updates the clients' book (sessions, samples,
+//!   scores), announced as [`Event::Clients`]; the recorder saves its records and sessions,
+//!   restores them at start, and prunes clients and sessions after 30 days.
 //! - **Status** (`model::status`): offline while the link is not up (connecting, unreachable,
 //!   quarantined), degraded while the agent is not running or its telemetry is partial (failed
 //!   sets or requests) or late (none for three of its fastest intervals, at least 30 s: the
@@ -31,7 +36,8 @@
 //!   removed node's actor has stopped before [`Engine::remove`] returns. Timers use tokio's
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
-//!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`), `uniwrt-topo`, tokio, tracing,
+//!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`), `uniwrt-topo`,
+//!   `uniwrt-clients`, tokio, tracing,
 //!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
 //!   `actor/tests.rs` drives actors over a scripted link (`testing.rs`) with tokio's paused
@@ -40,6 +46,7 @@
 
 mod actor;
 mod bus;
+mod clients;
 mod config;
 mod engine;
 mod fleet;
@@ -55,6 +62,7 @@ mod testing;
 mod topology;
 
 pub use bus::Event;
+pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;
 pub use engine::Engine;
 pub use fleet::Fleet;

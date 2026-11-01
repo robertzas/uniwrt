@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use uniwrt_clients::Changes;
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     event::{NodeEvent, Roam},
@@ -47,10 +48,13 @@ pub enum Event {
     Removed { node: NodeId },
     /// The topology changed ([`Engine::topology`](crate::Engine::topology)).
     Topology { topology: Arc<Topology> },
+    /// Clients changed ([`Engine::clients`](crate::Engine::clients)): their views, the records
+    /// and sessions to keep, and new samples.
+    Clients { changes: Arc<Changes> },
 }
 
 impl Event {
-    /// The node it is about; `None` for a roam, which is about two, and the topology.
+    /// The node it is about; `None` for a roam, which is about two, the topology and clients.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -58,7 +62,7 @@ impl Event {
             | Self::Node { node, .. }
             | Self::Log { node, .. }
             | Self::Removed { node } => Some(*node),
-            Self::Roam { .. } | Self::Topology { .. } => None,
+            Self::Roam { .. } | Self::Topology { .. } | Self::Clients { .. } => None,
         }
     }
 }

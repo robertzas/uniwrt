@@ -7,7 +7,8 @@
 //!   their password hashes), [`SessionRepo`] (login sessions by token hash) and [`AuditRepo`]
 //!   (the audit log), [`JobRepo`] (jobs as history), [`InventoryRepo`] (packages and backups
 //!   of adopted nodes) and [`TopologyRepo`] (the topology's history as opaque [`TopologyFrame`]s,
-//!   and the topology view's [`Pin`]s); [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
+//!   and the topology view's [`Pin`]s), [`ClientRepo`] (clients' records, aliases and
+//!   sessions); [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
 //!   from the store and the [`MasterKey`]; it also seals configuration backups
 //!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them. Errors are [`Error`].
@@ -48,8 +49,8 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AuditRepo, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, NewSession, NodeRepo, Pin,
-    Secret, SessionRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
+    Adoption, AuditRepo, ClientRepo, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, NewSession,
+    NodeRepo, Pin, Secret, SessionRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, SealedBackup, Vault};

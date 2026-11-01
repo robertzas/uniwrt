@@ -1,6 +1,7 @@
 //! The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's
 //! facts or status change (the changes of that moment share one build), kept for readers, and
-//! announced as [`Event::Topology`] when it changed.
+//! announced as [`Event::Topology`] when it changed; each build updates the clients' book
+//! ([`Event::Clients`]).
 
 use std::{
     collections::BTreeMap,
@@ -100,7 +101,9 @@ fn rebuild(ctx: &Context) {
         .current
         .write()
         .unwrap_or_else(PoisonError::into_inner) = Arc::clone(&topology);
+    let clients = ctx.clients().update(&topology, &members);
     if changed {
         ctx.publish(Event::Topology { topology });
     }
+    ctx.publish_clients(clients);
 }

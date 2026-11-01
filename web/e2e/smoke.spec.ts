@@ -146,3 +146,31 @@ test("maps the network, details a device and pins it", async ({ page }) => {
   await expect(page.getByText("Replaying")).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test("lists the clients, opens one and renames it", async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors = watchErrors(page);
+  await signIn(page);
+  await expect(page.getByRole("table", { name: "Devices" })).toBeVisible();
+  await page.getByRole("link", { name: "Clients" }).click();
+  const table = page.getByRole("table", { name: "Clients" });
+  await expect(table.locator("tbody tr").first()).toBeVisible();
+  await expect(page.getByText("Experience by access point")).toBeVisible();
+  await page.getByRole("button", { name: "Wi-Fi", exact: true }).click();
+  await table.locator("tbody tr").first().click();
+  await expect(page).toHaveURL(/\/clients\/[0-9a-f:]{17}$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Experience" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Kick", exact: true })).toBeDisabled();
+
+  await page.getByRole("tab", { name: "Timeline" }).click();
+  await expect(page.getByRole("table", { name: "Where it connected" })).toBeVisible();
+  await page.getByRole("tab", { name: "Signal" }).click();
+  await expect(page.getByRole("img", { name: "Signal" })).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: "Rename" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename client" });
+  await dialog.getByLabel("Name").fill("Demo phone");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Demo phone");
+  expect(errors).toEqual([]);
+});

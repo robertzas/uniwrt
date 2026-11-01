@@ -40,7 +40,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
   - **⌘K command palette:** navigate, find any client/device/MAC/IP, run actions ("reboot AP2", "optimize channels")
   - keyboard shortcuts, toasts, breadcrumbs
 - **Device page tabs:** Overview · Radios · Ports · Clients · Mesh · Config · Logs · Tools · Terminal.
-- **Client page tabs:** Overview · Timeline · Signal · Traffic · Doctor.
+- **Client page tabs:** Overview · Timeline · Signal (M2.3) · Traffic (M2.4) · Doctor (M8).
 
 ## Interaction patterns
 
@@ -84,4 +84,5 @@ WCAG 2.2 AA; full keyboard operation and focus management. Color is never the on
 - **Async and navigation:** the router holds a navigation while async data the page reads is pending, so data that is slow and polled often (discovery waits up to 3 s per request) is polled into a plain signal, not a query (D-048).
 - **Topology (`features/topology`, observability.md):** `graph.ts` (the live topology by id), `scene.ts` (what each view draws), `layout/` (the tidy tree; d3-force in `worker.ts`, or on the main thread), `render/` (the canvas renderer: palette from the tokens, icons, geometry and hit tests, drawing, gestures), `replay.ts` and the page with its details panel, replay bar, legend and view switch.
 - **Devices (`features/devices`):** the list (`/devices`) and a node's live overview (`/devices/:id`: status and reasons, stats with sparklines, radios, details, Wi-Fi clients); ⌘K opens a device found by name, MAC, address or model. Adoption (`features/devices/adopt`, adoption.md): the wizard dialog (`?adopt=1&host=…`, also ⌘K "Adopt a device"), the Discovered card under the list, and batch adoption.
+- **Clients (`features/clients`, observability.md):** `store.ts` (the `clients` and `client:<mac>` topics as stores, rows grouping a device's randomized addresses, averages), the list (`/clients`: online, Wi-Fi experience, weak signals, experience per AP; search and filters), and the client page (`/clients/:mac`: Overview with stats, connection, score breakdown and details; Timeline with a lane per place over a day or a week; Signal with the last hour's charts in `LineChart.tsx`; rename). `lib/clients.ts` holds what features share: names, kind icons, tones. ⌘K finds clients (read when the palette opens), device pages and the topology link to them.
 - **Gallery:** `/dev/ui` in development builds shows every primitive; `?skin=glass&theme=dark` applies a skin and theme, for screenshots.

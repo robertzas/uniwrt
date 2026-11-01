@@ -130,7 +130,14 @@ function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
           {(n) => <NodeRows {...props} node={n()} />}
         </Show>
       </div>
-      <Show when={props.pinned || props.grouped !== undefined || node()?.node != null}>
+      <Show
+        when={
+          props.pinned ||
+          props.grouped !== undefined ||
+          node()?.node != null ||
+          (props.vertex.kind === "client" && node()?.mac)
+        }
+      >
         <footer class="flex flex-wrap gap-2 border-edge border-t px-4 py-3">
           <Show when={node()?.node}>
             {(id) => (
@@ -140,6 +147,17 @@ function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
               >
                 <Icon icon={ExternalLink} class="size-3.5" />
                 {d.openDevice}
+              </a>
+            )}
+          </Show>
+          <Show when={props.vertex.kind === "client" && node()?.mac}>
+            {(mac) => (
+              <a
+                href={`/clients/${mac()}`}
+                class="inline-flex h-7 items-center gap-1.5 rounded-control bg-accent-fill px-2.5 font-medium text-on-accent text-xs hover:brightness-110"
+              >
+                <Icon icon={ExternalLink} class="size-3.5" />
+                {d.openClient}
               </a>
             )}
           </Show>

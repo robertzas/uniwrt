@@ -1,10 +1,12 @@
+import { useNavigate } from "@solidjs/router";
 import { createMemo, Show } from "solid-js";
 import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { NodeFacts } from "../../api/gen/NodeFacts";
 import type { StationFacts } from "../../api/gen/StationFacts";
+import { signalTone } from "../../lib/clients";
 import { formatBytes, formatDbm, formatDuration, formatRate, NONE } from "../../lib/format";
 import { strings } from "../../lib/strings";
-import { StatusDot, type Tone } from "../../ui/Badge";
+import { StatusDot } from "../../ui/Badge";
 import { Card, CardHeader } from "../../ui/Card";
 import { type Column, Table } from "../../ui/Table";
 
@@ -16,12 +18,6 @@ interface ClientRow {
   hostname: string | null;
   ip: string | null;
   network: string;
-}
-
-function signalTone(dbm: number | null): Tone {
-  if (dbm == null) return "neutral";
-  if (dbm >= -65) return "ok";
-  return dbm >= -75 ? "warn" : "crit";
 }
 
 /**
@@ -109,8 +105,9 @@ const columns: Column<ClientRow>[] = [
   },
 ];
 
-/** The node's Wi-Fi clients, live. */
+/** The node's Wi-Fi clients, live; a row opens the client. */
 export function ClientsCard(props: { facts: NodeFacts; leases: readonly LeaseFacts[] }) {
+  const navigate = useNavigate();
   const rows = createMemo(() => clientRows(props.facts, props.leases));
   return (
     <Card class="min-w-0 overflow-hidden">
@@ -119,7 +116,13 @@ export function ClientsCard(props: { facts: NodeFacts; leases: readonly LeaseFac
         when={rows().length > 0}
         fallback={<p class="px-4 pb-4 text-fg-subtle text-sm">{t.empty}</p>}
       >
-        <Table label={t.title} columns={columns} rows={rows()} rowKey={(row) => row.station.mac} />
+        <Table
+          label={t.title}
+          columns={columns}
+          rows={rows()}
+          rowKey={(row) => row.station.mac}
+          onRowClick={(row) => navigate(`/clients/${row.station.mac}`)}
+        />
       </Show>
     </Card>
   );

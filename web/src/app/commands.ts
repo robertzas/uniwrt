@@ -1,4 +1,5 @@
 import { Laptop, LogOut, Moon, Palette, Plus, RadioTower, Router, Sun } from "lucide";
+import type { Client } from "../api/gen/Client";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
   type Skin,
@@ -7,6 +8,7 @@ import {
   skins,
   type ThemePreference,
 } from "../lib/appearance";
+import { clientName, kindIcons } from "../lib/clients";
 import { strings } from "../lib/strings";
 import type { IconNode } from "../ui/Icon";
 import { navItems } from "./nav";
@@ -29,10 +31,15 @@ export interface CommandContext {
   navigate: (path: string) => void;
   /** Adopted nodes; each gets a command that opens it, found by name, MAC, address or model. */
   devices?: readonly NodeSummary[];
+  /** Known clients; each gets a command that opens it, found by name, MAC, address or vendor. */
+  clients?: readonly Client[];
   signOut?: () => void;
 }
 
-/** The app's commands: every page, adoption and the devices, then the skins, themes and account. */
+/**
+ * The app's commands: every page, adoption, the devices and clients, then the skins, themes and
+ * account.
+ */
 export function appCommands(context: CommandContext): Command[] {
   const p = strings.palette;
   const { navigate } = context;
@@ -61,6 +68,16 @@ export function appCommands(context: CommandContext): Command[] {
       icon: node.role === "gateway" ? Router : RadioTower,
       keywords: [roles[node.role], node.mac, node.host, node.model ?? ""].join(" "),
       run: () => navigate(`/devices/${node.id}`),
+    })),
+    ...(context.clients ?? []).map((client) => ({
+      id: `client:${client.mac}`,
+      group: p.groups.clients,
+      label: clientName(client),
+      icon: kindIcons[client.kind],
+      keywords: [client.hostname, client.mac, client.vendor, ...client.ips]
+        .filter(Boolean)
+        .join(" "),
+      run: () => navigate(`/clients/${client.mac}`),
     })),
     ...skins.map((skin: Skin) => ({
       id: `skin:${skin}`,

@@ -12,6 +12,7 @@ publish.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 tracing.workspace = true
+uniwrt-clients.workspace = true
 uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true

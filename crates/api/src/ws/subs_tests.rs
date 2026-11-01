@@ -1,5 +1,8 @@
 //! [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the
-//! caps, topics replaced, and resyncs.
+//! caps, topics replaced, and resyncs. The clients' topics are in `subs_clients_tests.rs`.
+
+#[path = "subs_clients_tests.rs"]
+mod clients;
 
 use std::{
     collections::BTreeMap,
@@ -8,9 +11,11 @@ use std::{
 
 use serde_json::Value;
 use tokio::sync::broadcast;
-use uniwrt_core::{NodeId, SystemClock, Timestamp};
+use uniwrt_clients::{Book, Client, Detail};
+use uniwrt_core::{MacAddr, NodeId, SystemClock, Timestamp};
 use uniwrt_engine::{Event, Fleet, Interest, NodeView};
 use uniwrt_model::{
+    client::ClientRecord,
     event::{Attachment, NodeEvent, Roam, StationChange, StationEvent},
     facts::NodeFacts,
     log::{LogEntry, Severity},
@@ -28,6 +33,7 @@ use crate::{Api, testing};
 struct FakeFleet {
     views: Mutex<BTreeMap<NodeId, NodeView>>,
     topology: Mutex<Arc<Topology>>,
+    book: Mutex<Book>,
 }
 
 impl FakeFleet {
@@ -37,6 +43,10 @@ impl FakeFleet {
 
     fn views(&self) -> std::sync::MutexGuard<'_, BTreeMap<NodeId, NodeView>> {
         self.views.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn book(&self) -> std::sync::MutexGuard<'_, Book> {
+        self.book.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -66,6 +76,18 @@ impl Fleet for FakeFleet {
 
     fn topology(&self) -> Arc<Topology> {
         Arc::clone(&self.topology.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn clients(&self) -> Vec<Arc<Client>> {
+        self.book().clients()
+    }
+
+    fn client(&self, mac: MacAddr) -> Option<Detail> {
+        self.book().detail(mac)
+    }
+
+    fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord> {
+        self.book().rename(mac, alias).map(|(record, _)| record)
     }
 }
 

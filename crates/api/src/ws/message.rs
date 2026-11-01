@@ -5,8 +5,10 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use uniwrt_core::{NodeId, Timestamp};
+use uniwrt_clients::{Client, ClientSample};
+use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
+    client::ClientSession,
     event::{NodeEvent, Roam},
     facts::{
         BatmanFacts, BoardFacts, Capabilities, DeviceFacts, FdbEntry, InterfaceFacts, LeaseFacts,
@@ -19,7 +21,10 @@ use uniwrt_model::{
 use uniwrt_node::proto::ops::Set;
 use uniwrt_topo::{Topology, TopologyDelta};
 
-use crate::nodes::{NodeDetail, NodeSummary};
+use crate::{
+    ClientDetail,
+    nodes::{NodeDetail, NodeSummary},
+};
 
 /// Replaces the connection's topics with these: new ones answer with a snapshot, and topics
 /// left out stop.
@@ -95,6 +100,34 @@ pub enum ServerMessage {
     TopologyDelta {
         topic: String,
         delta: TopologyDelta,
+    },
+    /// Every client, when `clients` is subscribed and after a resync.
+    ClientsSnapshot {
+        topic: String,
+        clients: Vec<Arc<Client>>,
+    },
+    /// Clients whose view changed, as they are now, and clients forgotten.
+    ClientsDelta {
+        topic: String,
+        clients: Vec<Arc<Client>>,
+        removed: Vec<MacAddr>,
+    },
+    /// One client, when `client:<mac>` is subscribed and after a resync.
+    ClientSnapshot {
+        topic: String,
+        client: ClientDetail,
+    },
+    /// What changed about the client: its view, new samples (oldest first), and sessions
+    /// started, ended or changed (replace by `start`).
+    ClientDelta {
+        topic: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        client: Option<Arc<Client>>,
+        samples: Vec<ClientSample>,
+        sessions: Vec<ClientSession>,
+        /// The client was forgotten.
+        removed: bool,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

@@ -1,10 +1,10 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min`
-//! is optional: every entry by default; the parameters may come in any order), `jobs` and
-//! `topology`.
+//! is optional: every entry by default; the parameters may come in any order), `jobs`,
+//! `topology`, `clients` and `client:<mac>`.
 
 use std::fmt;
 
-use uniwrt_core::NodeId;
+use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::log::Severity;
 
 /// The longest topic name accepted.
@@ -22,6 +22,10 @@ pub(crate) enum Topic {
     Jobs,
     /// The fleet's topology, then what changes in it.
     Topology,
+    /// Every client, then the ones that change.
+    Clients,
+    /// One client: its view, samples and sessions; viewing it speeds up its node's telemetry.
+    Client(MacAddr),
 }
 
 /// Why a topic name is refused.
@@ -48,6 +52,15 @@ impl Topic {
         if name == "topology" {
             return Ok(Self::Topology);
         }
+        if name == "clients" {
+            return Ok(Self::Clients);
+        }
+        if let Some(mac) = name.strip_prefix("client:") {
+            return mac
+                .parse()
+                .map(Self::Client)
+                .map_err(|_| BadTopic(format!("{mac:?} is not a MAC address")));
+        }
         if let Some(id) = name.strip_prefix("node:") {
             return node_id(id).map(Self::Node);
         }
@@ -55,8 +68,8 @@ impl Topic {
             return logs(query);
         }
         Err(BadTopic(format!(
-            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, jobs or \
-             topology"
+            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, jobs, \
+             topology, clients or client:<mac>"
         )))
     }
 }
@@ -102,6 +115,11 @@ mod tests {
     fn parses_each_kind() {
         assert_eq!(Topic::parse("fleet"), Ok(Topic::Fleet));
         assert_eq!(Topic::parse("topology"), Ok(Topic::Topology));
+        assert_eq!(Topic::parse("clients"), Ok(Topic::Clients));
+        assert_eq!(
+            Topic::parse("client:F0:18:98:00:00:01"),
+            Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))
+        );
         assert_eq!(Topic::parse("node:7"), Ok(Topic::Node(NodeId::new(7))));
         let logs = Topic::Logs {
             node: NodeId::new(3),
@@ -133,6 +151,8 @@ mod tests {
             "logs?node=3&min=loud",
             "logs?node=3&node=4",
             "logs?node=3&level=info",
+            "client:",
+            "client:nope",
         ] {
             assert!(Topic::parse(bad).is_err(), "{bad:?}");
         }

@@ -1,5 +1,6 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
-//! latest snapshot, the snapshot writer and the topology's history. In demo mode the nodes are simulated instead,
+//! latest snapshot, the snapshot writer, the topology's history and the clients' recorder (which
+//! restores the clients first). In demo mode the nodes are simulated instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
 //! ([`Watcher`]).
@@ -9,7 +10,9 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
-use uniwrt_engine::{Engine, EngineConfig, HistoryConfig, Snapshots, TopologyHistory};
+use uniwrt_engine::{
+    ClientRecorder, Engine, EngineConfig, HistoryConfig, RecorderConfig, Snapshots, TopologyHistory,
+};
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
@@ -33,6 +36,7 @@ pub(crate) struct Fleet {
     pub(crate) engine: Engine<FleetLink>,
     snapshots: Snapshots,
     history: TopologyHistory,
+    clients: ClientRecorder,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
 }
@@ -46,6 +50,8 @@ impl Fleet {
         clock: Arc<dyn Clock>,
     ) -> anyhow::Result<Self> {
         let engine = Engine::new(EngineConfig::default(), Arc::clone(&clock));
+        let clients =
+            ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
         for node in store.nodes().await.context("cannot read the nodes")? {
             let id = node.id;
             match link(store, &node, key, &clock).await {
@@ -67,6 +73,7 @@ impl Fleet {
             engine,
             snapshots,
             history,
+            clients,
             sim: None,
         })
     }
@@ -81,6 +88,8 @@ impl Fleet {
         let sim = SimFleet::spawn(config, clock.as_ref());
         let dial = Arc::new(DemoDial::new(&sim).context("cannot make the demo's host keys")?);
         let engine = Engine::new(EngineConfig::default(), clock);
+        let clients =
+            ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
         let nodes = sim.nodes();
         let adopted = nodes.len().saturating_sub(DEMO_UNADOPTED).max(1);
         for (index, node) in nodes.into_iter().enumerate().take(adopted) {
@@ -106,6 +115,7 @@ impl Fleet {
             engine,
             snapshots,
             history,
+            clients,
             sim: Some((sim, dial)),
         })
     }
@@ -127,6 +137,7 @@ impl Fleet {
         self.engine.shutdown().await;
         self.snapshots.stop().await;
         self.history.stop().await;
+        self.clients.stop().await;
         drop(self.sim);
         let disconnect = async {
             for link in &links {

@@ -4,13 +4,16 @@
 use std::sync::Arc;
 
 use tokio::sync::broadcast;
-use uniwrt_core::NodeId;
+use uniwrt_clients::{Client, Detail};
+use uniwrt_core::{MacAddr, NodeId};
+use uniwrt_model::client::ClientRecord;
 use uniwrt_node::NodeLink;
 use uniwrt_topo::Topology;
 
 use crate::{Engine, Event, Interest, NodeView};
 
-/// The engine's link-free face: the live state, the topology, the bus and interest.
+/// The engine's link-free face: the live state, the topology, the clients, the bus and
+/// interest.
 pub trait Fleet: Send + Sync + 'static {
     /// See [`Engine::all`].
     fn all(&self) -> Vec<(NodeId, NodeView)>;
@@ -24,6 +27,12 @@ pub trait Fleet: Send + Sync + 'static {
     fn subscribe(&self) -> broadcast::Receiver<Event>;
     /// See [`Engine::topology`].
     fn topology(&self) -> Arc<Topology>;
+    /// See [`Engine::clients`].
+    fn clients(&self) -> Vec<Arc<Client>>;
+    /// See [`Engine::client`].
+    fn client(&self, mac: MacAddr) -> Option<Detail>;
+    /// See [`Engine::rename_client`].
+    fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord>;
 }
 
 impl<L: NodeLink> Fleet for Engine<L> {
@@ -49,5 +58,17 @@ impl<L: NodeLink> Fleet for Engine<L> {
 
     fn topology(&self) -> Arc<Topology> {
         Self::topology(self)
+    }
+
+    fn clients(&self) -> Vec<Arc<Client>> {
+        Self::clients(self)
+    }
+
+    fn client(&self, mac: MacAddr) -> Option<Detail> {
+        Self::client(self, mac)
+    }
+
+    fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord> {
+        Self::rename_client(self, mac, alias)
     }
 }

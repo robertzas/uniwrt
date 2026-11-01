@@ -1,8 +1,8 @@
 //! A connection's subscriptions. Each topic answers with a snapshot when subscribed, then
 //! gathers what the bus announces about it until the next [`flush`](Subscriptions::flush),
 //! which turns it into at most one delta per topic: changes merge (a node's latest status, the
-//! union of the facts' changed parts, the topology against the one the client has), while
-//! events, roams and log entries queue up to a cap.
+//! union of the facts' changed parts, the topology against the one the client has, each
+//! client's latest view), while events, roams, samples and log entries queue up to a cap.
 
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -23,6 +23,7 @@ use uniwrt_topo::Topology;
 
 use super::{
     message::{FactsPatch, ServerMessage, TimedEvent, TimedRoam},
+    subs_clients::{ClientPending, ClientsPending},
     topic::{BadTopic, Topic},
 };
 use crate::{
@@ -82,6 +83,8 @@ enum Pending {
         sent: Arc<Topology>,
         latest: Option<Arc<Topology>>,
     },
+    Clients(ClientsPending),
+    Client(Box<ClientPending>),
 }
 
 impl Subscriptions {
@@ -244,6 +247,14 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             let pending = Pending::Topology { sent, latest: None };
             (sub(pending, None), snapshot)
         }
+        Topic::Clients => {
+            let (pending, snapshot) = ClientsPending::subscribe(api, topic);
+            (sub(Pending::Clients(pending), None), snapshot)
+        }
+        Topic::Client(mac) => {
+            let (pending, snapshot) = ClientPending::subscribe(api, topic, mac).await?;
+            (sub(Pending::Client(Box::new(pending)), None), snapshot)
+        }
     })
 }
 
@@ -338,6 +349,8 @@ impl Pending {
                     *latest = Some(Arc::clone(topology));
                 }
             }
+            Self::Clients(pending) => pending.apply(event),
+            Self::Client(pending) => pending.apply(api, event),
             Self::Jobs { .. } => {}
         }
     }
@@ -420,6 +433,8 @@ impl Pending {
                 *sent = latest;
                 (!delta.is_empty()).then_some(ServerMessage::TopologyDelta { topic, delta })
             }
+            Self::Clients(pending) => pending.flush(topic),
+            Self::Client(pending) => pending.flush(topic),
         }
     }
 }
@@ -466,7 +481,7 @@ async fn fleet_news(
     }
 }
 
-fn push_capped<T>(queue: &mut VecDeque<T>, item: T) {
+pub(super) fn push_capped<T>(queue: &mut VecDeque<T>, item: T) {
     if queue.len() == MAX_EVENTS {
         queue.pop_front();
     }

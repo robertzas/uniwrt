@@ -14,9 +14,11 @@
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
-//!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), and `v1/ws`
+//!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the clients
+//!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
+//!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
-//!   `logs?node=<id>&min=<severity>`, `jobs`, `topology`, see `ws`). Handlers that need a user
+//!   `logs?node=<id>&min=<severity>`, `jobs`, `topology`, `clients`, `client:<mac>`, see `ws`). Handlers that need a user
 //!   take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
@@ -39,6 +41,7 @@
 mod adopt;
 pub mod auth;
 mod client;
+mod clients;
 mod discovered;
 mod health;
 mod jobs;
@@ -63,6 +66,7 @@ pub use adopt::{
 };
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
+pub use clients::{ClientDetail, ClientPatch};
 pub use health::BuildInfo;
 pub use nodes::{NodeDetail, NodeSummary};
 pub use problem::{ApiError, ApiResult, no_route};
@@ -89,6 +93,9 @@ pub fn router(api: Api) -> Router {
         .route("/v1/discovered", get(discovered::list))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
+        .route("/v1/clients", get(clients::list))
+        .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
+        .route("/v1/clients/{mac}/sessions", get(clients::sessions))
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))

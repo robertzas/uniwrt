@@ -1,8 +1,8 @@
 # Status
 
 **Milestone:** M2 — Observability (M1 is done; the owner's acceptance of M1.7b/M1.8b waits for their hardware)
-**Next WP:** M2.3 — Clients (M; read ROADMAP M2; docs/features/observability.md "Clients"; docs/features/ui.md "Information architecture" (client page tabs) and "Frontend structure"; docs/dev/CONVENTIONS.md "TypeScript / Solid" and "Feature recipe"). Inventory, OUI vendor, device icons, history and roams, experience score v1, actions (rename, kick, block). Roams are inferred already (`Event::Roam`, `crates/engine/src/roam.rs`); the topology has every client as `client:<mac>` with its AP, band, signal and traffic (`GET v1/topology`), which the inventory can start from. Names come from DHCP leases. `just new-feature clients --path /clients` scaffolds the page. Kick and block change nodes: they need management mode (directive 8) and M3's transactions, so they may wait or stay read-only (ask the owner).
-**Last done:** M2.2 — the topology view (2026-10-30)
+**Next WP:** M2.4 — Metrics & dashboard (M; read ROADMAP M2; docs/features/observability.md "Metrics" and "Dashboard"; docs/features/ui.md "Signature visualizations" and "Frontend structure"; docs/ARCHITECTURE.md "Persistence"). Rollups, retention, LTTB downsampling, uPlot charts, dashboard v1. The clients' Signal tab keeps an hour of samples in the engine's memory (`uniwrt_clients::Book`, `ClientSample`) until metrics are stored: M2.4 can move them into the metrics tables and give the client page its Traffic tab. `features/clients/LineChart.tsx` is a stopgap SVG chart that uPlot may replace.
+**Last done:** M2.3 — Clients (2026-10-31)
 
 ## Open questions for the owner
 
@@ -23,8 +23,8 @@
 
 ## Session log (newest first; keep ≤ 5 entries)
 
+- 2026-10-31 — M2.3 done: pure `clients` crate (book of sessions, samples, experience score v1, kinds, whole IEEE OUI registry via `just oui`), `ClientRepo` (migration 0006) and `ClientRecorder`, API and WS topics `clients`/`client:<mac>`, Clients list and client page (Overview, Timeline, Signal, rename; kick and block disabled until M3.8). D-053. Also fixed the topology replay asking for times before its history (an e2e flake).
 - 2026-10-30 — M2.2 done, unsplit (owner): Canvas renderer (tokens, Lucide paths, flows, status/CPU rings, pan/zoom/pinch, keyboard), d3-force in a worker, tree/RF/clients views with client groups, details panel, pins kept on the controller (owner), 24 h replay from a recorded history (hourly keyframes, 30 s deltas). D-052. e2e covers it. tokio-tungstenite 0.30 still held (axum 0.8.9).
 - 2026-10-30 — M2.1 done: pure `topo` crate (WAN, FDB segments and inferred switches, 802.11s/batman mesh, Wi-Fi, translation tables, neighbor-cache fallback; tree by cheapest path; rates; diff/apply), rebuilt by the engine 1 s after changes (`Engine::add` takes an `Identity`), `GET v1/topology` and WS `topology`. D-051.
 - 2026-10-30 — M1.9 done: `just arch-check` and `just new-feature` (tested in CI); Dialog and Drawer return focus to their opener. D-050. Before it, the owner's version sweep with no cooldown (D-049).
 - 2026-10-30 — M1.8b done: wizard dialog over Devices (`?adopt=1`), Discovered card and batch dialog, failures acted on by code; the demo leaves its last AP unadopted and adopts it through the real job over `DemoDial` (owner's choices). D-048.
-- 2026-10-30 — M1.8c done: sign-in gate, live socket and stores, Devices list and overview, ⌘K devices, Playwright e2e job gating the image. D-047.

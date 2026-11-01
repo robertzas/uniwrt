@@ -12,6 +12,7 @@ publish = false
 
 [workspace.dependencies]
 uniwrt-api = { path = "crates/api" }
+uniwrt-clients = { path = "crates/clients" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-engine = { path = "crates/engine" }
 uniwrt-jobs = { path = "crates/jobs" }
@@ -60,6 +61,8 @@ ts-rs = { version = "12.0.1", default-features = false, features = ["serde-compa
 # Build-time asset compression (crates/server/build)
 brotli = "9.1.1"
 flate2 = "1.1.10"
+# Inflating the embedded vendor table (crates/clients); already in the tree through flate2.
+miniz_oxide = { version = "0.9.1", default-features = false, features = ["with-alloc"] }
 sha2 = "0.11.1"
 # Tests
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }

@@ -22,6 +22,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
+- `src/clients.rs`: The client routes, with a session (features/observability.md, Clients): `GET /api/v1/clients` is every client the controller knows (the WS topic `clients` keeps it current), `GET /api/v1/clients/{mac}` one client with its last hour of samples and last day of sessions ([`ClientDetail`], the `client:<mac>` topic's snapshot), `GET /api/v1/clients/{mac}/sessions?since=<ms>` its sessions since a time, and `PATCH /api/v1/clients/{mac}` renames it (admins; audited).
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
@@ -39,9 +40,26 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
 - `src/ws/subs.rs`: A connection's subscriptions.
+- `src/ws/subs_clients.rs`: The clients' topics of a connection: `clients` keeps each changed client's latest view by MAC address between flushes, and `client:<mac>` one client's view, its new samples (up to a cap) and its changed sessions, with fast telemetry for the node it is at.
+- `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order), `jobs` and `topology`.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs?node=<id>&min=<severity>` (`min` is optional: every entry by default; the parameters may come in any order), `jobs`, `topology`, `clients` and `client:<mac>`.
+
+### `uniwrt-clients` (crates/clients)
+
+Clients (features/observability.md, Clients): the inventory of every device that connects through the adopted nodes, who each one is, where it was connected and how well.
+
+- `src/book.rs`: [`Book`]: every client the controller knows, online or not: updated from each topology build, restored from the store at start, renamed by users, and pruned once long gone.
+- `src/entry.rs`: One client in the [`Book`](crate::Book): its record, where it is (its open session and the one before), its counters, recent samples and roams, and the view made of them.
+- `src/kind.rs`: What kind of device a client is, for its icon: rules over its DHCP hostname, then its vendor (`rules.rs`, one line per rule).
+- `src/lib.rs`: Clients (features/observability.md, Clients): the inventory of every device that connects through the adopted nodes, who each one is, where it was connected and how well.
+- `src/oui.rs`: Vendors by MAC address: IEEE's MA-L, MA-M and MA-S registries, embedded compressed (`data/oui.bin`, which `scripts/oui.py` makes; D-053) and unpacked on first use.
+- `src/rules.rs`: The device-kind rules ([`classify`](crate::classify)), in order: the first that matches wins, so specific rules come before broad ones (a tablet's "galaxy-tab" before a phone's "galaxy", a camera's "-cam" before the smart home's "esp32").
+- `src/score.rs`: The experience score v1 (features/observability.md, Clients): 0–100, a weighted mean of what a Wi-Fi client's connection is like, with each part kept so the UI can show why.
+- `src/tests/book.rs`: The book over builds: clients appearing, roaming, leaving and coming back; nodes going quiet; a restart; aliases and groups; samples and retries; forgetting.
+- `src/tests/mod.rs`: A book driven through topology builds of a small house made in code (`World`): a gateway (node 1) and an access point (node 2), each with one 5 GHz AP interface, and clients moving between them.
+- `src/view.rs`: What a client looks like now ([`Client`]), as the API and the WS topics `clients` and `client:<mac>` carry it, its signal history's points ([`ClientSample`]), and what one topology build says about each client ([`observe`]).
 
 ### `uniwrt-core` (crates/core)
 
@@ -62,6 +80,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats.
 - `src/actor/tests.rs`: Actors over a scripted link, on tokio's paused clock: what they ask the agent, and what they announce.
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
+- `src/clients.rs`: Keeping the clients' book (`uniwrt_clients`; features/observability.md, Clients): restored from the store before the nodes are watched, its records and sessions saved through [`ClientRepo`] as [`Event::Clients`] announces them, and clients long gone (and sessions older than [`RecorderConfig::keep`]) pruned every [`RecorderConfig::prune_every`].
 - `src/config.rs`: The engine's settings.
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
 - `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
@@ -75,7 +94,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
 - `src/status.rs`: A node's status (`model::status`) from its link's state and the health of its telemetry.
 - `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
-- `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed.
+- `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed; each build updates the clients' book ([`Event::Clients`]).
 - `src/topology_tests.rs`: The topology of the hwsim lab's captures (TESTING.md, Wi-Fi lab): node a (the gateway, 25.12) and node b (an access point, 24.10) meshed over 802.11s and a wired backhaul (`bh0`) with batman-adv over both; client c on a's 2g AP (`…:04:00`) and b's 5g AP (`…:05:00`).
 - `tests/agent.rs`: The engine watching real OpenWrt (TESTING.md, Agent): an actor over an SSH link to the agent, in both loop modes.
 
@@ -100,6 +119,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
 
+- `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
@@ -188,7 +208,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer and the topology's history.
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history and the clients' recorder (which restores the clients first).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -249,6 +269,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/readers.rs`: The read pool: read-only connections, opened on demand, used on tokio's blocking pool.
 - `src/repo/adoption.rs`: Adopting a node in one transaction ([`NodeRepo::adopt_node`]), and [`InventoryRepo`] on SQLite: the `node_inventory` and `node_backups` tables.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
+- `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/jobs.rs`: [`JobRepo`] on SQLite: the `jobs` table, each job's steps and error as JSON.
@@ -323,16 +344,17 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (109 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (121 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
+- `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, LineChart.tsx, RenameDialog.tsx, SignalTab.tsx, columns.tsx, store.ts
 - `features/devices/`: ClientsCard.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyCanvas.tsx, TopologyPage.tsx, ViewSwitch.tsx, graph.ts, replay.ts, scene.ts
 - `features/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
 - `features/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
-- `lib/`: api.ts, appearance.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `lib/`: api.ts, appearance.ts, clients.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 
 ## Scripts
@@ -346,6 +368,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/new-feature.test.sh`: Tests scripts/new-feature.sh (`just test-new-feature`; CI's rust job runs it): scaffolds an area with telemetry in a throwaway worktree that mirrors the working tree, then holds the result to what CI gates on (clippy, the new tests, the web checks, arch-check), and checks that a second run refuses to write.
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
+- `scripts/oui.py`: (no header comment)
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.

@@ -65,22 +65,35 @@ The graph builder (`topo` crate, pure; D-051) works on these elements:
 
 ## Clients [M2.3]
 
-The inventory is keyed by MAC. Randomized MACs are flagged and grouped by hostname or DHCP client ID where possible.
+The inventory is keyed by MAC and kept by the `clients` crate's book (D-053): every client the adopted nodes saw in the last 30 days (longer with an alias), online or not. A client is a `client:<mac>` vertex of the topology; its edge gives its place (an access point's interface, a node's port, or the port an inferred switch hangs from, or a mesh peer that isn't adopted) and the node's facts its station and radio. It is online while its link is up and that node isn't offline.
 
 **Fields:**
-- name/alias
-- vendor (from an embedded compact OUI table)
-- device-type icon (rules over DHCP vendor class, hostname, OUI and mDNS)
-- IPv4/IPv6 addresses and network
-- connection: node, radio/band, SSID, signal, rates, Wi-Fi generation, k/v/r support; or the node port for wired clients
+- name: the alias a user gave it (admins rename it; audited), else its DHCP hostname, else its MAC
+- vendor, from the embedded IEEE registry (MA-L, MA-M and MA-S; `just oui` rebuilds it), none for randomized addresses
+- device kind for the icon (phone, tablet, laptop, desktop, server, watch, TV, speaker, console, printer, camera, storage, smart home, network), from rules over the hostname, then the vendor (`crates/clients/src/rules.rs`); DHCP vendor classes and mDNS will sharpen it once collected
+- randomized ("private") addresses, flagged and grouped with the device's others by a hostname that isn't generic, else by a DHCP client ID that isn't the MAC; a group shares an alias
+- IPv4/IPv6 addresses
+- connection: node, interface or port, SSID, band, channel, signal and noise, rates both ways, Wi-Fi standard, 802.11k/r/v/w and WMM, link capacity, traffic and its rates
 - first and last seen
-- traffic
-- roaming history (sessions → timeline swimlanes)
+- sessions: one per place, from the association's start (its connected time) to when it was last seen there; moving while connected, or showing up elsewhere within 15 s of leaving, ends one as roamed. An association that began before its session ended carries the session on (a restart, a node that went quiet). Kept 30 days.
+- samples for the Signal tab: signal, SNR, rates, throughput and score, at most every 5 s, for an hour, in memory (stored metrics come with M2.4)
 - experience score
 
-**Actions:** rename, fix IP (DHCP reservation), block/unblock, kick (deauth), Wake-on-LAN, ping from its AP, open Connection Doctor.
+**Actions:** rename now. Kick (deauth) and block/unblock change the access point, so they wait for management mode and M3's transactions (M3.8); the page shows them disabled. Fix IP (DHCP reservation), Wake-on-LAN, ping from its AP and Connection Doctor come with M4 and M8.
 
-**Experience score (0–100):** a weighted mix of signal/SNR, PHY rate against capability, retry/failure rate, radio utilization, roaming health (sticky or flapping clients) and optional latency measured from the AP. It is aggregated per AP and for the whole site, and the breakdown is always shown.
+**Experience score v1 (0–100):** a weighted mean, its breakdown always shown (`crates/clients/src/score.rs`):
+
+| Factor | Weight | 0 at | 100 at |
+|---|---|---|---|
+| SNR (else signal) | 35 | 10 dB (−85 dBm) | 40 dB (−55 dBm) |
+| PHY rate against the best the client and radio can reach (standard, width, streams), while it moves traffic | 25 | 5 % | 50 % |
+| Retries per frame sent between collects (failures count fivefold) | 20 | 40 % | 5 % |
+| Channel busy | 10 | 90 % | 40 % |
+| Roams in the last hour (flapping) | 10 | 12 | 4 |
+
+A part without data drops out; without signal or rate there is no score. Sticky clients need the inter-node RSSI matrix (M2.7), and latency from the AP needs probes (M8). The Clients page averages the score of online Wi-Fi clients for the site and per access point.
+
+**API:** `GET v1/clients`, `GET v1/clients/{mac}` (the client, its samples and a day of sessions), `GET v1/clients/{mac}/sessions?since=<ms>` and `PATCH v1/clients/{mac}` (`{"alias": …}`); WS topics `clients` (snapshot, then changed clients by MAC and the ones forgotten) and `client:<mac>` (snapshot, then its view, new samples and changed sessions; holding it speeds up the telemetry of the node the client is at, following it as it roams).
 
 ## Metrics [M2.4]
 

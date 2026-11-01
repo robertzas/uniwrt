@@ -15,6 +15,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/devices": lazy(() =>
     import("../features/devices/DevicesPage").then((m) => ({ default: m.DevicesPage })),
   ),
+  "/clients": lazy(() =>
+    import("../features/clients/ClientsPage").then((m) => ({ default: m.ClientsPage })),
+  ),
 };
 
 export const routes: RouteDefinition[] = [
@@ -26,6 +29,12 @@ export const routes: RouteDefinition[] = [
     path: "/devices/:id",
     component: lazy(() =>
       import("../features/devices/DevicePage").then((m) => ({ default: m.DevicePage })),
+    ),
+  },
+  {
+    path: "/clients/:mac",
+    component: lazy(() =>
+      import("../features/clients/ClientPage").then((m) => ({ default: m.ClientPage })),
     ),
   },
   // The design-system gallery, in development builds only (dead code in production).

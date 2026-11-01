@@ -77,6 +77,12 @@ export function formatDuration(seconds: number | null | undefined): string {
 }
 
 const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
+const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+/** A date and time, for timestamps in milliseconds since the epoch: `Oct 31, 2026, 7:09 PM`. */
+export function formatDateTime(ms: number): string {
+  return dateTime.format(new Date(ms));
+}
 
 /** A time of day, for timestamps in milliseconds since the epoch. */
 export function formatTime(ms: number): string {

@@ -3,6 +3,7 @@
 
 mod adoption;
 mod audit;
+mod clients;
 mod facts;
 mod host_keys;
 mod jobs;
@@ -11,8 +12,9 @@ mod sessions;
 mod topology;
 mod users;
 
-use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
+use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp, UserId};
 use uniwrt_model::{
+    client::{ClientRecord, ClientSession},
     facts::NodeFacts,
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
@@ -227,4 +229,41 @@ pub trait TopologyRepo: Send + Sync {
 
     /// Returns how many pins there were.
     fn unpin_all(&self) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Clients (features/observability.md, Clients): what the controller keeps about each one and
+/// where it was connected.
+pub trait ClientRepo: Send + Sync {
+    /// Every client, by MAC address.
+    fn clients(&self) -> impl Future<Output = Result<Vec<ClientRecord>>> + Send;
+
+    /// Saves records: new ones whole; for known ones, the hostname (when the record has one)
+    /// and the earliest first and latest last sighting, keeping the stored alias.
+    fn save_clients(&self, records: Vec<ClientRecord>) -> impl Future<Output = Result<()>> + Send;
+
+    /// Saves a record like [`save_clients`](Self::save_clients), with its alias (or none).
+    fn save_alias(&self, record: ClientRecord) -> impl Future<Output = Result<()>> + Send;
+
+    /// Saves sessions, each replacing the one of its client with the same start.
+    fn save_sessions(
+        &self,
+        sessions: Vec<ClientSession>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// A client's sessions that go on or ended at or after `since`, oldest first.
+    fn client_sessions(
+        &self,
+        mac: MacAddr,
+        since: Timestamp,
+    ) -> impl Future<Output = Result<Vec<ClientSession>>> + Send;
+
+    /// Each client's latest session, by MAC address.
+    fn latest_sessions(&self) -> impl Future<Output = Result<Vec<ClientSession>>> + Send;
+
+    /// Deletes the sessions that ended before `before`, and the clients without an alias last
+    /// seen before it with all their sessions. Returns how many clients and sessions.
+    fn prune_clients(
+        &self,
+        before: Timestamp,
+    ) -> impl Future<Output = Result<(usize, usize)>> + Send;
 }

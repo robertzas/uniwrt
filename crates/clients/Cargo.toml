@@ -1,0 +1,28 @@
+[package]
+name = "uniwrt-clients"
+description = "uniwrt clients: the inventory, vendors, device kinds, sessions and experience scores"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The embedded vendor table is zlib-compressed; already in the tree through flate2.
+miniz_oxide.workspace = true
+serde.workspace = true
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+uniwrt-topo.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# TypeScript types (ts-rs) for the API's DTOs.
+ts = ["dep:ts-rs", "uniwrt-core/ts", "uniwrt-model/ts", "uniwrt-topo/ts"]
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

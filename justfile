@@ -96,6 +96,11 @@ arch-check:
 test-new-feature:
     @scripts/new-feature.test.sh
 
+# Rebuild the embedded vendor table from IEEE's MA-L, MA-M and MA-S registries (D-053); an
+# optional directory holds oui.csv, mam.csv and oui36.csv instead of downloading them
+oui *dir:
+    python3 scripts/oui.py {{dir}}
+
 # Regenerate docs/MAP.md
 map:
     @scripts/gen-map.sh

@@ -16,8 +16,9 @@ use tokio::{
     time::Instant,
 };
 use tracing::{Instrument as _, error, info_span};
-use uniwrt_core::{Clock, NodeId};
-use uniwrt_model::{facts::NodeFacts, status::NodeStatus};
+use uniwrt_clients::{Book, Changes, Client, Detail};
+use uniwrt_core::{Clock, MacAddr, NodeId};
+use uniwrt_model::{client::ClientRecord, facts::NodeFacts, status::NodeStatus};
 use uniwrt_node::NodeLink;
 use uniwrt_topo::Topology;
 
@@ -45,6 +46,7 @@ pub(crate) struct Context {
     bus: broadcast::Sender<Event>,
     roams: Mutex<RoamTracker>,
     pub(crate) topology: TopologyState,
+    clients: Mutex<Book>,
 }
 
 impl Context {
@@ -61,6 +63,19 @@ impl Context {
 
     pub(crate) fn roams(&self) -> MutexGuard<'_, RoamTracker> {
         self.roams.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn clients(&self) -> MutexGuard<'_, Book> {
+        self.clients.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Announces what changed among the clients, if anything did.
+    pub(crate) fn publish_clients(&self, changes: Changes) {
+        if !changes.is_empty() {
+            self.publish(Event::Clients {
+                changes: Arc::new(changes),
+            });
+        }
     }
 }
 
@@ -94,6 +109,7 @@ struct Entry<L> {
 impl<L: NodeLink> Engine<L> {
     pub fn new(config: EngineConfig, clock: Arc<dyn Clock>) -> Self {
         let roams = Mutex::new(RoamTracker::new(config.roam_window));
+        let clients = Mutex::new(Book::new(config.clients));
         let ctx = Context {
             bus: broadcast::channel(config.bus_capacity).0,
             config,
@@ -101,6 +117,7 @@ impl<L: NodeLink> Engine<L> {
             live: Live::default(),
             roams,
             topology: TopologyState::default(),
+            clients,
         };
         Self {
             inner: Arc::new(Inner {
@@ -218,6 +235,26 @@ impl<L: NodeLink> Engine<L> {
     /// ([`EngineConfig::topology_delay`]); [`Event::Topology`] announces each new one.
     pub fn topology(&self) -> Arc<Topology> {
         self.inner.ctx.topology.current()
+    }
+
+    /// Every client the engine knows, online or not, by MAC address; [`Event::Clients`]
+    /// announces what changes.
+    pub fn clients(&self) -> Vec<Arc<Client>> {
+        self.inner.ctx.clients().clients()
+    }
+
+    /// One client now, with its recent samples and open session.
+    pub fn client(&self, mac: MacAddr) -> Option<Detail> {
+        self.inner.ctx.clients().detail(mac)
+    }
+
+    /// Gives a client an alias, or takes it away; returns its record to keep (with the alias),
+    /// or `None` for an unknown client. [`Event::Clients`] announces the views it changes.
+    pub fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord> {
+        let ctx = &self.inner.ctx;
+        let (record, changes) = ctx.clients().rename(mac, alias)?;
+        ctx.publish_clients(changes);
+        Some(record)
     }
 
     pub fn node(&self, node: NodeId) -> Option<NodeView> {

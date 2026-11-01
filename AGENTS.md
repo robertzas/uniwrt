@@ -81,7 +81,7 @@ Keeping costs 0.05 × D per request, where D is the context the next work won't 
 ## Repo layout (target; directories are created as their WPs start)
 
 ```
-crates/      Rust workspace. Pure: core, model, uci, render, topo, rf, isp · adapters: store, node, syslog, firmware
+crates/      Rust workspace. Pure: core, model, uci, render, topo, clients, rf, isp · adapters: store, node, syslog, firmware
              · services: engine, jobs · interface: api, server (bin "uniwrt") · test support: sim
 node-agent/  ucode agent and transaction guard, pushed to nodes over SSH
 web/         SolidJS app: app/, ui/, lib/, api/gen/, features/<area>/, viz/<kind>/
@@ -92,7 +92,7 @@ docs/        plan, specs, decisions, status
 
 ## Commands (justfile)
 
-`just setup` (cargo tools, web deps) · `just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on, one line per step) · `just test` · `just test-dropbear` (transport tests against OpenWrt containers) · `just test-agent` (agent tests against OpenWrt containers booted with procd) · `just test-wifi` (Wi-Fi and mesh tests in the hwsim lab) · `just e2e` (Playwright against `serve --demo`) · `just fmt` · `just lint` · `just gen` (TypeScript types from Rust) · `just build` · `just cross [target…]` · `just image` · `just map` · `just arch-check` (the layering rules, also in `just check`) · `just new-feature <area>` (scaffolds the feature recipe) · `just test-new-feature` · `just demo [seed]` (`just dev` against the simulated fleet)
+`just setup` (cargo tools, web deps) · `just dev` (backend plus Vite with proxy) · `just check` (everything CI gates on, one line per step) · `just test` · `just test-dropbear` (transport tests against OpenWrt containers) · `just test-agent` (agent tests against OpenWrt containers booted with procd) · `just test-wifi` (Wi-Fi and mesh tests in the hwsim lab) · `just e2e` (Playwright against `serve --demo`) · `just fmt` · `just lint` · `just gen` (TypeScript types from Rust) · `just build` · `just cross [target…]` · `just image` · `just map` · `just oui` (rebuilds the embedded vendor table from IEEE's registries) · `just arch-check` (the layering rules, also in `just check`) · `just new-feature <area>` (scaffolds the feature recipe) · `just test-new-feature` · `just demo [seed]` (`just dev` against the simulated fleet)
 
 ## Conventions (summary; details in docs/dev/CONVENTIONS.md)
 

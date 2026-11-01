@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use uniwrt_clients::BookConfig;
 use uniwrt_node::proto::ops::LogMode;
 
 use crate::Intervals;
@@ -28,6 +29,8 @@ pub struct EngineConfig {
     pub topology_delay: Duration,
     /// Events the bus buffers for a subscriber that falls behind; it then skips ahead.
     pub bus_capacity: usize,
+    /// How the client inventory keeps samples, sessions and clients long gone.
+    pub clients: BookConfig,
 }
 
 impl Default for EngineConfig {
@@ -41,6 +44,10 @@ impl Default for EngineConfig {
             request_timeout: Duration::from_secs(30),
             topology_delay: Duration::from_secs(1),
             bus_capacity: 4096,
+            clients: BookConfig {
+                roam_window: Duration::from_secs(15),
+                ..BookConfig::default()
+            },
         }
     }
 }

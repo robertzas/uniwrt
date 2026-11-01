@@ -2,6 +2,10 @@ import type { AdoptBody } from "../api/gen/AdoptBody";
 import type { AuthState } from "../api/gen/AuthState";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
+import type { Client } from "../api/gen/Client";
+import type { ClientDetail } from "../api/gen/ClientDetail";
+import type { ClientPatch } from "../api/gen/ClientPatch";
+import type { ClientSession } from "../api/gen/ClientSession";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { Health } from "../api/gen/Health";
@@ -46,7 +50,7 @@ export function onSessionEnded(handler: () => void): () => void {
 }
 
 interface Options {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal | undefined;
   /** A 401 means the session ended (default); false for sign-in, whose 401 is a wrong password. */
@@ -112,6 +116,21 @@ export const api = {
     start: (body: AdoptBody) => request<Job>("/adopt", { method: "POST", body }),
     batch: (body: BatchAdoptBody) =>
       request<BatchAdoptResult>("/adopt/batch", { method: "POST", body }),
+  },
+  /** Live clients come over the WS topics `clients` and `client:<mac>`. */
+  clients: {
+    list: (signal?: AbortSignal) => request<Client[]>("/clients", { signal }),
+    get: (mac: string, signal?: AbortSignal) =>
+      request<ClientDetail>(`/clients/${encodeURIComponent(mac)}`, { signal }),
+    /** The client's sessions that went on at or after `since` (ms), oldest first. */
+    sessions: (mac: string, since: number, signal?: AbortSignal) =>
+      request<ClientSession[]>(
+        `/clients/${encodeURIComponent(mac)}/sessions?since=${Math.round(since)}`,
+        { signal },
+      ),
+    /** Gives the client an alias, or takes it away (blank or null); admins only. */
+    rename: (mac: string, patch: ClientPatch) =>
+      request<Client>(`/clients/${encodeURIComponent(mac)}`, { method: "PATCH", body: patch }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

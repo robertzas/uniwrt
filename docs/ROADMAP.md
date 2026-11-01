@@ -91,7 +91,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 - [x] **M2.1 Topology engine** (M): the pure `topo` crate builds the graph from facts; API and WS topic; fixture-based tests.
 - [x] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
-- [ ] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, actions (rename, kick, block).
+- [x] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, rename; a Signal tab from an hour of samples in memory. Kick and block moved to M3.8 (D-053).
 - [ ] **M2.4 Metrics & dashboard** (M): rollups, retention, LTTB downsampling, uPlot charts, dashboard v1.
 - [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`). The WS `logs` topic's snapshot (empty since M1.6c) then comes from storage.
 - [ ] **M2.6 Events & alerts** (M): event timeline, alert rules, notifiers (ntfy, webhook and email first).
@@ -106,6 +106,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [ ] **M3.5 Brownfield import & drift** (L): lossless import, raw overrides, per-node managed-package toggles, drift detection.
 - [ ] **M3.6 Review & apply UI** (M): pending-changes tray, per-node diffs, impact summary, live progress, history and rollback.
 - [ ] **M3.7 System test harness** (M): OpenWrt x86-64 images (24.10, 25.12) under QEMU or as rootfs containers in CI, validating rendered configs (uci, `fw4 check`, netifd, wifi on mac80211_hwsim).
+- [ ] **M3.8 Client actions** (S): kick (hostapd `del_client` with a ban time) and block/unblock (MAC filter) on managed nodes, enabling the client page's disabled buttons (from M2.3, D-053).
 
 ## M4 — Gateway: WAN, LAN and firewall ("own the primary router")
 

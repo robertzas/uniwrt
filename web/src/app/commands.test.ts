@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { client } from "../test/clients";
 import { summary } from "../test/fixtures";
 import { appCommands, filterCommands } from "./commands";
 
@@ -33,6 +34,23 @@ describe("commands", () => {
     const [first] = filterCommands(appCommands({ navigate }), "updates");
     first?.run();
     expect(navigate).toHaveBeenCalledWith("/updates");
+  });
+
+  it("finds clients by name, MAC, address or vendor, and opens them", () => {
+    const navigate = vi.fn();
+    const clients = [
+      client("f0:18:98:00:00:01", { alias: "Anna's phone" }),
+      client("b8:27:eb:00:00:01", { hostname: "raspberrypi", vendor: "Raspberry Pi" }),
+    ];
+    const found = (query: string) =>
+      filterCommands(appCommands({ navigate, clients }), query).filter(
+        (c) => c.group === "Clients",
+      );
+    expect(found("anna").map((c) => c.label)).toEqual(["Anna's phone"]);
+    expect(found("b8:27:eb").map((c) => c.label)).toEqual(["raspberrypi"]);
+    expect(found("raspberry pi")[0]?.id).toBe("client:b8:27:eb:00:00:01");
+    found("192.168.1.40")[0]?.run();
+    expect(navigate).toHaveBeenCalledWith("/clients/f0:18:98:00:00:01");
   });
 
   it("finds devices by name, MAC, address or model, and opens them", () => {

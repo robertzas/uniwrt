@@ -2861,6 +2861,7 @@ dependencies = [
  "tower",
  "tracing",
  "ts-rs",
+ "uniwrt-clients",
  "uniwrt-core",
  "uniwrt-engine",
  "uniwrt-jobs",
@@ -2870,6 +2871,19 @@ dependencies = [
  "uniwrt-store",
  "uniwrt-topo",
  "zeroize",
+]
+
+[[package]]
+name = "uniwrt-clients"
+version = "0.0.0"
+dependencies = [
+ "miniz_oxide",
+ "serde",
+ "serde_json",
+ "ts-rs",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-topo",
 ]
 
 [[package]]
@@ -2893,6 +2907,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "uniwrt-clients",
  "uniwrt-core",
  "uniwrt-model",
  "uniwrt-node",
