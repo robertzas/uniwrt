@@ -1,7 +1,7 @@
 # Observability & troubleshooting
 
 Read this when working on telemetry, topology, clients, metrics, logs, events/alerts, the dashboard or diagnostics.
-Milestones: M1.4 (telemetry), M2.1–M2.7, M8.4–M8.5.
+Milestones: M1.4 (telemetry), M2.1–M2.7, M8.3–M8.4.
 
 ## Telemetry pipeline
 
@@ -79,7 +79,7 @@ The inventory is keyed by MAC and kept by the `clients` crate's book (D-053): ev
 - samples for the Signal tab: signal, SNR, rates, throughput and score, at most every 5 s, for an hour, in memory (stored metrics come with M2.4)
 - experience score
 
-**Actions:** rename now. Kick (deauth) and block/unblock change the access point, so they wait for management mode and M3's transactions (M3.8); the page shows them disabled. Fix IP (DHCP reservation), Wake-on-LAN, ping from its AP and Connection Doctor come with M4 and M8.
+**Actions:** rename now. Kick (deauth) and block/unblock change the access point, so they wait for management mode and M3's transactions; they come with M5.1 (D-054); the page shows them disabled. Fix IP (DHCP reservation), Wake-on-LAN, ping from its AP and Connection Doctor come with M4 and M8.
 
 **Experience score v1 (0–100):** a weighted mean, its breakdown always shown (`crates/clients/src/score.rs`):
 
@@ -143,7 +143,7 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 - top clients, alerts, experience score
 - an RF summary and recent events
 
-## Diagnostics toolkit [M8.4]
+## Diagnostics toolkit [M8.3]
 
 Everything runs from any node and streams live:
 - ping, traceroute, DNS lookup (per resolver), HTTP check
@@ -156,7 +156,7 @@ Everything runs from any node and streams live:
 - a browser **SSH terminal** (xterm.js over the controller's SSH session; audited)
 - a **UCI explorer**: read-only by default; edits go through the change pipeline
 
-## Troubleshooting assistants [M8.5]
+## Troubleshooting assistants [M8.4]
 
 - **Connection Doctor** (per client): one timeline merging association, roam, DHCP, DNS and log events, plus signal history and the experience breakdown. It flags detected issues (weak signal, sticky client, DHCP or DNS failures, band problems, 802.11r incompatibility) and suggests fixes.
 - **WAN quality monitor:** continuous ICMP/DNS/HTTP probes from the gateway to several targets, smokeping-style latency bands, and outage detection with evidence of where the fault lies (gateway, ONT or ISP hop).

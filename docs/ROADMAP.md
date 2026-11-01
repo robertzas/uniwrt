@@ -91,7 +91,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 - [x] **M2.1 Topology engine** (M): the pure `topo` crate builds the graph from facts; API and WS topic; fixture-based tests.
 - [x] **M2.2 Topology view** (L): Canvas renderer, d3-force in a worker, tree/RF/clients views, live flows, pin/drag, details panel, 24 h replay slider.
-- [x] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, rename; a Signal tab from an hour of samples in memory. Kick and block moved to M3.8 (D-053).
+- [x] **M2.3 Clients** (M): inventory, OUI vendor, device icons, history and roams, experience score v1, rename; a Signal tab from an hour of samples in memory. Kick and block moved to M5.1 (D-053, D-054).
 - [ ] **M2.4 Metrics & dashboard** (M): rollups, retention, LTTB downsampling, uPlot charts, dashboard v1.
 - [ ] **M2.5 Logs** (L): syslog receiver (UDP/TCP), logread fallback, FTS5 search, live-tail UI, pattern annotations (`log-patterns.toml`). The WS `logs` topic's snapshot (empty since M1.6c) then comes from storage.
 - [ ] **M2.6 Events & alerts** (M): event timeline, alert rules, notifiers (ntfy, webhook and email first).
@@ -106,23 +106,19 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 - [ ] **M3.5 Brownfield import & drift** (L): lossless import, raw overrides, per-node managed-package toggles, drift detection.
 - [ ] **M3.6 Review & apply UI** (M): pending-changes tray, per-node diffs, impact summary, live progress, history and rollback.
 - [ ] **M3.7 System test harness** (M): OpenWrt x86-64 images (24.10, 25.12) under QEMU or as rootfs containers in CI, validating rendered configs (uci, `fw4 check`, netifd, wifi on mac80211_hwsim).
-- [ ] **M3.8 Client actions** (S): kick (hostapd `del_client` with a ban time) and block/unblock (MAC filter) on managed nodes, enabling the client page's disabled buttons (from M2.3, D-053).
 
 ## M4 — Gateway: WAN, LAN and firewall ("own the primary router")
 
-- [ ] **M4.1 ISP presets & WAN** (M): preset format and seed set; WAN types including VLAN, 6rd and DHCPv6-PD; wizard; live connectivity test.
-- [ ] **M4.2 IPAM & networks** (M): carving the 10.0.0.0/16 space (O-1), networks/VLANs, DHCP pools and reservations, local DNS.
-- [ ] **M4.3 Firewall policy** (M): zones from networks, the inter-network matrix, port forwards, UPnP.
-- [ ] **M4.4 Factory gateway bootstrap** (M): first-run wizard with make-before-break renumbering.
-- [ ] **M4.5 SQM & failover** (M): cake with speed-test autotuning; optional mwan3 failover.
+- [ ] **M4.1 WAN, SQM & failover** (L; merged M4.1 and M4.5, D-054): ISP preset format and seed set; WAN types including VLAN, 6rd and DHCPv6-PD; wizard; live connectivity test; cake with speed-test autotuning; optional mwan3 failover whose health checks reuse the connectivity test.
+- [ ] **M4.2 Networks & firewall** (L; merged M4.2 and M4.3, D-054): carving the 10.0.0.0/16 space (O-1), networks/VLANs, DHCP pools and reservations, local DNS; a zone per network, the inter-network matrix seeded by purpose, port forwards, UPnP.
+- [ ] **M4.3 Factory gateway bootstrap** (M): first-run wizard with make-before-break renumbering.
 
 ## M5 — Wi-Fi and mesh ("build the mesh")
 
-- [ ] **M5.1 WLANs** (M): security modes, VLAN binding, bands, node scoping, guest isolation, schedules.
-- [ ] **M5.2 Roaming** (M): 802.11r (PSK and SAE key distribution), controller-pushed 11k neighbor reports, 11v, management of the full wpad package.
+- [ ] **M5.1 WLANs & client actions** (M; took in M3.8, D-054): security modes, VLAN binding, bands, node scoping, guest isolation, schedules; kick (hostapd `del_client` with a ban time) and block/unblock (MAC filter) on managed nodes, enabling the client page's disabled buttons (from M2.3, D-053).
+- [ ] **M5.2 Roaming & steering** (L; merged M5.2 and M5.5, D-054): 802.11r (PSK and SAE key distribution), controller-pushed 11k neighbor reports, 11v, management of the full wpad package; usteer profiles (O-2) and a steering/roaming timeline.
 - [ ] **M5.3 Mesh backhaul** (L): batman-adv over 802.11s and wired uplinks (with an MTU probe), BLA/DAT, VLANs over the mesh, mesh health.
 - [ ] **M5.4 Adoption paths** (L): ZTP via ASU with the pending-adoption inbox, the adoption port, the one-liner, the apk/opkg abstraction, dumb-AP conversion.
-- [ ] **M5.5 Steering** (M): usteer profiles (O-2) and a steering/roaming timeline.
 
 ## M6 — RF optimization ("optimize the air")
 
@@ -132,18 +128,16 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 ## M7 — Lifecycle ("keep it current")
 
-- [ ] **M7.1 Firmware catalog & ASU** (M)
+- [ ] **M7.1 Firmware catalog & ASU** (M): also the controller update notice (from M7.4, D-054).
 - [ ] **M7.2 Rolling upgrades** (L): leaf → gateway ordering, health gates, soak periods, canary, pause/resume, pipeline UI.
-- [ ] **M7.3 Backups & restore** (M)
-- [ ] **M7.4 Replace, re-adopt, decommission, and controller update notice** (M)
+- [ ] **M7.3 Backups, restore & replace** (L; merged M7.3 and M7.4, D-054): node and controller backups, site export/import; replace, factory reset & re-adopt, decommission.
 
 ## M8 — Services and troubleshooting ("never SSH again")
 
-- [ ] **M8.1 DNS suite, DDNS, NTP** (M)
+- [ ] **M8.1 Network services & packages** (L; merged M8.1 and M8.3, D-054): DNS suite, DDNS, NTP, the other services, and the package manager UI.
 - [ ] **M8.2 WireGuard VPN** (M)
-- [ ] **M8.3 Other services & package manager UI** (M)
-- [ ] **M8.4 Diagnostics toolkit, web terminal, UCI explorer** (L)
-- [ ] **M8.5 Connection doctor, WAN quality monitor, support bundle** (L)
+- [ ] **M8.3 Diagnostics toolkit, web terminal, UCI explorer** (L)
+- [ ] **M8.4 Connection doctor, WAN quality monitor, support bundle** (L)
 
 ## M9 — Polish and 1.0
 

@@ -1,7 +1,7 @@
 # Networks, addressing & gateway services
 
 Read this when working on IPAM, networks/VLANs, DHCP/DNS, IPv6, the firewall, VPN or other gateway services.
-Milestones: M4.2 (IPAM, networks), M4.3 (firewall), M8.1–M8.3 (services).
+Milestones: M4.2 (IPAM, networks, firewall), M8.1 (services), M8.2 (VPN).
 
 ## Address plan (IPAM)
 
@@ -47,7 +47,7 @@ Rendering:
 - RA/SLAAC by default; stateful DHCPv6 optional.
 - The IPv6 firewall mirrors the IPv4 policy.
 
-## Firewall policy [M4.3]
+## Firewall policy [M4.2]
 
 - One zone per network, plus wan.
 - Inter-network policy is a matrix (from → to: allow | block | allow-established), seeded by purpose:
@@ -55,7 +55,7 @@ Rendering:
   - IoT → LAN: block, except established. IoT → internet: allow.
   - Guest → internet only; Guest → gateway: DHCP and DNS only.
 - Port forwards (DNAT) with NAT reflection, a DMZ host, and UPnP/NAT-PMP (miniupnpd) with a live list of mappings.
-- Custom traffic rules (protocols, ports, IP sets), time-based rules for parental schedules [M8.3], and IP/geo blocklists using nft sets (backlog).
+- Custom traffic rules (protocols, ports, IP sets), time-based rules for parental schedules [M8.1], and IP/geo blocklists using nft sets (backlog).
 - Rendering: fw4 UCI (`zone`, `forwarding`, `rule`, `redirect`, `ipset`), validated with `fw4 check` in the system harness.
 
 ## VPN [M8.2]
@@ -64,7 +64,7 @@ Rendering:
 - The DDNS hostname is the endpoint. Handshake and traffic stats are shown per peer.
 - Site-to-site peers; optional management of the Tailscale package.
 
-## Other services [M8.1–M8.3]
+## Other services [M8.1]
 
 - DDNS (ddns-scripts providers) and an NTP server on the gateway.
 - mDNS reflection across selected networks; IGMP snooping and multicast-to-unicast.

@@ -1,7 +1,7 @@
 # Adoption & onboarding
 
 Read this when working on the first-run wizard, discovery, adoption, node roles or ZTP.
-Milestones: M1.7 (adopt existing nodes in observe mode), M4.4 (gateway bootstrap), M5.4 (ZTP, adoption port, one-liner).
+Milestones: M1.7 (adopt existing nodes in observe mode), M4.3 (gateway bootstrap), M5.4 (ZTP, adoption port, one-liner).
 
 ## Starting states we must handle
 
@@ -62,7 +62,7 @@ Limitation: one factory-default device at a time, because they all answer at 192
 
 The UI shows a short-lived command to paste into any OpenWrt shell, for example `uclient-fetch -qO- 'https://<controller>:8443/b/<token>' | sh`. The token is single-use and expires after 15 minutes. The device must be able to reach the controller, for example with its WAN port plugged into the site LAN (outbound traffic is allowed by the default firewall). The script is the ZTP first-boot script plus the token, so the device shows up pre-approved in the inbox.
 
-## Path E: first run with a factory-default gateway [M4.4]
+## Path E: first run with a factory-default gateway [M4.3]
 
 The controller host sits behind a fresh OpenWrt gateway and has a 192.168.1.x address.
 

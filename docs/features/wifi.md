@@ -1,7 +1,7 @@
 # Wi-Fi: WLANs, roaming, steering & RF planning
 
 Read this when working on SSIDs, security modes, 802.11r/k/v, steering, scans/surveys, the channel planner or floor plans.
-Milestones: M2.7 (RF insight, read-only), M5.1 (WLANs), M5.2 (roaming), M5.5 (steering), M6.1–M6.3 (planner, apply, heatmap).
+Milestones: M2.7 (RF insight, read-only), M5.1 (WLANs, client kick/block), M5.2 (roaming, steering), M6.1–M6.3 (planner, apply, heatmap).
 
 ## WLANs (SSIDs) [M5.1]
 
@@ -28,7 +28,7 @@ Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `w
 - **802.11v:** `bss_transition 1` and `wnm_sleep_mode 1`.
 - **Client capabilities** (11k/v/r support, bands, Wi-Fi generation) are learned from association events, shown per client, and used by steering.
 
-## Steering & balancing [M5.5]
+## Steering & balancing [M5.2]
 
 - **Phase 1 (default, O-2):** usteer on every AP, configured by the controller through profiles (Off / Conservative / Balanced / Aggressive). Each profile maps to thresholds: minimum SNR, roam scan/trigger SNR, band-steering threshold, load kick. usteer events feed the roaming and steering timeline.
 - **Phase 2 (optional):** controller-driven smart steering that uses global history (sticky-client detection) and sends BTM requests through hostapd ubus. Only clients that advertise 11v are steered, and steering simply stops while the controller is offline.

@@ -1,7 +1,7 @@
 # WAN & ISP setup
 
 Read this when working on the gateway's internet connection: ISP presets, WAN types, IPv6, connectivity tests, SQM or failover.
-Milestones: M4.1 (presets, WAN, wizard), M4.4 (first-run), M4.5 (SQM, failover).
+Milestones: M4.1 (presets, WAN, wizard, SQM, failover), M4.3 (first-run).
 
 ## Wizard flow
 
@@ -78,11 +78,11 @@ Each step reports live:
 
 A failure produces a precise hint, for example "No DHCP offer on VLAN 201. Is the ONT in bridge mode?"
 
-## SQM (bufferbloat) [M4.5]
+## SQM (bufferbloat) [M4.1]
 
 cake on WAN through sqm-scripts. Autotune runs a speed test from the gateway and sets shaping to 90–95% of the measured rates, then re-checks periodically. The dashboard shows a bufferbloat grade (latency under load).
 
-## Failover and multi-WAN [M4.5, optional]
+## Failover and multi-WAN [M4.1, optional]
 
 mwan3 profiles: failover from the primary line to a backup (an LTE/5G modem or USB tethering) with health checks, and a WAN status timeline.
 

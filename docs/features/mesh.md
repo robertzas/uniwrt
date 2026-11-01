@@ -72,7 +72,7 @@ Derived health:
 - per-link score: TQ or throughput relative to capacity, signal margin, flapping
 - hop count to the gateway
 - single-point-of-failure detection ("AP3 depends only on AP2")
-- on-demand backhaul throughput tests with iperf3 [M8.4]
+- on-demand backhaul throughput tests with iperf3 [M8.3]
 
 Visuals: mesh edges colored by link quality, a best-path tree vs an all-links view, link-history sparklines, and a "what if this node goes down" highlight of articulation points.
 

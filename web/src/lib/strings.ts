@@ -381,7 +381,7 @@ export const strings = {
     tabs: { label: "Client", overview: "Overview", timeline: "Timeline", signal: "Signal" },
     rename: "Rename",
     actionsNeedManagement:
-      "Kick and block change the access point, so they come with management mode and safe, reversible changes (M3).",
+      "Kick and block change the access point, so they come with management mode and safe, reversible changes (M5).",
     actionsUnavailable: "Why are kick and block unavailable?",
     kick: "Kick",
     block: "Block",

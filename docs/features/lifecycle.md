@@ -1,7 +1,7 @@
 # Configuration lifecycle, upgrades & backups
 
 Read this when working on desired state, revisions, render/diff/apply, drift, brownfield import, firmware upgrades, backups or node replacement.
-Milestones: M3.1–M3.7, M7.1–M7.4.
+Milestones: M3.1–M3.7, M7.1–M7.3.
 
 ## Desired state & revisions [M3.1]
 
@@ -58,13 +58,13 @@ The agent watches hashes of `/etc/config`. Any change the controller didn't make
 - **Options:** canary (one node, soak for N hours), maintenance window, pause/resume, skip a node.
 - **Version paths:** 24.10 → 25.12 moves from opkg to apk; ASU images carry the package set. 23.05 → 25.12 requires two hops.
 
-## Backups [M7.3]
+## Backups [M7.3] (with replace, D-054)
 
 - **Nodes:** a `sysupgrade -b` archive on a schedule and before every apply or upgrade, keeping the last N per node.
 - **Controller:** an online SQLite backup (`VACUUM INTO`) plus the vault and certificates, as an encrypted tarball. Scheduled, and restorable on a new host.
 - **Site export/import** as JSON (secrets optional and encrypted), for migration or config-as-code.
 
-## Replace / RMA / decommission [M7.4]
+## Replace / RMA / decommission [M7.3]
 
 - **Replace:** mark the old node as failed, adopt the new device (any model), and map role, name and overrides onto it. Radios are remapped by band. Then apply.
 - **Factory reset & re-adopt:** a guided flow.
