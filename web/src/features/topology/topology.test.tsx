@@ -111,6 +111,9 @@ describe("the topology page", () => {
     const user = userEvent.setup();
     await renderAt("/topology");
     const slider = await screen.findByRole("slider", { name: "Replay the last 24 hours" });
+    // Before the history's start (500), the start is asked for.
+    fireEvent.input(slider, { target: { value: "400" } });
+    await waitFor(() => expect(calls).toContain("GET /api/v1/topology/at/500"));
     fireEvent.input(slider, { target: { value: "700" } });
     await waitFor(() => expect(calls).toContain("GET /api/v1/topology/at/700"));
     expect(await screen.findByText("Replaying")).toBeInTheDocument();

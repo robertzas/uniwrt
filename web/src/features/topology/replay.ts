@@ -76,7 +76,10 @@ export function createReplay(): Replay {
         refresh();
         return;
       }
-      timer = setTimeout(() => load(ms), SEEK_DELAY_MS);
+      // The slider's steps can start before the history does, which has nothing earlier.
+      const start = timeline()?.start;
+      const from = start != null ? Math.max(ms, start) : ms;
+      timer = setTimeout(() => load(from), SEEK_DELAY_MS);
     },
   };
 }
