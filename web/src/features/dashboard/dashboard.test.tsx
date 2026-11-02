@@ -38,6 +38,7 @@ function stubApi() {
       return Response.json(detail(withWan));
     }
     if (key === "GET /api/v1/topology/layout") return Response.json([]);
+    if (key === "GET /api/v1/logs/patterns") return Response.json({ patterns: [] });
     if (key === "GET /api/v1/topology/timeline") return Response.json({ start: 0, changes: [] });
     if (key.startsWith("GET /api/v1/metrics?")) {
       const empty: MetricsResponse = {
@@ -162,6 +163,61 @@ describe("the dashboard", () => {
     expect(map).not.toHaveAttribute("tabindex");
     fireEvent.click(screen.getByRole("link", { name: /Open the map/ }));
     await waitFor(() => expect(history.get()).toBe("/topology"));
+  });
+
+  it("lists the recent events, live, newest first", async () => {
+    const { ws } = await renderDashboard();
+    await waitFor(() =>
+      expect(ws.sent).toContainEqual({ sub: expect.arrayContaining(["events?min=notice"]) }),
+    );
+    const base = {
+      count: 1,
+      category: "system" as const,
+      client: null,
+      condition: null,
+    };
+    ws.receive({
+      type: "events_snapshot",
+      topic: "events?min=notice",
+      events: [
+        {
+          ...base,
+          id: 1,
+          at: Date.now() - 5_000,
+          last_at: Date.now() - 5_000,
+          level: "notice",
+          node: 2,
+          what: { kind: "node_adopted" },
+        },
+      ],
+    });
+    const card = await screen.findByRole("region", { name: "Recent events" });
+    await within(card).findByText(/adopted/);
+    ws.receive({
+      type: "events_delta",
+      topic: "events?min=notice",
+      events: [
+        {
+          ...base,
+          id: 2,
+          at: Date.now(),
+          last_at: Date.now(),
+          level: "critical",
+          node: 1,
+          category: "wan",
+          what: { kind: "wan_down", device: "eth1" },
+        },
+      ],
+    });
+    await waitFor(() => {
+      const rows = within(card).getAllByRole("listitem");
+      expect(rows[0]).toHaveTextContent(/Internet down on .* \(eth1\)/);
+      expect(rows).toHaveLength(2);
+    });
+    expect(within(card).getAllByRole("link")[1]).toHaveAttribute(
+      "href",
+      "/insights/events?nodes=1",
+    );
   });
 
   it("welcomes a new install with a way to adopt", async () => {

@@ -364,6 +364,22 @@ fn clients_join_leave_and_are_new_once_their_node_has_settled() {
     );
 }
 
+#[test]
+fn clients_that_no_node_places_are_new_only_once_the_deriver_has_run_a_minute() {
+    let seed = Seed {
+        started: at(1_000),
+        ..Seed::default()
+    };
+    let mut d = Deriver::new(DeriveConfig::default(), seed);
+    let mut unplaced = |mac: &str, s: i64| {
+        let mut view = (*client(mac, true, 1, s)).clone();
+        view.connection = None;
+        names(&d.clients(&[Arc::new(view)], at(s)))
+    };
+    assert_eq!(unplaced(PHONE, 1_010), Vec::<&str>::new());
+    assert_eq!(unplaced("f0:18:98:00:00:02", 1_070), ["new_client"]);
+}
+
 fn record(id: i64, pattern: Option<&str>, received: i64) -> LogRecord {
     LogRecord {
         id: LogId::new(id),

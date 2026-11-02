@@ -8,6 +8,9 @@ import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
+import type { EventCategory } from "../api/gen/EventCategory";
+import type { EventLevel } from "../api/gen/EventLevel";
+import type { EventPage } from "../api/gen/EventPage";
 import type { Health } from "../api/gen/Health";
 import type { Job } from "../api/gen/Job";
 import type { LogContext } from "../api/gen/LogContext";
@@ -130,6 +133,32 @@ export function logParams(filter: LogFilter): URLSearchParams {
   return params;
 }
 
+/** Which events to read, as `GET v1/events` takes them (`model::events::EventFilter`). */
+export interface EventFilter {
+  categories: EventCategory[];
+  /** The least that matters to include: `warning` keeps warnings and critical ones. */
+  min: EventLevel | null;
+  nodes: number[];
+  clients: string[];
+  from: number | null;
+  to: number | null;
+}
+
+/** An event filter as the events route reads it (`crates/api/src/events.rs`); empty parts left out. */
+export function eventParams(filter: EventFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  const list = (name: string, values: readonly (string | number)[]) => {
+    if (values.length > 0) params.set(name, values.join(","));
+  };
+  list("categories", filter.categories);
+  list("nodes", filter.nodes);
+  list("clients", filter.clients);
+  if (filter.min !== null) params.set("min", filter.min);
+  if (filter.from !== null) params.set("from", String(Math.round(filter.from)));
+  if (filter.to !== null) params.set("to", String(Math.round(filter.to)));
+  return params;
+}
+
 /** The typed API client; components reach the server only through this (CONVENTIONS.md). */
 export const api = {
   health: (signal?: AbortSignal) => request<Health>("/health", { signal }),
@@ -218,6 +247,16 @@ export const api = {
     save: (name: string, filter: LogFilter) =>
       request<SavedSearch>("/logs/searches", { method: "POST", body: { name, filter } }),
     remove: (id: number) => request<void>(`/logs/searches/${id}`, { method: "DELETE" }),
+  },
+  /** Recorded events (observability.md, Events); new ones come over the WS topic `events`. */
+  events: {
+    /** Events newest first, `limit` at a time; `before` is the previous page's `next`. */
+    page: (filter: EventFilter, before: string | null, limit: number, signal?: AbortSignal) => {
+      const params = eventParams(filter);
+      if (before !== null) params.set("before", before);
+      params.set("limit", String(limit));
+      return request<EventPage>(`/events?${params}`, { signal });
+    },
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

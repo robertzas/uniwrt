@@ -63,6 +63,8 @@ pub struct Deriver {
     pub(crate) clients: HashMap<MacAddr, Seen>,
     /// By the topology's edge id.
     pub(crate) mesh_links: BTreeMap<String, MeshLink>,
+    /// When it started: clients that no node places are settled a while after.
+    pub(crate) started: Timestamp,
     ended: VecDeque<JobId>,
 }
 
@@ -74,6 +76,7 @@ impl Deriver {
             nodes: BTreeMap::new(),
             clients: HashMap::new(),
             mesh_links: links::seeded(&seed.raised, seed.started),
+            started: seed.started,
             ended: VecDeque::new(),
         };
         for (key, at) in seed.raised {

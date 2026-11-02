@@ -254,3 +254,32 @@ test("searches the logs, explains an entry and shows its context", async ({ page
   await expect(list.getByRole("listitem").filter({ hasNotText: "inactivity" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("follows the events, filters them and opens the logs around one", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.getByRole("table", { name: "Devices" }).waitFor();
+  // The dashboard's card shows the notable ones, such as the adoption.
+  await page.getByRole("navigation").getByRole("link", { name: "Dashboard" }).click();
+  const card = page.getByRole("region", { name: "Recent events" });
+  await expect(card.getByText("ap-garden adopted")).toBeVisible();
+  await card.getByRole("link", { name: "All events" }).click();
+  await expect(page).toHaveURL(/\/insights\/events$/);
+
+  const list = page.getByRole("region", { name: "Events" });
+  await expect(list.getByRole("button", { name: /Controller started/ })).toBeVisible();
+  const adopted = list.getByRole("button", { name: /ap-garden adopted/ });
+  await expect(adopted).toBeVisible();
+  // The simulated clients roam between the access points.
+  await page.getByRole("button", { name: "Clients", exact: true }).click();
+  await expect(page).toHaveURL(/categories=client/);
+  await expect(list.getByRole("button", { name: /roamed from/ }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await adopted.click();
+  await list.getByRole("link", { name: "Logs around this" }).click();
+  await expect(page).toHaveURL(/\/insights\/logs\?from=\d+&to=\d+&nodes=\d+$/);
+  await expect(page.getByText("Fixed window")).toBeVisible();
+  expect(errors).toEqual([]);
+});

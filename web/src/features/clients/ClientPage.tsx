@@ -1,5 +1,5 @@
 import { useParams } from "@solidjs/router";
-import { ArrowLeft, Ban, Info, Pencil, Users, UserX } from "lucide";
+import { ArrowLeft, Ban, BellRing, Info, Pencil, Users, UserX } from "lucide";
 import { createEffect, createSignal, Match, Show, Switch, useContext } from "solid-js";
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import { clientName, kindIcons } from "../../lib/clients";
@@ -103,6 +103,13 @@ function Client(props: { detail: ClientDetail }) {
           <p class="mt-1 truncate text-fg-muted text-sm">{subtitle()}</p>
         </div>
         <div class="flex flex-wrap gap-2">
+          <a
+            href={`/insights/events?clients=${encodeURIComponent(client().mac)}`}
+            class="inline-flex h-8 items-center gap-2 rounded-control border border-edge bg-surface px-3 font-medium text-fg text-sm hover:bg-raised"
+          >
+            <Icon icon={BellRing} class="size-4" />
+            {d.events}
+          </a>
           <Show when={session.user.role === "admin"}>
             <Button size="sm" icon={Pencil} onClick={() => setRenaming(true)}>
               {d.rename}

@@ -1,7 +1,8 @@
 //! Clients' comings and goings, from their views: a client seen for the first time is new, one
 //! that comes online joined, one that goes offline left. Nothing is derived during a node's
-//! first minute online, whose station lists show clients that were there all along, nor about
-//! clients leaving a node that went offline.
+//! first minute online, whose station lists show clients that were there all along (nor, for
+//! clients no node places, during the deriver's first minute), nor about clients leaving a node
+//! that went offline.
 
 use std::sync::Arc;
 
@@ -100,14 +101,18 @@ impl Deriver {
             .is_some_and(|state| state.online_since.is_some())
     }
 
-    /// Whether the node a client is at has been online for a while (a client behind a mesh
-    /// peer that is not adopted names none, and counts as settled).
+    /// Whether the node a client is at has been online for a while; for a client that no node
+    /// places (behind a mesh peer that is not adopted, or seen only in leases), whether the
+    /// deriver has run for a while.
     fn settled(&self, node: Option<NodeId>, now: Timestamp) -> bool {
-        node.is_none_or(|node| {
-            self.nodes
+        let settle = self.config.settle;
+        match node {
+            None => now.saturating_duration_since(self.started) >= settle,
+            Some(node) => self
+                .nodes
                 .get(&node)
                 .and_then(|state| state.online_since)
-                .is_some_and(|since| now.saturating_duration_since(since) >= self.config.settle)
-        })
+                .is_some_and(|since| now.saturating_duration_since(since) >= settle),
+        }
     }
 }
