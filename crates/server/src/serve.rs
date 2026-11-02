@@ -100,10 +100,11 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         let https = bind(args.https_listen).await?;
         log_start(&http, &https, &state_dir, &controller_key)?;
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
-        let fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
+        let mut fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
         let jobs = fleet
             .jobs(&store, vault, &controller_key, Arc::clone(&clock))
             .await?;
+        fleet.record_events(&store, &jobs).await;
         let api = Api::new(ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

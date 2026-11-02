@@ -1,0 +1,533 @@
+//! Events (features/observability.md, Events, alerts, notifications): what happened on the
+//! network, as the controller records it for its timeline. Nodes going offline and coming back,
+//! reboots, WAN and mesh links going down, clients joining, leaving and roaming, annotated log
+//! entries that matter, and failed jobs.
+//!
+//! A *condition* is a state that begins and ends, such as a node being offline: the event that
+//! raises it and the one that clears it share its key ([`Condition`]), so the timeline can pair
+//! them and the controller resumes them after a restart. Repeats of some events (the same log
+//! annotation from the same source) fold into one record with a count.
+
+use serde::{Deserialize, Serialize};
+use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, Timestamp};
+
+use crate::{
+    client::ClientMedium, event::Attachment, job::JobKind, log::Severity, status::StatusReason,
+    wifi::Band,
+};
+
+/// How much an event matters, most first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum EventLevel {
+    Critical,
+    Warning,
+    Notice,
+    Info,
+}
+
+impl EventLevel {
+    pub const ALL: [Self; 4] = [Self::Critical, Self::Warning, Self::Notice, Self::Info];
+
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+
+    pub const fn from_code(code: u8) -> Self {
+        match code {
+            0 => Self::Critical,
+            1 => Self::Warning,
+            2 => Self::Notice,
+            _ => Self::Info,
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Critical => "critical",
+            Self::Warning => "warning",
+            Self::Notice => "notice",
+            Self::Info => "info",
+        }
+    }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|level| level.name() == name)
+    }
+
+    /// A log severity as an event's level: emergency to critical are critical, errors and
+    /// warnings warnings, notices notices, the rest info.
+    pub const fn from_severity(severity: Severity) -> Self {
+        match severity {
+            Severity::Emergency | Severity::Alert | Severity::Critical => Self::Critical,
+            Severity::Error | Severity::Warning => Self::Warning,
+            Severity::Notice => Self::Notice,
+            Severity::Info | Severity::Debug => Self::Info,
+        }
+    }
+}
+
+/// What an event is about, for filters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum EventCategory {
+    /// The controller and the nodes themselves: online, offline, reboots, flash, crashes.
+    System,
+    Wan,
+    Mesh,
+    Wifi,
+    Client,
+    /// LAN services: DHCP, bridges, connection tracking.
+    Network,
+    /// Failed logins and wrong passwords.
+    Security,
+}
+
+impl EventCategory {
+    pub const ALL: [Self; 7] = [
+        Self::System,
+        Self::Wan,
+        Self::Mesh,
+        Self::Wifi,
+        Self::Client,
+        Self::Network,
+        Self::Security,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Wan => "wan",
+            Self::Mesh => "mesh",
+            Self::Wifi => "wifi",
+            Self::Client => "client",
+            Self::Network => "network",
+            Self::Security => "security",
+        }
+    }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|category| category.name() == name)
+    }
+}
+
+/// What happened, with what it takes to tell it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EventKind {
+    /// The controller started; `version` is its own.
+    ControllerStarted {
+        version: String,
+    },
+    /// A node was adopted (in observe mode).
+    NodeAdopted,
+    /// A node became unreachable (raises its `offline` condition).
+    NodeOffline {
+        reasons: Vec<StatusReason>,
+    },
+    /// A node is reachable again, after `down_ms` (when the controller saw it go).
+    NodeOnline {
+        down_ms: Option<u64>,
+    },
+    /// A node's telemetry stayed missing, partial or late (raises `degraded`).
+    NodeDegraded {
+        reasons: Vec<StatusReason>,
+    },
+    NodeRecovered {
+        degraded_ms: Option<u64>,
+    },
+    /// A node started again; `up_s` is how long it had been up before, when known.
+    NodeRebooted {
+        up_s: Option<u64>,
+    },
+    /// A node's flash (its root file system) is nearly full (raises `flash`).
+    FlashLow {
+        available_bytes: u64,
+        total_bytes: u64,
+    },
+    FlashOk {
+        available_bytes: u64,
+        total_bytes: u64,
+    },
+    /// A mesh link between two adopted nodes went down: the event's node and `peer`, the
+    /// topology's edge `link` (raises `mesh-down`).
+    MeshLinkDown {
+        link: String,
+        peer: NodeId,
+    },
+    MeshLinkUp {
+        link: String,
+        peer: NodeId,
+        down_ms: Option<u64>,
+    },
+    /// A mesh link's quality (0–100) stayed low (raises `mesh-weak`).
+    MeshLinkWeak {
+        link: String,
+        peer: NodeId,
+        quality: u8,
+    },
+    MeshLinkRecovered {
+        link: String,
+        peer: NodeId,
+        quality: u8,
+        weak_ms: Option<u64>,
+    },
+    /// A gateway's link to the internet lost its default route (raises `wan`).
+    WanDown {
+        device: String,
+    },
+    WanUp {
+        device: String,
+        down_ms: Option<u64>,
+    },
+    /// A WAN interface's addresses or delegated prefixes changed.
+    WanAddressChanged {
+        interface: String,
+        before: Vec<String>,
+        after: Vec<String>,
+    },
+    /// A client connected: at an access point's interface (`place`, such as `phy1-ap0`) or a
+    /// port.
+    ClientJoined {
+        medium: ClientMedium,
+        place: Option<String>,
+        ssid: Option<String>,
+        band: Option<Band>,
+    },
+    /// A client went away, after `connected_ms`.
+    ClientLeft {
+        connected_ms: Option<u64>,
+    },
+    /// A Wi-Fi client moved to another access point; `fast` over 802.11r.
+    ClientRoamed {
+        from: Attachment,
+        to: Attachment,
+        fast: bool,
+    },
+    /// A device the controller had never seen joined the network.
+    NewClient {
+        vendor: Option<String>,
+        hostname: Option<String>,
+    },
+    /// A log entry that a pattern marks as an event (`log-patterns.toml`'s `event`): the
+    /// pattern's id, the entry, its host when it is not a node's, and its text (cut short).
+    LogPattern {
+        pattern: String,
+        log: LogId,
+        host: Option<String>,
+        program: Option<String>,
+        text: String,
+    },
+    /// A job failed.
+    JobFailed {
+        job: JobId,
+        job_kind: JobKind,
+        error: Option<String>,
+    },
+}
+
+impl EventKind {
+    /// Its usual category and level; a [`LogPattern`](Self::LogPattern)'s come from the pattern.
+    pub const fn defaults(&self) -> (EventCategory, EventLevel) {
+        use EventCategory as C;
+        use EventLevel as L;
+        match self {
+            Self::ControllerStarted { .. } | Self::NodeAdopted => (C::System, L::Notice),
+            Self::NodeOffline { .. } => (C::System, L::Critical),
+            Self::NodeDegraded { .. }
+            | Self::FlashLow { .. }
+            | Self::NodeRebooted { .. }
+            | Self::LogPattern { .. }
+            | Self::JobFailed { .. } => (C::System, L::Warning),
+            Self::NodeOnline { .. } | Self::NodeRecovered { .. } | Self::FlashOk { .. } => {
+                (C::System, L::Notice)
+            }
+            Self::MeshLinkDown { .. } => (C::Mesh, L::Critical),
+            Self::MeshLinkWeak { .. } => (C::Mesh, L::Warning),
+            Self::MeshLinkUp { .. } | Self::MeshLinkRecovered { .. } => (C::Mesh, L::Notice),
+            Self::WanDown { .. } => (C::Wan, L::Critical),
+            Self::WanUp { .. } | Self::WanAddressChanged { .. } => (C::Wan, L::Notice),
+            Self::ClientJoined { .. } | Self::ClientLeft { .. } | Self::ClientRoamed { .. } => {
+                (C::Client, L::Info)
+            }
+            Self::NewClient { .. } => (C::Client, L::Notice),
+        }
+    }
+
+    /// The name it is stored and filtered under: its serde tag.
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::ControllerStarted { .. } => "controller_started",
+            Self::NodeAdopted => "node_adopted",
+            Self::NodeOffline { .. } => "node_offline",
+            Self::NodeOnline { .. } => "node_online",
+            Self::NodeDegraded { .. } => "node_degraded",
+            Self::NodeRecovered { .. } => "node_recovered",
+            Self::NodeRebooted { .. } => "node_rebooted",
+            Self::FlashLow { .. } => "flash_low",
+            Self::FlashOk { .. } => "flash_ok",
+            Self::MeshLinkDown { .. } => "mesh_link_down",
+            Self::MeshLinkUp { .. } => "mesh_link_up",
+            Self::MeshLinkWeak { .. } => "mesh_link_weak",
+            Self::MeshLinkRecovered { .. } => "mesh_link_recovered",
+            Self::WanDown { .. } => "wan_down",
+            Self::WanUp { .. } => "wan_up",
+            Self::WanAddressChanged { .. } => "wan_address_changed",
+            Self::ClientJoined { .. } => "client_joined",
+            Self::ClientLeft { .. } => "client_left",
+            Self::ClientRoamed { .. } => "client_roamed",
+            Self::NewClient { .. } => "new_client",
+            Self::LogPattern { .. } => "log_pattern",
+            Self::JobFailed { .. } => "job_failed",
+        }
+    }
+}
+
+/// The condition an event raises or clears: its key (such as `node:3/offline`), and which.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Condition {
+    pub key: String,
+    pub raised: bool,
+}
+
+/// An event about to be recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewEvent {
+    /// When it happened, on the controller's clock (a reboot's, when the node started).
+    pub at: Timestamp,
+    /// When it last happened, for folded repeats; `at` otherwise.
+    pub last_at: Timestamp,
+    pub count: u32,
+    pub level: EventLevel,
+    pub category: EventCategory,
+    pub node: Option<NodeId>,
+    pub client: Option<MacAddr>,
+    pub condition: Option<Condition>,
+    pub what: EventKind,
+    /// Repeats with the same key fold into one record (not stored).
+    pub fold: Option<String>,
+}
+
+impl NewEvent {
+    /// `what` happened at `at`, with its usual category and level.
+    pub fn new(at: Timestamp, what: EventKind) -> Self {
+        let (category, level) = what.defaults();
+        Self {
+            at,
+            last_at: at,
+            count: 1,
+            level,
+            category,
+            node: None,
+            client: None,
+            condition: None,
+            what,
+            fold: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn node(mut self, node: NodeId) -> Self {
+        self.node = Some(node);
+        self
+    }
+
+    #[must_use]
+    pub const fn client(mut self, mac: MacAddr) -> Self {
+        self.client = Some(mac);
+        self
+    }
+
+    #[must_use]
+    pub fn condition(mut self, key: impl Into<String>, raised: bool) -> Self {
+        self.condition = Some(Condition {
+            key: key.into(),
+            raised,
+        });
+        self
+    }
+
+    #[must_use]
+    pub fn fold(mut self, key: impl Into<String>) -> Self {
+        self.fold = Some(key.into());
+        self
+    }
+}
+
+/// What to store for one event: a new record, or more repeats of one recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventWrite {
+    Insert(NewEvent),
+    /// `count` more repeats of the recorded event `id`, the last at `last_at`.
+    Fold {
+        id: EventId,
+        last_at: Timestamp,
+        count: u32,
+    },
+}
+
+/// An event as recorded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct EventRecord {
+    pub id: EventId,
+    pub at: Timestamp,
+    /// When it last happened: later than `at` once repeats folded into it.
+    pub last_at: Timestamp,
+    /// How many times it happened.
+    pub count: u32,
+    pub level: EventLevel,
+    pub category: EventCategory,
+    /// The node it happened on.
+    pub node: Option<NodeId>,
+    /// The client it is about.
+    pub client: Option<MacAddr>,
+    pub condition: Option<Condition>,
+    pub what: EventKind,
+}
+
+impl EventRecord {
+    pub fn new(id: EventId, event: NewEvent) -> Self {
+        Self {
+            id,
+            at: event.at,
+            last_at: event.last_at,
+            count: event.count,
+            level: event.level,
+            category: event.category,
+            node: event.node,
+            client: event.client,
+            condition: event.condition,
+            what: event.what,
+        }
+    }
+}
+
+/// Which events to read: each part narrows, and an empty list or `None` keeps every event.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(default)]
+pub struct EventFilter {
+    pub categories: Vec<EventCategory>,
+    /// The least that matters to include: `warning` keeps warnings and critical ones.
+    pub min: Option<EventLevel>,
+    pub nodes: Vec<NodeId>,
+    pub clients: Vec<MacAddr>,
+    /// Happened at or after `from`, and before `to`.
+    pub from: Option<Timestamp>,
+    pub to: Option<Timestamp>,
+}
+
+impl EventFilter {
+    pub fn admits(&self, event: &EventRecord) -> bool {
+        (self.categories.is_empty() || self.categories.contains(&event.category))
+            && self.min.is_none_or(|min| event.level <= min)
+            && (self.nodes.is_empty() || event.node.is_some_and(|n| self.nodes.contains(&n)))
+            && (self.clients.is_empty() || event.client.is_some_and(|c| self.clients.contains(&c)))
+            && self.from.is_none_or(|from| event.at >= from)
+            && self.to.is_none_or(|to| event.at < to)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use uniwrt_core::{EventId, NodeId, Timestamp};
+
+    use super::{EventCategory, EventFilter, EventKind, EventLevel, EventRecord, NewEvent};
+    use crate::log::Severity;
+
+    fn record(what: EventKind) -> EventRecord {
+        EventRecord::new(
+            EventId::new(1),
+            NewEvent::new(Timestamp::from_unix_ms(1_000), what).node(NodeId::new(3)),
+        )
+    }
+
+    #[test]
+    fn serializes_with_the_kind_as_a_tag() {
+        let event = record(EventKind::WanDown {
+            device: "eth1".to_owned(),
+        });
+        assert_eq!(
+            serde_json::to_value(&event).unwrap(),
+            json!({
+                "id": 1, "at": 1000, "last_at": 1000, "count": 1, "level": "critical",
+                "category": "wan", "node": 3, "client": null, "condition": null,
+                "what": { "kind": "wan_down", "device": "eth1" },
+            })
+        );
+        let back: EventRecord = serde_json::from_value(serde_json::to_value(&event).unwrap())
+            .expect("an event reads back");
+        assert_eq!(back, event);
+    }
+
+    #[test]
+    fn names_match_the_serde_tags() {
+        for what in [
+            EventKind::NodeAdopted,
+            EventKind::NodeOnline { down_ms: None },
+            EventKind::ClientLeft { connected_ms: None },
+            EventKind::NewClient {
+                vendor: None,
+                hostname: None,
+            },
+        ] {
+            let value = serde_json::to_value(&what).unwrap();
+            assert_eq!(value["kind"], what.name());
+        }
+    }
+
+    #[test]
+    fn levels_and_categories_parse_their_names() {
+        for level in EventLevel::ALL {
+            assert_eq!(EventLevel::parse(level.name()), Some(level));
+            assert_eq!(EventLevel::from_code(level.code()), level);
+            assert_eq!(serde_json::to_value(level).unwrap(), level.name());
+        }
+        for category in EventCategory::ALL {
+            assert_eq!(EventCategory::parse(category.name()), Some(category));
+            assert_eq!(serde_json::to_value(category).unwrap(), category.name());
+        }
+        assert_eq!(
+            EventLevel::from_severity(Severity::Error),
+            EventLevel::Warning
+        );
+        assert_eq!(EventLevel::from_severity(Severity::Debug), EventLevel::Info);
+    }
+
+    #[test]
+    fn filters_narrow() {
+        let event = record(EventKind::NodeOffline {
+            reasons: Vec::new(),
+        });
+        assert!(EventFilter::default().admits(&event));
+        let filter = |f: EventFilter| f.admits(&event);
+        assert!(filter(EventFilter {
+            min: Some(EventLevel::Warning),
+            ..EventFilter::default()
+        }));
+        assert!(!filter(EventFilter {
+            categories: vec![EventCategory::Wan],
+            ..EventFilter::default()
+        }));
+        assert!(!filter(EventFilter {
+            nodes: vec![NodeId::new(4)],
+            ..EventFilter::default()
+        }));
+        assert!(!filter(EventFilter {
+            clients: vec!["f0:18:98:00:00:01".parse().unwrap()],
+            ..EventFilter::default()
+        }));
+        assert!(!filter(EventFilter {
+            to: Some(Timestamp::from_unix_ms(1_000)),
+            ..EventFilter::default()
+        }));
+    }
+}

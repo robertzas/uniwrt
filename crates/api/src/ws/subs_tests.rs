@@ -379,6 +379,63 @@ async fn logs_start_from_storage_then_follow_what_is_stored() {
 }
 
 #[tokio::test]
+async fn events_start_from_storage_then_follow_what_is_recorded_or_folded() {
+    use uniwrt_model::events::{EventKind, EventWrite, NewEvent};
+    use uniwrt_store::EventRepo as _;
+
+    let mut h = harness().await;
+    let node = h.adopt(2).await;
+    let event = |node: NodeId, what| NewEvent::new(Timestamp::from_unix_ms(1), what).node(node);
+    let wan_down = || EventKind::WanDown {
+        device: "eth1".into(),
+    };
+    let earlier = h
+        .store
+        .record_events(vec![
+            EventWrite::Insert(event(node, wan_down())),
+            EventWrite::Insert(event(node, EventKind::ClientLeft { connected_ms: None })),
+            EventWrite::Insert(event(NodeId::new(99), wan_down())),
+        ])
+        .await
+        .unwrap();
+    let topic = format!("events?node={node}&min=warning");
+    let snapshot = h.set(&[&topic]).await;
+    assert_eq!(snapshot[0]["type"], "events_snapshot");
+    let events = snapshot[0]["events"].as_array().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["what"]["kind"], "wan_down");
+
+    // A fold of the snapshot's event sends it again as it is now; others pass the filter.
+    let first = earlier[0].clone().unwrap();
+    let folded = h
+        .store
+        .record_events(vec![
+            EventWrite::Fold {
+                id: first.id,
+                last_at: Timestamp::from_unix_ms(5),
+                count: 1,
+            },
+            EventWrite::Insert(event(node, EventKind::NodeAdopted)),
+        ])
+        .await
+        .unwrap();
+    let recorded: Vec<_> = earlier.into_iter().chain(folded).flatten().collect();
+    h.apply(Event::Recorded {
+        events: recorded.into(),
+    })
+    .await;
+    let delta = h.flush();
+    assert_eq!(delta[0]["type"], "events_delta");
+    let events = delta[0]["events"].as_array().unwrap();
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(
+        (events[0]["id"].as_i64(), events[0]["count"].as_u64()),
+        (Some(first.id.get()), Some(2))
+    );
+    assert_eq!(h.flush(), Vec::<Value>::new());
+}
+
+#[tokio::test]
 async fn the_fleet_sends_changed_summaries_new_nodes_and_removals() {
     let mut h = harness().await;
     let first = h.adopt(2).await;

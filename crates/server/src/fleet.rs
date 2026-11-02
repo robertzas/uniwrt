@@ -1,7 +1,8 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
 //! latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the
 //! clients' recorder (which restores the clients first) and the log recorder (with the syslog
-//! receiver, when it listens). In demo mode the nodes are simulated
+//! receiver, when it listens); the event recorder joins them once the job runner is up
+//! ([`Fleet::record_events`]). In demo mode the nodes are simulated
 //! instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
@@ -13,8 +14,8 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    ClientRecorder, Engine, EngineConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig,
-    MetricsRecorder, RecorderConfig, Snapshots, TopologyHistory,
+    ClientRecorder, Engine, EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder,
+    LogsConfig, MetricsConfig, MetricsRecorder, RecorderConfig, Snapshots, TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -43,6 +44,7 @@ pub(crate) struct Fleet {
     clients: ClientRecorder,
     metrics: MetricsRecorder,
     logs: LogRecorder,
+    events: Option<EventRecorder>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -89,6 +91,7 @@ impl Fleet {
             clients,
             metrics,
             logs,
+            events: None,
             syslog,
             sim: None,
         })
@@ -141,6 +144,7 @@ impl Fleet {
             clients,
             metrics,
             logs,
+            events: None,
             syslog,
             sim: Some((sim, dial)),
         })
@@ -164,6 +168,9 @@ impl Fleet {
             syslog.stop().await;
         }
         self.engine.shutdown().await;
+        if let Some(events) = self.events {
+            events.stop().await;
+        }
         self.logs.stop().await;
         self.snapshots.stop().await;
         self.history.stop().await;
@@ -181,6 +188,18 @@ impl Fleet {
         {
             warn!("links still connected after {DISCONNECT_TIMEOUT:?}");
         }
+    }
+
+    /// Starts recording events, from the engine and from `jobs`; the controller's start is the
+    /// first.
+    pub(crate) async fn record_events(&mut self, store: &Store, jobs: &Jobs) {
+        let config = EventsConfig {
+            started: Some(crate::build_info::VERSION.to_owned()),
+            ..EventsConfig::default()
+        };
+        let recorder =
+            EventRecorder::start(&self.engine, store.clone(), Some(jobs.subscribe()), config).await;
+        self.events = Some(recorder);
     }
 
     /// The job runner over this fleet: the nodes it adopts join the engine. Demo mode adopts

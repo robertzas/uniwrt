@@ -4,6 +4,7 @@
 mod adoption;
 mod audit;
 mod clients;
+mod events;
 mod facts;
 mod host_keys;
 mod jobs;
@@ -14,9 +15,10 @@ mod sessions;
 mod topology;
 mod users;
 
-use uniwrt_core::{JobId, LogId, MacAddr, NodeId, SearchId, Timestamp, UserId};
+use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, SearchId, Timestamp, UserId};
 use uniwrt_model::{
     client::{ClientRecord, ClientSession},
+    events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
@@ -385,4 +387,40 @@ pub trait LogRepo: Send + Sync {
 
     /// Deletes a saved search; false when there was none.
     fn delete_search(&self, id: SearchId) -> impl Future<Output = Result<bool>> + Send;
+}
+
+/// How far [`EventRepo::prune_events`] goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventsPrune {
+    /// Events whose latest repeat is older go.
+    pub before: Timestamp,
+    /// The oldest events go while there are more.
+    pub max_events: u64,
+}
+
+/// Events (features/observability.md, Events): the network's timeline.
+pub trait EventRepo: Send + Sync {
+    /// Stores new events and repeats of recorded ones, in order; returns each as stored, with
+    /// its id (`None` for a repeat of an event no longer stored).
+    fn record_events(
+        &self,
+        writes: Vec<EventWrite>,
+    ) -> impl Future<Output = Result<Vec<Option<EventRecord>>>> + Send;
+
+    /// Up to `limit` events that pass `filter`, newest first (by time, then id), from before
+    /// `before` (a time and id) when given.
+    fn events(
+        &self,
+        filter: EventFilter,
+        before: Option<(Timestamp, EventId)>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<EventRecord>>> + Send;
+
+    /// The conditions whose latest event raised them, by key, with when it did.
+    fn raised_conditions(&self) -> impl Future<Output = Result<Vec<(String, Timestamp)>>> + Send;
+
+    /// Deletes the oldest events: those last seen before `prune.before`, then more while there
+    /// are more than `prune.max_events`. One call deletes a bounded number; it returns how
+    /// many, so a caller repeats while it deleted some.
+    fn prune_events(&self, prune: EventsPrune) -> impl Future<Output = Result<usize>> + Send;
 }

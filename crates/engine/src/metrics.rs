@@ -136,7 +136,8 @@ fn feed(sampler: &mut Sampler, event: &Event) {
         | Event::Node { .. }
         | Event::Roam { .. }
         | Event::Log { .. }
-        | Event::Logged { .. } => {}
+        | Event::Logged { .. }
+        | Event::Recorded { .. } => {}
     }
 }
 

@@ -15,6 +15,7 @@ uniwrt-api = { path = "crates/api" }
 uniwrt-clients = { path = "crates/clients" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-engine = { path = "crates/engine" }
+uniwrt-events = { path = "crates/events" }
 uniwrt-jobs = { path = "crates/jobs" }
 uniwrt-metrics = { path = "crates/metrics" }
 uniwrt-model = { path = "crates/model" }

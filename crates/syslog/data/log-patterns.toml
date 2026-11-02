@@ -2,7 +2,9 @@
 # entry's text, for the listed programs (all when `programs` is absent), to what it means.
 # The first pattern that matches wins, so specific ones go first. Fields: id (stable: stored
 # with each entry it annotates), programs, regex (Rust `regex` syntax; use '''…''' when it holds
-# a quote), severity (how much it matters: emergency … debug), meaning, hint, link.
+# a quote), severity (how much it matters: emergency … debug), meaning, hint, link, and event
+# (the entries it matches are events too, in this category: system, wan, mesh, wifi, client,
+# network or security; features/observability.md, Events). Their level follows the severity.
 # Every pattern needs a real example line in `src/annotate.rs`'s tests.
 
 # --- Wi-Fi (hostapd) ---
@@ -12,6 +14,7 @@ id = "wifi-wrong-password"
 programs = ["hostapd"]
 regex = 'AP-STA-POSSIBLE-PSK-MISMATCH|invalid MIC in msg 2/4 of 4-Way Handshake'
 severity = "warning"
+event = "security"
 meaning = "A client tried to join with the wrong Wi-Fi password."
 hint = "A device with an old password keeps retrying. Repeated attempts from an unknown device may be someone guessing."
 
@@ -36,6 +39,7 @@ id = "dfs-radar"
 programs = ["hostapd"]
 regex = 'DFS-RADAR-DETECTED'
 severity = "warning"
+event = "wifi"
 meaning = "Radar was detected on a DFS channel; the radio had to leave it."
 hint = "The channel is closed for 30 minutes. If it happens often, plan a non-DFS channel for this access point."
 
@@ -79,6 +83,7 @@ id = "dhcp-pool-full"
 programs = ["dnsmasq-dhcp", "dnsmasq"]
 regex = 'no address available'
 severity = "error"
+event = "network"
 meaning = "The DHCP pool is full: a new device got no address."
 hint = "Enlarge the pool or shorten the lease time."
 
@@ -89,6 +94,7 @@ id = "oom"
 programs = ["kernel"]
 regex = 'Out of memory: Kill|invoked oom-killer'
 severity = "critical"
+event = "system"
 meaning = "The node ran out of memory and the kernel killed a program."
 hint = "Look at the node's memory chart, and remove packages it does not need."
 
@@ -97,6 +103,7 @@ id = "wifi-firmware-timeout"
 programs = ["kernel"]
 regex = 'mt7\w+ .*Message [0-9a-f]+ \(seq \d+\) timeout'
 severity = "error"
+event = "wifi"
 meaning = "The Wi-Fi chip's firmware stopped answering the driver (mt76)."
 hint = "Clients may drop until the driver recovers. If it repeats, a newer OpenWrt release often carries a fixed firmware."
 
@@ -105,6 +112,7 @@ id = "wifi-firmware-crash"
 programs = ["kernel"]
 regex = 'firmware crashed'
 severity = "error"
+event = "wifi"
 meaning = "The Wi-Fi chip's firmware crashed and was restarted."
 hint = "Clients were disconnected. If it repeats, update the node's firmware."
 
@@ -113,6 +121,7 @@ id = "bridge-loop"
 programs = ["kernel"]
 regex = 'received packet on \S+ with own address as source address'
 severity = "warning"
+event = "network"
 meaning = "A bridge saw its own frames coming back: there may be a loop."
 hint = "Check for a cable that links two ports of the same network, or a mesh and a wired link that bridge the same segments without STP."
 
@@ -121,6 +130,7 @@ id = "conntrack-full"
 programs = ["kernel"]
 regex = 'nf_conntrack: table full'
 severity = "error"
+event = "network"
 meaning = "The connection tracking table is full: new connections are dropped."
 hint = "A device may be opening connections in a flood (malware, a torrent client), or the table is too small for the traffic."
 
@@ -129,6 +139,7 @@ id = "batman-mtu"
 programs = ["kernel"]
 regex = 'The MTU of interface \S+ is too small'
 severity = "warning"
+event = "mesh"
 meaning = "A mesh interface's MTU is too small for batman-adv: mesh traffic is fragmented."
 hint = "Raise the interface's MTU to the size the message names."
 
@@ -137,6 +148,7 @@ id = "flash-error"
 programs = ["kernel"]
 regex = 'SQUASHFS error|UBIFS error|jffs2: .*(?:[Ee]rror|CRC failed)'
 severity = "critical"
+event = "system"
 meaning = "The node could not read its flash."
 hint = "The flash may be wearing out. Back the node up, then plan to reflash or replace it."
 
@@ -145,6 +157,7 @@ id = "segfault"
 programs = ["kernel"]
 regex = 'segfault at [0-9a-f]+ ip'
 severity = "error"
+event = "system"
 meaning = "A program crashed."
 hint = "procd usually restarts it. If it crashes again, the program's package may need an update."
 
@@ -155,6 +168,7 @@ id = "ssh-bad-password"
 programs = ["dropbear"]
 regex = 'Bad password attempt|Login attempt for nonexistent user'
 severity = "warning"
+event = "security"
 meaning = "A failed SSH login."
 hint = "Attempts from addresses you don't know mean someone is trying to get in. Keep SSH off the WAN and use keys."
 
@@ -163,5 +177,6 @@ id = "ppp-down"
 programs = ["pppd"]
 regex = 'LCP terminated by peer|Connection terminated'
 severity = "warning"
+event = "wan"
 meaning = "The PPP connection to the ISP ended."
 hint = "netifd redials. If it keeps happening, check the line and the credentials."

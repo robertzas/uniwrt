@@ -7,6 +7,7 @@ use uniwrt_clients::Changes;
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     event::{NodeEvent, Roam},
+    events::EventRecord,
     facts::NodeFacts,
     log::{LogEntry, LogRecord},
     status::NodeStatus,
@@ -54,11 +55,14 @@ pub enum Event {
     /// Clients changed ([`Engine::clients`](crate::Engine::clients)): their views, the records
     /// and sessions to keep, and new samples.
     Clients { changes: Arc<Changes> },
+    /// Events as recorded ([`EventRecorder`](crate::EventRecorder)): new ones, and those that
+    /// folded repeats (with the same id), in the order they were stored.
+    Recorded { events: Arc<[EventRecord]> },
 }
 
 impl Event {
-    /// The node it is about; `None` for a roam, which is about two, the topology, clients and
-    /// stored log entries.
+    /// The node it is about; `None` for a roam, which is about two, the topology, clients,
+    /// stored log entries and recorded events.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -69,7 +73,8 @@ impl Event {
             Self::Roam { .. }
             | Self::Topology { .. }
             | Self::Clients { .. }
-            | Self::Logged { .. } => None,
+            | Self::Logged { .. }
+            | Self::Recorded { .. } => None,
         }
     }
 }

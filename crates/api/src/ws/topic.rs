@@ -1,11 +1,12 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs` or
 //! `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every
-//! source and every entry by default), `jobs`, `topology`, `clients` and `client:<mac>`.
+//! source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise),
+//! `jobs`, `topology`, `clients` and `client:<mac>`.
 
 use std::fmt;
 
 use uniwrt_core::{MacAddr, NodeId};
-use uniwrt_model::log::Severity;
+use uniwrt_model::{events::EventLevel, log::Severity};
 
 /// The longest topic name accepted.
 pub(crate) const MAX_LEN: usize = 128;
@@ -21,6 +22,11 @@ pub(crate) enum Topic {
         node: Option<NodeId>,
         host: Option<String>,
         min: Severity,
+    },
+    /// Recorded events at `min` or more: every node's, or one node's.
+    Events {
+        node: Option<NodeId>,
+        min: EventLevel,
     },
     /// The latest jobs, and every change to a job.
     Jobs,
@@ -76,9 +82,17 @@ impl Topic {
         {
             return logs(query);
         }
+        if name == "events" {
+            return events("");
+        }
+        if let Some(query) = name.strip_prefix("events?")
+            && !query.is_empty()
+        {
+            return events(query);
+        }
         Err(BadTopic(format!(
-            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, jobs, \
-             topology, clients or client:<mac>"
+            "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, \
+             events?node=<id>&min=<level>, jobs, topology, clients or client:<mac>"
         )))
     }
 }
@@ -122,6 +136,27 @@ fn logs(query: &str) -> Result<Topic, BadTopic> {
     })
 }
 
+fn events(query: &str) -> Result<Topic, BadTopic> {
+    let (mut node, mut min) = (None, None);
+    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+        match pair.split_once('=') {
+            Some(("node", id)) if node.is_none() => node = Some(node_id(id)?),
+            Some(("min", level)) if min.is_none() => {
+                min = Some(EventLevel::parse(level).ok_or_else(|| {
+                    BadTopic(format!(
+                        "{level:?} is not a level: use critical, warning, notice or info"
+                    ))
+                })?);
+            }
+            _ => return Err(BadTopic(format!("Unexpected {pair:?} in an events topic"))),
+        }
+    }
+    Ok(Topic::Events {
+        node,
+        min: min.unwrap_or(EventLevel::Info),
+    })
+}
+
 /// A host's name or address, as the logs name other hosts.
 fn valid_host(name: &str) -> bool {
     !name.is_empty()
@@ -133,7 +168,7 @@ fn valid_host(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use uniwrt_core::NodeId;
-    use uniwrt_model::log::Severity;
+    use uniwrt_model::{events::EventLevel, log::Severity};
 
     use super::Topic;
 
@@ -168,6 +203,15 @@ mod tests {
             Topic::parse("logs?host=192.0.2.9"),
             Ok(logs(None, Some("192.0.2.9"), Severity::Debug))
         );
+        let events = |node: Option<i64>, min| Topic::Events {
+            node: node.map(NodeId::new),
+            min,
+        };
+        assert_eq!(Topic::parse("events"), Ok(events(None, EventLevel::Info)));
+        assert_eq!(
+            Topic::parse("events?min=warning&node=2"),
+            Ok(events(Some(2), EventLevel::Warning))
+        );
     }
 
     #[test]
@@ -190,6 +234,10 @@ mod tests {
             "logs?node=3&level=info",
             "client:",
             "client:nope",
+            "events?",
+            "events?min=loud",
+            "events?host=sw",
+            "events?node=1&node=2",
         ] {
             assert!(Topic::parse(bad).is_err(), "{bad:?}");
         }

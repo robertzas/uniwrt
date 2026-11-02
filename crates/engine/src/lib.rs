@@ -17,7 +17,10 @@
 //!   [`ClientRecorder`], which restores their book and keeps it through `ClientRepo`;
 //!   [`LogRecorder`] ([`LogsConfig`]), which has every node's log followed by its agent until
 //!   syslog delivers it (D-059), takes in other hosts' syslog, annotates and stores the entries
-//!   through `LogRepo` (announced as [`Event::Logged`]), and prunes them (14 days, 1 GiB).
+//!   through `LogRepo` (announced as [`Event::Logged`]), and prunes them (14 days, 1 GiB);
+//!   [`EventRecorder`] ([`EventsConfig`]), which derives events (`uniwrt_events`) from the bus
+//!   and the job runner, folds repeats, stores them through `EventRepo` (announced as
+//!   [`Event::Recorded`]) and prunes them (60 days, 200,000 events).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -53,6 +56,7 @@ mod bus;
 mod clients;
 mod config;
 mod engine;
+mod events;
 mod fleet;
 mod history;
 mod interest;
@@ -71,6 +75,7 @@ pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;
 pub use engine::Engine;
+pub use events::{EventRecorder, EventsConfig};
 pub use fleet::Fleet;
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};

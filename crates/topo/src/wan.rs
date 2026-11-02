@@ -58,7 +58,9 @@ pub(crate) fn link(graph: &mut Graph, fleet: &Fleet<'_>) {
     }
 }
 
-fn is_wan(iface: &InterfaceFacts) -> bool {
+/// Whether a gateway's interface leads to the internet: it has a default route, or is named
+/// like OpenWrt's WAN.
+pub fn is_wan(iface: &InterfaceFacts) -> bool {
     has_default_route(iface) || (iface.name.starts_with("wan") && iface.proto != "none")
 }
 

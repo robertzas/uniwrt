@@ -52,6 +52,11 @@ impl TopologyState {
         self.changed();
     }
 
+    /// The role a node was adopted in.
+    pub(crate) fn role(&self, node: NodeId) -> Option<NodeRole> {
+        self.identities().get(&node).map(|identity| identity.role)
+    }
+
     pub(crate) fn forget(&self, node: NodeId) {
         self.identities().remove(&node);
         self.changed();

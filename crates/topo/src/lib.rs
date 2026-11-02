@@ -54,6 +54,7 @@ pub use self::{
     diff::TopologyDelta,
     fleet::Member,
     graph::{Medium, TopoEdge, TopoKind, TopoNode, Topology, Traffic},
+    wan::is_wan,
 };
 
 /// The topology of the members' network. `previous` is the last build, for traffic rates.

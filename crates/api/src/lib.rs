@@ -21,10 +21,11 @@
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
 //!   `GET v1/logs/patterns`, and saved searches: `GET` and `POST v1/logs/searches`,
-//!   `DELETE v1/logs/searches/{id}`; see `logs`), and `v1/ws`
+//!   `DELETE v1/logs/searches/{id}`; see `logs`), the events (`GET v1/events` pages
+//!   ([`EventPage`]); see `events`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
-//!   `logs[?node=<id>|host=<name>&min=<severity>]`, `jobs`, `topology`, `clients`,
-//!   `client:<mac>`, see `ws`). Handlers that need a user
+//!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `jobs`,
+//!   `topology`, `clients`, `client:<mac>`, see `ws`). Handlers that need a user
 //!   take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
 //!   start without users. Passwords are Argon2id (19 MiB, 2 passes) on the blocking pool, two at
@@ -49,6 +50,7 @@ pub mod auth;
 mod client;
 mod clients;
 mod discovered;
+mod events;
 mod health;
 mod jobs;
 mod logs;
@@ -75,6 +77,7 @@ pub use adopt::{
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
+pub use events::EventPage;
 pub use health::BuildInfo;
 pub use logs::{
     LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
@@ -108,6 +111,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
+        .route("/v1/events", get(events::list))
         .route("/v1/logs", get(logs::list))
         .route("/v1/logs/histogram", get(logs::histogram))
         .route("/v1/logs/sources", get(logs::sources))

@@ -262,6 +262,9 @@ pub struct LogPattern {
     pub hint: Option<String>,
     /// Where to read more.
     pub link: Option<String>,
+    /// The entries it matches are events too, in this category (features/observability.md,
+    /// Events).
+    pub event: Option<crate::events::EventCategory>,
 }
 
 /// A search users saved, shared by all of them.

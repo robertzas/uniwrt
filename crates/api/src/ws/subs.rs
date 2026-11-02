@@ -24,6 +24,7 @@ use uniwrt_topo::Topology;
 use super::{
     message::{FactsPatch, ServerMessage, TimedEvent, TimedRoam},
     subs_clients::{ClientPending, ClientsPending},
+    subs_events::EventsPending,
     topic::{BadTopic, Topic},
 };
 use crate::{
@@ -88,6 +89,7 @@ enum Pending {
     },
     Clients(ClientsPending),
     Client(Box<ClientPending>),
+    Events(EventsPending),
 }
 
 impl Subscriptions {
@@ -279,6 +281,10 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             let (pending, snapshot) = ClientPending::subscribe(api, topic, mac).await?;
             (sub(Pending::Client(Box::new(pending)), None), snapshot)
         }
+        Topic::Events { node, min } => {
+            let (pending, snapshot) = EventsPending::subscribe(api, topic, node, min).await?;
+            (sub(Pending::Events(pending), None), snapshot)
+        }
     })
 }
 
@@ -374,6 +380,7 @@ impl Pending {
             }
             Self::Clients(pending) => pending.apply(event),
             Self::Client(pending) => pending.apply(api, event),
+            Self::Events(pending) => pending.apply(event),
             Self::Jobs { .. } => {}
         }
     }
@@ -458,6 +465,7 @@ impl Pending {
             }
             Self::Clients(pending) => pending.flush(topic),
             Self::Client(pending) => pending.flush(topic),
+            Self::Events(pending) => pending.flush(topic),
         }
     }
 }

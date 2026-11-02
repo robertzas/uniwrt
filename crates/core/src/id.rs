@@ -51,6 +51,8 @@ ids! {
     LogId = "log";
     /// A saved log search.
     SearchId = "search";
+    /// A recorded event; ids grow in the order events were recorded.
+    EventId = "event";
 }
 
 #[cfg(test)]

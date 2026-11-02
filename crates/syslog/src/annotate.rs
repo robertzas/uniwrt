@@ -7,7 +7,10 @@ use std::sync::LazyLock;
 
 use regex::RegexSet;
 use serde::Deserialize;
-use uniwrt_model::log::{LogEntry, LogPattern, Severity};
+use uniwrt_model::{
+    events::EventCategory,
+    log::{LogEntry, LogPattern, Severity},
+};
 
 const EMBEDDED: &str = include_str!("../data/log-patterns.toml");
 
@@ -39,6 +42,7 @@ struct Def {
     meaning: String,
     hint: Option<String>,
     link: Option<String>,
+    event: Option<EventCategory>,
 }
 
 /// Patterns that annotate log entries.
@@ -88,6 +92,7 @@ impl Patterns {
                 meaning: def.meaning,
                 hint: def.hint,
                 link: def.link,
+                event: def.event,
             });
         }
         let set = RegexSet::new(&regexes).map_err(|source| PatternError::Regex {
@@ -302,5 +307,24 @@ mod tests {
                 })
                 .is_none()
         );
+    }
+
+    #[test]
+    fn some_patterns_are_events() {
+        use uniwrt_model::events::EventCategory;
+        let category = |id: &str| {
+            Patterns::embedded()
+                .all()
+                .iter()
+                .find(|pattern| pattern.id == id)
+                .and_then(|pattern| pattern.event)
+        };
+        assert_eq!(category("dfs-radar"), Some(EventCategory::Wifi));
+        assert_eq!(category("dhcp-pool-full"), Some(EventCategory::Network));
+        assert_eq!(category("ssh-bad-password"), Some(EventCategory::Security));
+        assert_eq!(category("wifi-inactivity"), None);
+        let def = "[[pattern]]\nid = \"a\"\nregex = 'x'\nseverity = \"info\"\nmeaning = \"m\"\n";
+        assert!(Patterns::parse(&format!("{def}event = \"wan\"\n")).is_ok());
+        assert!(Patterns::parse(&format!("{def}event = \"weather\"\n")).is_err());
     }
 }

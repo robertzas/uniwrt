@@ -10,6 +10,7 @@ use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
     client::ClientSession,
     event::{NodeEvent, Roam},
+    events::EventRecord,
     facts::{
         BatmanFacts, BoardFacts, Capabilities, DeviceFacts, FdbEntry, InterfaceFacts, LeaseFacts,
         NeighborFacts, NodeFacts, PhyFacts, RadioFacts, StationFacts, SystemFacts,
@@ -81,6 +82,17 @@ pub enum ServerMessage {
         topic: String,
         entries: Vec<LogRecord>,
         dropped: u64,
+    },
+    /// The newest events recorded before the subscription, oldest first.
+    EventsSnapshot {
+        topic: String,
+        events: Vec<EventRecord>,
+    },
+    /// Events recorded since, and those that folded repeats (the same id, as they are now),
+    /// oldest first.
+    EventsDelta {
+        topic: String,
+        events: Vec<EventRecord>,
     },
     /// The latest jobs, newest first.
     JobsSnapshot {

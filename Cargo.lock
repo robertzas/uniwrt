@@ -2972,6 +2972,7 @@ dependencies = [
  "tracing",
  "uniwrt-clients",
  "uniwrt-core",
+ "uniwrt-events",
  "uniwrt-metrics",
  "uniwrt-model",
  "uniwrt-node",
@@ -2979,6 +2980,17 @@ dependencies = [
  "uniwrt-syslog",
  "uniwrt-topo",
  "zeroize",
+]
+
+[[package]]
+name = "uniwrt-events"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "uniwrt-clients",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-topo",
 ]
 
 [[package]]

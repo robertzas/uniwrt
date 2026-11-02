@@ -7,7 +7,9 @@
 //!   [`wifi`] is the Wi-Fi vocabulary shared by facts and, later, desired state (`SiteConfig`).
 //!   [`event`] is what nodes report as it happens ([`event::NodeEvent`]: stations joining and
 //!   leaving, devices and interfaces changing, DHCP leases) plus the roams the engine infers from
-//!   them ([`event::Roam`]), and [`log`] their log entries. [`status`] is a node's status as the
+//!   them ([`event::Roam`]), and [`log`] their log entries. [`events`] is the timeline the
+//!   controller records ([`events::EventRecord`]: nodes, WAN, mesh, clients, annotated log
+//!   entries, failed jobs). [`status`] is a node's status as the
 //!   engine derives it ([`status::NodeStatus`]: online, degraded or offline, with reasons).
 //!   [`user`] holds the controller's users, their sessions and the audit log's entries.
 //!   [`job`] is what the controller does on nodes step by step ([`job::Job`], adoption first),
@@ -35,6 +37,7 @@
 pub mod client;
 pub mod discovery;
 pub mod event;
+pub mod events;
 pub mod facts;
 pub mod inventory;
 pub mod job;

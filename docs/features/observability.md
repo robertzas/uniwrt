@@ -134,21 +134,27 @@ Backend in M2.5a1 (D-059); the UI in M2.5a2 (D-060).
 - **Saved searches:** a popover lists them (the one in use is checked and names the button); apply, delete, or save the current filter under a name. They keep the filter, not the range.
 - Later: correlation with events (M2.5b).
 
-**Annotations:** `crates/syslog/data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to a meaning, severity, hint and link. The first match wins and its id is stored with the entry; `GET v1/logs/patterns` explains each id. Each pattern needs a real example line in the tests. The first set covers hostapd's wrong passwords, inactivity and local deauths, DFS radar and CAC, netifd link loss and interface and port downs, a full DHCP pool, kernel OOM, mt76 firmware timeouts and firmware crashes, bridge loops, a full conntrack table, the batman-adv MTU, flash read errors, segfaults, failed SSH logins and PPP drops.
+**Annotations:** `crates/syslog/data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to a meaning, severity, hint and link, and optionally an event category (its entries are events too; Events below). The first match wins and its id is stored with the entry; `GET v1/logs/patterns` explains each id. Each pattern needs a real example line in the tests. The first set covers hostapd's wrong passwords, inactivity and local deauths, DFS radar and CAC, netifd link loss and interface and port downs, a full DHCP pool, kernel OOM, mt76 firmware timeouts and firmware crashes, bridge loops, a full conntrack table, the batman-adv MTU, flash read errors, segfaults, failed SSH logins and PPP drops.
 
 ## Events, alerts, notifications [M2.5]
 
-**Events:**
-- nodes: online/offline/reboot, mesh link degraded, low flash
-- config: applied or rolled back; upgrade steps
-- clients: join/leave/roam/blocked; new device on the network
-- WAN: down/up, IP change
-- Wi-Fi: DFS radar, high utilization
-- DHCP pool exhaustion
+Events in M2.5b1, alerts and notifiers in M2.5b2 (D-061).
 
-**Alerts:** built-in default rules plus user rules (threshold, duration, condition), with dedup, cool-down and maintenance windows (alerts are silenced while jobs run).
+**Events** (the `events` crate derives them; the engine's `EventRecorder` stores them):
+- **System:** the controller started; a node adopted; offline (unreachable for 30 s) and back online (with how long it was down); degraded (telemetry missing, partial or late for 60 s) and recovered; rebooted (its boot time moved by over a minute; read only from a freshly collected system set); flash low (under 10 % free) and fine again (from 15 %); a job failed.
+- **WAN:** a gateway's WAN link down (no default route for 10 s) and up again; a WAN interface's IPv4 addresses or delegated prefixes changed.
+- **Mesh:** a link between adopted nodes down (reported down, or gone from the topology while both nodes are online, for 30 s) and up; weak (quality under 40 for 2 min) and recovered (from 50). A link gone for 24 h is forgotten (the mesh was rewired).
+- **Clients:** joined, left (with how long it was connected), roamed (between access points; 802.11r marked) and new (never seen before). Nothing is derived during a node's first minute online, whose station lists show clients that were already there, and clients don't "leave" a node that went offline.
+- **From logs:** an entry whose pattern has an `event` category in `log-patterns.toml` is an event of that category, at the pattern's severity (DFS radar, a full DHCP pool, OOM, Wi-Fi firmware crashes and timeouts, bridge loops, a full conntrack table, the batman-adv MTU, flash errors, segfaults, wrong Wi-Fi and SSH passwords, PPP drops). A source's repeats of a pattern within 5 minutes of the last fold into one record with a count.
+- **Levels:** critical, warning, notice, info (log severities map: emergency to critical → critical, error and warning → warning). **Categories:** system, wan, mesh, wifi, client, network, security.
+- **Conditions:** states that begin and end (offline, degraded, flash, a WAN link, a mesh link down or weak) are raised by one event and cleared by another, which share the condition's key (`node:<id>/offline`, `node:<id>/wan:<device>`, `node:<id>/mesh:<edge>`). Nothing is said about a node that is not online, nor its links. After a restart the recorder resumes the conditions that the store's latest events left raised, and the nodes' facts restored from snapshots, so it neither repeats nor misses a change.
+- **Storage:** the `events` table (the event's JSON, its level, category, node, client and condition), written in batches every 250 ms and announced once stored (`Event::Recorded`, the alert engine's input). Kept 60 days after the last repeat, and at most 200,000.
+- **API:** `GET v1/events` (filter: categories, the least level, nodes, clients, time range; pages newest first). The WS topic `events[?node=<id>&min=<level>]` sends the newest 100, then each event recorded or folded.
+- Later: config applied or rolled back and upgrade steps (M3, M7), clients blocked (M5.1), high utilization and DFS from the RF survey (M2.6).
 
-**Notifiers:** in-app, browser push (PWA), email (SMTP), ntfy, Gotify, generic webhooks (Discord/Slack/Teams/Home Assistant templates), Pushover, Telegram.
+**Alerts** (M2.5b2): built-in default rules plus user rules over metrics (a threshold for a duration) and events (a kind, node, level, count in a window); built-in rules are presets of the same two kinds. Dedup, cool-down and maintenance windows (alerts are silenced while jobs run).
+
+**Notifiers:** in-app, ntfy, generic webhooks (Discord/Slack/Teams/Home Assistant templates) and email over SMTP (lettre with rustls; STARTTLS or TLS; the password in the vault) first (M2.5b2); later browser push (PWA), Gotify, Pushover, Telegram.
 
 ## Dashboard [M2.4, extended in M2.5 and M2.6]
 
