@@ -350,6 +350,20 @@ impl Where {
         }
     }
 
+    /// `node IN (…) OR host IN (…)`: the nodes and hosts a filter names are one set of sources.
+    fn sources(&mut self, filter: &LogFilter) {
+        let marks = |n: usize| vec!["?"; n].join(", ");
+        let nodes = filter.nodes.iter().map(|node| Value::from(node.get()));
+        let hosts = filter.hosts.iter().map(|host| Value::from(host.clone()));
+        let clause = match (filter.nodes.len(), filter.hosts.len()) {
+            (0, 0) => return,
+            (n, 0) => format!("node IN ({})", marks(n)),
+            (0, h) => format!("host IN ({})", marks(h)),
+            (n, h) => format!("(node IN ({}) OR host IN ({}))", marks(n), marks(h)),
+        };
+        self.push(clause, nodes.chain(hosts).collect::<Vec<_>>());
+    }
+
     fn clause(&self) -> String {
         if self.clauses.is_empty() {
             String::new()
@@ -362,8 +376,7 @@ impl Where {
 impl From<&LogFilter> for Where {
     fn from(filter: &LogFilter) -> Self {
         let mut sql = Self::default();
-        sql.any("node", filter.nodes.iter().map(|node| node.get()));
-        sql.any("host", filter.hosts.iter().cloned());
+        sql.sources(filter);
         sql.any("program", filter.programs.iter().cloned());
         if let Some(min) = filter.min {
             sql.push("severity <= ?", [i64::from(min.code())]);

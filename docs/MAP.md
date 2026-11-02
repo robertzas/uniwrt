@@ -384,6 +384,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
+- `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `lib/`: api.ts, appearance.ts, clientList.ts, clients.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts

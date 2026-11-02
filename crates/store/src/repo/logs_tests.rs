@@ -112,6 +112,12 @@ async fn entries_are_stored_and_found_by_every_filter() {
     assert_eq!(find(filter(|f| f.nodes = vec![AP])).await, [3, 2]);
     assert_eq!(find(filter(|f| f.nodes = vec![GW, AP])).await, [5, 3, 2, 1]);
     assert_eq!(find(filter(|f| f.hosts = vec!["switch".into()])).await, [4]);
+    // Nodes and hosts are one set of sources.
+    let sources = filter(|f| {
+        f.nodes = vec![AP];
+        f.hosts = vec!["switch".into()];
+    });
+    assert_eq!(find(sources.clone()).await, [4, 3, 2]);
     assert_eq!(
         find(filter(
             |f| f.programs = vec!["hostapd".into(), "netifd".into()]
@@ -137,6 +143,7 @@ async fn entries_are_stored_and_found_by_every_filter() {
         filter(|f| f.nodes = vec![AP]),
         filter(|f| f.min = Some(Severity::Notice)),
         filter(|f| f.programs = vec!["sshd".into()]),
+        sources,
     ] {
         let expected: Vec<_> = stored
             .iter()

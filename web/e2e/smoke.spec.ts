@@ -223,3 +223,34 @@ test("lists the clients, opens one and renames it", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Demo phone");
   expect(errors).toEqual([]);
 });
+
+test("searches the logs, explains an entry and shows its context", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.getByRole("table", { name: "Devices" }).waitFor();
+  await page.getByRole("navigation").getByRole("link", { name: "Logs" }).click();
+  await expect(page).toHaveURL(/\/insights\/logs$/);
+  const list = page.getByRole("list", { name: "Log entries" });
+  await expect(list.getByRole("listitem").first()).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Log volume: [1-9]/ })).toBeVisible();
+
+  // The simulated clients roam, and hostapd lets the old access point's entry go: explained.
+  await page.getByRole("button", { name: "Explained only" }).click();
+  await expect(page).toHaveURL(/annotated=1/);
+  const deauth = list.getByRole("button", { name: /deauthenticated due to inactivity/ }).first();
+  await expect(deauth).toBeVisible({ timeout: 30_000 });
+  await deauth.click();
+  await expect(page.getByRole("complementary", { name: "What it means" })).toBeVisible();
+  await page.getByRole("button", { name: "Show context" }).click();
+  const context = page.getByRole("dialog", { name: "Context" });
+  await expect(context.locator("[aria-current=true]")).toContainText("inactivity");
+  await page.keyboard.press("Escape");
+
+  // Full-text search, with the words marked.
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("searchbox", { name: "Search the logs" }).fill("inactivity");
+  await expect(page).toHaveURL(/q=inactivity/);
+  await expect(list.locator("mark").first()).toHaveText("inactivity");
+  await expect(list.getByRole("listitem").filter({ hasNotText: "inactivity" })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

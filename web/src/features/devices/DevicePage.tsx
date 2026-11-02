@@ -1,6 +1,6 @@
 import { useParams } from "@solidjs/router";
 import { useQuery } from "@tanstack/solid-query";
-import { ArrowLeft, CircleAlert, Router } from "lucide";
+import { ArrowLeft, CircleAlert, Router, ScrollText } from "lucide";
 import { createEffect, createMemo, For, Match, Show, Switch, useContext } from "solid-js";
 import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { NodeDetail } from "../../api/gen/NodeDetail";
@@ -115,6 +115,13 @@ function Overview(props: {
             </span>
           </p>
         </div>
+        <a
+          href={`/insights/logs?nodes=${node().id}`}
+          class="inline-flex h-8 items-center gap-2 rounded-control border border-edge bg-surface px-3 font-medium text-fg text-sm hover:bg-raised"
+        >
+          <Icon icon={ScrollText} class="size-4" />
+          {d.logs}
+        </a>
       </header>
       <Show when={status().reasons.length > 0}>
         <Card class="border-warn/40 px-4 py-3" aria-label={strings.devices.state[status().state]}>

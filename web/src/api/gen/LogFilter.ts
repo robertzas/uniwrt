@@ -5,7 +5,8 @@ import type { Timestamp } from "./Timestamp";
 
 /**
  * Which entries to find. Empty lists and `None`s don't filter; entries match every filter
- * given, and any one of a list's values.
+ * given, and any one of a list's values. `nodes` and `hosts` name the sources together: an
+ * entry from any node or host named passes.
  */
 export type LogFilter = { nodes: Array<NodeId>, hosts: Array<string>, programs: Array<string>, 
 /**

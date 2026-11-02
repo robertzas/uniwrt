@@ -10,6 +10,12 @@ import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { Health } from "../api/gen/Health";
 import type { Job } from "../api/gen/Job";
+import type { LogContext } from "../api/gen/LogContext";
+import type { LogFilter } from "../api/gen/LogFilter";
+import type { LogHistogram } from "../api/gen/LogHistogram";
+import type { LogPage } from "../api/gen/LogPage";
+import type { LogPatterns } from "../api/gen/LogPatterns";
+import type { LogSourceList } from "../api/gen/LogSourceList";
 import type { Metric } from "../api/gen/Metric";
 import type { MetricsResponse } from "../api/gen/MetricsResponse";
 import type { NodeDetail } from "../api/gen/NodeDetail";
@@ -18,6 +24,8 @@ import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { SavedSearch } from "../api/gen/SavedSearch";
+import type { SavedSearches } from "../api/gen/SavedSearches";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
@@ -105,6 +113,23 @@ export interface MetricsQuery {
   width: number;
 }
 
+/** A log filter as the logs routes read it (`crates/api/src/logs.rs`); empty parts left out. */
+export function logParams(filter: LogFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  const list = (name: string, values: readonly (string | number)[]) => {
+    if (values.length > 0) params.set(name, values.join(","));
+  };
+  list("nodes", filter.nodes);
+  list("hosts", filter.hosts);
+  list("programs", filter.programs);
+  if (filter.min !== null) params.set("min", filter.min);
+  if (filter.text !== null && filter.text.trim() !== "") params.set("q", filter.text);
+  if (filter.annotated) params.set("annotated", "true");
+  if (filter.from !== null) params.set("from", String(Math.round(filter.from)));
+  if (filter.to !== null) params.set("to", String(Math.round(filter.to)));
+  return params;
+}
+
 /** The typed API client; components reach the server only through this (CONVENTIONS.md). */
 export const api = {
   health: (signal?: AbortSignal) => request<Health>("/health", { signal }),
@@ -165,6 +190,34 @@ export const api = {
           : `/metrics/series?under=${encodeURIComponent(under)}`,
         { signal },
       ),
+  },
+  /** Stored log entries (observability.md, Logs); new ones come over the WS topic `logs`. */
+  logs: {
+    /** Entries newest first, `limit` at a time; `before` is the previous page's `next`. */
+    page: (filter: LogFilter, before: string | null, limit: number, signal?: AbortSignal) => {
+      const params = logParams(filter);
+      if (before !== null) params.set("before", before);
+      params.set("limit", String(limit));
+      return request<LogPage>(`/logs?${params}`, { signal });
+    },
+    /** How many entries each of `buckets` spans of the filter's range holds, by severity. */
+    histogram: (filter: LogFilter, buckets: number, signal?: AbortSignal) => {
+      const params = logParams(filter);
+      params.set("buckets", String(Math.round(buckets)));
+      return request<LogHistogram>(`/logs/histogram?${params}`, { signal });
+    },
+    /** The entry with `around` entries before and after it, from every source, oldest first. */
+    context: (id: number, around: number, signal?: AbortSignal) =>
+      request<LogContext>(`/logs/${id}/context?around=${Math.round(around)}`, { signal }),
+    /** The hosts and programs that logged lately. */
+    sources: (signal?: AbortSignal) => request<LogSourceList>("/logs/sources", { signal }),
+    /** What each annotation id means. */
+    patterns: (signal?: AbortSignal) => request<LogPatterns>("/logs/patterns", { signal }),
+    /** Saved searches, shared by every user. */
+    searches: (signal?: AbortSignal) => request<SavedSearches>("/logs/searches", { signal }),
+    save: (name: string, filter: LogFilter) =>
+      request<SavedSearch>("/logs/searches", { method: "POST", body: { name, filter } }),
+    remove: (id: number) => request<void>(`/logs/searches/${id}`, { method: "DELETE" }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

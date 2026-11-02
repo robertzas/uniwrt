@@ -111,7 +111,7 @@ A part without data drops out; without signal or rate there is no score. Sticky 
 
 ## Logs [M2.5]
 
-Backend in M2.5a1 (D-059); the UI follows in M2.5a2.
+Backend in M2.5a1 (D-059); the UI in M2.5a2 (D-060).
 
 **Ingest** (the engine's `LogRecorder`):
 - Every watched node's log is followed by its agent (`log_follow`, polling logd by sequence number every second; D-036), so observe mode needs no change on the node. The agent's backfill after a (re)start is skipped through the newest entry stored, so a controller restart neither loses nor repeats entries.
@@ -122,14 +122,17 @@ Backend in M2.5a1 (D-059); the UI follows in M2.5a2.
 
 **Storage:** the `logs` table plus a contentless FTS5 index over program and text. Entries are written in batches every 250 ms and announced once stored. Retention: 14 days by arrival, and 1 GiB, estimated from the newest entries' size. Both are pruned every 15 minutes, at most 10,000 entries per call. The hosts and programs that logged (`log_sources`) feed the filters.
 
-**API:** pages, a histogram, context and saved searches (ARCHITECTURE.md, API). A filter takes nodes, hosts, programs, the least severity, full text (every word must appear, `"a phrase"` as written, `word*` as a prefix, `-word` must not appear), annotated only, and a time range. The WS topic `logs[?node=<id>|host=<name>&min=<severity>]` sends the newest 200 stored entries, then each one stored after them.
+**API:** pages, a histogram, context and saved searches (ARCHITECTURE.md, API). A filter takes sources (nodes and hosts together: an entry from any one passes), programs, the least severity, full text (every word must appear, `"a phrase"` as written, `word*` as a prefix, `-word` must not appear), annotated only, and a time range. The WS topic `logs[?node=<id>|host=<name>&min=<severity>]` sends the newest 200 stored entries, then each one stored after them.
 
-**UI** (M2.5a2):
-- live tail (pause, resume, follow)
-- filters (node, program, severity, time) and full-text search
-- a severity histogram and saved searches
-- jump to context: ± N lines across all nodes
-- correlation: click an event to see the logs around it
+**UI** (`/insights/logs`, M2.5a2, D-060):
+- **URL:** the filter uses the API's names (`?nodes=3&hosts=sw&programs=hostapd&min=warning&q=…&annotated=1`) plus `range=15m|1h|6h|24h|7d|14d` (default 1h) or a fixed `from`/`to`, so views can be shared; the device page links to `?nodes=<id>`.
+- **Live tail, newest on top:** the first page (200) comes from `GET v1/logs`, older pages load as the list scrolls (infinite scroll plus a button), and a preset range then follows the WS `logs` topic, narrowed to one node or host and the least severity where the hub can. The page applies the rest of the filter to arrivals, full text included, as the store does (unicode61 tokens: words, phrases, prefixes, exclusions). Scrolling away from the top, or **Pause**, holds arrivals behind a "Show N new entries" button; a reconnect or a `dropped` delta reads the newest page again. At most 10,000 entries are kept, and more than 5,000 held reload. A fixed window doesn't follow.
+- **Filters:** search (300 ms debounce or Enter, `/` focuses it, matches marked), least severity, sources (devices and other hosts) and programs as filterable checkbox pickers fed by `GET v1/logs/sources`, "Explained only", clear.
+- **Histogram:** stacked bars in four bands (errors and worse, warnings, notice and info, debug) on the status colors, one per ~8 px (20–120), re-read every 15 s (60 s beyond 6 h) while live; hover shows a bar's counts, and a click or drag zooms the page into that window.
+- **Entries:** time to the millisecond (with the day when not today), severity, source, `program[pid]`, message, and the annotation's meaning as a chip. A row expands in place: full message, the annotation's meaning, hint and link, when it was logged and received, facility, how it arrived and logd's sequence, and actions: show context, only this source, only this program, copy the line. Lists over 200 entries are virtualized.
+- **Context:** a wide dialog with ± 20 entries from every source around the entry (marked and centred), widened to 50, 100 and 200 with "Show more".
+- **Saved searches:** a popover lists them (the one in use is checked and names the button); apply, delete, or save the current filter under a name. They keep the filter, not the range.
+- Later: correlation with events (M2.5b).
 
 **Annotations:** `crates/syslog/data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to a meaning, severity, hint and link. The first match wins and its id is stored with the entry; `GET v1/logs/patterns` explains each id. Each pattern needs a real example line in the tests. The first set covers hostapd's wrong passwords, inactivity and local deauths, DFS radar and CAC, netifd link loss and interface and port downs, a full DHCP pool, kernel OOM, mt76 firmware timeouts and firmware crashes, bridge loops, a full conntrack table, the batman-adv MTU, flash read errors, segfaults, failed SSH logins and PPP drops.
 

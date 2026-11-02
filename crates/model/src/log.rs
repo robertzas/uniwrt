@@ -186,7 +186,8 @@ impl LogRecord {
 }
 
 /// Which entries to find. Empty lists and `None`s don't filter; entries match every filter
-/// given, and any one of a list's values.
+/// given, and any one of a list's values. `nodes` and `hosts` name the sources together: an
+/// entry from any node or host named passes.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(default)]
@@ -211,12 +212,12 @@ impl LogFilter {
     /// index answers.
     pub fn admits(&self, record: &LogRecord) -> bool {
         let entry = &record.entry;
-        (self.nodes.is_empty() || record.node.is_some_and(|node| self.nodes.contains(&node)))
-            && (self.hosts.is_empty()
-                || record
-                    .host
-                    .as_ref()
-                    .is_some_and(|host| self.hosts.contains(host)))
+        ((self.nodes.is_empty() && self.hosts.is_empty())
+            || record.node.is_some_and(|node| self.nodes.contains(&node))
+            || record
+                .host
+                .as_ref()
+                .is_some_and(|host| self.hosts.contains(host)))
             && (self.programs.is_empty()
                 || entry
                     .program
