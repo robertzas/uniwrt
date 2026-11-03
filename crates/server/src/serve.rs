@@ -102,9 +102,9 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
         let mut fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
         let jobs = fleet
-            .jobs(&store, vault, &controller_key, Arc::clone(&clock))
+            .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;
-        fleet.record_events(&store, &jobs).await;
+        fleet.record_events(&store, &vault, &jobs).await;
         let api = start_api(&args, &store, &fleet, &clock, &tls, &jobs).await?;
         let renewal = tokio::spawn(renewer.run());
         let app = http::router(&ui::EMBEDDED, api.clone());
@@ -160,6 +160,7 @@ async fn start_api(
 ) -> anyhow::Result<Api> {
     let api = Api::new(ApiConfig {
         alerts: fleet.alerts(),
+        notify: fleet.notify(),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

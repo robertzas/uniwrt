@@ -24,7 +24,11 @@
 //!   ([`AlertsConfig`]), which runs the alert rules (`uniwrt_events::alerts`) over recorded
 //!   events and the metric windows ([`Event::Sampled`]), silences alerts while jobs run and in
 //!   maintenance windows, stores them through `AlertRepo` (announced as [`Event::Alerts`]) and
-//!   prunes them (90 days after they resolve); [`Alerts`] is the API's handle on it.
+//!   prunes them (90 days after they resolve); [`Alerts`] is the API's handle on it;
+//!   [`Notifications`] ([`NotifyConfig`]) sends what the alerts' notifiers should hear of
+//!   (`uniwrt_notify`: opened, reopened, reminders, resolved; digests of what arrives together;
+//!   retries), with their secrets from the vault, and records how each delivery went;
+//!   [`Notify`] is the API's handle on it (reload, test).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -47,7 +51,8 @@
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
-//!   `LogRepo`, `EventRepo`, `AlertRepo`), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
+//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `SettingsRepo`, `VaultRepo`),
+//!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
 //!   receiver hands on, the annotations), tokio, tracing,
 //!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
@@ -68,6 +73,7 @@ mod interest;
 mod live;
 mod logs;
 mod metrics;
+mod notify;
 mod roam;
 mod schedule;
 mod snapshots;
@@ -88,6 +94,7 @@ pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use logs::{LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
+pub use notify::{Notifications, Notify, NotifyConfig, NotifyStopped};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
 pub use topology::Identity;

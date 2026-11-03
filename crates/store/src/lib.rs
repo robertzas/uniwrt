@@ -10,7 +10,10 @@
 //!   and the topology view's [`Pin`]s), [`ClientRepo`] (clients' records, aliases and
 //!   sessions), [`MetricsRepo`] (metric series: raw windows, rollups, retention), [`LogRepo`] (log
 //!   entries with an FTS5 index, retention by age and size, saved searches), [`EventRepo`] (the
-//!   event timeline: folded repeats, the conditions still raised, retention by age and count);
+//!   event timeline: folded repeats, the conditions still raised, retention by age and count),
+//!   [`AlertRepo`] (alert rules, alerts and maintenance windows), [`NotifierRepo`] (notifiers
+//!   without their secrets, and how their deliveries went) and [`SettingsRepo`] (settings by key,
+//!   as JSON);
 //!   [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
 //!   from the store and the [`MasterKey`]; it also seals configuration backups
@@ -54,7 +57,8 @@ pub use error::{Error, Result};
 pub use repo::{
     Adoption, AlertRepo, AuditRepo, ClientRepo, EventRepo, EventsPrune, FactsRepo, HostKeyRepo,
     InventoryRepo, JobRepo, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewSession, NodeRepo,
-    Pin, Secret, SessionRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
+    NotifierRepo, Pin, Secret, SessionRepo, SettingsRepo, TopologyFrame, TopologyRepo, UserRepo,
+    VaultRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, SealedBackup, Vault};

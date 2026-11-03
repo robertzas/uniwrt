@@ -59,6 +59,8 @@ ids! {
     AlertId = "alert";
     /// A maintenance window, during which alerts are silenced.
     WindowId = "window";
+    /// A notifier: where alerts are sent (ntfy, a webhook, email).
+    NotifierId = "notifier";
 }
 
 #[cfg(test)]

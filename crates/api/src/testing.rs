@@ -17,6 +17,7 @@ use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, Engine, EngineConfig, Fleet, LogRecorder, LogsConfig,
+    Notifications, Notify, NotifyConfig,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -24,6 +25,7 @@ use uniwrt_model::{
     node::{NewNode, Node},
 };
 use uniwrt_node::{ControllerKey, HostKey, SshConfig};
+use uniwrt_notify::Sender;
 use uniwrt_sim::{SimConfig, SimFleet, SimLink};
 use uniwrt_store::{MasterKey, NodeRepo as _, Store, Vault};
 
@@ -96,7 +98,7 @@ pub(crate) async fn api_with(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
 ) -> Api {
-    api_full(store, fleet, clock, dial, None).await
+    api_full(store, fleet, clock, dial, None, None).await
 }
 
 /// [`api_with`], with the alert engine's handle.
@@ -106,11 +108,16 @@ pub(crate) async fn api_full(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
     alerts: Option<Alerts>,
+    notify: Option<(Notify, Vault)>,
 ) -> Api {
-    let jobs = Jobs::start(JobsConfig {
-        vault: Vault::open(&store, &MasterKey::generate().unwrap())
+    let vault = match &notify {
+        Some((_, vault)) => vault.clone(),
+        None => Vault::open(&store, &MasterKey::generate().unwrap())
             .await
             .unwrap(),
+    };
+    let jobs = Jobs::start(JobsConfig {
+        vault,
         store: store.clone(),
         clock: Arc::clone(&clock),
         key: ControllerKey::generate().unwrap(),
@@ -122,6 +129,7 @@ pub(crate) async fn api_full(
     Api::new(ApiConfig {
         password_cost: PasswordCost::CHEAPEST,
         alerts,
+        notify,
         ..ApiConfig::new(
             store,
             fleet,
@@ -154,6 +162,7 @@ pub(crate) struct Demo {
     logs: Option<LogRecorder>,
     /// Evaluates the alert rules (the API's alert routes go through it).
     _alerts: AlertEngine,
+    _notifications: Notifications,
 }
 
 impl Demo {
@@ -200,6 +209,17 @@ impl Demo {
             ids.push(adopted.id);
         }
         let fleet = Arc::new(engine.clone());
+        let vault = Vault::open(&store, &MasterKey::generate().unwrap())
+            .await
+            .unwrap();
+        let notifications = Notifications::start(
+            &engine,
+            store.clone(),
+            vault.clone(),
+            Sender::new("uniwrt/test").unwrap(),
+            NotifyConfig::default(),
+        )
+        .await;
         let alerts =
             AlertEngine::start(&engine, store.clone(), None, AlertsConfig::default()).await;
         let dial: Option<Arc<dyn Dial>> = dial.then(|| {
@@ -210,7 +230,16 @@ impl Demo {
                 },
             }) as Arc<dyn Dial>
         });
-        let api = api_full(store.clone(), fleet, clock, dial, Some(alerts.handle())).await;
+        let notify = Some((notifications.handle(), vault));
+        let api = api_full(
+            store.clone(),
+            fleet,
+            clock,
+            dial,
+            Some(alerts.handle()),
+            notify,
+        )
+        .await;
         api.create_admin("admin", PASSWORD).await.unwrap();
         let mut demo = Self {
             _dir: dir,
@@ -222,6 +251,7 @@ impl Demo {
             ids,
             logs: None,
             _alerts: alerts,
+            _notifications: notifications,
         };
         demo.cookie = login(&demo.api).await;
         demo

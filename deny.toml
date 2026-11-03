@@ -25,6 +25,8 @@ allow = [
   "BSD-3-Clause",
   "ISC", # ring and untrusted, through russh (D-032)
   "MIT",
+  "CDLA-Permissive-2.0", # webpki-roots: Mozilla's CA roots, embedded (BUILD.md, D-063)
+  "0BSD",                # quoted_printable, through lettre's message builder (D-063)
   "Unicode-3.0",
   "Zlib", # foldhash, through rusqlite's statement cache (D-031)
 ]

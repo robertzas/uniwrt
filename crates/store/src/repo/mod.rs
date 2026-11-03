@@ -12,12 +12,14 @@ mod jobs;
 mod logs;
 mod metrics;
 mod nodes;
+mod notifiers;
 mod sessions;
 mod topology;
 mod users;
 
 use uniwrt_core::{
-    AlertId, EventId, JobId, LogId, MacAddr, NodeId, RuleId, SearchId, Timestamp, UserId, WindowId,
+    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RuleId, SearchId, Timestamp,
+    UserId, WindowId,
 };
 use uniwrt_model::{
     alerts::{
@@ -32,6 +34,7 @@ use uniwrt_model::{
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
     metric::{Entity, Metric, Point, Resolution, Sample},
     node::{HostKeyPin, NewNode, Node},
+    notify::{Notifier, NotifierConfig},
     user::{AuditEntry, Role, Session, User},
 };
 use zeroize::Zeroizing;
@@ -508,4 +511,51 @@ pub trait AlertRepo: Send + Sync {
 
     /// Deletes a window (ending it, when it is on); whether it did.
     fn delete_maintenance_window(&self, id: WindowId) -> impl Future<Output = Result<bool>> + Send;
+}
+
+/// Notifiers (features/observability.md, Notifications): where alerts are sent. Their secrets
+/// are the vault's.
+pub trait NotifierRepo: Send + Sync {
+    /// Every notifier, by id.
+    fn notifiers(&self) -> impl Future<Output = Result<Vec<Notifier>>> + Send;
+
+    fn notifier(&self, id: NotifierId) -> impl Future<Output = Result<Option<Notifier>>> + Send;
+
+    fn create_notifier(
+        &self,
+        config: NotifierConfig,
+    ) -> impl Future<Output = Result<Notifier>> + Send;
+
+    /// Replaces a notifier's configuration; `None` when there is no such notifier.
+    fn update_notifier(
+        &self,
+        id: NotifierId,
+        config: NotifierConfig,
+    ) -> impl Future<Output = Result<Option<Notifier>>> + Send;
+
+    /// Whether there was such a notifier.
+    fn delete_notifier(&self, id: NotifierId) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Records how a delivery went at `at`: a success, or the error.
+    fn record_delivery(
+        &self,
+        id: NotifierId,
+        at: Timestamp,
+        error: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
+}
+
+/// The controller's settings by key, each a JSON value.
+pub trait SettingsRepo: Send + Sync {
+    fn setting(
+        &self,
+        key: &'static str,
+    ) -> impl Future<Output = Result<Option<serde_json::Value>>> + Send;
+
+    /// Stores a setting, replacing any.
+    fn put_setting(
+        &self,
+        key: &'static str,
+        value: serde_json::Value,
+    ) -> impl Future<Output = Result<()>> + Send;
 }

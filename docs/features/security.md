@@ -59,7 +59,7 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 - **Opening** the vault tries the key on every sealed row and refuses to start if any does not open, so a wrong key fails at once. A missing key file is replaced by a new key only while nothing is sealed. Opening also reseals the rows that the M1.2 stub stored unencrypted (`alg = 'plain'`, D-032). Demo mode's key exists only in memory.
 - The first secrets are the controller's SSH key (`controller/ssh_key`), the local CA (`tls/ca`) and the HTTPS certificate (`tls/leaf`); adoption adds a node's root password (`node/<id>/root_password`) when the user asks to keep it.
 - **Configuration backups** (`sysupgrade -b` tarballs hold password hashes, private host keys and Wi-Fi keys) are sealed the same way in `node_backups`, with `backup/<sha256>` as associated data (D-042).
-- It holds: the controller SSH private key, node root passwords, Wi-Fi passphrases, mesh and FT keys, PPPoE credentials, WireGuard keys and notifier tokens.
+- It holds: the controller SSH private key, node root passwords, Wi-Fi passphrases, mesh and FT keys, PPPoE credentials, WireGuard keys and notifiers' secrets (`notifier/<id>`, one JSON value: a webhook's URL and headers, an ntfy token or password, an SMTP password; D-063). The API takes notifiers' secrets but never returns them: it says which are set, and a webhook's URL only by its scheme and host.
 - Config revisions store only references. Viewing a secret is admin-only and audited.
 
 ## Node hardening (opt-in per node; recommended in managed mode)

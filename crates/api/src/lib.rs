@@ -2,7 +2,7 @@
 //! the security headers, authentication with sessions, the nodes, and the WS hub.
 //!
 //! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the engine as an
-//!   `Arc<dyn Fleet>`, the alert engine's handle, the clock, the build identity, the HTTPS [`Certificate`], the password
+//!   `Arc<dyn Fleet>`, the alert engine's handle, the notifications' handle with the vault, the clock, the build identity, the HTTPS [`Certificate`], the password
 //!   cost and the setup window); [`router`] for the server to nest under `/api`;
 //!   [`Api::close_sockets`] when the server stops; [`security::headers`] for every response, UI
 //!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
@@ -24,7 +24,11 @@
 //!   `DELETE v1/logs/searches/{id}`; see `logs`), the events (`GET v1/events` pages
 //!   ([`EventPage`]); see `events`), the alerts (`GET v1/alerts` pages ([`AlertPage`]),
 //!   `POST v1/alerts/{id}/acknowledge`, the rules under `v1/alert-rules` ([`RuleView`]) and the
-//!   maintenance windows under `v1/maintenance`; see `alerts`), and `v1/ws`
+//!   maintenance windows under `v1/maintenance`; see `alerts`), the notifiers (`GET` and
+//!   `POST v1/notifiers` ([`NotifierList`], [`NotifierInput`]), `PUT` and
+//!   `DELETE v1/notifiers/{id}`, `POST v1/notifiers/test` ([`NotifierTest`]) and
+//!   `PUT v1/notifications/settings`; secrets go to the vault and come back only as which are
+//!   set ([`SecretsView`]); see `notifiers`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
 //!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `alerts`,
 //!   `jobs`,
@@ -40,7 +44,8 @@
 //!   `Origin` ([`security`]). API responses are never cached. Errors never leak internals: a 500
 //!   says to read the log, which has the cause. Passwords and tokens are zeroized and never logged.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (with `ts`), `uniwrt-store`, `uniwrt-engine`
-//!   (`Fleet`, its events, `Alerts`), `uniwrt-events` (the built-in alert rules), `uniwrt-node` (collect sets), `uniwrt-topo` (with `ts`), axum (with `ws`), argon2, ring
+//!   (`Fleet`, its events, `Alerts`, `Notify`), `uniwrt-events` (the built-in alert rules),
+//!   `uniwrt-notify` (checking notifiers, their secrets), `uniwrt-node` (collect sets), `uniwrt-topo` (with `ts`), axum (with `ws`), argon2, ring
 //!   (tokens, salts, digests), ts-rs for the DTOs (`web/src/api/gen`).
 //! - **Tests:** unit tests per module; `auth/tests.rs` drives the router with
 //!   `tower::ServiceExt::oneshot` over a temporary store, on tokio's paused clock where time
@@ -60,6 +65,7 @@ mod jobs;
 mod logs;
 mod metrics;
 mod nodes;
+mod notifiers;
 pub mod problem;
 pub mod security;
 mod state;
@@ -93,6 +99,10 @@ pub use logs::{
 };
 pub use metrics::{MetricSeries, MetricsResponse, SeriesInfo};
 pub use nodes::{NodeDetail, NodeSummary};
+pub use notifiers::{
+    HeaderInput, NotifierInput, NotifierList, NotifierTest, NotifierView, Placeholder,
+    SecretsInput, SecretsView,
+};
 pub use problem::{ApiError, ApiResult, no_route};
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
@@ -137,6 +147,16 @@ pub fn router(api: Api) -> Router {
             get(alerts::maintenance::list).post(alerts::maintenance::create),
         )
         .route("/v1/maintenance/{id}", delete(alerts::maintenance::delete))
+        .route(
+            "/v1/notifiers",
+            get(notifiers::list).post(notifiers::create),
+        )
+        .route("/v1/notifiers/test", post(notifiers::test))
+        .route(
+            "/v1/notifiers/{id}",
+            put(notifiers::update).delete(notifiers::delete),
+        )
+        .route("/v1/notifications/settings", put(notifiers::put_settings))
         .route("/v1/logs", get(logs::list))
         .route("/v1/logs/histogram", get(logs::histogram))
         .route("/v1/logs/sources", get(logs::sources))

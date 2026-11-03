@@ -1,8 +1,8 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
 //! latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the
 //! clients' recorder (which restores the clients first) and the log recorder (with the syslog
-//! receiver, when it listens); the event recorder and the alert engine join them once the job
-//! runner is up ([`Fleet::record_events`]). In demo mode the nodes are simulated
+//! receiver, when it listens); the event recorder, the notifications and the alert engine join
+//! them once the job runner is up ([`Fleet::record_events`]). In demo mode the nodes are simulated
 //! instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
@@ -16,7 +16,7 @@ use uniwrt_core::Clock;
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, ClientRecorder, Engine, EngineConfig, EventRecorder,
     EventsConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder,
-    RecorderConfig, Snapshots, TopologyHistory,
+    Notifications, Notify, NotifyConfig, RecorderConfig, Snapshots, TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -47,6 +47,8 @@ pub(crate) struct Fleet {
     logs: LogRecorder,
     events: Option<EventRecorder>,
     alerts: Option<AlertEngine>,
+    /// The notifications, and the vault that keeps notifiers' secrets.
+    notifications: Option<(Notifications, Vault)>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -95,6 +97,7 @@ impl Fleet {
             logs,
             events: None,
             alerts: None,
+            notifications: None,
             syslog,
             sim: None,
         })
@@ -149,6 +152,7 @@ impl Fleet {
             logs,
             events: None,
             alerts: None,
+            notifications: None,
             syslog,
             sim: Some((sim, dial)),
         })
@@ -178,6 +182,9 @@ impl Fleet {
         if let Some(alerts) = self.alerts {
             alerts.stop().await;
         }
+        if let Some((notifications, _)) = self.notifications {
+            notifications.stop().await;
+        }
         self.logs.stop().await;
         self.snapshots.stop().await;
         self.history.stop().await;
@@ -198,8 +205,9 @@ impl Fleet {
     }
 
     /// Starts recording events, from the engine and from `jobs` (the controller's start is the
-    /// first), and evaluating alerts over them.
-    pub(crate) async fn record_events(&mut self, store: &Store, jobs: &Jobs) {
+    /// first), evaluating alerts over them, and notifying of the alerts (started first, so it
+    /// hears of what the alert engine stores at its start).
+    pub(crate) async fn record_events(&mut self, store: &Store, vault: &Vault, jobs: &Jobs) {
         let config = EventsConfig {
             started: Some(crate::build_info::VERSION.to_owned()),
             ..EventsConfig::default()
@@ -207,6 +215,20 @@ impl Fleet {
         let recorder =
             EventRecorder::start(&self.engine, store.clone(), Some(jobs.subscribe()), config).await;
         self.events = Some(recorder);
+        match uniwrt_notify::Sender::new(&format!("uniwrt/{}", crate::build_info::VERSION)) {
+            Ok(sender) => {
+                let notifications = Notifications::start(
+                    &self.engine,
+                    store.clone(),
+                    vault.clone(),
+                    sender,
+                    NotifyConfig::default(),
+                )
+                .await;
+                self.notifications = Some((notifications, vault.clone()));
+            }
+            Err(err) => warn!(%err, "notifications cannot start"),
+        }
         let alerts = AlertEngine::start(
             &self.engine,
             store.clone(),
@@ -220,6 +242,13 @@ impl Fleet {
     /// The alert engine's handle, once [`Fleet::record_events`] started it.
     pub(crate) fn alerts(&self) -> Option<Alerts> {
         self.alerts.as_ref().map(AlertEngine::handle)
+    }
+
+    /// The notifications' handle and the vault, once [`Fleet::record_events`] started them.
+    pub(crate) fn notify(&self) -> Option<(Notify, Vault)> {
+        self.notifications
+            .as_ref()
+            .map(|(notifications, vault)| (notifications.handle(), vault.clone()))
     }
 
     /// The job runner over this fleet: the nodes it adopts join the engine. Demo mode adopts

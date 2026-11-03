@@ -117,7 +117,10 @@ describe("the events page", () => {
     expect(rows()[1]).toContain("×3");
     const page = new URL(calls.find((c) => c.startsWith("/api/v1/events?")) ?? "", "http://x");
     expect(page.searchParams.get("limit")).toBe("100");
-    expect(NOW - Number(page.searchParams.get("from"))).toBeGreaterThanOrEqual(86_400_000 - 1_000);
+    // 24 h before the page asked: after this file loaded (NOW), before this check.
+    const from = Number(page.searchParams.get("from"));
+    expect(from).toBeGreaterThanOrEqual(NOW - 86_400_000);
+    expect(from).toBeLessThanOrEqual(Date.now() - 86_400_000);
 
     // The WAN comes back; the radar repeats (a fold: the same id, counted).
     const up = event(

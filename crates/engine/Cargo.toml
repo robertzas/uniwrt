@@ -19,6 +19,7 @@ thiserror.workspace = true
 uniwrt-metrics.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
+uniwrt-notify.workspace = true
 uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true
 uniwrt-topo.workspace = true

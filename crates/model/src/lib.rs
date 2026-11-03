@@ -47,6 +47,7 @@ pub mod job;
 pub mod log;
 pub mod metric;
 pub mod node;
+pub mod notify;
 pub mod status;
 pub mod user;
 pub mod wifi;

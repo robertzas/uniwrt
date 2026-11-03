@@ -59,6 +59,8 @@ pub enum AuditAction {
     AcknowledgeAlert,
     /// A user scheduled or deleted a maintenance window.
     Maintenance,
+    /// A user created, edited or deleted a notifier, or changed the notification settings.
+    Notifier,
 }
 
 /// One audit log entry.

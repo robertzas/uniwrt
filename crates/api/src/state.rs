@@ -1,15 +1,15 @@
-//! [`Api`]: what the handlers share: the store, the engine, the alert engine, the clock, the build identity, the
-//! HTTPS certificate, the password hasher, the login limiter, the setup window and the signal
+//! [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the
+//! notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal
 //! that closes the WS connections.
 
 use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
-use uniwrt_engine::{Alerts, Fleet};
+use uniwrt_engine::{Alerts, Fleet, Notify};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
-use uniwrt_store::{Store, UserRepo as _};
+use uniwrt_store::{Store, UserRepo as _, Vault};
 use zeroize::Zeroizing;
 
 use crate::{
@@ -29,6 +29,8 @@ pub struct ApiConfig {
     pub jobs: Jobs,
     /// The alert engine, when it runs.
     pub alerts: Option<Alerts>,
+    /// The notifications, when they run, and the vault that keeps notifiers' secrets.
+    pub notify: Option<(Notify, Vault)>,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -52,6 +54,7 @@ impl ApiConfig {
             certificate,
             jobs,
             alerts: None,
+            notify: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -72,6 +75,7 @@ struct Inner {
     certificate: Arc<dyn Certificate>,
     jobs: Jobs,
     alerts: Option<Alerts>,
+    notify: Option<(Notify, Vault)>,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
@@ -98,6 +102,7 @@ impl Api {
                 certificate: config.certificate,
                 jobs: config.jobs,
                 alerts: config.alerts,
+                notify: config.notify,
             }),
         })
     }
@@ -158,6 +163,15 @@ impl Api {
             .alerts
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("The alert engine is not running".to_owned()))
+    }
+
+    /// The notifications and the vault, or why not.
+    pub(crate) fn notify(&self) -> Result<(&Notify, &Vault), ApiError> {
+        self.inner
+            .notify
+            .as_ref()
+            .map(|(notify, vault)| (notify, vault))
+            .ok_or_else(|| ApiError::Unavailable("Notifications are not running".to_owned()))
     }
 
     pub(crate) fn jobs(&self) -> &Jobs {

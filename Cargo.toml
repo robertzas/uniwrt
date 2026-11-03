@@ -20,6 +20,7 @@ uniwrt-jobs = { path = "crates/jobs" }
 uniwrt-metrics = { path = "crates/metrics" }
 uniwrt-model = { path = "crates/model" }
 uniwrt-node = { path = "crates/node" }
+uniwrt-notify = { path = "crates/notify" }
 uniwrt-sim = { path = "crates/sim" }
 uniwrt-store = { path = "crates/store" }
 uniwrt-syslog = { path = "crates/syslog" }
@@ -79,6 +80,12 @@ futures-util = { version = "0.3.34", default-features = false }
 # An HTTP/2 client for the API's test of WebSockets over extended CONNECT (RFC 8441).
 hyper = { version = "1.12.0", default-features = false }
 hyper-util = { version = "0.1.21", default-features = false }
+# Notifiers (crates/notify): webhooks and ntfy over HTTPS with rustls on ring and Mozilla's roots,
+# email over SMTP with lettre (D-061, D-063); hyper and http-body-util are already in the tree.
+http-body-util = "0.1.5"
+hyper-rustls = { version = "0.27.10", default-features = false, features = ["http1", "ring", "tls12", "webpki-roots"] }
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
+webpki-roots = "1.0.11"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -36,9 +36,11 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/logs_tests.rs`: The logs routes over the demo's store, with entries recorded by hand.
 - `src/metrics.rs`: The metrics routes, with a session (features/observability.md, Metrics): `GET /api/v1/metrics?entity=<entity>&metrics=<a,b>&from=<ms>&to=<ms>&width=<points>` reads an entity's series over a time range at the resolution that holds it, reduced with LTTB to about `width` points ([`MetricsResponse`]); `GET /api/v1/metrics/series?under=<entity>` lists the series kept ([`SeriesInfo`]), for every entity or for one and those below it.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
+- `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
+- `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
-- `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the alert engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
+- `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
@@ -107,6 +109,9 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/logs/source.rs`: Where one node's log comes from, and what to skip so that each entry is stored once (D-059): the agent follows the log until syslog arrives from the node, and again once its syslog stops (TCP closed, or quiet for a while over UDP).
 - `src/logs/tests.rs`: The recorder over a store, an engine with one node (its link never connects) and syslog fed by hand: the agent follows the log, resumes after what is stored, gives way to syslog and takes over again when syslog goes quiet or closes; other hosts are stored by name.
 - `src/metrics.rs`: Recording metrics (`uniwrt_metrics`; features/observability.md, Metrics): a sampler fed by the bus (facts, topology builds, clients' samples) whose closed windows are written every [`MetricsConfig::flush_every`], and the store's upkeep beside it: rollups every [`MetricsConfig::roll_up_every`], retention every [`MetricsConfig::prune_every`].
+- `src/notify/mod.rs`: Notifications (features/observability.md, Notifications; `uniwrt_notify`): the alerts the alert engine stores ([`Event::Alerts`]) go through the notifiers' [`Policy`], which is also ticked for reminders; what it decides goes to each notifier's worker, which gathers what arrives together into one message, delivers it with its secrets from the vault, tries again when that may help, and records how it went.
+- `src/notify/tests.rs`: Notifications over a store, a vault and an engine without nodes, fed alerts by hand on a manual clock, delivering to a webhook on loopback: an alert already firing at the start is not repeated, a failed delivery is tried again, alerts that arrive together go as a digest, reminders follow the clock, a disabled notifier hears nothing, and a test goes out at once.
+- `src/notify/worker.rs`: One notifier's deliveries, in order: what arrives within [`NotifyConfig::gather`] of the first goes out together (one alert as itself, several as a digest of at most [`MAX_DIGEST`]), and a delivery that fails in a way that may pass is tried again after each of [`NotifyConfig::retries`].
 - `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
 - `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
 - `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
@@ -186,6 +191,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/log.rs`: Log entries (observability.md, Logs): what nodes log, read through the node agent or received by syslog, and what other hosts send by syslog; stored as [`LogRecord`]s, found with a [`LogFilter`], counted in [`LogBucket`]s, explained by [`LogPattern`]s, and kept as [`SavedSearch`]es.
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
+- `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
@@ -245,6 +251,27 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 - `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; and the gateway pushes its client's comings and goings.
 
+### `uniwrt-notify` (crates/notify)
+
+Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in words, rendered for ntfy, webhooks and email, sent over HTTP(S) and SMTP, and the policy that decides what to send and when.
+
+- `src/http.rs`: HTTP(S) POSTs for ntfy and webhooks: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed, and a bounded read of the answer.
+- `src/lib.rs`: Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in words, rendered for ntfy, webhooks and email, sent over HTTP(S) and SMTP, and the policy that decides what to send and when.
+- `src/message.rs`: What a notification says: one alert that opened, reopened, is still firing or resolved ([`Item`]), several of them at once (a digest), or a test; in words, with a link to the alert when the controller's address is known.
+- `src/policy.rs`: What to send, and when (features/observability.md, Notifications): pure, fed the alerts as the alert engine stores them and ticked for reminders.
+- `src/policy_tests.rs`: The policy over hand-made alerts on hand-moved time: who hears of an alert and when, silences, acknowledgements, reminders, resolutions, reopening, rules that change, notifiers added while alerts fire, and a restart.
+- `src/render/email.rs`: An email's subject and bodies: plain text, and HTML that reads well in mail clients (inline styles, one table, no images).
+- `src/render/mod.rs`: A [`Message`] rendered for a notifier: an HTTP request for ntfy and webhooks (each service's own format, uniwrt's JSON or the user's template), or an email's subject and bodies.
+- `src/render/ntfy.rs`: ntfy's JSON publishing (`POST <server>` with the topic in the body), which carries any title as UTF-8, unlike its headers.
+- `src/render/template.rs`: A custom webhook's body: JSON with `{{placeholders}}`.
+- `src/render/tests.rs`: Each format's body for one alert, a digest and a test; templates and their errors; email.
+- `src/render/webhook.rs`: Webhook bodies: uniwrt's JSON (also Home Assistant's), a Discord embed, Slack blocks and a Teams Adaptive Card.
+- `src/secrets.rs`: A notifier's secrets, sealed in the vault as one JSON value under `notifier/<id>` (features/security.md, Secrets vault): a webhook's URL (services put their tokens in it) and headers, an ntfy access token or password, an SMTP password.
+- `src/smtp.rs`: Email over SMTP with lettre: STARTTLS (required) or TLS from the start, over rustls (ring) with Mozilla's roots, and the user's credentials when it has some.
+- `src/tests.rs`: Delivery over loopback: an HTTP and an HTTPS server (its CA trusted through [`Sender::with_roots`]) that record one request each, and an SMTP server that upgrades with STARTTLS and records what it is given.
+- `src/text.rs`: Alerts in words, as the UI says them (`web/src/lib/alerts.ts`, `entities.ts`, `metrics.ts`): what an alert is about, what made it fire, levels, durations and times.
+- `src/validate.rs`: What a notifier must be to be stored: checked as the API takes it, so that sending fails only for reasons outside uniwrt (a server down, a password changed).
+
 ### `uniwrt` (crates/server)
 
 The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
@@ -257,7 +284,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder and the alert engine join them once the job runner is up ([`Fleet::record_events`]).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications and the alert engine join them once the job runner is up ([`Fleet::record_events`]).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -332,6 +359,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/metrics_tests.rs`: Metrics over a real database: recording, rollups with their envelopes and weights, reading with tails from finer resolutions, the series catalogue, and retention.
 - `src/repo/mod.rs`: Repository traits: the store's API by concern.
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
+- `src/repo/notifiers.rs`: [`NotifierRepo`] and [`SettingsRepo`] on SQLite: the `notifiers` and `settings` tables.
+- `src/repo/notifiers_tests.rs`: Notifiers and settings over a real database: created, listed, updated, deliveries recorded, deleted; a setting stored and replaced.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
@@ -411,7 +440,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (168 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (186 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
