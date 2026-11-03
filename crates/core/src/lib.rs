@@ -22,7 +22,7 @@ mod time;
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use id::{
-    AlertId, BackupId, EventId, JobId, LogId, NodeId, NotifierId, RuleId, SearchId, UserId,
+    AlertId, BackupId, EventId, JobId, LogId, NodeId, NotifierId, RuleId, ScanId, SearchId, UserId,
     WindowId,
 };
 pub use ipnet::{IpNet, Ipv4Net, Ipv6Net};

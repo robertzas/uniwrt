@@ -17,6 +17,13 @@ const DEFAULT_MAX_BYTES = 1048576;
 const MAX_BYTES = 16777216;
 // How long after its timeout a command's task may take to report before it counts as lost.
 const TASK_GRACE_MS = 5000;
+const SCAN_DEFAULT_TIMEOUT_MS = 20000;
+const SCAN_MAX_TIMEOUT_MS = 60000;
+// How long the scan's process may take beyond the scan (the surveys and the results).
+const SCAN_GRACE_MS = 5000;
+const SCAN_MAX_OUTPUT = 4194304;
+// The agent's directory, where scan.uc is.
+const DIR = sourcepath(0, true);
 
 function ping(args, done) {
 	done({ ts: now_ms() });
@@ -48,22 +55,64 @@ function reply(done, r) {
 	done(null, FAILED, "the command ended without a result");
 }
 
-// Under the event loop the command runs in a forked task, so other requests go on meanwhile.
-function run(args, done, loop) {
-	let req = exec.parse(args);
-	if (req.err)
-		return done(null, BAD_REQUEST, req.err);
+// Runs a parsed command and hands `finish` exec.run's result. Under the event loop the command
+// runs in a forked task, so other requests go on meanwhile.
+function command(req, done, loop, finish) {
 	if (!loop)
-		return reply(done, exec.run(req));
+		return finish(exec.run(req));
 	let guard = null;
 	let task = loop.task(() => exec.run(req), (r) => {
 		guard?.cancel();
-		reply(done, r);
+		finish(r);
 	});
 	guard = loop.timer(req.timeout_ms + TASK_GRACE_MS, () => {
 		task.kill();
 		done(null, FAILED, "the command's task ended without a result");
 	});
+}
+
+function run(args, done, loop) {
+	let req = exec.parse(args);
+	if (req.err)
+		return done(null, BAD_REQUEST, req.err);
+	command(req, done, loop, (r) => reply(done, r));
+}
+
+// The answer scan.uc printed.
+function scanned(done, r) {
+	if (r?.err)
+		return done(null, r.err[0], r.err[1]);
+	let out = null;
+	try {
+		out = json(r.ok.stdout);
+	}
+	catch (e) {
+		// Reported below, with what the worker wrote to stderr.
+	}
+	if (out?.ok)
+		return done(out.ok);
+	if (type(out?.err) == "array")
+		return done(null, out.err[0], out.err[1]);
+	done(null, FAILED, `the scan ended without a result: ${trim(r.ok?.stderr ?? "")}`);
+}
+
+// `scan`: scan.uc in a process of its own (it explains why), as a command.
+function scan(args, done, loop) {
+	if (type(args.ifname) != "string" || !match(args.ifname, /^[A-Za-z0-9._-]{1,15}$/))
+		return done(null, BAD_REQUEST, "ifname must be an interface name");
+	let freqs = args.freqs ?? [];
+	if (type(freqs) != "array" || length(filter(freqs, (f) => type(f) != "int" || f <= 0)))
+		return done(null, BAD_REQUEST, "freqs must be an array of frequencies in MHz");
+	let timeout_ms = args.timeout_ms ?? SCAN_DEFAULT_TIMEOUT_MS;
+	if (type(timeout_ms) != "int" || timeout_ms < 1000 || timeout_ms > SCAN_MAX_TIMEOUT_MS)
+		return done(null, BAD_REQUEST, `timeout_ms must be between 1000 and ${SCAN_MAX_TIMEOUT_MS}`);
+	let worker = { ifname: args.ifname, freqs: freqs, timeout_ms: timeout_ms };
+	let req = {
+		argv: ["ucode", `${DIR}/scan.uc`, sprintf("%J", worker)],
+		timeout_ms: timeout_ms + SCAN_GRACE_MS,
+		max_output: SCAN_MAX_OUTPUT,
+	};
+	command(req, done, loop, (r) => scanned(done, r));
 }
 
 function read_file(args, done) {
@@ -90,7 +139,7 @@ function streaming(op) {
 }
 
 const OPS = {
-	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file,
+	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file, scan: scan,
 	subscribe: streaming(streams.subscribe), unsubscribe: streaming(streams.unsubscribe),
 	log_follow: streaming(logs.log_follow), set_interval: streaming(ticks.set_interval),
 };

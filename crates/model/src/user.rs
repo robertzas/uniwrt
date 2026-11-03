@@ -61,6 +61,8 @@ pub enum AuditAction {
     Maintenance,
     /// A user created, edited or deleted a notifier, or changed the notification settings.
     Notifier,
+    /// A user asked for neighbor scans or changed the scanning settings.
+    Rf,
 }
 
 /// One audit log entry.

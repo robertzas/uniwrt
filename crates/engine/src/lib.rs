@@ -28,7 +28,12 @@
 //!   [`Notifications`] ([`NotifyConfig`]) sends what the alerts' notifiers should hear of
 //!   (`uniwrt_notify`: opened, reopened, reminders, resolved; digests of what arrives together;
 //!   retries), with their secrets from the vault, and records how each delivery went;
-//!   [`Notify`] is the API's handle on it (reload, test).
+//!   [`Notify`] is the API's handle on it (reload, test);
+//!   [`RfScanner`] ([`RfConfig`]) scans each radio's neighbors through its node's link (every
+//!   few hours while the radio is idle, and when an admin asks; one scan at a time), stores the
+//!   scans through `RfRepo` (30 days) and builds the RF report (`uniwrt_rf`) from the facts, the
+//!   latest scans and the radar history, announced as [`Event::Rf`]; [`Rf`] is the API's handle
+//!   on it (view, scan, settings).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -51,8 +56,9 @@
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
-//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `SettingsRepo`, `VaultRepo`),
-//!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
+//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`),
+//!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-rf` (the RF
+//!   report), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
 //!   receiver hands on, the annotations), tokio, tracing,
 //!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
@@ -74,6 +80,7 @@ mod live;
 mod logs;
 mod metrics;
 mod notify;
+mod rf;
 mod roam;
 mod schedule;
 mod snapshots;
@@ -95,6 +102,7 @@ pub use live::NodeView;
 pub use logs::{LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
 pub use notify::{Notifications, Notify, NotifyConfig, NotifyStopped};
+pub use rf::{Rf, RfConfig, RfError, RfScanner};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
 pub use topology::Identity;

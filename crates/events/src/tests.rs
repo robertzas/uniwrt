@@ -402,7 +402,7 @@ fn record(id: i64, pattern: Option<&str>, received: i64) -> LogRecord {
 
 #[test]
 fn log_entries_whose_pattern_is_an_event_are_events() {
-    let d = deriver();
+    let mut d = deriver();
     let event_of = |pattern: &str| {
         (pattern == "dfs-radar").then_some((EventCategory::Wifi, Severity::Warning))
     };

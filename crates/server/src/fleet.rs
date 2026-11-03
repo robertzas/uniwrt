@@ -1,8 +1,9 @@
 //! The fleet at startup: an SSH link per adopted node, handed to the engine with the node's
 //! latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the
 //! clients' recorder (which restores the clients first) and the log recorder (with the syslog
-//! receiver, when it listens); the event recorder, the notifications and the alert engine join
-//! them once the job runner is up ([`Fleet::record_events`]). In demo mode the nodes are simulated
+//! receiver, when it listens); the event recorder, the notifications, the alert engine and RF
+//! insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode
+//! scans sooner and busy or not). In demo mode the nodes are simulated
 //! instead,
 //! adopted into the demo's own database but for the last access point, which waits to be
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
@@ -16,7 +17,8 @@ use uniwrt_core::Clock;
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, ClientRecorder, Engine, EngineConfig, EventRecorder,
     EventsConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder,
-    Notifications, Notify, NotifyConfig, RecorderConfig, Snapshots, TopologyHistory,
+    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, Snapshots,
+    TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -49,6 +51,8 @@ pub(crate) struct Fleet {
     alerts: Option<AlertEngine>,
     /// The notifications, and the vault that keeps notifiers' secrets.
     notifications: Option<(Notifications, Vault)>,
+    /// RF insight's scanner.
+    rf: Option<RfScanner>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -98,6 +102,7 @@ impl Fleet {
             events: None,
             alerts: None,
             notifications: None,
+            rf: None,
             syslog,
             sim: None,
         })
@@ -153,6 +158,7 @@ impl Fleet {
             events: None,
             alerts: None,
             notifications: None,
+            rf: None,
             syslog,
             sim: Some((sim, dial)),
         })
@@ -184,6 +190,9 @@ impl Fleet {
         }
         if let Some((notifications, _)) = self.notifications {
             notifications.stop().await;
+        }
+        if let Some(rf) = self.rf {
+            rf.stop().await;
         }
         self.logs.stop().await;
         self.snapshots.stop().await;
@@ -237,6 +246,24 @@ impl Fleet {
         )
         .await;
         self.alerts = Some(alerts);
+        let rf = if self.sim.is_some() {
+            // The demo shows RF insight within its first minute; its traffic never pauses.
+            RfConfig {
+                first_delay: Duration::from_secs(5),
+                stagger: Duration::from_secs(3),
+                gap: Duration::from_secs(2),
+                idle_kbps: u64::MAX,
+                ..RfConfig::default()
+            }
+        } else {
+            RfConfig::default()
+        };
+        self.rf = Some(RfScanner::start(&self.engine, store.clone(), rf).await);
+    }
+
+    /// RF insight's handle, once [`Fleet::record_events`] started it.
+    pub(crate) fn rf(&self) -> Option<Rf> {
+        self.rf.as_ref().map(RfScanner::handle)
     }
 
     /// The alert engine's handle, once [`Fleet::record_events`] started it.

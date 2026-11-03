@@ -26,8 +26,8 @@ use uniwrt_node::{
     events::Push,
     facts,
     proto::ops::{
-        Collect, Exec, LogFollow, LogMode, Ping, ReadFile, Set, SetInterval, Subscribe, Topic,
-        Ubus, Unsubscribe, code,
+        Collect, Exec, LogFollow, LogMode, Ping, ReadFile, Scan, Set, SetInterval, Subscribe,
+        Topic, Ubus, Unsubscribe, code,
     },
 };
 
@@ -83,6 +83,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
             "log_follow",
             "ping",
             "read_file",
+            "scan",
             "set_interval",
             "subscribe",
             "ubus",
@@ -190,6 +191,16 @@ async fn ops_answer_or_fail_with_a_code() {
     assert_eq!(link.request(&binary, LONG).await.unwrap().data, "RElT");
     let missing = link.request(&ReadFile::new("/nope"), LONG).await;
     assert_eq!(remote_code(missing), code::NOT_FOUND);
+
+    // Without Wi-Fi (no nl80211 module, or no such interface) a scan cannot run.
+    let scan = link.request(&Scan::new("phy0-ap0", vec![5180]), LONG).await;
+    let scan_code = remote_code(scan);
+    assert!(
+        [code::UNSUPPORTED, code::NOT_FOUND].contains(&scan_code.as_str()),
+        "{scan_code}"
+    );
+    let bad = link.request(&Scan::new("a b; reboot", vec![]), LONG).await;
+    assert_eq!(remote_code(bad), code::BAD_REQUEST);
 
     let args = serde_json::value::to_raw_value(&serde_json::json!({})).unwrap();
     let unknown = link.call("bogus", &args, LONG).await;

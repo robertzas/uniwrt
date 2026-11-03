@@ -29,6 +29,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0009_events",
     "0010_alerts",
     "0011_notifiers",
+    "0012_rf",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

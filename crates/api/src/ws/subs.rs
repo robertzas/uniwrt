@@ -18,6 +18,7 @@ use uniwrt_model::{
     node::Node,
 };
 use uniwrt_node::proto::ops::Set;
+use uniwrt_rf::RfView;
 use uniwrt_store::{LogRepo as _, NodeRepo as _};
 use uniwrt_topo::Topology;
 
@@ -92,6 +93,8 @@ enum Pending {
     Client(Box<ClientPending>),
     Events(EventsPending),
     Alerts(AlertsPending),
+    /// The newest view announced since the last flush.
+    Rf(Option<Arc<RfView>>),
 }
 
 impl Subscriptions {
@@ -199,36 +202,39 @@ async fn logs(
     ))
 }
 
+/// The fleet topic's state and snapshot: every adopted node's summary.
+async fn fleet(api: &Api, topic: String) -> Result<(Sub, ServerMessage), BadTopic> {
+    let records: BTreeMap<_, _> = api
+        .store()
+        .nodes()
+        .await
+        .map_err(|err| unavailable(&err))?
+        .into_iter()
+        .map(|node| (node.id, node))
+        .collect();
+    let views: BTreeMap<_, _> = api.fleet().all().into_iter().collect();
+    let sent: BTreeMap<_, _> = records
+        .values()
+        .map(|node| (node.id, NodeSummary::new(node, views.get(&node.id))))
+        .collect();
+    let snapshot = ServerMessage::FleetSnapshot {
+        topic,
+        nodes: sent.values().cloned().collect(),
+    };
+    let pending = Pending::Fleet {
+        records,
+        sent,
+        dirty: BTreeSet::new(),
+        removed: BTreeSet::new(),
+    };
+    Ok((sub(pending, None), snapshot))
+}
+
 /// Subscribes to the topic named `name`: its state and snapshot.
 async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTopic> {
     let topic = name.to_owned();
     Ok(match Topic::parse(name)? {
-        Topic::Fleet => {
-            let records: BTreeMap<_, _> = api
-                .store()
-                .nodes()
-                .await
-                .map_err(|err| unavailable(&err))?
-                .into_iter()
-                .map(|node| (node.id, node))
-                .collect();
-            let views: BTreeMap<_, _> = api.fleet().all().into_iter().collect();
-            let sent: BTreeMap<_, _> = records
-                .values()
-                .map(|node| (node.id, NodeSummary::new(node, views.get(&node.id))))
-                .collect();
-            let snapshot = ServerMessage::FleetSnapshot {
-                topic,
-                nodes: sent.values().cloned().collect(),
-            };
-            let pending = Pending::Fleet {
-                records,
-                sent,
-                dirty: BTreeSet::new(),
-                removed: BTreeSet::new(),
-            };
-            (sub(pending, None), snapshot)
-        }
+        Topic::Fleet => fleet(api, topic).await?,
         Topic::Node(node) => {
             let record = read_node(api, node).await?;
             let interest = api.fleet().focus(node);
@@ -290,6 +296,16 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
         Topic::Alerts => {
             let (pending, snapshot) = AlertsPending::subscribe(api, topic).await?;
             (sub(Pending::Alerts(pending), None), snapshot)
+        }
+        Topic::Rf => {
+            let rf = api
+                .rf()
+                .map_err(|_| BadTopic("RF insight is not running".to_owned()))?;
+            let view = rf.view();
+            (
+                sub(Pending::Rf(None), None),
+                ServerMessage::Rf { topic, view },
+            )
         }
     })
 }
@@ -388,6 +404,11 @@ impl Pending {
             Self::Client(pending) => pending.apply(api, event),
             Self::Events(pending) => pending.apply(event),
             Self::Alerts(pending) => pending.apply(event),
+            Self::Rf(latest) => {
+                if let Event::Rf { view } = event {
+                    *latest = Some(Arc::clone(view));
+                }
+            }
             Self::Jobs { .. } => {}
         }
     }
@@ -474,6 +495,7 @@ impl Pending {
             Self::Client(pending) => pending.flush(topic),
             Self::Events(pending) => pending.flush(topic),
             Self::Alerts(pending) => pending.flush(topic),
+            Self::Rf(latest) => latest.take().map(|view| ServerMessage::Rf { topic, view }),
         }
     }
 }

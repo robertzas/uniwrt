@@ -15,6 +15,7 @@ use uniwrt_model::{
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
+use uniwrt_rf::RfView;
 use uniwrt_topo::Topology;
 
 /// One announcement. Clones are cheap: facts and log batches are shared.
@@ -66,11 +67,14 @@ pub enum Event {
     /// Alerts as stored ([`AlertEngine`](crate::AlertEngine)): opened, changed, resolved or
     /// acknowledged, in the order they were stored.
     Alerts { alerts: Arc<[AlertRecord]> },
+    /// RF insight's view changed ([`RfScanner`](crate::RfScanner)): the report, the radios'
+    /// scanning and the settings.
+    Rf { view: Arc<RfView> },
 }
 
 impl Event {
     /// The node it is about; `None` for a roam, which is about two, the topology, clients,
-    /// stored log entries, recorded events, metric windows and alerts.
+    /// stored log entries, recorded events, metric windows, alerts and RF insight.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -84,7 +88,8 @@ impl Event {
             | Self::Logged { .. }
             | Self::Recorded { .. }
             | Self::Sampled { .. }
-            | Self::Alerts { .. } => None,
+            | Self::Alerts { .. }
+            | Self::Rf { .. } => None,
         }
     }
 }

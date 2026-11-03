@@ -12,8 +12,12 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, Timestamp};
 
 use crate::{
-    client::ClientMedium, event::Attachment, job::JobKind, log::Severity, status::StatusReason,
-    wifi::Band,
+    client::ClientMedium,
+    event::Attachment,
+    job::JobKind,
+    log::Severity,
+    status::StatusReason,
+    wifi::{Band, ChannelWidth},
 };
 
 /// How much an event matters, most first.
@@ -214,6 +218,27 @@ pub enum EventKind {
         vendor: Option<String>,
         hostname: Option<String>,
     },
+    /// A radio moved to another channel; `radar` when hostapd reported radar on its node in
+    /// the 2 minutes before (a DFS channel it had to leave).
+    ChannelChanged {
+        radio: String,
+        band: Band,
+        from: u16,
+        to: u16,
+        width: Option<ChannelWidth>,
+        radar: bool,
+    },
+    /// A radio's channel stayed busy (raises `radio:<name>/busy`); `busy_percent` is the share
+    /// of time any transmitter used it.
+    ChannelCongested {
+        radio: String,
+        busy_percent: u8,
+    },
+    ChannelClear {
+        radio: String,
+        busy_percent: u8,
+        congested_ms: Option<u64>,
+    },
     /// A log entry that a pattern marks as an event (`log-patterns.toml`'s `event`): the
     /// pattern's id, the entry, its host when it is not a node's, and its text (cut short).
     LogPattern {
@@ -256,6 +281,10 @@ impl EventKind {
                 (C::Client, L::Info)
             }
             Self::NewClient { .. } => (C::Client, L::Notice),
+            Self::ChannelChanged { radar: true, .. } | Self::ChannelCongested { .. } => {
+                (C::Wifi, L::Warning)
+            }
+            Self::ChannelChanged { .. } | Self::ChannelClear { .. } => (C::Wifi, L::Notice),
         }
     }
 
@@ -282,6 +311,9 @@ impl EventKind {
             Self::ClientLeft { .. } => "client_left",
             Self::ClientRoamed { .. } => "client_roamed",
             Self::NewClient { .. } => "new_client",
+            Self::ChannelChanged { .. } => "channel_changed",
+            Self::ChannelCongested { .. } => "channel_congested",
+            Self::ChannelClear { .. } => "channel_clear",
             Self::LogPattern { .. } => "log_pattern",
             Self::JobFailed { .. } => "job_failed",
         }

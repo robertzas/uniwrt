@@ -102,6 +102,37 @@ describe("events in words", () => {
     ).toBe("Controller started (1.2.3)");
   });
 
+  it("tells radios moving and their channel congested", () => {
+    const moved = {
+      kind: "channel_changed",
+      radio: "radio1",
+      band: "5g",
+      from: 52,
+      to: 36,
+    } as const;
+    expect(describeEvent(event({ ...moved, width: 80, radar: false }), names)).toEqual({
+      title: "Attic AP radio1 moved from channel 52 to 36",
+      detail: "5 GHz · 80 MHz",
+    });
+    expect(describeEvent(event({ ...moved, width: null, radar: true }), names).detail).toBe(
+      "Radar on its DFS channel made it move",
+    );
+    expect(
+      describeEvent(event({ kind: "channel_congested", radio: "radio1", busy_percent: 86 }), names),
+    ).toEqual({ title: "Attic AP radio1: channel congested", detail: "86% busy" });
+    expect(
+      describeEvent(
+        event({
+          kind: "channel_clear",
+          radio: "radio1",
+          busy_percent: 40,
+          congested_ms: 1_200_000,
+        }),
+        names,
+      ).detail,
+    ).toBe("40% busy, after 20m congested");
+  });
+
   it("links to the logs around it, on its device", () => {
     const url = new URL(
       logsAround(event({ kind: "node_adopted" }, { last_at: 1_060_000 })),

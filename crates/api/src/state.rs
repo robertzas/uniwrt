@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
-use uniwrt_engine::{Alerts, Fleet, Notify};
+use uniwrt_engine::{Alerts, Fleet, Notify, Rf};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
@@ -31,6 +31,7 @@ pub struct ApiConfig {
     pub alerts: Option<Alerts>,
     /// The notifications, when they run, and the vault that keeps notifiers' secrets.
     pub notify: Option<(Notify, Vault)>,
+    pub rf: Option<Rf>,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -55,6 +56,7 @@ impl ApiConfig {
             jobs,
             alerts: None,
             notify: None,
+            rf: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -76,6 +78,7 @@ struct Inner {
     jobs: Jobs,
     alerts: Option<Alerts>,
     notify: Option<(Notify, Vault)>,
+    rf: Option<Rf>,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
@@ -103,6 +106,7 @@ impl Api {
                 jobs: config.jobs,
                 alerts: config.alerts,
                 notify: config.notify,
+                rf: config.rf,
             }),
         })
     }
@@ -172,6 +176,14 @@ impl Api {
             .as_ref()
             .map(|(notify, vault)| (notify, vault))
             .ok_or_else(|| ApiError::Unavailable("Notifications are not running".to_owned()))
+    }
+
+    /// RF insight, or why not.
+    pub(crate) fn rf(&self) -> Result<&Rf, ApiError> {
+        self.inner
+            .rf
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("RF insight is not running".to_owned()))
     }
 
     pub(crate) fn jobs(&self) -> &Jobs {

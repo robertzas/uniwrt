@@ -1,6 +1,6 @@
 //! [`SimLink`]: one simulated node behind [`NodeLink`]. It answers the agent's ops as the
 //! event-loop agent does (`collect`, `subscribe`/`unsubscribe`, `set_interval`, `log_follow`,
-//! `ping`), keeps what they asked for in the node's [`Session`], and runs only the commands
+//! `ping`, `scan`), keeps what they asked for in the node's [`Session`], and runs only the commands
 //! adoption runs (`render::commands`).
 
 use std::{
@@ -138,6 +138,14 @@ impl SimLink {
                     }
                 });
                 json!({"mode": mode})
+            }
+            "scan" => {
+                let ifname: String = field(op, args, "ifname")?;
+                render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {
+                    op: op.to_owned(),
+                    code: "not_found".to_owned(),
+                    msg: format!("the radio cannot scan: no such device {ifname}"),
+                })?
             }
             _ => return Err(bad_request(op, "unknown op")),
         })

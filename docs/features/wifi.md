@@ -35,11 +35,19 @@ Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `w
 
 ## RF insight (read-only) [M2.6]
 
-- **Channel survey** (`iw survey dump`) every few minutes: channel utilization and noise floor.
-- **Neighbor scans** of foreign BSSs (channel, width, RSSI, SSID): staggered per radio, scheduled off-peak by default, kept 30 days.
-- **Inter-node RSSI matrix:** each node's scans hear the other nodes' BSSIDs. This link-budget map also feeds 11k and the planner.
-- **DFS events** (radar detected, CAC, channel switch), from hostapd events and logs.
-- Views: channel occupancy per band, utilization over time, interference sources, "who is on my channel".
+`/insights/rf` (`features/rf`), the dashboard's RF card, and the pure `rf` crate behind them (D-064).
+
+- **Scans** (`scan` op; `node-agent/scan.uc` in a process of its own, with its own nl80211 socket): one radio through its access point's interface (else its mesh point's), as an AP may scan (nl80211's AP and flush flags), over the band's channels its phy has; up to 20 s, aborted after. The answer carries each BSS's information elements (base64), which the controller parses (`crates/node/src/facts/ies.rs`: SSID, mesh ID, DS/HT/VHT/HE/EHT operation for the channel, width and center, the newest standard, RSN AKMs for the security, BSS load), and the phy's survey before and after the scan, whose difference is each channel's busy share and noise while it listened. Results the kernel cached from an earlier scan are left out.
+- **Schedule** (D-064): background scans run each radio every 4 h (1 to 24, the `rf` setting; on by default), only while it is idle: its stations (mesh peers included) moved under 500 kbit/s in the two latest samples. A busy radio waits 10 minutes and tries again; a driver that cannot scan, 24 h. New radios are due 2 minutes after they appear, a minute apart. One scan runs at a time across the site, 30 s apart, on online nodes only. Admins queue scans of every radio, a node's or one at any time; those run first, busy or not. Scans are kept 30 days (`rf_scans`, migration 0012).
+- **Report** (`uniwrt_rf::report`, rebuilt at most every 5 s and announced when it changes), per band:
+  - *Radios:* channel, width, power, live busy share and noise, the foreign networks its node hears overlapping its channel, and its interference: the sum of their impacts, `weight(signal) × overlap`, where `weight` is a logistic curve from about nothing at −90 dBm to about everything at −60 dBm and `overlap` the share of the radio's channel the network covers. Under 0.3 is a clean channel, under 1 some overlap, else crowded.
+  - *Channels* (each 20 MHz channel): allowed by any phy, DFS and its worst state, radar hits in 30 days (from `DFS-RADAR-DETECTED` lines and the `dfs-radar` events), foreign networks covering it, the strongest, the pressure, busy (live on a radio's channel, else from the latest survey), noise, and the site's radios on it.
+  - *Networks:* every BSS heard, as heard best, with who heard it: the site's own (by BSSID), lookalikes (named like the site's networks but not adopted: waiting for adoption, or an impostor) and neighbors, with the vendor from the OUI, most disruptive first.
+  - *Inter-node RSSI matrix:* how each node hears each other node: a live mesh peer link's signal first, else the strongest of the other node's BSSs in the latest scans. It is the link budget behind 11k neighbor reports and the planner (M5.2, M6.1).
+- **Events** (observability.md, Events): channel changes (marked when radar came first) and congestion; radar and CAC from the log patterns.
+- **API:** `GET v1/rf` (the view: report, each radio's scanning state with its last scan and next time, the settings); WS topic `rf` (the view, then each new one); `POST v1/rf/scans` (admins: `{node?, radio?}`, 202 with the radios queued); `GET v1/rf/scans?node=&radio=&before=&limit=` (stored scans, without what they heard) and `GET v1/rf/scans/{id}`; `PUT v1/rf/settings` (admins). Scans and settings changes are audited.
+- **UI:** the band in the URL (`?band=2g`, 5 GHz by default). The spectrum: each network a hill over the frequencies it occupies, as high as it is heard (own in the accent, lookalikes in warning, neighbors muted), contiguous channels in segments with breaks over gaps, DFS channels and radar marked under the axis; hovering a hill or a row selects the network everywhere. The radios as cards (crowding verdict, busy, noise, interference, who shares the channel, last and next scan, a scan button for admins). The channels in use (all on demand), the matrix, each radio's busy share over time (the metric `busy`), and the networks table (all, neighbors, yours). Admins turn background scans on or off, pick the interval and scan everything now.
+- Later: scan history views (a network's signal over time) and the "who is on my channel" list per client's AP (M5.2).
 
 ## RF planner: auto channel, width and power [M6.1]
 

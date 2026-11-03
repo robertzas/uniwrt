@@ -161,6 +161,7 @@ async fn start_api(
     let api = Api::new(ApiConfig {
         alerts: fleet.alerts(),
         notify: fleet.notify(),
+        rf: fleet.rf(),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

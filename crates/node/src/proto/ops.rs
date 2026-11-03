@@ -3,6 +3,7 @@
 //! [`Error::Remote`](crate::Error::Remote) with one of the [`code`]s. The ops that make the agent
 //! push events and ticks are in `streams.rs` and re-exported here.
 
+mod scan;
 mod streams;
 
 use std::{collections::BTreeMap, fmt};
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value, value::RawValue};
 use uniwrt_core::Timestamp;
 
+pub use self::scan::{RawBss, RawSurvey, Scan, Scanned};
 pub use self::streams::{
     LogFollow, LogFollowing, LogMode, Schedule, SetInterval, Subscribe, Subscribed, Topic,
     Unsubscribe,

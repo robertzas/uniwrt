@@ -17,7 +17,7 @@ use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, Engine, EngineConfig, Fleet, LogRecorder, LogsConfig,
-    Notifications, Notify, NotifyConfig,
+    Notifications, Notify, NotifyConfig, Rf, RfConfig, RfScanner,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -98,10 +98,10 @@ pub(crate) async fn api_with(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
 ) -> Api {
-    api_full(store, fleet, clock, dial, None, None).await
+    api_full(store, fleet, clock, dial, None, None, None).await
 }
 
-/// [`api_with`], with the alert engine's handle.
+/// [`api_with`], with the alert engine's, the notifications' and RF insight's handles.
 pub(crate) async fn api_full(
     store: Store,
     fleet: Arc<dyn Fleet>,
@@ -109,6 +109,7 @@ pub(crate) async fn api_full(
     dial: Option<Arc<dyn Dial>>,
     alerts: Option<Alerts>,
     notify: Option<(Notify, Vault)>,
+    rf: Option<Rf>,
 ) -> Api {
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -130,6 +131,7 @@ pub(crate) async fn api_full(
         password_cost: PasswordCost::CHEAPEST,
         alerts,
         notify,
+        rf,
         ..ApiConfig::new(
             store,
             fleet,
@@ -163,6 +165,8 @@ pub(crate) struct Demo {
     /// Evaluates the alert rules (the API's alert routes go through it).
     _alerts: AlertEngine,
     _notifications: Notifications,
+    /// Scans the simulated radios at once, one after another, busy or not.
+    _rf: RfScanner,
 }
 
 impl Demo {
@@ -231,6 +235,16 @@ impl Demo {
             }) as Arc<dyn Dial>
         });
         let notify = Some((notifications.handle(), vault));
+        let rf_config = RfConfig {
+            tick_every: Duration::from_millis(20),
+            first_delay: Duration::ZERO,
+            stagger: Duration::ZERO,
+            gap: Duration::ZERO,
+            idle_kbps: u64::MAX,
+            rebuild_after: Duration::ZERO,
+            ..RfConfig::default()
+        };
+        let rf = RfScanner::start(&engine, store.clone(), rf_config).await;
         let api = api_full(
             store.clone(),
             fleet,
@@ -238,6 +252,7 @@ impl Demo {
             dial,
             Some(alerts.handle()),
             notify,
+            Some(rf.handle()),
         )
         .await;
         api.create_admin("admin", PASSWORD).await.unwrap();
@@ -252,6 +267,7 @@ impl Demo {
             logs: None,
             _alerts: alerts,
             _notifications: notifications,
+            _rf: rf,
         };
         demo.cookie = login(&demo.api).await;
         demo

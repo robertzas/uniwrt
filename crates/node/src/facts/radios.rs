@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 use serde::Deserialize;
 use uniwrt_model::{
     facts::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
-    wifi::WifiStandard,
+    wifi::{Band, WifiStandard},
 };
 
 use super::{round, wifi};
@@ -123,7 +123,7 @@ pub(super) fn parse(raw: Raw) -> Vec<RadioFacts> {
                 .band
                 .as_deref()
                 .and_then(wifi::band_named)
-                .or_else(|| wifi::band_of(frequency_mhz?))?;
+                .or_else(|| Band::of_frequency(frequency_mhz?))?;
             let survey = phy
                 .as_ref()
                 .and_then(|phy| raw.surveys.get(phy))
@@ -134,7 +134,7 @@ pub(super) fn parse(raw: Raw) -> Vec<RadioFacts> {
                 band,
                 up: radio.up,
                 disabled: radio.disabled,
-                channel: frequency_mhz.and_then(|mhz| wifi::channel(band, mhz)),
+                channel: frequency_mhz.and_then(|mhz| band.channel(mhz)),
                 frequency_mhz,
                 center_frequency_mhz: live.and_then(|nl| nl.center_freq1),
                 width: live.and_then(|nl| wifi::width(nl.channel_width?)),

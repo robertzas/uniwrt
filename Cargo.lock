@@ -3170,6 +3170,7 @@ dependencies = [
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-notify",
+ "uniwrt-rf",
  "uniwrt-sim",
  "uniwrt-store",
  "uniwrt-syslog",
@@ -3219,6 +3220,7 @@ dependencies = [
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-notify",
+ "uniwrt-rf",
  "uniwrt-store",
  "uniwrt-syslog",
  "uniwrt-topo",
@@ -3325,10 +3327,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-rf"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ts-rs",
+ "uniwrt-core",
+ "uniwrt-model",
+]
+
+[[package]]
 name = "uniwrt-sim"
 version = "0.0.0"
 dependencies = [
  "bytes",
+ "data-encoding",
  "serde",
  "serde_json",
  "tokio",

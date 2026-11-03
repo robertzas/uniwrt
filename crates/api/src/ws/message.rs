@@ -21,6 +21,7 @@ use uniwrt_model::{
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
+use uniwrt_rf::RfView;
 use uniwrt_topo::{Topology, TopologyDelta};
 
 use crate::{
@@ -152,6 +153,11 @@ pub enum ServerMessage {
         sessions: Vec<ClientSession>,
         /// The client was forgotten.
         removed: bool,
+    },
+    /// RF insight's view: when `rf` is subscribed, after a resync, and whenever it changes.
+    Rf {
+        topic: String,
+        view: Arc<RfView>,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

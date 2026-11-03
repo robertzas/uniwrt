@@ -17,9 +17,8 @@ function phys() {
 	return found;
 }
 
-// An nl80211 request by the names of its command and flags: its replies, [] when there are none.
-// An error raises, failing the set that made the request.
-function request(cmd, flags, msg) {
+// The nl80211 module, loaded on first use; raises when it is not installed.
+function nl80211() {
 	if (!nl) {
 		try {
 			nl = require("nl80211");
@@ -28,6 +27,13 @@ function request(cmd, flags, msg) {
 			die("ucode-mod-nl80211 is not installed");
 		}
 	}
+	return nl;
+}
+
+// An nl80211 request by the names of its command and flags: its replies, [] when there are none.
+// An error raises, failing the set that made the request.
+function request(cmd, flags, msg) {
+	nl80211();
 	let reply = nl.request(nl.const[cmd], flags ? nl.const[flags] : 0, msg);
 	if (reply == null) {
 		let err = nl.error();
@@ -43,4 +49,4 @@ function interfaces() {
 	return filter(request("NL80211_CMD_GET_INTERFACE", "NLM_F_DUMP"), (i) => i?.ifname != null);
 }
 
-export { phys, request, interfaces };
+export { phys, nl80211, request, interfaces };

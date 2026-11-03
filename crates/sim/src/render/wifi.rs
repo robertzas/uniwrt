@@ -13,7 +13,7 @@ use crate::world::{
 };
 
 pub(crate) const SSID: &str = "uniwrt-demo";
-const MESH_ID: &str = "uniwrt-demo-mesh";
+pub(crate) const MESH_ID: &str = "uniwrt-demo-mesh";
 /// The SoC's Wi-Fi device; its second phy is `+1`.
 const WIFI_PATH: &str = "platform/soc/18000000.wifi";
 

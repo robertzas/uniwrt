@@ -22,6 +22,8 @@
 //!   [`metric::Resolution`].
 //!   [`alerts`] holds alert rules ([`alerts::AlertRule`] over metrics or events), the alerts
 //!   they fire ([`alerts::AlertRecord`]) and maintenance windows.
+//!   [`rf`] is what radios' neighbor scans hear ([`rf::Scan`]: networks and the channel survey)
+//!   and the scanning settings ([`rf::RfSettings`]).
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
@@ -48,6 +50,7 @@ pub mod log;
 pub mod metric;
 pub mod node;
 pub mod notify;
+pub mod rf;
 pub mod status;
 pub mod user;
 pub mod wifi;

@@ -14,17 +14,6 @@ pub(super) fn band(index: usize) -> Option<Band> {
     }
 }
 
-/// The band a frequency lies in.
-pub(super) fn band_of(mhz: u32) -> Option<Band> {
-    match mhz {
-        2400..=2500 => Some(Band::G2),
-        4900..=5924 => Some(Band::G5),
-        5925..=7125 => Some(Band::G6),
-        57000..=72000 => Some(Band::G60),
-        _ => None,
-    }
-}
-
 /// UCI's names of the bands.
 pub(super) fn band_named(name: &str) -> Option<Band> {
     match name {
@@ -34,19 +23,6 @@ pub(super) fn band_named(name: &str) -> Option<Band> {
         "60g" => Some(Band::G60),
         _ => None,
     }
-}
-
-/// The IEEE channel number of a frequency in its band.
-pub(super) fn channel(band: Band, mhz: u32) -> Option<u16> {
-    let number = match band {
-        Band::G2 if mhz == 2484 => 14,
-        Band::G2 => mhz.checked_sub(2407)? / 5,
-        Band::G5 => mhz.checked_sub(5000)? / 5,
-        Band::G6 if mhz == 5935 => 2,
-        Band::G6 => mhz.checked_sub(5950)? / 5,
-        Band::G60 => mhz.checked_sub(56160)? / 2160,
-    };
-    u16::try_from(number).ok()
 }
 
 /// `enum nl80211_chan_width`; 5 and 10 MHz and the S1G widths have no [`ChannelWidth`].
@@ -70,27 +46,9 @@ pub(super) fn dbm(mbm: u32) -> Option<i16> {
 
 #[cfg(test)]
 mod tests {
-    use uniwrt_model::wifi::{Band, ChannelWidth};
+    use uniwrt_model::wifi::ChannelWidth;
 
-    use super::{band_of, channel, dbm, width};
-
-    #[test]
-    fn frequencies_map_to_channels_in_their_band() {
-        let cases = [
-            (2412, 1),
-            (2484, 14),
-            (5180, 36),
-            (5825, 165),
-            (5955, 1),
-            (5935, 2),
-            (6415, 93),
-        ];
-        for (mhz, number) in cases {
-            assert_eq!(channel(band_of(mhz).unwrap(), mhz), Some(number), "{mhz}");
-        }
-        assert_eq!(band_of(902), None);
-        assert_eq!(channel(Band::G5, 4920), None);
-    }
+    use super::{dbm, width};
 
     #[test]
     fn widths_and_powers_convert() {

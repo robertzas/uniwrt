@@ -202,6 +202,24 @@ export function describeEvent(event: EventRecord, names: Names): Described {
     }
     case "job_failed":
       return withDetail(titles.jobFailed(d.jobKind[what.job_kind]), what.error);
+    case "channel_changed": {
+      const band = strings.device.radios.band[what.band];
+      return withDetail(
+        titles.channelChanged(node, what.radio, what.from, what.to),
+        what.radar
+          ? d.radar
+          : [band, what.width && `${what.width} MHz`].filter(Boolean).join(" · "),
+      );
+    }
+    case "channel_congested":
+      return withDetail(titles.channelCongested(node, what.radio), d.busy(what.busy_percent));
+    case "channel_clear": {
+      const lasted = duration(what.congested_ms);
+      return withDetail(
+        titles.channelClear(node, what.radio),
+        lasted ? d.busyFor(what.busy_percent, lasted) : d.busy(what.busy_percent),
+      );
+    }
   }
 }
 

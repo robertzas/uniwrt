@@ -11,6 +11,7 @@ import { HealthHeader } from "./HealthHeader";
 import { gatewayOf, internetHealth } from "./health";
 import { MiniMap } from "./MiniMap";
 import { RecentEvents } from "./RecentEvents";
+import { RfCard } from "./RfCard";
 import { TopClients } from "./TopClients";
 import { WanCard } from "./WanCard";
 
@@ -18,8 +19,9 @@ const t = strings.dashboard;
 
 /**
  * `/`: the network at a glance (features/observability.md, Dashboard): the health header, the
- * internet connection, the topology mini-map, the busiest clients, the Wi-Fi experience and
- * the recent events. Every part is live; only the WAN's history is read from storage.
+ * internet connection, the topology mini-map, the busiest clients, the Wi-Fi experience, the
+ * recent events and the RF summary. Every part is live; only the WAN's history is read from
+ * storage.
  */
 export function DashboardPage() {
   const live = useContext(LiveContext);
@@ -73,6 +75,7 @@ export function DashboardPage() {
           <ExperienceCard clients={clients.clients} nodeName={nodeName} />
           <RecentEvents live={live} nodeName={nodeName} clientName={clientLabel} />
         </div>
+        <RfCard live={live} nodeName={nodeName} />
       </div>
     </Show>
   );

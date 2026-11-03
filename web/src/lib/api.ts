@@ -36,11 +36,17 @@ import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { RfSettings } from "../api/gen/RfSettings";
+import type { RfView } from "../api/gen/RfView";
 import type { RuleList } from "../api/gen/RuleList";
 import type { RuleSpec } from "../api/gen/RuleSpec";
 import type { RuleView } from "../api/gen/RuleView";
 import type { SavedSearch } from "../api/gen/SavedSearch";
 import type { SavedSearches } from "../api/gen/SavedSearches";
+import type { Scan } from "../api/gen/Scan";
+import type { ScanRequest } from "../api/gen/ScanRequest";
+import type { ScanSummary } from "../api/gen/ScanSummary";
+import type { ScansQueued } from "../api/gen/ScansQueued";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
@@ -345,6 +351,23 @@ export const api = {
     test: (test: NotifierTest) => request<void>("/notifiers/test", { method: "POST", body: test }),
     settings: (settings: NotificationSettings) =>
       request<NotificationSettings>("/notifications/settings", { method: "PUT", body: settings }),
+  },
+  /** RF insight (wifi.md); the view itself comes over the WS topic `rf`. */
+  rf: {
+    get: (signal?: AbortSignal) => request<RfView>("/rf", { signal }),
+    /** Queues scans of every radio, a node's, or one of its radios; admins only. */
+    scan: (body: ScanRequest) => request<ScansQueued>("/rf/scans", { method: "POST", body }),
+    /** Stored scans, newest first, without what they heard. */
+    scans: (query: { node?: number; radio?: string; limit?: number }, signal?: AbortSignal) => {
+      const params = new URLSearchParams();
+      if (query.node !== undefined) params.set("node", String(query.node));
+      if (query.radio !== undefined) params.set("radio", query.radio);
+      if (query.limit !== undefined) params.set("limit", String(query.limit));
+      return request<ScanSummary[]>(`/rf/scans?${params}`, { signal });
+    },
+    scanById: (id: number, signal?: AbortSignal) => request<Scan>(`/rf/scans/${id}`, { signal }),
+    settings: (settings: RfSettings) =>
+      request<RfSettings>("/rf/settings", { method: "PUT", body: settings }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

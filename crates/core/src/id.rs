@@ -61,6 +61,8 @@ ids! {
     WindowId = "window";
     /// A notifier: where alerts are sent (ntfy, a webhook, email).
     NotifierId = "notifier";
+    /// A radio's neighbor scan; ids grow in the order scans were stored.
+    ScanId = "scan";
 }
 
 #[cfg(test)]

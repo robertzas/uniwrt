@@ -24,6 +24,7 @@ uniwrt-notify = { path = "crates/notify" }
 uniwrt-sim = { path = "crates/sim" }
 uniwrt-store = { path = "crates/store" }
 uniwrt-syslog = { path = "crates/syslog" }
+uniwrt-rf = { path = "crates/rf" }
 uniwrt-topo = { path = "crates/topo" }
 
 anyhow = "1.0.104"

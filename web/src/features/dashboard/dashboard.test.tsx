@@ -8,6 +8,7 @@ import { createAppRouter } from "../../app/routes";
 import { client } from "../../test/clients";
 import { alertRecord, detail, facts, summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
+import { rfView } from "../../test/rf";
 import { edge, house } from "../../test/topology";
 
 let calls: string[] = [];
@@ -243,6 +244,31 @@ describe("the dashboard", () => {
       alerts: [1, 2].map((id) => alertRecord(id, { resolved_at: Date.now() })),
     });
     await waitFor(() => expect(within(card).queryByRole("region", { name: "Firing" })).toBeNull());
+  });
+
+  it("sums up each band's air and links to RF insight", async () => {
+    const { ws } = await renderDashboard();
+    const card = await screen.findByRole("region", { name: "RF" });
+    expect(within(card).getByRole("status")).toHaveTextContent("Reading what the radios hear");
+    await waitFor(() => expect(ws.sent).toContainEqual({ sub: expect.arrayContaining(["rf"]) }));
+    ws.receive({ type: "rf", topic: "rf", view: rfView() });
+    const bands = await within(card).findAllByRole("listitem");
+    expect(bands).toHaveLength(2);
+    expect(bands[0]).toHaveTextContent(/2\.4 GHz.*Channel 1/);
+    expect(bands[1]).toHaveTextContent(/5 GHz.*Channel 36, Channel 149/);
+    expect(bands[1]).toHaveTextContent(/42 %.*Busiest channel · Gateway/);
+    expect(bands[1]).toHaveTextContent("2 radios");
+    expect(bands[1]).toHaveTextContent("1 neighbor");
+    expect(bands[1]).toHaveTextContent("1 crowded");
+    expect(bands[1]).toHaveTextContent("1 lookalike of your network");
+    expect(within(bands[0] as HTMLElement).getByRole("link", { name: "2.4 GHz" })).toHaveAttribute(
+      "href",
+      "/insights/rf?band=2g",
+    );
+    expect(within(card).getByRole("link", { name: "Open RF insight" })).toHaveAttribute(
+      "href",
+      "/insights/rf",
+    );
   });
 
   it("welcomes a new install with a way to adopt", async () => {

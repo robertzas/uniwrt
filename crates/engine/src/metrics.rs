@@ -140,7 +140,8 @@ fn feed(sampler: &mut Sampler, event: &Event) {
         | Event::Logged { .. }
         | Event::Recorded { .. }
         | Event::Sampled { .. }
-        | Event::Alerts { .. } => {}
+        | Event::Alerts { .. }
+        | Event::Rf { .. } => {}
     }
 }
 

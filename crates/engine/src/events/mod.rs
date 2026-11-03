@@ -249,7 +249,8 @@ impl Intake {
             | Event::Log { .. }
             | Event::Recorded { .. }
             | Event::Sampled { .. }
-            | Event::Alerts { .. } => Vec::new(),
+            | Event::Alerts { .. }
+            | Event::Rf { .. } => Vec::new(),
         };
         self.pending.extend(events);
     }

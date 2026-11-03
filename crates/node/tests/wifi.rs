@@ -1,6 +1,7 @@
 //! The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over
 //! SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their
-//! facts show the lab's topology; and the gateway pushes its client's comings and goings. The
+//! facts show the lab's topology; the gateway pushes its client's comings and goings; and each
+//! node's scan hears the other's access points and mesh point. The
 //! tests run one at a time, since one of them disconnects the client. Ignored by default: `just test-wifi` starts the lab and runs
 //! these with `UNIWRT_LAB_GW` and `UNIWRT_LAB_AP` (`<host:port>`) and `UNIWRT_LAB_PASSWORD`.
 
@@ -18,12 +19,14 @@ use uniwrt_core::MacAddr;
 use uniwrt_model::{
     event::{LeaseChange, NodeEvent, StationChange, StationEvent},
     facts::{DeviceKind, GatewayMode, NodeFacts, PeerLinkState, WifiIfaceMode},
+    rf::Security,
+    wifi::{Band, ChannelWidth, WifiStandard},
 };
 use uniwrt_node::{
     AgentEvent, AgentLaunch, Hello, NodeLink as _,
     events::Push,
     facts,
-    proto::ops::{Collect, Exec, Set, Subscribe, Topic, Ubus},
+    proto::ops::{Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
 };
 
 const LONG: Duration = Duration::from_secs(30);
@@ -229,4 +232,75 @@ async fn the_gateway_pushes_station_and_lease_events_across_radio_restarts() {
     let back = station(&mut pushes, StationChange::Authorized).await;
     assert_eq!(back.iface, iface);
     link.shutdown().await;
+}
+
+/// Scans `band` through the lab node in `$var`'s access point on it.
+async fn scan(var: &str, band: Band) -> uniwrt_model::rf::Heard {
+    let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
+    let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let sets = Collect {
+        sets: vec![Set::Phys, Set::Radios],
+    };
+    let collected = link.request(&sets, LONG).await.unwrap();
+    let mut facts = NodeFacts::default();
+    assert_eq!(facts::apply(&collected, &mut facts), []);
+    let radio = facts.radios.iter().find(|r| r.band == band).unwrap();
+    let ap = radio
+        .ifaces
+        .iter()
+        .find(|i| i.mode == WifiIfaceMode::Ap)
+        .and_then(|i| i.name.clone())
+        .unwrap();
+    let phy = facts
+        .phys
+        .iter()
+        .find(|p| Some(&p.name) == radio.phy.as_ref())
+        .unwrap();
+    let freqs = phy
+        .bands
+        .iter()
+        .filter(|b| b.band == band)
+        .flat_map(|b| b.channels.iter().map(|c| c.frequency_mhz))
+        .collect();
+    let scanned = link.request(&Scan::new(ap, freqs), LONG).await.unwrap();
+    link.shutdown().await;
+    facts::scan::heard(&scanned, band)
+}
+
+#[tokio::test]
+#[ignore = "needs the hwsim lab: just test-wifi"]
+async fn each_node_hears_the_others_networks() {
+    // a (25.12) hears b's 5 GHz AP (HE80 on 36, sae-mixed) and its mesh point.
+    let heard = scan("UNIWRT_LAB_GW", Band::G5).await;
+    let ap = heard
+        .bsss
+        .iter()
+        .find(|b| b.ssid.as_deref() == Some("uniwrt-lab") && b.mesh_id.is_none())
+        .unwrap_or_else(|| panic!("{heard:?}"));
+    assert_eq!((ap.channel, ap.width), (36, ChannelWidth::Mhz80));
+    assert_eq!(ap.center_frequency_mhz, 5210);
+    assert_eq!(
+        (ap.standard, ap.security),
+        (WifiStandard::He, Security::Wpa2Wpa3)
+    );
+    assert!((-100..0).contains(&ap.signal_dbm), "{ap:?}");
+    assert!(
+        heard
+            .bsss
+            .iter()
+            .any(|b| b.mesh_id.as_deref() == Some("uniwrt-lab-mesh")),
+        "{heard:?}"
+    );
+    assert!(heard.duration_ms > 0);
+    // b (24.10) hears a's 2.4 GHz AP on channel 1.
+    let heard = scan("UNIWRT_LAB_AP", Band::G2).await;
+    assert!(
+        heard
+            .bsss
+            .iter()
+            .any(|b| b.ssid.as_deref() == Some("uniwrt-lab") && b.channel == 1),
+        "{heard:?}"
+    );
 }

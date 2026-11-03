@@ -194,7 +194,7 @@ fn streams(set: &McsSet) -> Option<u8> {
 
 fn channel(band: Band, freq: &Freq) -> Option<Channel> {
     Some(Channel {
-        number: wifi::channel(band, freq.mhz)?,
+        number: band.channel(freq.mhz)?,
         frequency_mhz: freq.mhz,
         dfs: freq.radar,
         // `enum nl80211_dfs_state`

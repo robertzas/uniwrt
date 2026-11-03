@@ -13,6 +13,7 @@ import type { NodeDetail } from "./NodeDetail";
 import type { NodeId } from "./NodeId";
 import type { NodeStatus } from "./NodeStatus";
 import type { NodeSummary } from "./NodeSummary";
+import type { RfView } from "./RfView";
 import type { TimedEvent } from "./TimedEvent";
 import type { TimedRoam } from "./TimedRoam";
 import type { Topology } from "./Topology";
@@ -30,4 +31,4 @@ removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<Lo
 /**
  * The client was forgotten.
  */
-removed: boolean, } | { "type": "error", topic: string | null, message: string, };
+removed: boolean, } | { "type": "rf", topic: string, view: RfView, } | { "type": "error", topic: string | null, message: string, };

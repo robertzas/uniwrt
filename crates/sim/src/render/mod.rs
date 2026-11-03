@@ -1,6 +1,6 @@
 //! Rendering the world as a node's agent reports it: every collect set in the raw shapes of
 //! `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and
-//! log batches in both of `log_follow`'s modes. The engine parses these with the same parsers
+//! log batches in both of `log_follow`'s modes, and the `scan` op's answer. The engine parses these with the same parsers
 //! as a real node's, so the simulation exercises them.
 
 mod batman;
@@ -9,6 +9,7 @@ mod devices;
 mod l2;
 mod logs;
 mod net;
+pub(crate) mod scan;
 mod system;
 pub(crate) mod wifi;
 
@@ -26,10 +27,11 @@ use crate::world::{Happening, What, World};
 pub(crate) use self::logs::{log_entries, log_lines};
 
 /// The ops a simulated agent answers.
-const OPS: [&str; 6] = [
+const OPS: [&str; 7] = [
     "collect",
     "log_follow",
     "ping",
+    "scan",
     "set_interval",
     "subscribe",
     "unsubscribe",

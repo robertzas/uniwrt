@@ -15,8 +15,10 @@
 //!   (their boot time moved) and short of flash (under 10 % free, until 15 %); gateways' WAN
 //!   links without a default route (after 10 s) and their addresses changing; mesh links between
 //!   adopted nodes down (after 30 s) or weak (quality under 40 for 2 min, until 50); clients
-//!   joining, leaving, roaming and new ones; log entries whose pattern is an event; adoptions and
-//!   failed jobs. Raised conditions clear with how long they lasted. Alerts: see [`alerts`].
+//!   joining, leaving, roaming and new ones; radios changing channel (marked when radar on their
+//!   node came just before) and their channel congested (at least 80 % busy for 15 min, until
+//!   65 %); log entries whose pattern is an event; adoptions and failed jobs. Raised conditions
+//!   clear with how long they lasted. Alerts: see [`alerts`].
 //! - **Invariants:** pure and deterministic: no IO and no clock (times come in with the input).
 //!   A condition raises once and clears once; nothing is derived about a node that is not
 //!   online (its links and clients vanish with it), nor about clients during a node's first
@@ -31,6 +33,7 @@ mod conditions;
 mod derive;
 mod fold;
 mod links;
+mod radios;
 #[cfg(test)]
 mod tests;
 
@@ -66,6 +69,13 @@ pub struct DeriveConfig {
     pub reboot_slack: Duration,
     /// The longest log text an event keeps.
     pub max_text: usize,
+    /// A channel change this soon after radar on its node was radar's doing.
+    pub radar_window: Duration,
+    /// A radio's channel is congested while at least this busy (%) for `busy_after`, and clear
+    /// again at or under `busy_clear` (the built-in `channel-busy` rule's thresholds).
+    pub busy_above: f32,
+    pub busy_clear: f32,
+    pub busy_after: Duration,
 }
 
 impl Default for DeriveConfig {
@@ -83,6 +93,10 @@ impl Default for DeriveConfig {
             settle: Duration::from_mins(1),
             reboot_slack: Duration::from_mins(1),
             max_text: 300,
+            radar_window: Duration::from_mins(2),
+            busy_above: 80.0,
+            busy_clear: 65.0,
+            busy_after: Duration::from_mins(15),
         }
     }
 }

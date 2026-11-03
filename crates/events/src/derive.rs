@@ -26,6 +26,7 @@ use crate::{
     conditions::Conditions,
     links::{self, MeshLink},
     ms,
+    radios::Radios,
 };
 
 /// What the deriver knows when it starts.
@@ -50,10 +51,15 @@ pub(crate) struct NodeEvents {
     boot: Option<(Timestamp, u64)>,
     /// Each WAN interface's latest addresses and delegated prefixes, while it had any.
     wan: BTreeMap<String, Vec<String>>,
+    /// Its radios' channels and its latest radar report.
+    radios: Radios,
 }
 
 /// The jobs whose end was seen, the latest.
 const JOBS_KEPT: usize = 64;
+
+/// The log pattern of hostapd's radar reports (`log-patterns.toml`).
+const RADAR_PATTERN: &str = "dfs-radar";
 
 #[derive(Debug)]
 pub struct Deriver {
@@ -94,6 +100,7 @@ impl Deriver {
             state.wan = wan_addresses(role, &facts)
                 .filter(|(_, addresses)| !addresses.is_empty())
                 .collect();
+            state.radios = Radios::seeded(&facts);
         }
         deriver
     }
@@ -211,6 +218,11 @@ impl Deriver {
                 }));
             }
         }
+        events.extend(
+            state
+                .radios
+                .facts(&config, &mut self.conditions, node, facts, now),
+        );
         for (interface, after) in wan_addresses(role, facts).collect::<Vec<_>>() {
             if after.is_empty() {
                 continue;
@@ -264,7 +276,7 @@ impl Deriver {
     /// Log entries as stored: those whose pattern is an event (`event_of` tells its category
     /// and severity) are events, a source's repeats of one pattern folding together.
     pub fn logged(
-        &self,
+        &mut self,
         records: &[LogRecord],
         event_of: impl Fn(&str) -> Option<(EventCategory, Severity)>,
     ) -> Vec<NewEvent> {
@@ -273,6 +285,15 @@ impl Deriver {
             let Some(pattern) = &record.pattern else {
                 continue;
             };
+            if pattern == RADAR_PATTERN
+                && let Some(node) = record.node
+            {
+                self.nodes
+                    .entry(node)
+                    .or_default()
+                    .radios
+                    .radar(record.received);
+            }
             let Some((category, severity)) = event_of(pattern) else {
                 continue;
             };

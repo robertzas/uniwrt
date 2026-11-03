@@ -13,13 +13,14 @@ mod logs;
 mod metrics;
 mod nodes;
 mod notifiers;
+mod rf;
 mod sessions;
 mod topology;
 mod users;
 
 use uniwrt_core::{
-    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RuleId, SearchId, Timestamp,
-    UserId, WindowId,
+    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RuleId, ScanId, SearchId,
+    Timestamp, UserId, WindowId,
 };
 use uniwrt_model::{
     alerts::{
@@ -35,6 +36,7 @@ use uniwrt_model::{
     metric::{Entity, Metric, Point, Resolution, Sample},
     node::{HostKeyPin, NewNode, Node},
     notify::{Notifier, NotifierConfig},
+    rf::{NewScan, Scan, ScanSummary},
     user::{AuditEntry, Role, Session, User},
 };
 use zeroize::Zeroizing;
@@ -546,6 +548,30 @@ pub trait NotifierRepo: Send + Sync {
 }
 
 /// The controller's settings by key, each a JSON value.
+/// RF insight (features/wifi.md, RF insight): radios' neighbor scans.
+pub trait RfRepo: Send + Sync {
+    /// Stores a scan; returns it with its id.
+    fn add_scan(&self, scan: NewScan) -> impl Future<Output = Result<Scan>> + Send;
+
+    /// The latest scan of each radio (by node and radio name) from `since` on.
+    fn latest_scans(&self, since: Timestamp) -> impl Future<Output = Result<Vec<Scan>>> + Send;
+
+    /// Up to `limit` scans, newest first, of one node (and one of its radios) when given, from
+    /// before `before` when given.
+    fn scans(
+        &self,
+        node: Option<NodeId>,
+        radio: Option<String>,
+        before: Option<ScanId>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<ScanSummary>>> + Send;
+
+    fn scan(&self, id: ScanId) -> impl Future<Output = Result<Option<Scan>>> + Send;
+
+    /// Deletes the scans from before `before`; returns how many.
+    fn prune_scans(&self, before: Timestamp) -> impl Future<Output = Result<usize>> + Send;
+}
+
 pub trait SettingsRepo: Send + Sync {
     fn setting(
         &self,

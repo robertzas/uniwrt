@@ -17,6 +17,45 @@ pub enum Band {
     G60,
 }
 
+impl Band {
+    /// The band a frequency lies in.
+    pub const fn of_frequency(mhz: u32) -> Option<Self> {
+        match mhz {
+            2400..=2500 => Some(Self::G2),
+            4900..=5924 => Some(Self::G5),
+            5925..=7125 => Some(Self::G6),
+            57000..=72000 => Some(Self::G60),
+            _ => None,
+        }
+    }
+
+    /// The IEEE channel number of a frequency in this band.
+    pub fn channel(self, mhz: u32) -> Option<u16> {
+        let number = match self {
+            Self::G2 if mhz == 2484 => 14,
+            Self::G2 => mhz.checked_sub(2407)? / 5,
+            Self::G5 => mhz.checked_sub(5000)? / 5,
+            Self::G6 if mhz == 5935 => 2,
+            Self::G6 => mhz.checked_sub(5950)? / 5,
+            Self::G60 => mhz.checked_sub(56160)? / 2160,
+        };
+        u16::try_from(number).ok()
+    }
+
+    /// The center frequency of a 20 MHz channel (2.16 GHz on 60 GHz) of this band.
+    pub fn frequency(self, channel: u16) -> u32 {
+        let channel = u32::from(channel);
+        match self {
+            Self::G2 if channel == 14 => 2484,
+            Self::G2 => 2407 + 5 * channel,
+            Self::G5 => 5000 + 5 * channel,
+            Self::G6 if channel == 2 => 5935,
+            Self::G6 => 5950 + 5 * channel,
+            Self::G60 => 56160 + 2160 * channel,
+        }
+    }
+}
+
 /// A channel width, serialized as its width in MHz.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(
@@ -113,6 +152,26 @@ mod tests {
         assert_eq!(from_str::<ChannelWidth>("40").unwrap(), ChannelWidth::Mhz40);
         assert!(from_str::<ChannelWidth>("30").is_err());
         assert_eq!(to_value(WifiStandard::Vht).unwrap(), json!("vht"));
+    }
+
+    #[test]
+    fn frequencies_map_to_channels_and_back() {
+        let cases = [
+            (2412, 1),
+            (2484, 14),
+            (5180, 36),
+            (5825, 165),
+            (5955, 1),
+            (5935, 2),
+            (6415, 93),
+        ];
+        for (mhz, number) in cases {
+            let band = Band::of_frequency(mhz).unwrap();
+            assert_eq!(band.channel(mhz), Some(number), "{mhz}");
+            assert_eq!(band.frequency(number), mhz, "{number}");
+        }
+        assert_eq!(Band::of_frequency(902), None);
+        assert_eq!(Band::G5.channel(4920), None);
     }
 
     #[test]

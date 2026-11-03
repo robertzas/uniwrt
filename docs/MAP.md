@@ -39,6 +39,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
 - `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
+- `src/rf.rs`: The RF insight routes, with a session (features/wifi.md, RF insight):
+- `src/rf_tests.rs`: The RF insight routes over the demo, whose scanner scans the simulated radios at once: the view once every radio has a scan, scans queued and refused, the stored scans, the settings.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
@@ -112,6 +114,10 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/notify/mod.rs`: Notifications (features/observability.md, Notifications; `uniwrt_notify`): the alerts the alert engine stores ([`Event::Alerts`]) go through the notifiers' [`Policy`], which is also ticked for reminders; what it decides goes to each notifier's worker, which gathers what arrives together into one message, delivers it with its secrets from the vault, tries again when that may help, and records how it went.
 - `src/notify/tests.rs`: Notifications over a store, a vault and an engine without nodes, fed alerts by hand on a manual clock, delivering to a webhook on loopback: an alert already firing at the start is not repeated, a failed delivery is tried again, alerts that arrive together go as a digest, reminders follow the clock, a disabled notifier hears nothing, and a test goes out at once.
 - `src/notify/worker.rs`: One notifier's deliveries, in order: what arrives within [`NotifyConfig::gather`] of the first goes out together (one alert as itself, several as a digest of at most [`MAX_DIGEST`]), and a delivery that fails in a way that may pass is tried again after each of [`NotifyConfig::retries`].
+- `src/rf/mod.rs`: RF insight (features/wifi.md, RF insight; D-064): the radios' neighbor scans and the report built from them (`uniwrt_rf`).
+- `src/rf/radios.rs`: Each radio the scanner knows, from its node's facts: how to scan it (an interface and the band's channels), how much traffic it carries, and when it is next due.
+- `src/rf/task.rs`: The scanner's task: the schedule, the scans and the report.
+- `src/rf/tests.rs`: The scanner over a store and an engine watching the lab gateway's capture (radio0 on 2.4 GHz through `phy1-ap0`, radio1 on 5 GHz through `phy2-ap0`), its scans answered by hand: the background schedule scans each radio and the report shows what they heard; with scanning off, only an admin's scans run, and a radio whose driver cannot scan waits a day.
 - `src/roam.rs`: Inferring roams ([`Roam`]) across the fleet: where each Wi-Fi client is connected, from the station events of every node and, for clients that joined before anyone watched, from the nodes' station lists.
 - `src/schedule.rs`: How often each collect set is collected ([`Intervals`]), what that means for one agent ([`Plan`]: the sets it knows, at the node's current focus), and the [`Poller`] that collects on that plan when the agent cannot push ticks.
 - `src/snapshots.rs`: Persisting each node's latest facts ([`FactsRepo`]), so a restarted controller shows them until fresh ones arrive.
@@ -136,6 +142,8 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/fold.rs`: Folding repeats: an event with a fold key that happens again within the window of the last one (from its latest repeat) becomes a repeat of that record (its count grows and its `last_at` moves) instead of a new one, so a device retrying a wrong password makes one line.
 - `src/lib.rs`: Events (features/observability.md, Events, alerts, notifications): deriving the network's timeline from what the engine announces.
 - `src/links.rs`: Links from topology builds: gateways' WAN links (down while they have no default route) and mesh links between adopted nodes, down (reported down, or gone from the topology while both nodes are online: batman-adv forgets a lost neighbour) or weak.
+- `src/radios.rs`: Radio events from facts: a radio changing channel (after radar, or not), and its channel staying congested (busy at least `busy_above` % for `busy_after`, clear again at or under `busy_clear` %), as the built-in `channel-busy` alert rule sees it.
+- `src/radios_tests.rs`: Radio events over hand-made facts: channel changes, with and without radar before them, and a congested channel.
 - `src/tests.rs`: The deriver over hand-made statuses, facts, topologies, clients, log entries and jobs.
 
 ### `uniwrt-jobs` (crates/jobs)
@@ -192,6 +200,7 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
+- `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
@@ -218,16 +227,19 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC).
 - `src/facts/capabilities.rs`: The `capabilities` set: binaries and modules found on the node, the build features that hostapd and `wpa_supplicant` report (`-v<feature>`), and how the switch is driven.
 - `src/facts/devices.rs`: The `devices` set: sysfs attributes of each device in /sys/class/net (text, as read) and the counters of /proc/net/dev.
+- `src/facts/ies.rs`: 802.11 information elements of a scan result (IEEE 802.11-2020, 9.4.2): the network's name, channel and width, standards, security and load.
 - `src/facts/interfaces.rs`: The `interfaces` set: `network.interface dump`.
 - `src/facts/leases.rs`: The `leases` set: dnsmasq's lease files and odhcpd's leases over ubus.
-- `src/facts/mod.rs`: Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw sources that `node-agent/collect/<set>.uc` gathers.
+- `src/facts/mod.rs`: Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw sources that `node-agent/collect/<set>.uc` gathers; [`scan`] parses the `scan` op's answer.
 - `src/facts/neighbors.rs`: The `neighbors` set: from rtnetlink (`rtnl`), the agent's selection of neighbor and bridge FDB entries; or else (`proc`) /proc/net/arp and each bridge's `brforward`.
 - `src/facts/phys.rs`: The `phys` set: nl80211's `GET_WIPHY`, trimmed by the agent.
 - `src/facts/radios.rs`: The `radios` set: netifd's `network.wireless status` (each radio's configuration and state), nl80211's interfaces (channel, width, power and addresses) and each phy's channel survey.
+- `src/facts/scan.rs`: Parsing the agent's `scan` answer ([`Scanned`]) into what the radio heard ([`Heard`]).
 - `src/facts/stations.rs`: The `stations` set: nl80211's station dump of every Wi-Fi interface, and for APs, what hostapd saw in each client's association (`get_clients`).
 - `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
 - `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
 - `src/facts/tests/hwsim.rs`: The parsers against captures from the hwsim lab (`scripts/wifi-lab.sh`, TESTING.md): real hostapd, `wpa_supplicant`, nl80211, netifd, dnsmasq, odhcpd and batman-adv output.
+- `src/facts/tests/scan.rs`: (no header comment)
 - `src/facts/wifi.rs`: nl80211's vocabulary, shared by the Wi-Fi parsers: bands, channel numbers, widths and powers.
 - `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
 - `src/key.rs`: The controller's SSH identity: one ed25519 key that every adopted node trusts.
@@ -236,6 +248,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
+- `src/proto/ops/scan.rs`: `scan`: a neighbor scan of one radio, mirrored by `node-agent/scan.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
 - `src/shell.rs`: Argv to a command line for the node's shell.
 - `src/ssh/banner.rs`: [`banner`]: the version line an SSH server sends as soon as a client connects (RFC 4253, 4.2), read without starting a handshake, so that discovery can tell dropbear, and so likely OpenWrt, from other hosts with one cheap connection.
@@ -249,7 +262,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
-- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; and the gateway pushes its client's comings and goings.
+- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point.
 
 ### `uniwrt-notify` (crates/notify)
 
@@ -272,6 +285,17 @@ Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in wo
 - `src/text.rs`: Alerts in words, as the UI says them (`web/src/lib/alerts.ts`, `entities.ts`, `metrics.ts`): what an alert is about, what made it fire, levels, durations and times.
 - `src/validate.rs`: What a notifier must be to be stored: checked as the API takes it, so that sending fails only for reasons outside uniwrt (a server down, a password changed).
 
+### `uniwrt-rf` (crates/rf)
+
+RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; later the channel planner (M6.1).
+
+- `src/build.rs`: Building the [`RfReport`] from the nodes' facts, their radios' latest scans and the radar history.
+- `src/lib.rs`: RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; later the channel planner (M6.1).
+- `src/radar.rs`: Radar hits from hostapd's log (`DFS-RADAR-DETECTED`, the `dfs-radar` pattern): where the radar was, so each channel's radar history can be told.
+- `src/report.rs`: The RF report: per band, the site's radios, each channel's occupancy, the networks heard and the inter-node RSSI matrix.
+- `src/span.rs`: The frequencies a channel occupies, how much two channels share, and how much a signal counts.
+- `src/tests.rs`: A small site made in code: node 1 and node 2, each with a 5 GHz radio on channel 36 at 80 MHz carrying an AP and a mesh point, and node 1's latest scan.
+
 ### `uniwrt` (crates/server)
 
 The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
@@ -284,7 +308,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications and the alert engine join them once the job runner is up ([`Fleet::record_events`]).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications, the alert engine and RF insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode scans sooner and busy or not).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -317,8 +341,9 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
-- `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes.
+- `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
+- `src/render/scan.rs`: The `scan` op's answer in the agent's raw shape (`node-agent/scan.uc`): the networks next door (a fixed set outside the house), the other nodes' access points and mesh points (an unadopted one too), each at the signal the path between them leaves, with their information elements; and the channel survey of the band, busier where networks crowd.
 - `src/render/system.rs`: The sets `board`, `system` and `capabilities`, shaped as `node-agent/collect/` sends them: ubus `system board` and `system info`, `/etc/openwrt_release`, board.json, thermal zones.
 - `src/render/tests.rs`: Every rendered set and push, through the node crate's parsers: what a simulated node reports must read as a real one's does, and agree with the world.
 - `src/render/wifi.rs`: The sets `radios` (netifd's wireless status, nl80211 interfaces and surveys), `stations` (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim capture's wiphys).
@@ -361,6 +386,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
 - `src/repo/notifiers.rs`: [`NotifierRepo`] and [`SettingsRepo`] on SQLite: the `notifiers` and `settings` tables.
 - `src/repo/notifiers_tests.rs`: Notifiers and settings over a real database: created, listed, updated, deliveries recorded, deleted; a setting stored and replaced.
+- `src/repo/rf.rs`: [`RfRepo`] on SQLite: the `rf_scans` table, what each scan heard as JSON.
+- `src/repo/rf_tests.rs`: Scans over a real database: stored, the latest per radio, listed, read, pruned, and gone with their node.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
@@ -430,6 +457,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `ops.uc`: The agent's operations (`proto::ops`).
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
+- `scan.uc`: The `scan` op's worker, run by ops.uc as a process of its own (`ucode scan.uc '<args>'`) so that its nl80211 socket is its own: a forked task would share the agent's, and the agent's ticks could read the scan's replies.
 - `streams.uc`: Push events from ubus (`subscribe`, `unsubscribe`; event loop only): the notifications of daemons' objects, forwarded as `{"ev":"<source>.<type>","ts":…,"data":{…}}` with the data as the daemon sent it.
 - `ticks.uc`: Periodic collection (`set_interval`; event loop only): sets collected on a schedule and pushed as `{"tick":{"sets":{…},"errors":{…}}}`, the shape of a `collect` answer.
 - `util.uc`: Small helpers shared by the agent's modules: readers of files, sysfs attributes and shell-variable files, `pick`, and clocks.
@@ -440,22 +468,23 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (186 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (210 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
 - `features/auth/`: SignIn.tsx
 - `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
-- `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, TopClients.tsx, WanCard.tsx, health.ts
+- `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
+- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, rf.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts

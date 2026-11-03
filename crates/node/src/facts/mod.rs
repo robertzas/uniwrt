@@ -1,17 +1,20 @@
 //! Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw
-//! sources that `node-agent/collect/<set>.uc` gathers. Parsers are pure. They are lenient where
-//! OpenWrt versions differ (a missing field becomes `None` or empty, an address that does not
-//! parse is skipped) and strict where the shape is wrong (a set fails with a [`FactsError`]).
+//! sources that `node-agent/collect/<set>.uc` gathers; [`scan`] parses the `scan` op's answer.
+//! Parsers are pure. They are lenient where OpenWrt versions differ (a missing field becomes
+//! `None` or empty, an address that does not parse is skipped) and strict where the shape is
+//! wrong (a set fails with a [`FactsError`]).
 
 mod batman;
 mod board;
 mod capabilities;
 mod devices;
+mod ies;
 mod interfaces;
 mod leases;
 mod neighbors;
 mod phys;
 mod radios;
+pub mod scan;
 mod stations;
 mod system;
 mod wifi;

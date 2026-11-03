@@ -29,6 +29,7 @@ uniwrt-node.workspace = true
 uniwrt-notify.workspace = true
 uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true
+uniwrt-rf = { workspace = true, features = ["ts"] }
 uniwrt-topo = { workspace = true, features = ["ts"] }
 zeroize.workspace = true
 

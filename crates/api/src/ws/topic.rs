@@ -38,6 +38,8 @@ pub(crate) enum Topic {
     Clients,
     /// One client: its view, samples and sessions; viewing it speeds up its node's telemetry.
     Client(MacAddr),
+    /// RF insight's view, whole, then again whenever it changes.
+    Rf,
 }
 
 /// Why a topic name is refused.
@@ -70,6 +72,9 @@ impl Topic {
         if name == "clients" {
             return Ok(Self::Clients);
         }
+        if name == "rf" {
+            return Ok(Self::Rf);
+        }
         if let Some(mac) = name.strip_prefix("client:") {
             return mac
                 .parse()
@@ -97,7 +102,7 @@ impl Topic {
         }
         Err(BadTopic(format!(
             "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, \
-             events?node=<id>&min=<level>, alerts, jobs, topology, clients or client:<mac>"
+             events?node=<id>&min=<level>, alerts, jobs, topology, clients, client:<mac> or rf"
         )))
     }
 }
@@ -183,6 +188,7 @@ mod tests {
         assert_eq!(Topic::parse("topology"), Ok(Topic::Topology));
         assert_eq!(Topic::parse("clients"), Ok(Topic::Clients));
         assert_eq!(Topic::parse("alerts"), Ok(Topic::Alerts));
+        assert_eq!(Topic::parse("rf"), Ok(Topic::Rf));
         assert_eq!(
             Topic::parse("client:F0:18:98:00:00:01"),
             Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))
