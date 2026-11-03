@@ -1,3 +1,4 @@
+import type { AlertRecord } from "../api/gen/AlertRecord";
 import type { Job } from "../api/gen/Job";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeFacts } from "../api/gen/NodeFacts";
@@ -131,6 +132,29 @@ export function adoptJob(
     created_by: 1,
     started_at: 1,
     finished_at: null,
+    ...extra,
+  };
+}
+
+/** An alert as stored: CPU above 90 % on node 1, firing since a minute ago. */
+export function alertRecord(id: number, extra: Partial<AlertRecord> = {}): AlertRecord {
+  const now = Date.now();
+  return {
+    id,
+    rule: 6,
+    acknowledged: null,
+    name: "Device CPU busy",
+    level: "warning",
+    subject: "node:1",
+    node: 1,
+    client: null,
+    started_at: now - 60_000 + id,
+    last_at: now - 15_000,
+    resolved_at: null,
+    resolution: null,
+    count: 1,
+    silenced: false,
+    cause: { type: "metric", metric: "cpu", op: "above", threshold: 90, value: 93, worst: 97 },
     ...extra,
   };
 }

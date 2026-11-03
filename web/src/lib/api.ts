@@ -1,4 +1,6 @@
 import type { AdoptBody } from "../api/gen/AdoptBody";
+import type { AlertPage } from "../api/gen/AlertPage";
+import type { AlertRecord } from "../api/gen/AlertRecord";
 import type { AuthState } from "../api/gen/AuthState";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
@@ -19,14 +21,19 @@ import type { LogHistogram } from "../api/gen/LogHistogram";
 import type { LogPage } from "../api/gen/LogPage";
 import type { LogPatterns } from "../api/gen/LogPatterns";
 import type { LogSourceList } from "../api/gen/LogSourceList";
+import type { MaintenanceWindow } from "../api/gen/MaintenanceWindow";
 import type { Metric } from "../api/gen/Metric";
 import type { MetricsResponse } from "../api/gen/MetricsResponse";
+import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { RuleList } from "../api/gen/RuleList";
+import type { RuleSpec } from "../api/gen/RuleSpec";
+import type { RuleView } from "../api/gen/RuleView";
 import type { SavedSearch } from "../api/gen/SavedSearch";
 import type { SavedSearches } from "../api/gen/SavedSearches";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
@@ -34,6 +41,7 @@ import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { WindowList } from "../api/gen/WindowList";
 
 /** A failed API call. Problem details (RFC 9457) from the server fill `title` and `message`. */
 export class ApiError extends Error {
@@ -159,6 +167,31 @@ export function eventParams(filter: EventFilter): URLSearchParams {
   return params;
 }
 
+/** Which alerts to read, as `GET v1/alerts` takes them (`model::alerts::AlertFilter`). */
+export interface AlertFilter {
+  /** Only those still firing. */
+  active: boolean;
+  /** The least that matters to include. */
+  min: EventLevel | null;
+  nodes: number[];
+  rules: number[];
+  /** When they started. */
+  from: number | null;
+  to: number | null;
+}
+
+/** An alert filter as the alerts route reads it (`crates/api/src/alerts`); empty parts left out. */
+export function alertParams(filter: AlertFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter.active) params.set("active", "true");
+  if (filter.min !== null) params.set("min", filter.min);
+  if (filter.nodes.length > 0) params.set("nodes", filter.nodes.join(","));
+  if (filter.rules.length > 0) params.set("rules", filter.rules.join(","));
+  if (filter.from !== null) params.set("from", String(Math.round(filter.from)));
+  if (filter.to !== null) params.set("to", String(Math.round(filter.to)));
+  return params;
+}
+
 /** The typed API client; components reach the server only through this (CONVENTIONS.md). */
 export const api = {
   health: (signal?: AbortSignal) => request<Health>("/health", { signal }),
@@ -257,6 +290,37 @@ export const api = {
       params.set("limit", String(limit));
       return request<EventPage>(`/events?${params}`, { signal });
     },
+  },
+  /** Alerts (observability.md, Alerts); the active ones come over the WS topic `alerts`. */
+  alerts: {
+    /** Alerts newest first by start, `limit` at a time; `before` is the previous page's `next`. */
+    page: (filter: AlertFilter, before: string | null, limit: number, signal?: AbortSignal) => {
+      const params = alertParams(filter);
+      if (before !== null) params.set("before", before);
+      params.set("limit", String(limit));
+      return request<AlertPage>(`/alerts?${params}`, { signal });
+    },
+    /** Acknowledges an alert still firing; admins only. */
+    acknowledge: (id: number) =>
+      request<AlertRecord>(`/alerts/${id}/acknowledge`, { method: "POST" }),
+  },
+  /** Alert rules, built in and the user's; changes are admins'. */
+  alertRules: {
+    list: (signal?: AbortSignal) => request<RuleList>("/alert-rules", { signal }),
+    create: (spec: RuleSpec) => request<RuleView>("/alert-rules", { method: "POST", body: spec }),
+    update: (id: number, spec: RuleSpec) =>
+      request<RuleView>(`/alert-rules/${id}`, { method: "PUT", body: spec }),
+    /** Deletes one of the user's rules (built-in ones are disabled instead). */
+    remove: (id: number) => request<void>(`/alert-rules/${id}`, { method: "DELETE" }),
+    /** Puts a built-in rule back as it shipped. */
+    reset: (id: number) => request<RuleView>(`/alert-rules/${id}/reset`, { method: "POST" }),
+  },
+  /** Maintenance windows, on now or to come, which silence alerts; changes are admins'. */
+  maintenance: {
+    list: (signal?: AbortSignal) => request<WindowList>("/maintenance", { signal }),
+    create: (window: NewWindow) =>
+      request<MaintenanceWindow>("/maintenance", { method: "POST", body: window }),
+    remove: (id: number) => request<void>(`/maintenance/${id}`, { method: "DELETE" }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

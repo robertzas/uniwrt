@@ -6,7 +6,7 @@ import type { MetricsResponse } from "../../api/gen/MetricsResponse";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { createAppRouter } from "../../app/routes";
 import { client } from "../../test/clients";
-import { detail, facts, summary } from "../../test/fixtures";
+import { alertRecord, detail, facts, summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { edge, house } from "../../test/topology";
 
@@ -218,6 +218,31 @@ describe("the dashboard", () => {
       "href",
       "/insights/events?nodes=1",
     );
+  });
+
+  it("puts the alerts firing above the recent events", async () => {
+    const { ws } = await renderDashboard();
+    const card = await screen.findByRole("region", { name: "Recent events" });
+    ws.receive({
+      type: "alerts_snapshot",
+      topic: "alerts",
+      alerts: [alertRecord(1), alertRecord(2, { acknowledged: { by: 1, username: "a", at: 1 } })],
+    });
+    const firing = await within(card).findByRole("region", { name: "Firing" });
+    const rows = within(firing).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent(/Device CPU busy.*CPU 93 %, above 90 %.*Firing/);
+    expect(rows[1]).toHaveTextContent("Acknowledged");
+    expect(within(firing).getByRole("link", { name: "2 alerts" })).toHaveAttribute(
+      "href",
+      "/insights/alerts",
+    );
+    ws.receive({
+      type: "alerts_delta",
+      topic: "alerts",
+      alerts: [1, 2].map((id) => alertRecord(id, { resolved_at: Date.now() })),
+    });
+    await waitFor(() => expect(within(card).queryByRole("region", { name: "Firing" })).toBeNull());
   });
 
   it("welcomes a new install with a way to adopt", async () => {

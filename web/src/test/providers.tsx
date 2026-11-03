@@ -20,14 +20,19 @@ export function sendFleet(ws: FakeWebSocket, nodes: NodeSummary[]) {
   ws.receive({ type: "fleet_snapshot", topic: "fleet", nodes });
 }
 
-/** What the signed-in app provides: a session for `admin` and the live data over `socket`. */
+/** What the signed-in app provides: a session (an admin's by default) and the live data over `socket`. */
 export function SignedInProviders(props: {
   socket: LiveSocket;
+  role?: "admin" | "viewer";
   signOut?: () => Promise<void>;
   children: JSX.Element;
 }) {
   const session: Session = {
-    user: { id: 1, username: "admin", role: "admin" },
+    user: untrack(() =>
+      props.role === "viewer"
+        ? { id: 2, username: "viewer", role: "viewer" as const }
+        : { id: 1, username: "admin", role: "admin" as const },
+    ),
     signOut: () => props.signOut?.() ?? Promise.resolve(),
   };
   const live = createLive(untrack(() => props.socket));

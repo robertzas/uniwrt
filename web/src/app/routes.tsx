@@ -27,6 +27,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/insights/events": lazy(() =>
     import("../features/events/EventsPage").then((m) => ({ default: m.EventsPage })),
   ),
+  "/insights/alerts": lazy(() =>
+    import("../features/alerts/AlertsPage").then((m) => ({ default: m.AlertsPage })),
+  ),
   "/insights/metrics": lazy(() =>
     import("../features/metrics/MetricsPage").then((m) => ({ default: m.MetricsPage })),
   ),

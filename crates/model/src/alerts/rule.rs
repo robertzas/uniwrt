@@ -26,7 +26,7 @@ pub struct AlertRule {
 
 /// What a rule says, as users write it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct RuleSpec {
     pub name: String,
     pub enabled: bool,

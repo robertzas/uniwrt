@@ -411,9 +411,10 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (166 files); never edit
-- `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (168 files); never edit
+- `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
+- `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
 - `features/auth/`: SignIn.tsx
 - `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, TopClients.tsx, WanCard.tsx, health.ts
@@ -423,7 +424,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `lib/`: api.ts, appearance.ts, clientList.ts, clients.ts, events.ts, format.ts, jobs.ts, live.ts, platform.ts, session.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, Icon.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts

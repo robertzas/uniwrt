@@ -164,7 +164,7 @@ impl MaintenanceWindow {
 
 /// A maintenance window as users create it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct NewWindow {
     pub starts_at: Timestamp,
     pub ends_at: Timestamp,

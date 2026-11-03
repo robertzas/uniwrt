@@ -283,3 +283,37 @@ test("follows the events, filters them and opens the logs around one", async ({ 
   await expect(page.getByText("Fixed window")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("watches the alerts, edits a rule and snoozes", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.getByRole("table", { name: "Devices" }).waitFor();
+  // The bell opens the alerts firing (the demo may have none yet) and leads to the page.
+  await page.getByRole("button", { name: /^Alerts, / }).click();
+  await page.getByRole("dialog").getByRole("link", { name: "Open alerts" }).click();
+  await expect(page).toHaveURL(/\/insights\/alerts$/);
+  await expect(page.getByRole("region", { name: "Active alerts" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Rules" }).click();
+  const builtIn = page.getByRole("region", { name: "Built in" });
+  await expect(builtIn.getByText("Device offline", { exact: true })).toBeVisible();
+  await builtIn.getByRole("button", { name: "Edit: Device CPU busy" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit “Device CPU busy”" });
+  await editor.getByLabel("Threshold").fill("85");
+  await editor.getByRole("button", { name: "Save rule" }).click();
+  await expect(editor).toBeHidden();
+  await expect(builtIn.getByText(/CPU above 85 %/)).toBeVisible();
+  await builtIn.getByRole("button", { name: "Reset: Device CPU busy" }).click();
+  await expect(builtIn.getByText(/CPU above 90 %/)).toBeVisible();
+
+  await page.getByRole("tab", { name: "Maintenance" }).click();
+  const windows = page.getByRole("region", { name: "Maintenance windows" });
+  await windows.getByRole("button", { name: "Snooze alerts" }).click();
+  await page.getByRole("button", { name: "Every device: For 1h" }).click();
+  await expect(windows.getByText("On now")).toBeVisible();
+  await windows.getByRole("button", { name: "End" }).click();
+  await expect(windows.getByText("No maintenance scheduled")).toBeVisible();
+  await page.getByRole("tab", { name: "History" }).click();
+  await expect(page.getByRole("region", { name: "Alert history" })).toBeVisible();
+  expect(errors).toEqual([]);
+});

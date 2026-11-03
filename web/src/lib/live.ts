@@ -7,6 +7,7 @@ import type { NodeRole } from "../api/gen/NodeRole";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { ServerMessage } from "../api/gen/ServerMessage";
 import type { TimedEvent } from "../api/gen/TimedEvent";
+import { type AlertsState, createAlerts } from "./alerts";
 import type { LiveSocket } from "./ws";
 
 /** The adopted nodes as the `fleet` topic keeps them, in the order of `compareNodes`. */
@@ -16,10 +17,12 @@ export interface FleetState {
   ready: boolean;
 }
 
-/** The live data of the signed-in app: the socket and the fleet it keeps current. */
+/** The live data of the signed-in app: the socket, and the fleet and alerts it keeps current. */
 export interface Live {
   socket: LiveSocket;
   fleet: FleetState;
+  /** The alerts firing (the top bar's bell). */
+  alerts: AlertsState;
 }
 
 /** Provided once signed in; features read the fleet and open node views through it. */
@@ -69,13 +72,16 @@ export function applyFleet(state: FleetState, message: ServerMessage) {
   }
 }
 
-/** The fleet store over `socket`, subscribed to `fleet` for as long as the socket is open. */
+/**
+ * The fleet and alerts stores over `socket`, subscribed to `fleet` and `alerts` for as long as
+ * the socket is open.
+ */
 export function createLive(socket: LiveSocket): Live {
   const [fleet, setFleet] = createStore<FleetState>({ nodes: [], ready: false });
   socket.subscribe("fleet", (message) => {
     setFleet((draft) => applyFleet(draft, message));
   });
-  return { socket, fleet };
+  return { socket, fleet, alerts: createAlerts(socket) };
 }
 
 /** Samples kept for the overview's sparklines: 60, about 5 minutes at the focused interval. */

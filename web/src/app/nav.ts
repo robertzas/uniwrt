@@ -14,6 +14,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Siren,
   Wifi,
 } from "lucide";
 import { strings } from "../lib/strings";
@@ -52,6 +53,7 @@ export const nav: readonly NavEntry[] = [
     items: [
       { path: "/insights/logs", ...s.logs, icon: ScrollText },
       { path: "/insights/events", ...s.events, icon: BellRing },
+      { path: "/insights/alerts", ...s.alerts, icon: Siren },
       { path: "/insights/metrics", ...s.metrics, icon: Activity },
       { path: "/insights/rf", ...s.rf, icon: RadioTower },
       { path: "/insights/floor-plans", ...s.floorPlans, icon: MapIcon },

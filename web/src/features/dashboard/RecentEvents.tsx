@@ -2,6 +2,7 @@ import { BellRing } from "lucide";
 import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import type { EventRecord } from "../../api/gen/EventRecord";
 import type { ServerMessage } from "../../api/gen/ServerMessage";
+import { byAttention, causeText, subjectIcon, subjectLabel } from "../../lib/alerts";
 import { api } from "../../lib/api";
 import { categoryIcons, describeEvent, levelTones, type Names } from "../../lib/events";
 import type { Live } from "../../lib/live";
@@ -14,6 +15,8 @@ const t = strings.dashboard.events;
 export const COUNT = 6;
 /** The WS topic it follows: notices and worse (clients' comings and goings stay on the page). */
 export const TOPIC = "events?min=notice";
+/** The active alerts the card shows above the events; the rest are on the alerts page. */
+export const ALERTS = 3;
 
 const TILES = {
   crit: "bg-crit/10 text-crit",
@@ -77,8 +80,13 @@ export function RecentEvents(props: {
     client: (mac) => props.clientName(mac),
     pattern: (id) => patterns().get(id),
   };
+  const alerts = createMemo(() => byAttention(props.live.alerts.active));
+  const alertNames = { node: props.nodeName, client: props.clientName };
   const shown = createMemo(() =>
-    (events() ?? []).map((event) => ({ event, described: describeEvent(event, names) })),
+    (events() ?? [])
+      // With alerts above them, fewer events keep the card level with its neighbours.
+      .slice(0, Math.max(3, COUNT - Math.min(alerts().length, ALERTS)))
+      .map((event) => ({ event, described: describeEvent(event, names) })),
   );
   return (
     <Card class="flex min-w-0 flex-col" aria-label={t.title}>
@@ -91,6 +99,65 @@ export function RecentEvents(props: {
           </a>
         }
       />
+      <Show when={alerts().length > 0}>
+        <section
+          aria-label={t.alerts}
+          class="mx-2 mb-2 rounded-control border border-edge bg-raised/40"
+        >
+          <h3 class="flex items-center justify-between px-3 pt-2 pb-1 font-medium text-fg-subtle text-xs uppercase tracking-wide">
+            {t.alerts}
+            <a
+              href="/insights/alerts"
+              class="font-medium text-accent normal-case tracking-normal hover:underline"
+            >
+              {t.alertCount(alerts().length)}
+            </a>
+          </h3>
+          <ul class="flex flex-col px-1 pb-1">
+            <For each={alerts().slice(0, ALERTS)}>
+              {(alert) => (
+                <li>
+                  <a
+                    href={`/insights/alerts?alert=${alert.id}`}
+                    class={[
+                      "flex min-w-0 items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised",
+                      { "opacity-60": alert.acknowledged !== null || alert.silenced },
+                    ]}
+                  >
+                    <span
+                      class={[
+                        "grid size-8 shrink-0 place-items-center rounded-lg",
+                        TILES[levelTones[alert.level]],
+                      ]}
+                    >
+                      <Icon icon={subjectIcon(alert)} class="size-4" />
+                      <span class="sr-only">{strings.events.levelName[alert.level]}</span>
+                    </span>
+                    <span class="flex min-w-0 flex-1 flex-col">
+                      <span class="truncate font-medium text-fg text-sm">{alert.name}</span>
+                      <span class="truncate text-fg-subtle text-xs">
+                        {subjectLabel(alert, alertNames)}
+                        <Show when={causeText(alert)}>{(cause) => <> · {cause()}</>}</Show>
+                      </span>
+                    </span>
+                    <span class="inline-flex shrink-0 items-center gap-1 text-fg-subtle text-xs">
+                      <Show
+                        when={alert.acknowledged === null && !alert.silenced}
+                        fallback={
+                          strings.alerts.state[alert.silenced ? "silenced" : "acknowledged"]
+                        }
+                      >
+                        <span class="size-1.5 animate-pulse rounded-full bg-crit" />
+                        {strings.alerts.state.firing}
+                      </Show>
+                    </span>
+                  </a>
+                </li>
+              )}
+            </For>
+          </ul>
+        </section>
+      </Show>
       <Show
         when={events()}
         fallback={

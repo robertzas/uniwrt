@@ -149,7 +149,7 @@ describe("Devices", () => {
 
   it("shows a device's stats, radios and clients, and follows its deltas", async () => {
     const { ws } = renderAt("/devices/1");
-    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:1"] }));
+    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "node:1"] }));
 
     ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(wirelessFacts()) });
     await screen.findByRole("heading", { name: "gw" });
@@ -190,7 +190,7 @@ describe("Devices", () => {
 
   it("says when a device does not exist", async () => {
     const { ws } = renderAt("/devices/9");
-    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:9"] }));
+    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "node:9"] }));
     ws.receive({ type: "error", topic: "node:9", message: "no node 9" });
     await screen.findByRole("heading", { name: "Device not found" });
   });
@@ -213,7 +213,7 @@ describe("Devices", () => {
     await waitFor(() => expect(clients).toHaveTextContent("laptop"));
     expect(fetch).toHaveBeenCalledWith("/api/v1/nodes/1", expect.anything());
     // The gateway's topic stays unsubscribed: its focus is not held.
-    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:2"] });
+    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "node:2"] });
   });
 
   it("charts the device's history: one interface at a time, its radios by band", async () => {
@@ -236,7 +236,7 @@ describe("Devices", () => {
     );
     const { ws } = renderAt("/devices/1");
     sendFleet(ws, [summary(1, "gw", { role: "gateway" })]);
-    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:1"] }));
+    await waitFor(() => expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "node:1"] }));
     ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(wirelessFacts()) });
 
     expect(await screen.findByRole("heading", { name: "Performance" })).toBeVisible();

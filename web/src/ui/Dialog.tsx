@@ -15,8 +15,8 @@ export interface DialogProps {
   /** The element to focus on open; by default the first focusable one (the close button). */
   initialFocus?: () => HTMLElement | undefined;
   children: JSX.Element;
-  /** `wide` fits lists and tables (64 rem); `md` (32 rem) by default. */
-  size?: "md" | "wide";
+  /** `wide` fits lists and tables (64 rem), `lg` two-column forms (42 rem); `md` (32 rem) by default. */
+  size?: "md" | "lg" | "wide";
   class?: string;
 }
 
@@ -36,7 +36,7 @@ export function Dialog(props: DialogProps) {
             onCloseAutoFocus={focus.close}
             class={[
               "relative w-full rounded-card border border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel data-expanded:animate-pop-in data-closed:animate-pop-out",
-              props.size === "wide" ? "max-w-5xl" : "max-w-lg",
+              { wide: "max-w-5xl", lg: "max-w-2xl", md: "max-w-lg" }[props.size ?? "md"],
               props.class,
             ]}
           >

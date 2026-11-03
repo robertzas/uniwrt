@@ -4,6 +4,7 @@ import { paletteShortcut } from "../lib/platform";
 import { strings } from "../lib/strings";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
+import { AlertsBell } from "./AlertsBell";
 import { HealthBadge } from "./HealthBadge";
 import { findNavItem } from "./nav";
 
@@ -36,6 +37,7 @@ export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => voi
             <Kbd>{paletteShortcut}</Kbd>
           </span>
         </button>
+        <AlertsBell />
         <HealthBadge />
       </div>
     </header>

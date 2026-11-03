@@ -112,7 +112,7 @@ describe("createNodeView", () => {
     });
     flush();
     await tick();
-    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "node:1"] });
+    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "node:1"] });
 
     ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(facts(12)) });
     flush();
@@ -129,11 +129,14 @@ describe("createNodeView", () => {
       roams: [],
       removed: false,
     });
-    expect(ws.sent.slice(-2)).toEqual([{ sub: ["fleet"] }, { sub: ["fleet", "node:1"] }]);
+    expect(ws.sent.slice(-2)).toEqual([
+      { sub: ["fleet", "alerts"] },
+      { sub: ["fleet", "alerts", "node:1"] },
+    ]);
 
     dispose();
     await tick();
-    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet"] });
+    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts"] });
     socket.close();
   });
 });
