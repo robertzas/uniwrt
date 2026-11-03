@@ -59,7 +59,7 @@ flowchart TB
 | L0 | `topo` | facts → topology graph | core, model |
 | L0 | `clients` | the client inventory: vendors (embedded OUI table), device kinds, sessions, samples, experience score | core, model, topo |
 | L0 | `metrics` | sampling facts, topology builds and client samples into 15 s windows; retention and the resolution a query reads; LTTB downsampling | core, model, topo, clients |
-| L0 | `events` | deriving the event timeline from what the engine announces (conditions that raise and clear, folded repeats); alert rules later (M2.5b2) | core, model, topo, clients |
+| L0 | `events` | deriving the event timeline from what the engine announces (conditions that raise and clear, folded repeats); alert rules over metric windows and recorded events, and the built-in rules (`data/alert-rules.toml`) | core, model, topo, clients |
 | L0 | `rf` | channel/width/power planner | core, model |
 | L0 | `isp` | ISP preset schema and embedded presets (`crates/isp/data/`) | core, model |
 | L1 adapters | `store` | SQLite: revisions, inventory, events, jobs, metrics, logs (FTS5), vault | core, model |

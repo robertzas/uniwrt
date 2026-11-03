@@ -21,6 +21,7 @@ ts-rs.workspace = true
 uniwrt-clients = { workspace = true, features = ["ts"] }
 uniwrt-core = { workspace = true, features = ["ts"] }
 uniwrt-engine.workspace = true
+uniwrt-events.workspace = true
 uniwrt-jobs.workspace = true
 uniwrt-metrics.workspace = true
 uniwrt-model = { workspace = true, features = ["ts"] }

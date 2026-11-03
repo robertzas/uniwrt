@@ -222,7 +222,9 @@ impl<L: NodeLink> Intake<L> {
             | Event::Topology { .. }
             | Event::Clients { .. }
             | Event::Logged { .. }
-            | Event::Recorded { .. } => {}
+            | Event::Recorded { .. }
+            | Event::Sampled { .. }
+            | Event::Alerts { .. } => {}
         }
     }
 

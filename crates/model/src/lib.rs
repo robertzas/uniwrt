@@ -20,6 +20,8 @@
 //!   [`metric`] names metric series ([`metric::Entity`], [`metric::Metric`] with its
 //!   [`metric::Unit`]) and carries their [`metric::Sample`]s and [`metric::Point`]s at a
 //!   [`metric::Resolution`].
+//!   [`alerts`] holds alert rules ([`alerts::AlertRule`] over metrics or events), the alerts
+//!   they fire ([`alerts::AlertRecord`]) and maintenance windows.
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
@@ -34,6 +36,7 @@
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.
 
+pub mod alerts;
 pub mod client;
 pub mod discovery;
 pub mod event;

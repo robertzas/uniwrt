@@ -8,19 +8,24 @@
 //!   [`NewEvent`]s they make. [`Seed`] is what it knows at start: conditions still raised in the
 //!   store, the clients already known and the nodes' last facts. A [`Folder`] plans how to
 //!   store events ([`EventWrite`]): repeats of one with a fold key fold into its record.
+//!   [`alerts`]: an [`Evaluator`] runs alert rules over the metrics' windows and the recorded
+//!   events and says how to change the alerts ([`AlertWrite`]); [`presets`] are the built-in
+//!   rules (`data/alert-rules.toml`).
 //! - **What it derives:** nodes offline (after 30 s), degraded (after 60 s), back, rebooted
 //!   (their boot time moved) and short of flash (under 10 % free, until 15 %); gateways' WAN
 //!   links without a default route (after 10 s) and their addresses changing; mesh links between
 //!   adopted nodes down (after 30 s) or weak (quality under 40 for 2 min, until 50); clients
 //!   joining, leaving, roaming and new ones; log entries whose pattern is an event; adoptions and
-//!   failed jobs. Raised conditions clear with how long they lasted.
+//!   failed jobs. Raised conditions clear with how long they lasted. Alerts: see [`alerts`].
 //! - **Invariants:** pure and deterministic: no IO and no clock (times come in with the input).
 //!   A condition raises once and clears once; nothing is derived about a node that is not
 //!   online (its links and clients vanish with it), nor about clients during a node's first
 //!   minute online (its first station lists show clients that were already there).
-//! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-topo`, `uniwrt-clients`.
+//! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-topo`, `uniwrt-clients`; `toml`
+//!   for the presets.
 //! - **Tests:** next to each concept, over hand-made inputs (`cargo nextest run -p uniwrt-events`).
 
+pub mod alerts;
 mod clients;
 mod conditions;
 mod derive;
@@ -32,10 +37,14 @@ mod tests;
 use std::time::Duration;
 
 pub use self::{
+    alerts::{AlertsConfig, Evaluator, Silences, presets},
     derive::{Deriver, Seed},
     fold::Folder,
 };
-pub use uniwrt_model::events::{EventWrite, NewEvent};
+pub use uniwrt_model::{
+    alerts::AlertWrite,
+    events::{EventWrite, NewEvent},
+};
 
 /// How long states must last, and the thresholds.
 #[derive(Debug, Clone, Copy)]

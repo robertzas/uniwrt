@@ -52,9 +52,9 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AuditRepo, ClientRepo, EventRepo, EventsPrune, FactsRepo, HostKeyRepo, InventoryRepo,
-    JobRepo, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewSession, NodeRepo, Pin, Secret,
-    SessionRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
+    Adoption, AlertRepo, AuditRepo, ClientRepo, EventRepo, EventsPrune, FactsRepo, HostKeyRepo,
+    InventoryRepo, JobRepo, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewSession, NodeRepo,
+    Pin, Secret, SessionRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, SealedBackup, Vault};

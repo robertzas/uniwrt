@@ -15,6 +15,7 @@
 mod conn;
 mod message;
 mod subs;
+mod subs_alerts;
 mod subs_clients;
 mod subs_events;
 #[cfg(test)]

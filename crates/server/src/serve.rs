@@ -105,26 +105,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             .jobs(&store, vault, &controller_key, Arc::clone(&clock))
             .await?;
         fleet.record_events(&store, &jobs).await;
-        let api = Api::new(ApiConfig::new(
-            store.clone(),
-            Arc::new(fleet.engine.clone()),
-            Arc::clone(&clock),
-            build_info::API,
-            Arc::new(tls.clone()),
-            jobs.clone(),
-        ))
-        .await
-        .context("cannot start the API")?;
-        if args.demo {
-            api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
-            info!(
-                "demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}; the last access point \
-                 waits to be adopted, with root password {}",
-                crate::demo::ROOT_PASSWORD
-            );
-        } else if api.awaiting_setup() {
-            warn!("no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)");
-        }
+        let api = start_api(&args, &store, &fleet, &clock, &tls, &jobs).await?;
         let renewal = tokio::spawn(renewer.run());
         let app = http::router(&ui::EMBEDDED, api.clone());
         let plain = http::plain::router(
@@ -168,6 +149,43 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
 }
 
 /// The fleet: the simulated one in demo mode, else the adopted nodes.
+/// The API over the running fleet; demo mode's admin, or a reminder to finish setup.
+async fn start_api(
+    args: &ServeArgs,
+    store: &Store,
+    fleet: &Fleet,
+    clock: &Arc<dyn Clock>,
+    tls: &crate::tls::Tls,
+    jobs: &uniwrt_jobs::Jobs,
+) -> anyhow::Result<Api> {
+    let api = Api::new(ApiConfig {
+        alerts: fleet.alerts(),
+        ..ApiConfig::new(
+            store.clone(),
+            Arc::new(fleet.engine.clone()),
+            Arc::clone(clock),
+            build_info::API,
+            Arc::new(tls.clone()),
+            jobs.clone(),
+        )
+    })
+    .await
+    .context("cannot start the API")?;
+    if args.demo {
+        api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
+        info!(
+            "demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}; the last access point \
+             waits to be adopted, with root password {}",
+            crate::demo::ROOT_PASSWORD
+        );
+    } else if api.awaiting_setup() {
+        warn!(
+            "no users yet: create the admin in the web UI within 10 minutes (a restart reopens setup)"
+        );
+    }
+    Ok(api)
+}
+
 async fn start_fleet(
     args: &ServeArgs,
     store: &Store,

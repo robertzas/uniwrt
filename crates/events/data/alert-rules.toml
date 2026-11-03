@@ -1,0 +1,164 @@
+# Built-in alert rules (docs/features/observability.md, Alerts): presets of the rules users
+# write, stored on the controller's first start and whenever a new one ships. Users edit and
+# disable them, and reset them to what this file says; they cannot delete them.
+#
+# Fields: id (stable: the store keeps it), name, level (critical, warning, notice or info),
+# enabled (default true), cooldown_s (a subject firing again within this long of its alert
+# resolving reopens it), and `when`:
+#   type = "event": kinds (event names, any when absent), categories, min (the least level),
+#     nodes, patterns (log pattern ids), count and window_s (count matches within the window;
+#     with count 1, an event that raises a condition keeps its alert until the condition clears).
+#   type = "metric": metric, entities (`node:*`, `node:*/radio:*`, `client:*`, `link:*`, `site`,
+#     …), op (above or below), threshold, clear (hysteresis, optional), for_s.
+
+# --- Nodes ---
+
+[[rule]]
+id = "node-offline"
+name = "Device offline"
+level = "critical"
+cooldown_s = 600
+when = { type = "event", kinds = ["node_offline"], count = 1, window_s = 300 }
+
+[[rule]]
+id = "node-degraded"
+name = "Device telemetry degraded"
+level = "warning"
+cooldown_s = 600
+when = { type = "event", kinds = ["node_degraded"], count = 1, window_s = 300 }
+
+[[rule]]
+id = "node-rebooted"
+name = "Device rebooted"
+level = "warning"
+cooldown_s = 600
+when = { type = "event", kinds = ["node_rebooted"], count = 1, window_s = 900 }
+
+[[rule]]
+id = "node-flapping"
+name = "Device going offline repeatedly"
+level = "critical"
+cooldown_s = 3600
+when = { type = "event", kinds = ["node_offline"], count = 3, window_s = 3600 }
+
+[[rule]]
+id = "flash-low"
+name = "Device flash nearly full"
+level = "warning"
+cooldown_s = 3600
+when = { type = "event", kinds = ["flash_low"], count = 1, window_s = 300 }
+
+[[rule]]
+id = "cpu-high"
+name = "Device CPU busy"
+level = "warning"
+cooldown_s = 1800
+when = { type = "metric", metric = "cpu", entities = "node:*", op = "above", threshold = 90.0, clear = 75.0, for_s = 600 }
+
+[[rule]]
+id = "memory-high"
+name = "Device memory nearly full"
+level = "warning"
+cooldown_s = 1800
+when = { type = "metric", metric = "memory", entities = "node:*", op = "above", threshold = 90.0, clear = 80.0, for_s = 600 }
+
+[[rule]]
+id = "temperature-high"
+name = "Device running hot"
+level = "warning"
+cooldown_s = 1800
+when = { type = "metric", metric = "temperature", entities = "node:*", op = "above", threshold = 85.0, clear = 80.0, for_s = 300 }
+
+[[rule]]
+id = "job-failed"
+name = "Job failed"
+level = "warning"
+cooldown_s = 0
+when = { type = "event", kinds = ["job_failed"], count = 1, window_s = 900 }
+
+# --- Internet and mesh ---
+
+[[rule]]
+id = "wan-down"
+name = "Internet down"
+level = "critical"
+cooldown_s = 600
+when = { type = "event", kinds = ["wan_down"], count = 1, window_s = 300 }
+
+[[rule]]
+id = "mesh-link-down"
+name = "Mesh link down"
+level = "critical"
+cooldown_s = 600
+when = { type = "event", kinds = ["mesh_link_down"], count = 1, window_s = 300 }
+
+[[rule]]
+id = "mesh-link-weak"
+name = "Mesh link weak"
+level = "warning"
+cooldown_s = 1800
+when = { type = "event", kinds = ["mesh_link_weak"], count = 1, window_s = 300 }
+
+# --- Wi-Fi ---
+
+[[rule]]
+id = "channel-busy"
+name = "Wi-Fi channel congested"
+level = "notice"
+cooldown_s = 3600
+when = { type = "metric", metric = "busy", entities = "node:*/radio:*", op = "above", threshold = 80.0, clear = 65.0, for_s = 900 }
+
+[[rule]]
+id = "radar"
+name = "Radar detected"
+level = "warning"
+cooldown_s = 1800
+when = { type = "event", kinds = ["log_pattern"], patterns = ["dfs-radar"], count = 1, window_s = 900 }
+
+[[rule]]
+id = "wifi-firmware"
+name = "Wi-Fi firmware trouble"
+level = "warning"
+cooldown_s = 1800
+when = { type = "event", kinds = ["log_pattern"], patterns = ["wifi-firmware-crash", "wifi-firmware-timeout"], count = 1, window_s = 900 }
+
+[[rule]]
+id = "poor-experience"
+name = "Client with a poor experience"
+level = "notice"
+enabled = false
+cooldown_s = 3600
+when = { type = "metric", metric = "score", entities = "client:*", op = "below", threshold = 40.0, clear = 55.0, for_s = 900 }
+
+[[rule]]
+id = "new-client"
+name = "New device on the network"
+level = "notice"
+enabled = false
+cooldown_s = 0
+when = { type = "event", kinds = ["new_client"], count = 1, window_s = 3600 }
+
+# --- Network and system logs ---
+
+[[rule]]
+id = "critical-logs"
+name = "Critical problem in a device log"
+level = "critical"
+cooldown_s = 1800
+when = { type = "event", kinds = ["log_pattern"], min = "critical", count = 1, window_s = 900 }
+
+[[rule]]
+id = "network-trouble"
+name = "LAN service trouble"
+level = "warning"
+cooldown_s = 1800
+when = { type = "event", kinds = ["log_pattern"], patterns = ["dhcp-pool-full", "bridge-loop", "conntrack-full", "batman-mtu"], count = 1, window_s = 900 }
+
+# --- Security ---
+
+[[rule]]
+id = "password-guessing"
+name = "Repeated wrong passwords"
+level = "warning"
+cooldown_s = 3600
+when = { type = "event", categories = ["security"], count = 10, window_s = 600 }

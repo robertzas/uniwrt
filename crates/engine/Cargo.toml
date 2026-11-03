@@ -15,6 +15,7 @@ tracing.workspace = true
 uniwrt-clients.workspace = true
 uniwrt-core.workspace = true
 uniwrt-events.workspace = true
+thiserror.workspace = true
 uniwrt-metrics.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true

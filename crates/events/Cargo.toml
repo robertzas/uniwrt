@@ -13,6 +13,9 @@ uniwrt-clients.workspace = true
 uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 uniwrt-topo.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

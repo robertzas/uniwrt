@@ -2,6 +2,7 @@
 //! traits, so their tests can substitute fakes.
 
 mod adoption;
+mod alerts;
 mod audit;
 mod clients;
 mod events;
@@ -15,8 +16,14 @@ mod sessions;
 mod topology;
 mod users;
 
-use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, SearchId, Timestamp, UserId};
+use uniwrt_core::{
+    AlertId, EventId, JobId, LogId, MacAddr, NodeId, RuleId, SearchId, Timestamp, UserId, WindowId,
+};
 use uniwrt_model::{
+    alerts::{
+        Acknowledgement, AlertFilter, AlertRecord, AlertRule, AlertWrite, MaintenanceWindow,
+        NewWindow, RuleSpec,
+    },
     client::{ClientRecord, ClientSession},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
@@ -423,4 +430,82 @@ pub trait EventRepo: Send + Sync {
     /// are more than `prune.max_events`. One call deletes a bounded number; it returns how
     /// many, so a caller repeats while it deleted some.
     fn prune_events(&self, prune: EventsPrune) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Alerts (features/observability.md, Alerts): their rules, the alerts they fired and the
+/// maintenance windows that silence them.
+pub trait AlertRepo: Send + Sync {
+    /// Every rule, by id.
+    fn alert_rules(&self) -> impl Future<Output = Result<Vec<AlertRule>>> + Send;
+
+    fn alert_rule(&self, id: RuleId) -> impl Future<Output = Result<Option<AlertRule>>> + Send;
+
+    /// Stores the built-in rules (`preset`, spec) not stored yet; returns how many.
+    fn seed_alert_rules(
+        &self,
+        presets: Vec<(String, RuleSpec)>,
+    ) -> impl Future<Output = Result<usize>> + Send;
+
+    fn create_alert_rule(&self, spec: RuleSpec) -> impl Future<Output = Result<AlertRule>> + Send;
+
+    /// Replaces a rule's spec; `None` when there is no such rule.
+    fn update_alert_rule(
+        &self,
+        id: RuleId,
+        spec: RuleSpec,
+    ) -> impl Future<Output = Result<Option<AlertRule>>> + Send;
+
+    /// Deletes one of the user's rules (not a built-in one); whether it did.
+    fn delete_alert_rule(&self, id: RuleId) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Applies the alert engine's writes in order; returns each alert as stored (a write to an
+    /// alert no longer stored is skipped).
+    fn record_alerts(
+        &self,
+        writes: Vec<AlertWrite>,
+    ) -> impl Future<Output = Result<Vec<AlertRecord>>> + Send;
+
+    /// Up to `limit` alerts that pass `filter`, newest first (by start, then id), from before
+    /// `before` (a time and id) when given.
+    fn alerts(
+        &self,
+        filter: AlertFilter,
+        before: Option<(Timestamp, AlertId)>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<AlertRecord>>> + Send;
+
+    fn alert(&self, id: AlertId) -> impl Future<Output = Result<Option<AlertRecord>>> + Send;
+
+    /// What the alert engine resumes: alerts firing, and the latest of each rule and subject
+    /// resolved since `since`.
+    fn alerts_to_resume(
+        &self,
+        since: Timestamp,
+    ) -> impl Future<Output = Result<Vec<AlertRecord>>> + Send;
+
+    /// Acknowledges an alert that still fires; `None` when there is no such alert or it
+    /// resolved.
+    fn acknowledge_alert(
+        &self,
+        id: AlertId,
+        ack: Acknowledgement,
+    ) -> impl Future<Output = Result<Option<AlertRecord>>> + Send;
+
+    /// Deletes alerts resolved before `before`; returns how many.
+    fn prune_alerts(&self, before: Timestamp) -> impl Future<Output = Result<usize>> + Send;
+
+    /// The maintenance windows that end after `after`, by start.
+    fn maintenance_windows(
+        &self,
+        after: Timestamp,
+    ) -> impl Future<Output = Result<Vec<MaintenanceWindow>>> + Send;
+
+    fn create_maintenance_window(
+        &self,
+        window: NewWindow,
+        created_by: Option<UserId>,
+    ) -> impl Future<Output = Result<MaintenanceWindow>> + Send;
+
+    /// Deletes a window (ending it, when it is on); whether it did.
+    fn delete_maintenance_window(&self, id: WindowId) -> impl Future<Output = Result<bool>> + Send;
 }

@@ -53,6 +53,12 @@ pub enum AuditAction {
     Adopt,
     /// A user gave a client an alias or took it away (the detail names the client and alias).
     RenameClient,
+    /// A user created, edited, reset or deleted an alert rule (the detail says which and how).
+    AlertRule,
+    /// A user acknowledged an alert.
+    AcknowledgeAlert,
+    /// A user scheduled or deleted a maintenance window.
+    Maintenance,
 }
 
 /// One audit log entry.

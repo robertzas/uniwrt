@@ -20,7 +20,11 @@
 //!   through `LogRepo` (announced as [`Event::Logged`]), and prunes them (14 days, 1 GiB);
 //!   [`EventRecorder`] ([`EventsConfig`]), which derives events (`uniwrt_events`) from the bus
 //!   and the job runner, folds repeats, stores them through `EventRepo` (announced as
-//!   [`Event::Recorded`]) and prunes them (60 days, 200,000 events).
+//!   [`Event::Recorded`]) and prunes them (60 days, 200,000 events); [`AlertEngine`]
+//!   ([`AlertsConfig`]), which runs the alert rules (`uniwrt_events::alerts`) over recorded
+//!   events and the metric windows ([`Event::Sampled`]), silences alerts while jobs run and in
+//!   maintenance windows, stores them through `AlertRepo` (announced as [`Event::Alerts`]) and
+//!   prunes them (90 days after they resolve); [`Alerts`] is the API's handle on it.
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -43,7 +47,7 @@
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
-//!   `LogRepo`), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
+//!   `LogRepo`, `EventRepo`, `AlertRepo`), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
 //!   receiver hands on, the annotations), tokio, tracing,
 //!   `serde_json` (the history's frames).
 //! - **Tests:** unit tests next to the pure parts (intervals and the poller, status, roams);
@@ -52,6 +56,7 @@
 //!   topology of the lab's captures (`cargo nextest run -p uniwrt-engine`).
 
 mod actor;
+mod alerts;
 mod bus;
 mod clients;
 mod config;
@@ -71,6 +76,7 @@ mod status;
 mod testing;
 mod topology;
 
+pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
 pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;

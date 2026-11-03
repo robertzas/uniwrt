@@ -6,10 +6,12 @@ use std::sync::Arc;
 use uniwrt_clients::Changes;
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
+    alerts::AlertRecord,
     event::{NodeEvent, Roam},
     events::EventRecord,
     facts::NodeFacts,
     log::{LogEntry, LogRecord},
+    metric::Sample,
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
@@ -58,11 +60,17 @@ pub enum Event {
     /// Events as recorded ([`EventRecorder`](crate::EventRecorder)): new ones, and those that
     /// folded repeats (with the same id), in the order they were stored.
     Recorded { events: Arc<[EventRecord]> },
+    /// Metric windows as the sampler closed them ([`MetricsRecorder`](crate::MetricsRecorder)),
+    /// once stored: the alert engine's input.
+    Sampled { samples: Arc<[Sample]> },
+    /// Alerts as stored ([`AlertEngine`](crate::AlertEngine)): opened, changed, resolved or
+    /// acknowledged, in the order they were stored.
+    Alerts { alerts: Arc<[AlertRecord]> },
 }
 
 impl Event {
     /// The node it is about; `None` for a roam, which is about two, the topology, clients,
-    /// stored log entries and recorded events.
+    /// stored log entries, recorded events, metric windows and alerts.
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Status { node, .. }
@@ -74,7 +82,9 @@ impl Event {
             | Self::Topology { .. }
             | Self::Clients { .. }
             | Self::Logged { .. }
-            | Self::Recorded { .. } => None,
+            | Self::Recorded { .. }
+            | Self::Sampled { .. }
+            | Self::Alerts { .. } => None,
         }
     }
 }

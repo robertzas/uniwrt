@@ -75,6 +75,8 @@ pub enum ApiError {
     Conflict(String),
     /// A node the request needs could not be reached or failed (502); the detail says why.
     BadGateway(String),
+    /// A part of the controller the request needs is not running (503).
+    Unavailable(String),
     /// Too many attempts; retry after this long (429).
     TooManyRequests(Duration),
     /// A failure on our side (500); the detail is logged, never sent.
@@ -96,6 +98,7 @@ impl IntoResponse for ApiError {
             Self::NotFound(detail) => response(StatusCode::NOT_FOUND, detail),
             Self::Conflict(detail) => response(StatusCode::CONFLICT, detail),
             Self::BadGateway(detail) => response(StatusCode::BAD_GATEWAY, detail),
+            Self::Unavailable(detail) => response(StatusCode::SERVICE_UNAVAILABLE, detail),
             Self::TooManyRequests(wait) => {
                 let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
                 let mut response = response(
@@ -128,6 +131,7 @@ impl std::fmt::Display for ApiError {
             | Self::NotFound(detail)
             | Self::Conflict(detail)
             | Self::BadGateway(detail)
+            | Self::Unavailable(detail)
             | Self::Internal(detail) => f.write_str(detail),
             Self::TooManyRequests(wait) => write!(f, "too many attempts; retry in {wait:?}"),
         }

@@ -2925,6 +2925,7 @@ dependencies = [
  "uniwrt-clients",
  "uniwrt-core",
  "uniwrt-engine",
+ "uniwrt-events",
  "uniwrt-jobs",
  "uniwrt-metrics",
  "uniwrt-model",
@@ -2968,6 +2969,7 @@ dependencies = [
  "bytes",
  "serde_json",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
  "uniwrt-clients",
@@ -2986,7 +2988,10 @@ dependencies = [
 name = "uniwrt-events"
 version = "0.0.0"
 dependencies = [
+ "serde",
  "serde_json",
+ "thiserror",
+ "toml",
  "uniwrt-clients",
  "uniwrt-core",
  "uniwrt-model",

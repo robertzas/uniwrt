@@ -2,7 +2,7 @@
 //! the security headers, authentication with sessions, the nodes, and the WS hub.
 //!
 //! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the engine as an
-//!   `Arc<dyn Fleet>`, the clock, the build identity, the HTTPS [`Certificate`], the password
+//!   `Arc<dyn Fleet>`, the alert engine's handle, the clock, the build identity, the HTTPS [`Certificate`], the password
 //!   cost and the setup window); [`router`] for the server to nest under `/api`;
 //!   [`Api::close_sockets`] when the server stops; [`security::headers`] for every response, UI
 //!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
@@ -22,9 +22,12 @@
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
 //!   `GET v1/logs/patterns`, and saved searches: `GET` and `POST v1/logs/searches`,
 //!   `DELETE v1/logs/searches/{id}`; see `logs`), the events (`GET v1/events` pages
-//!   ([`EventPage`]); see `events`), and `v1/ws`
+//!   ([`EventPage`]); see `events`), the alerts (`GET v1/alerts` pages ([`AlertPage`]),
+//!   `POST v1/alerts/{id}/acknowledge`, the rules under `v1/alert-rules` ([`RuleView`]) and the
+//!   maintenance windows under `v1/maintenance`; see `alerts`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
-//!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `jobs`,
+//!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `alerts`,
+//!   `jobs`,
 //!   `topology`, `clients`, `client:<mac>`, see `ws`). Handlers that need a user
 //!   take [`CurrentUser`].
 //! - **Auth** (features/security.md; D-040): setup creates the admin only within 10 minutes of a
@@ -37,7 +40,7 @@
 //!   `Origin` ([`security`]). API responses are never cached. Errors never leak internals: a 500
 //!   says to read the log, which has the cause. Passwords and tokens are zeroized and never logged.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (with `ts`), `uniwrt-store`, `uniwrt-engine`
-//!   (`Fleet`, its events), `uniwrt-node` (collect sets), `uniwrt-topo` (with `ts`), axum (with `ws`), argon2, ring
+//!   (`Fleet`, its events, `Alerts`), `uniwrt-events` (the built-in alert rules), `uniwrt-node` (collect sets), `uniwrt-topo` (with `ts`), axum (with `ws`), argon2, ring
 //!   (tokens, salts, digests), ts-rs for the DTOs (`web/src/api/gen`).
 //! - **Tests:** unit tests per module; `auth/tests.rs` drives the router with
 //!   `tower::ServiceExt::oneshot` over a temporary store, on tokio's paused clock where time
@@ -46,6 +49,7 @@
 //!   HTTP/1.1 and HTTP/2 (`cargo nextest run -p uniwrt-api`).
 
 mod adopt;
+mod alerts;
 pub mod auth;
 mod client;
 mod clients;
@@ -73,6 +77,11 @@ use axum::{
 pub use adopt::{
     AdoptBody, ProbeRequest, ProbeResult,
     batch::{BatchAdoptBody, BatchAdoptResult, BatchNode, Refused},
+};
+pub use alerts::{
+    AlertPage,
+    maintenance::WindowList,
+    rules::{RuleList, RuleView},
 };
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
@@ -112,6 +121,22 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
         .route("/v1/events", get(events::list))
+        .route("/v1/alerts", get(alerts::list))
+        .route("/v1/alerts/{id}/acknowledge", post(alerts::acknowledge))
+        .route(
+            "/v1/alert-rules",
+            get(alerts::rules::list).post(alerts::rules::create),
+        )
+        .route(
+            "/v1/alert-rules/{id}",
+            put(alerts::rules::update).delete(alerts::rules::delete),
+        )
+        .route("/v1/alert-rules/{id}/reset", post(alerts::rules::reset))
+        .route(
+            "/v1/maintenance",
+            get(alerts::maintenance::list).post(alerts::maintenance::create),
+        )
+        .route("/v1/maintenance/{id}", delete(alerts::maintenance::delete))
         .route("/v1/logs", get(logs::list))
         .route("/v1/logs/histogram", get(logs::histogram))
         .route("/v1/logs/sources", get(logs::sources))

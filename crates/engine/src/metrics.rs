@@ -14,6 +14,7 @@ use tokio::{
 };
 use tracing::warn;
 use uniwrt_metrics::{Retention, Sampler};
+use uniwrt_model::metric::Sample;
 use uniwrt_node::{NodeLink, proto::ops::Set};
 use uniwrt_store::{MetricsPrune, MetricsRepo};
 
@@ -105,7 +106,7 @@ async fn sample<S: MetricsRepo>(
                 Err(RecvError::Lagged(_)) => {}
                 Err(RecvError::Closed) => break,
             },
-            _ = flush.tick() => write(&repo, &mut sampler, ctx.clock.now()).await,
+            _ = flush.tick() => write(&ctx, &repo, &mut sampler, ctx.clock.now()).await,
             _ = &mut stopped => {
                 while let Ok(event) = bus.try_recv() {
                     feed(&mut sampler, &event);
@@ -116,7 +117,7 @@ async fn sample<S: MetricsRepo>(
     }
     // Every window, the open ones too: a restart within one replaces it with what follows.
     let end = ctx.clock.now().saturating_add(Duration::from_mins(1));
-    write(&repo, &mut sampler, end).await;
+    write(&ctx, &repo, &mut sampler, end).await;
     let _ = stop_upkeep.send(());
 }
 
@@ -137,17 +138,28 @@ fn feed(sampler: &mut Sampler, event: &Event) {
         | Event::Roam { .. }
         | Event::Log { .. }
         | Event::Logged { .. }
-        | Event::Recorded { .. } => {}
+        | Event::Recorded { .. }
+        | Event::Sampled { .. }
+        | Event::Alerts { .. } => {}
     }
 }
 
-async fn write<S: MetricsRepo>(repo: &S, sampler: &mut Sampler, now: uniwrt_core::Timestamp) {
+/// Stores the windows that closed by `now`, then announces them ([`Event::Sampled`]).
+async fn write<S: MetricsRepo>(
+    ctx: &Context,
+    repo: &S,
+    sampler: &mut Sampler,
+    now: uniwrt_core::Timestamp,
+) {
     let closed = sampler.drain(now);
-    if !closed.is_empty()
-        && let Err(err) = repo.record_metrics(closed).await
-    {
+    if closed.is_empty() {
+        return;
+    }
+    let windows: Arc<[Sample]> = closed.into();
+    if let Err(err) = repo.record_metrics(windows.to_vec()).await {
         warn!(%err, "cannot record the metrics");
     }
+    ctx.publish(Event::Sampled { samples: windows });
 }
 
 async fn upkeep<S: MetricsRepo>(

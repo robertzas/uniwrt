@@ -1,6 +1,6 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs` or
 //! `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every
-//! source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise),
+//! source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`,
 //! `jobs`, `topology`, `clients` and `client:<mac>`.
 
 use std::fmt;
@@ -28,6 +28,8 @@ pub(crate) enum Topic {
         node: Option<NodeId>,
         min: EventLevel,
     },
+    /// The alerts firing, then every change to an alert.
+    Alerts,
     /// The latest jobs, and every change to a job.
     Jobs,
     /// The fleet's topology, then what changes in it.
@@ -58,6 +60,9 @@ impl Topic {
         }
         if name == "jobs" {
             return Ok(Self::Jobs);
+        }
+        if name == "alerts" {
+            return Ok(Self::Alerts);
         }
         if name == "topology" {
             return Ok(Self::Topology);
@@ -92,7 +97,7 @@ impl Topic {
         }
         Err(BadTopic(format!(
             "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, \
-             events?node=<id>&min=<level>, jobs, topology, clients or client:<mac>"
+             events?node=<id>&min=<level>, alerts, jobs, topology, clients or client:<mac>"
         )))
     }
 }
@@ -177,6 +182,7 @@ mod tests {
         assert_eq!(Topic::parse("fleet"), Ok(Topic::Fleet));
         assert_eq!(Topic::parse("topology"), Ok(Topic::Topology));
         assert_eq!(Topic::parse("clients"), Ok(Topic::Clients));
+        assert_eq!(Topic::parse("alerts"), Ok(Topic::Alerts));
         assert_eq!(
             Topic::parse("client:F0:18:98:00:00:01"),
             Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))

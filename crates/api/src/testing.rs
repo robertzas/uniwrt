@@ -15,7 +15,9 @@ use axum::{
 use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
-use uniwrt_engine::{Engine, EngineConfig, Fleet, LogRecorder, LogsConfig};
+use uniwrt_engine::{
+    AlertEngine, Alerts, AlertsConfig, Engine, EngineConfig, Fleet, LogRecorder, LogsConfig,
+};
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
@@ -94,6 +96,17 @@ pub(crate) async fn api_with(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
 ) -> Api {
+    api_full(store, fleet, clock, dial, None).await
+}
+
+/// [`api_with`], with the alert engine's handle.
+pub(crate) async fn api_full(
+    store: Store,
+    fleet: Arc<dyn Fleet>,
+    clock: Arc<dyn Clock>,
+    dial: Option<Arc<dyn Dial>>,
+    alerts: Option<Alerts>,
+) -> Api {
     let jobs = Jobs::start(JobsConfig {
         vault: Vault::open(&store, &MasterKey::generate().unwrap())
             .await
@@ -108,6 +121,7 @@ pub(crate) async fn api_with(
     .unwrap();
     Api::new(ApiConfig {
         password_cost: PasswordCost::CHEAPEST,
+        alerts,
         ..ApiConfig::new(
             store,
             fleet,
@@ -138,6 +152,8 @@ pub(crate) struct Demo {
     pub(crate) ids: Vec<NodeId>,
     /// Stores the nodes' logs, once started.
     logs: Option<LogRecorder>,
+    /// Evaluates the alert rules (the API's alert routes go through it).
+    _alerts: AlertEngine,
 }
 
 impl Demo {
@@ -184,11 +200,17 @@ impl Demo {
             ids.push(adopted.id);
         }
         let fleet = Arc::new(engine.clone());
-        let api = if dial {
-            api(store.clone(), fleet, clock).await
-        } else {
-            api_with(store.clone(), fleet, clock, None).await
-        };
+        let alerts =
+            AlertEngine::start(&engine, store.clone(), None, AlertsConfig::default()).await;
+        let dial: Option<Arc<dyn Dial>> = dial.then(|| {
+            Arc::new(SshDial {
+                config: SshConfig {
+                    connect_timeout: Duration::from_secs(2),
+                    ..SshConfig::default()
+                },
+            }) as Arc<dyn Dial>
+        });
+        let api = api_full(store.clone(), fleet, clock, dial, Some(alerts.handle())).await;
         api.create_admin("admin", PASSWORD).await.unwrap();
         let mut demo = Self {
             _dir: dir,
@@ -199,6 +221,7 @@ impl Demo {
             cookie: String::new(),
             ids,
             logs: None,
+            _alerts: alerts,
         };
         demo.cookie = login(&demo.api).await;
         demo

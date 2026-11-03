@@ -53,6 +53,12 @@ ids! {
     SearchId = "search";
     /// A recorded event; ids grow in the order events were recorded.
     EventId = "event";
+    /// An alert rule, built in or the user's.
+    RuleId = "rule";
+    /// An alert: a rule firing for one subject, until it resolves.
+    AlertId = "alert";
+    /// A maintenance window, during which alerts are silenced.
+    WindowId = "window";
 }
 
 #[cfg(test)]

@@ -245,7 +245,11 @@ impl Intake {
                 deriver.removed(*node);
                 Vec::new()
             }
-            Event::Node { .. } | Event::Log { .. } | Event::Recorded { .. } => Vec::new(),
+            Event::Node { .. }
+            | Event::Log { .. }
+            | Event::Recorded { .. }
+            | Event::Sampled { .. }
+            | Event::Alerts { .. } => Vec::new(),
         };
         self.pending.extend(events);
     }

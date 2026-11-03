@@ -1,4 +1,4 @@
-//! [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the
+//! [`Api`]: what the handlers share: the store, the engine, the alert engine, the clock, the build identity, the
 //! HTTPS certificate, the password hasher, the login limiter, the setup window and the signal
 //! that closes the WS connections.
 
@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
-use uniwrt_engine::Fleet;
+use uniwrt_engine::{Alerts, Fleet};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _};
@@ -27,6 +27,8 @@ pub struct ApiConfig {
     pub certificate: Arc<dyn Certificate>,
     /// The job runner: adoption.
     pub jobs: Jobs,
+    /// The alert engine, when it runs.
+    pub alerts: Option<Alerts>,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -49,6 +51,7 @@ impl ApiConfig {
             build,
             certificate,
             jobs,
+            alerts: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -68,6 +71,7 @@ struct Inner {
     build: BuildInfo,
     certificate: Arc<dyn Certificate>,
     jobs: Jobs,
+    alerts: Option<Alerts>,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
@@ -93,6 +97,7 @@ impl Api {
                 build: config.build,
                 certificate: config.certificate,
                 jobs: config.jobs,
+                alerts: config.alerts,
             }),
         })
     }
@@ -145,6 +150,14 @@ impl Api {
 
     pub(crate) fn certificate(&self) -> &dyn Certificate {
         self.inner.certificate.as_ref()
+    }
+
+    /// The alert engine, or why not.
+    pub(crate) fn alerts(&self) -> Result<&Alerts, ApiError> {
+        self.inner
+            .alerts
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("The alert engine is not running".to_owned()))
     }
 
     pub(crate) fn jobs(&self) -> &Jobs {

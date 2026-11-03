@@ -8,6 +8,7 @@ use ts_rs::TS;
 use uniwrt_clients::{Client, ClientSample};
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
+    alerts::AlertRecord,
     client::ClientSession,
     event::{NodeEvent, Roam},
     events::EventRecord,
@@ -93,6 +94,16 @@ pub enum ServerMessage {
     EventsDelta {
         topic: String,
         events: Vec<EventRecord>,
+    },
+    /// The alerts firing, newest first.
+    AlertsSnapshot {
+        topic: String,
+        alerts: Vec<AlertRecord>,
+    },
+    /// Alerts stored since (opened, changed, resolved or acknowledged), as they are now, by id.
+    AlertsDelta {
+        topic: String,
+        alerts: Vec<AlertRecord>,
     },
     /// The latest jobs, newest first.
     JobsSnapshot {

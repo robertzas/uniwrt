@@ -23,6 +23,7 @@ use uniwrt_topo::Topology;
 
 use super::{
     message::{FactsPatch, ServerMessage, TimedEvent, TimedRoam},
+    subs_alerts::AlertsPending,
     subs_clients::{ClientPending, ClientsPending},
     subs_events::EventsPending,
     topic::{BadTopic, Topic},
@@ -90,6 +91,7 @@ enum Pending {
     Clients(ClientsPending),
     Client(Box<ClientPending>),
     Events(EventsPending),
+    Alerts(AlertsPending),
 }
 
 impl Subscriptions {
@@ -285,6 +287,10 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             let (pending, snapshot) = EventsPending::subscribe(api, topic, node, min).await?;
             (sub(Pending::Events(pending), None), snapshot)
         }
+        Topic::Alerts => {
+            let (pending, snapshot) = AlertsPending::subscribe(api, topic).await?;
+            (sub(Pending::Alerts(pending), None), snapshot)
+        }
     })
 }
 
@@ -381,6 +387,7 @@ impl Pending {
             Self::Clients(pending) => pending.apply(event),
             Self::Client(pending) => pending.apply(api, event),
             Self::Events(pending) => pending.apply(event),
+            Self::Alerts(pending) => pending.apply(event),
             Self::Jobs { .. } => {}
         }
     }
@@ -466,6 +473,7 @@ impl Pending {
             Self::Clients(pending) => pending.flush(topic),
             Self::Client(pending) => pending.flush(topic),
             Self::Events(pending) => pending.flush(topic),
+            Self::Alerts(pending) => pending.flush(topic),
         }
     }
 }

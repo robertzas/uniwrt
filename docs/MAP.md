@@ -15,6 +15,10 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/adopt.rs`: Adoption, with a session (features/adoption.md, Path A): `POST /api/v1/adopt/probe` reads a node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow.
 - `src/adopt/batch.rs`: `POST /api/v1/adopt/batch`: adopts several nodes with one password, typically those that `GET /api/v1/discovered` reports, each with the host key the user confirmed.
 - `src/adopt/tests.rs`: The adoption and job routes through the router, against the simulated fleet's API: request checks, a probe and an adoption of a node that cannot be reached (the job records why), the audit, and a controller without a dial, where nothing can be adopted.
+- `src/alerts/maintenance.rs`: Maintenance windows, with a session (features/observability.md, Alerts): alerts on their nodes (every node's when they name none) are silenced while they are on.
+- `src/alerts/mod.rs`: The alerts routes, with a session (features/observability.md, Alerts):
+- `src/alerts/rules.rs`: The alert rules, with a session (features/observability.md, Alerts):
+- `src/alerts/tests.rs`: The alerts routes over the demo's store and alert engine: alerts stored by hand, listed and acknowledged; the built-in rules edited, refused deletion and reset; a rule of the user's; maintenance windows.
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
 - `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
@@ -34,7 +38,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
-- `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
+- `src/state.rs`: [`Api`]: what the handlers share: the store, the engine, the alert engine, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
@@ -44,12 +48,13 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
 - `src/ws/subs.rs`: A connection's subscriptions.
+- `src/ws/subs_alerts.rs`: The `alerts` topic of a connection: the alerts firing, then each alert stored since (opened, changed, resolved or acknowledged), by id between flushes so that each is sent as it is now.
 - `src/ws/subs_clients.rs`: The clients' topics of a connection: `clients` keeps each changed client's latest view by MAC address between flushes, and `client:<mac>` one client's view, its new samples (up to a cap) and its changed sessions, with fast telemetry for the node it is at.
 - `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
 - `src/ws/subs_events.rs`: The `events` topic of a connection: the newest events recorded, then each one recorded or folded since that passes its filter (one node's, at a least level), by id between flushes so that a fold sends the record as it is now.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `jobs`, `topology`, `clients` and `client:<mac>`.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients` and `client:<mac>`.
 
 ### `uniwrt-clients` (crates/clients)
 
@@ -84,6 +89,8 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/actor/mod.rs`: [`NodeActor`]: one task per node.
 - `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats.
 - `src/actor/tests.rs`: Actors over a scripted link, on tokio's paused clock: what they ask the agent, and what they announce.
+- `src/alerts/mod.rs`: Alerting (features/observability.md, Alerts; `uniwrt_events::alerts`): an evaluator fed by the bus (recorded events, metric windows) and by the job runner (maintenance while jobs run), ticked for alerts that resolve with time, its writes stored through [`AlertRepo`] and announced as [`Event::Alerts`]; retention runs beside it.
+- `src/alerts/tests.rs`: The alert engine over a store and an engine without nodes, fed by hand on a manual clock: the built-in rules stored once, an event alert raised and cleared, a metric rule of the user's firing from windows, acknowledgements, a rule disabled, silencing while a job runs, and a restart that resumes what fires.
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
 - `src/clients.rs`: Keeping the clients' book (`uniwrt_clients`; features/observability.md, Clients): restored from the store before the nodes are watched, its records and sessions saved through [`ClientRepo`] as [`Event::Clients`] announces them, and clients long gone (and sessions older than [`RecorderConfig::keep`]) pruned every [`RecorderConfig::prune_every`].
 - `src/config.rs`: The engine's settings.
@@ -113,6 +120,11 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 
 Events (features/observability.md, Events, alerts, notifications): deriving the network's timeline from what the engine announces.
 
+- `src/alerts/event.rs`: Event rules over recorded events: matches counted per subject within the rule's window, and the conditions that clear the alerts they raised.
+- `src/alerts/metric.rs`: Metric rules over the sampler's windows: a series beyond its threshold for long enough fires, and resolves back on the safe side of its clear value.
+- `src/alerts/mod.rs`: Alerts (features/observability.md, Alerts): rules over the windows the metrics sampler closes and the events the recorder stores, firing one alert per rule and subject until it resolves.
+- `src/alerts/presets.rs`: The built-in alert rules: `data/alert-rules.toml`, embedded.
+- `src/alerts/tests.rs`: The evaluator over hand-made windows and events, on hand-moved time.
 - `src/clients.rs`: Clients' comings and goings, from their views: a client seen for the first time is new, one that comes online joined, one that goes offline left.
 - `src/conditions.rs`: Conditions: states that begin and end, such as a node being offline.
 - `src/derive.rs`: [`Deriver`]: what the engine announces, turned into events.
@@ -152,6 +164,8 @@ Metrics (features/observability.md, Metrics): what the controller records as ser
 
 The uniwrt domain model: what the controller observes on nodes and what it records about them.
 
+- `src/alerts/mod.rs`: Alerts (features/observability.md, Alerts): a rule firing for one subject (a node, a radio, a client, a link, the site) until it resolves on its own.
+- `src/alerts/rule.rs`: Alert rules: when an alert fires.
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
@@ -243,7 +257,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder joins them once the job runner is up ([`Fleet::record_events`]).
+- `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder and the alert engine join them once the job runner is up ([`Fleet::record_events`]).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
 - `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
@@ -303,6 +317,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/migrate.rs`: Forward-only schema migrations, embedded at build time and tracked in `PRAGMA user_version`.
 - `src/readers.rs`: The read pool: read-only connections, opened on demand, used on tokio's blocking pool.
 - `src/repo/adoption.rs`: Adopting a node in one transaction ([`NodeRepo::adopt_node`]), and [`InventoryRepo`] on SQLite: the `node_inventory` and `node_backups` tables.
+- `src/repo/alerts.rs`: [`AlertRepo`] on SQLite: the `alert_rules`, `alerts` and `maintenance_windows` tables.
+- `src/repo/alerts_tests.rs`: Alerts over a real database: rules and presets, the engine's writes by rule and subject, filters and pages, what the engine resumes, acknowledgements, retention, and maintenance windows.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
 - `src/repo/events.rs`: [`EventRepo`] on SQLite: the `events` table.
@@ -395,7 +411,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (150 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (166 files); never edit
 - `app/`: AccountMenu.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/auth/`: SignIn.tsx
