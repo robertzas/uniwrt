@@ -16,7 +16,7 @@ describe("Shell", () => {
       ),
     );
     const user = userEvent.setup();
-    const history = memoryHistory("/settings");
+    const history = memoryHistory("/wifi");
     const Router = createAppRouter(history);
     const { socket } = openTestSocket();
     render(() => (
@@ -42,7 +42,7 @@ describe("Shell", () => {
       vi.fn(async () => Response.json({})),
     );
     const user = userEvent.setup();
-    const history = memoryHistory("/settings");
+    const history = memoryHistory("/wifi");
     const Router = createAppRouter(history);
     const { socket } = openTestSocket();
     render(() => (

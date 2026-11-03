@@ -2,13 +2,14 @@ import { CalendarClock, CalendarPlus, RotateCw, Trash2 } from "lucide";
 import { createMemo, createSignal, createUniqueId, For, onSettled, Show } from "solid-js";
 import type { MaintenanceWindow } from "../../api/gen/MaintenanceWindow";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
-import { api } from "../../lib/api";
+import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { Checkbox } from "../../ui/Checkbox";
 import { EmptyState } from "../../ui/EmptyState";
+import { FormField, INPUT } from "../../ui/FormField";
 import { Segmented } from "../../ui/Segmented";
 import { showToast } from "../../ui/Toast";
 import {
@@ -20,7 +21,6 @@ import {
   type WindowErrors,
 } from "./maintenance";
 import { SnoozeMenu } from "./SnoozeMenu";
-import { errorText, FormField, INPUT } from "./shared";
 
 const t = strings.alerts.maintenance;
 

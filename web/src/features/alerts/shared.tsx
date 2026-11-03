@@ -1,8 +1,8 @@
-/** What the alerts page's parts share: names, tiles, fields, actions and error text. */
+/** What the alerts page's parts share: names, tiles, fields and actions. */
 import type { JSX } from "@solidjs/web";
 import { createMemo } from "solid-js";
 import type { Names } from "../../lib/alerts";
-import { api } from "../../lib/api";
+import { api, errorText } from "../../lib/api";
 import { createClientsView } from "../../lib/clientList";
 import { clientName } from "../../lib/clients";
 import type { Live } from "../../lib/live";
@@ -21,14 +21,6 @@ export const TILES = {
 export const ACTION =
   "inline-flex h-7 items-center gap-1.5 rounded-control border border-edge bg-surface px-2.5 font-medium text-fg text-xs hover:bg-raised";
 
-/** A native select in the toolbar's style. */
-export const SELECT =
-  "h-9 w-full cursor-pointer rounded-control border border-edge bg-canvas pr-7 pl-2.5 text-fg text-sm focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60";
-
-/** A text or number input in the forms' style. */
-export const INPUT =
-  "h-9 w-full rounded-control border bg-canvas px-2.5 text-fg text-sm outline-none transition-[border-color,box-shadow] placeholder:text-fg-subtle focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60";
-
 export const full = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
   timeStyle: "medium",
@@ -41,11 +33,6 @@ export function createNames(live: Live): Names {
   const nodes = createMemo(() => new Map(live.fleet.nodes.map((n) => [n.id, n.name])));
   const macs = createMemo(() => new Map(clients.clients.map((c) => [c.mac, clientName(c)])));
   return { node: (id) => nodes().get(id), client: (mac) => macs().get(mac) };
-}
-
-/** The message of a failed call, for a toast. */
-export function errorText(error: unknown): string | undefined {
-  return error instanceof Error ? error.message : undefined;
 }
 
 /** Acknowledges an alert; the `alerts` topic brings the change. A failure shows a toast. */
@@ -69,30 +56,5 @@ export function Field(props: { label: string; children: JSX.Element }) {
       <dt class="text-fg-subtle">{props.label}</dt>
       <dd class="min-w-0 text-fg">{props.children}</dd>
     </>
-  );
-}
-
-/** A labelled control in a form: the label above, a hint or an error below. */
-export function FormField(props: {
-  label: string;
-  for?: string;
-  hint?: string | undefined;
-  error?: string | undefined;
-  children: JSX.Element;
-  class?: string;
-}) {
-  return (
-    <div class={["flex min-w-0 flex-col gap-1.5", props.class]}>
-      <label for={props.for} class="font-medium text-fg text-sm">
-        {props.label}
-      </label>
-      {props.children}
-      <p
-        class={["text-xs", props.error ? "text-crit" : "text-fg-subtle"]}
-        hidden={!props.error && !props.hint}
-      >
-        {props.error ?? props.hint}
-      </p>
-    </div>
   );
 }

@@ -5,6 +5,7 @@ import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { formatDuration } from "../../lib/format";
 import { formatMetric, METRIC_UNITS, metricLabel } from "../../lib/metrics";
 import { strings } from "../../lib/strings";
+import { FormField, INPUT, SELECT } from "../../ui/FormField";
 import { Segmented } from "../../ui/Segmented";
 import {
   type Draft,
@@ -15,7 +16,6 @@ import {
   type TargetKind,
   withChoice,
 } from "./rules";
-import { FormField, INPUT, SELECT } from "./shared";
 
 const t = strings.alerts.editor;
 

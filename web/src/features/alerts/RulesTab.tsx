@@ -3,7 +3,7 @@ import { createEffect, createMemo, createSignal, For, onSettled, Show } from "so
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { RuleView } from "../../api/gen/RuleView";
 import type { Names } from "../../lib/alerts";
-import { api } from "../../lib/api";
+import { api, errorText } from "../../lib/api";
 import { levelTones } from "../../lib/events";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
@@ -14,7 +14,6 @@ import { Dialog } from "../../ui/Dialog";
 import { showToast } from "../../ui/Toast";
 import { RuleEditor } from "./RuleEditor";
 import { ruleSummary } from "./rules";
-import { errorText } from "./shared";
 
 const t = strings.alerts.rules;
 

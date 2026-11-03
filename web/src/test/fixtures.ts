@@ -3,6 +3,7 @@ import type { Job } from "../api/gen/Job";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeFacts } from "../api/gen/NodeFacts";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { Placeholder } from "../api/gen/Placeholder";
 import type { StepState } from "../api/gen/StepState";
 
 /* Made-up API data for tests. */
@@ -158,3 +159,20 @@ export function alertRecord(id: number, extra: Partial<AlertRecord> = {}): Alert
     ...extra,
   };
 }
+
+/** The server's placeholders (`uniwrt_notify::PLACEHOLDERS`). */
+export const PLACEHOLDERS: Placeholder[] = [
+  ["title", false],
+  ["message", false],
+  ["level", false],
+  ["event", false],
+  ["url", false],
+  ["at", true],
+  ["at_iso", false],
+  ["alerts", true],
+  ["alert_id", true],
+  ["name", false],
+  ["subject", false],
+  ["node", true],
+  ["cause", false],
+].map(([name, number]) => ({ name: name as string, number: number as boolean }));

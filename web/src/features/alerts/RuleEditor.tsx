@@ -3,13 +3,14 @@ import { createSignal, createUniqueId, For, Show } from "solid-js";
 import type { EventLevel } from "../../api/gen/EventLevel";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { RuleView } from "../../api/gen/RuleView";
-import { api } from "../../lib/api";
+import { api, errorText } from "../../lib/api";
 import { LEVELS } from "../../lib/events";
 import { formatDuration } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
 import { Dialog } from "../../ui/Dialog";
+import { FormField, SELECT } from "../../ui/FormField";
 import { Icon } from "../../ui/Icon";
 import { Segmented } from "../../ui/Segmented";
 import { TextField } from "../../ui/TextField";
@@ -23,7 +24,6 @@ import {
   draftOf,
   withChoice,
 } from "./rules";
-import { errorText, FormField, SELECT } from "./shared";
 
 const t = strings.alerts.editor;
 

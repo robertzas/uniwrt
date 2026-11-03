@@ -1,13 +1,13 @@
 import * as Popover from "@kobalte/core/popover";
 import { BellOff } from "lucide";
 import { createSignal, For, Show } from "solid-js";
-import { api } from "../../lib/api";
+import { api, errorText } from "../../lib/api";
 import { formatDuration } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Icon } from "../../ui/Icon";
 import { showToast } from "../../ui/Toast";
 import { SNOOZES, snooze } from "./maintenance";
-import { clock, errorText } from "./shared";
+import { clock } from "./shared";
 
 const t = strings.alerts.maintenance;
 

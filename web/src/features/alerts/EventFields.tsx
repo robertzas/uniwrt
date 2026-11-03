@@ -5,8 +5,8 @@ import { CATEGORIES, isLevel, LEVELS } from "../../lib/events";
 import { formatDuration } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Checkbox } from "../../ui/Checkbox";
+import { FormField, INPUT, SELECT } from "../../ui/FormField";
 import { type Draft, type DraftErrors, KIND_GROUPS, WINDOW_CHOICES, withChoice } from "./rules";
-import { FormField, INPUT, SELECT } from "./shared";
 
 const t = strings.alerts.editor;
 

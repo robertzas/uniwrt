@@ -28,6 +28,11 @@ import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { NotificationSettings } from "../api/gen/NotificationSettings";
+import type { NotifierInput } from "../api/gen/NotifierInput";
+import type { NotifierList } from "../api/gen/NotifierList";
+import type { NotifierTest } from "../api/gen/NotifierTest";
+import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
@@ -56,6 +61,11 @@ export class ApiError extends Error {
   ) {
     super(detail ?? title);
   }
+}
+
+/** The message of a failed call, for a toast or a form. */
+export function errorText(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
 }
 
 let sessionEnded: (() => void) | undefined;
@@ -321,6 +331,20 @@ export const api = {
     create: (window: NewWindow) =>
       request<MaintenanceWindow>("/maintenance", { method: "POST", body: window }),
     remove: (id: number) => request<void>(`/maintenance/${id}`, { method: "DELETE" }),
+  },
+  /** Where alerts are sent (ntfy, webhooks, email) and the settings they share; changes are admins'. */
+  notifiers: {
+    list: (signal?: AbortSignal) => request<NotifierList>("/notifiers", { signal }),
+    create: (input: NotifierInput) =>
+      request<NotifierView>("/notifiers", { method: "POST", body: input }),
+    /** Secrets left out are kept, `null` removes one. */
+    update: (id: number, input: NotifierInput) =>
+      request<NotifierView>(`/notifiers/${id}`, { method: "PUT", body: input }),
+    remove: (id: number) => request<void>(`/notifiers/${id}`, { method: "DELETE" }),
+    /** Sends a test at once; a 502's detail says why it failed. */
+    test: (test: NotifierTest) => request<void>("/notifiers/test", { method: "POST", body: test }),
+    settings: (settings: NotificationSettings) =>
+      request<NotificationSettings>("/notifications/settings", { method: "PUT", body: settings }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

@@ -33,6 +33,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/insights/metrics": lazy(() =>
     import("../features/metrics/MetricsPage").then((m) => ({ default: m.MetricsPage })),
   ),
+  "/settings": lazy(() =>
+    import("../features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+  ),
 };
 
 export const routes: RouteDefinition[] = [
