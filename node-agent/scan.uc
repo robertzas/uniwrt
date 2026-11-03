@@ -10,6 +10,13 @@ import { nl80211, request } from "./wifi.uc";
 import { now_ms } from "./util.uc";
 import { NOT_FOUND, TIMEOUT, UNSUPPORTED, FAILED } from "./proto.uc";
 
+// From the kernel's nl80211.h: ucode-mod-nl80211 exports neither the scan flags nor
+// NL80211_CMD_ABORT_SCAN (24.10 and 25.12), and without the AP flag the kernel refuses to scan
+// through a beaconing access point.
+const SCAN_FLAG_FLUSH = 1 << 1;
+const SCAN_FLAG_AP = 1 << 2;
+const CMD_ABORT_SCAN = 114;
+
 function survey(ifname) {
 	let found = [];
 	for (let e in request("NL80211_CMD_GET_SURVEY", "NLM_F_DUMP", { dev: ifname })) {
@@ -46,16 +53,19 @@ function scan(args) {
 	nl.waitfor([c.NL80211_CMD_NEW_SCAN_RESULTS], 1);
 	let before = survey(ifname);
 	let started = now_ms();
-	let msg = { dev: ifname, scan_flags: c.NL80211_SCAN_FLAG_AP | c.NL80211_SCAN_FLAG_FLUSH };
+	let flags = (c.NL80211_SCAN_FLAG_AP ?? SCAN_FLAG_AP) | (c.NL80211_SCAN_FLAG_FLUSH ?? SCAN_FLAG_FLUSH);
+	let msg = { dev: ifname, scan_flags: flags };
 	if (length(args.freqs))
 		msg.scan_frequencies = args.freqs;
-	if (nl.request(c.NL80211_CMD_TRIGGER_SCAN, 0, msg) == null && nl.error())
-		return { err: failed("the radio cannot scan", nl.error()) };
+	// error() clears what it reports: read it once.
+	let err = nl.request(c.NL80211_CMD_TRIGGER_SCAN, 0, msg) == null ? nl.error() : null;
+	if (err)
+		return { err: failed("the radio cannot scan", err) };
 	let deadline = started + args.timeout_ms;
 	for (;;) {
 		let left = deadline - now_ms();
 		if (left <= 0) {
-			nl.request(c.NL80211_CMD_ABORT_SCAN, 0, { dev: ifname });
+			nl.request(c.NL80211_CMD_ABORT_SCAN ?? CMD_ABORT_SCAN, 0, { dev: ifname });
 			return { err: [TIMEOUT, `the scan did not end within ${args.timeout_ms} ms`] };
 		}
 		let ev = nl.waitfor([c.NL80211_CMD_NEW_SCAN_RESULTS, c.NL80211_CMD_SCAN_ABORTED], left);
