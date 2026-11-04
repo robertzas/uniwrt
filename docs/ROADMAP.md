@@ -98,9 +98,9 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 ## M3 — Config engine ("change safely")
 
-- [ ] **M3.1 Desired-state model v1, revisions, vault** (L; D-065). Split: a | b.
+- [x] **M3.1 Desired-state model v1, revisions, vault** (L; D-065). Split: a | b.
   - [x] **M3.1a Backend:** `SiteConfig` v1 (every section; M3.3's fields), validation, structural diff, schema migrations with fixtures; the `revisions` table with secrets sealed per value in the vault; `v1/site` and `v1/revisions` (restore, audited reveal); the defaults as revision 1.
-  - [ ] **M3.1b History page:** a read-only Settings › Revisions page: the list (author, time, message, changes), a revision's structural diff from its parent or any other, newest first with paging.
+  - [x] **M3.1b History page:** a read-only Settings › Revisions page: the list (author, time, message, changes), a revision's structural diff from its parent or any other, newest first with paging.
 - [ ] **M3.2 `uci` crate** (M): AST, parser, serializer, semantic diff; proptest round-trips; fixtures from real configs.
 - [ ] **M3.3 `render` v1 & system test harness** (XL; merged M3.3 and M3.7, D-055): system, network (DSA and swconfig), dhcp, firewall and wireless basics; capability-based; golden tests; OpenWrt x86-64 images (24.10, 25.12) under QEMU or as rootfs containers in CI, validating rendered configs (uci, `fw4 check`, netifd, wifi on mac80211_hwsim). Split: render | harness.
 - [ ] **M3.4 Transactions, jobs & review UI** (XL; merged M3.4 and M3.6, D-055): agent transaction and boot guard, controller verify/confirm, the `jobs` crate (persisted, resumable), multi-node ordering; pending-changes tray, per-node diffs, impact summary, live progress, history and rollback. Split: transactions & jobs | review & apply UI.

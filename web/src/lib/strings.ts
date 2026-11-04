@@ -1448,7 +1448,66 @@ export const strings = {
     pinFailed: "Cannot save the position",
   },
   settings: {
-    tabs: { notifications: "Notifications" },
+    tabs: { notifications: "Notifications", revisions: "Revisions" },
+    revisions: {
+      listTitle: "Revisions",
+      count: (shown: number, more: boolean) =>
+        shown === 0
+          ? "None yet"
+          : more
+            ? `Latest ${shown}`
+            : shown === 1
+              ? "1 revision"
+              : `${shown} revisions`,
+      hint: "Every save of the site's configuration is a revision. Restoring and applying come with the review of pending changes.",
+      loading: "Loading the revisions",
+      failed: "The revisions could not be loaded.",
+      retry: "Try again",
+      empty: "No revisions yet",
+      more: "Show older",
+      loadingMore: "Loading…",
+      moreFailed: "Older revisions could not be loaded.",
+      latest: "Latest",
+      kind: { defaults: "Defaults", edit: "Edit", restore: "Restore" },
+      defaultsTitle: "The defaults",
+      restoredTitle: (id: number) => `Restored revision ${id}`,
+      untitled: "No message",
+      number: (id: number) => `#${id}`,
+      by: (author: string) => `by ${author}`,
+      byController: "by uniwrt",
+      restoredFrom: (id: number) => `copies #${id}`,
+      changes: (n: number) => (n === 0 ? "No changes" : n === 1 ? "1 change" : `${n} changes`),
+      ago: (duration: string) => `${duration} ago`,
+      justNow: "just now",
+      toggle: (id: number) => `Revision ${id}`,
+      compare: "Compare with",
+      parent: (id: number) => `Its parent, #${id}`,
+      nothing: "Nothing",
+      option: (id: number, title: string) => `#${id} · ${title}`,
+      from: (from: number, to: number) => `Changes from #${from} to #${to}`,
+      first: "The site's first revision: there is nothing before it to compare with.",
+      same: "The two revisions hold the same configuration.",
+      diffLoading: "Loading the changes",
+      diffFailed: "The changes could not be loaded.",
+      op: { added: "Added", removed: "Removed", changed: "Changed" },
+      opCounts: (added: number, removed: number, changed: number) =>
+        [
+          added > 0 ? `${added} added` : "",
+          removed > 0 ? `${removed} removed` : "",
+          changed > 0 ? `${changed} changed` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      before: "Before",
+      after: "After",
+      secret: "secret",
+      secretHint: "Secrets are kept in the vault and never shown here.",
+      secretChanged: "Changed (secret)",
+      none: "none",
+      on: "on",
+      off: "off",
+      node: (id: string) => `device ${id}`,
+    },
     notifications: {
       listTitle: "Notifiers",
       count: (all: number, on: number) =>

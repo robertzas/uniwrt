@@ -36,6 +36,8 @@ import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { RevisionDiff } from "../api/gen/RevisionDiff";
+import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
 import type { RfView } from "../api/gen/RfView";
 import type { RuleList } from "../api/gen/RuleList";
@@ -351,6 +353,21 @@ export const api = {
     test: (test: NotifierTest) => request<void>("/notifiers/test", { method: "POST", body: test }),
     settings: (settings: NotificationSettings) =>
       request<NotificationSettings>("/notifications/settings", { method: "PUT", body: settings }),
+  },
+  /** The site's history (lifecycle.md, Desired state & revisions). */
+  revisions: {
+    /** Revisions newest first, `limit` at a time; `before` is the last one's id. */
+    page: (before: number | null, limit: number, signal?: AbortSignal) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (before !== null) params.set("before", String(before));
+      return request<RevisionPage>(`/revisions?${params}`, { signal });
+    },
+    /** The changes from `against` (its parent when `null`) to revision `id`. */
+    diff: (id: number, against: number | null, signal?: AbortSignal) =>
+      request<RevisionDiff>(
+        `/revisions/${id}/diff${against === null ? "" : `?against=${against}`}`,
+        { signal },
+      ),
   },
   /** RF insight (wifi.md); the view itself comes over the WS topic `rf`. */
   rf: {

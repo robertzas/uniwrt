@@ -1,15 +1,16 @@
 import { useSearchParams } from "@solidjs/router";
-import { createEffect, useContext } from "solid-js";
+import { createEffect, createMemo, useContext } from "solid-js";
 import { LiveContext } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { NotificationsTab } from "./notifications/NotificationsTab";
+import { RevisionsTab } from "./revisions/RevisionsTab";
 
 const t = strings.settings;
 
 /** The sections, in the URL as `?tab=`; more join as their features land (users, backups, …). */
-const TABS = ["notifications"] as const;
+const TABS = ["notifications", "revisions"] as const;
 type TabName = (typeof TABS)[number];
 
 /** `/settings` (features/ui.md): the controller's settings in tabs named in the URL. */
@@ -22,6 +23,7 @@ export function SettingsPage() {
     (TABS as readonly string[]).includes(params.tab ?? "")
       ? (params.tab as TabName)
       : "notifications";
+  const names = createMemo(() => new Map(live.fleet.nodes.map((n) => [n.id, n.name])));
 
   createEffect(
     () => strings.nav.settings.label,
@@ -43,9 +45,13 @@ export function SettingsPage() {
       >
         <TabList>
           <Tab value="notifications">{t.tabs.notifications}</Tab>
+          <Tab value="revisions">{t.tabs.revisions}</Tab>
         </TabList>
         <TabPanel value="notifications">
           <NotificationsTab nodes={live.fleet.nodes} admin={admin()} />
+        </TabPanel>
+        <TabPanel value="revisions">
+          <RevisionsTab nodeName={(id) => names().get(id)} />
         </TabPanel>
       </Tabs>
     </div>
