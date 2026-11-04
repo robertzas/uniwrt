@@ -51,13 +51,17 @@ function scan(args) {
 	let nl = nl80211(), c = nl.const, ifname = args.ifname;
 	// Joining the scan group first: the end of the scan cannot come before we listen.
 	nl.waitfor([c.NL80211_CMD_NEW_SCAN_RESULTS], 1);
+	// Its timeout leaves "No event received" as the module's error: clear it, or the trigger,
+	// which answers null when it succeeds without a reply, would read it as its own.
+	nl.error();
 	let before = survey(ifname);
 	let started = now_ms();
 	let flags = (c.NL80211_SCAN_FLAG_AP ?? SCAN_FLAG_AP) | (c.NL80211_SCAN_FLAG_FLUSH ?? SCAN_FLAG_FLUSH);
 	let msg = { dev: ifname, scan_flags: flags };
 	if (length(args.freqs))
 		msg.scan_frequencies = args.freqs;
-	// error() clears what it reports: read it once.
+	// Null with no error is success (an acknowledgement without a reply); error() clears what
+	// it reports, so it is read once.
 	let err = nl.request(c.NL80211_CMD_TRIGGER_SCAN, 0, msg) == null ? nl.error() : null;
 	if (err)
 		return { err: failed("the radio cannot scan", err) };
