@@ -63,6 +63,7 @@ pub(crate) fn jobs_error(err: uniwrt_jobs::Error) -> ApiError {
         Error::Busy { target } => {
             ApiError::Conflict(format!("A job is running for {target} already"))
         }
+        Error::NoNode(id) => ApiError::NotFound(format!("There is no node {id}")),
         Error::Node(err) => ApiError::BadGateway(error_chain(&err)),
         Error::Store(err) => err.into(),
         _ => ApiError::Internal(err.to_string()),

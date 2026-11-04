@@ -6,21 +6,21 @@ const BLOCK: usize = 512;
 pub(super) const MAX_PATH: usize = 99;
 
 #[derive(Default)]
-pub(super) struct Writer {
+pub(crate) struct Writer {
     buf: Vec<u8>,
 }
 
 impl Writer {
-    pub(super) fn dir(&mut self, path: &str) {
+    pub(crate) fn dir(&mut self, path: &str) {
         self.entry(&format!("{path}/"), b'5', 0o700, &[]);
     }
 
-    pub(super) fn file(&mut self, path: &str, content: &[u8]) {
+    pub(crate) fn file(&mut self, path: &str, content: &[u8]) {
         self.entry(path, b'0', 0o600, content);
     }
 
     /// The archive, closed by two empty blocks.
-    pub(super) fn finish(mut self) -> Vec<u8> {
+    pub(crate) fn finish(mut self) -> Vec<u8> {
         self.buf.resize(self.buf.len() + 2 * BLOCK, 0);
         self.buf
     }

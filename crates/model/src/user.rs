@@ -51,6 +51,8 @@ pub enum AuditAction {
     Logout,
     /// A user started adopting a node (the detail names it and the job).
     Adopt,
+    /// A user switched a node's management on or off (the detail says which, and the job).
+    Manage,
     /// A user gave a client an alias or took it away (the detail names the client and alias).
     RenameClient,
     /// A user created, edited, reset or deleted an alert rule (the detail says which and how).

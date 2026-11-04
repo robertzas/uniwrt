@@ -167,6 +167,7 @@ mod tests {
     use uniwrt_jobs::{AdoptRequest, Jobs};
     use uniwrt_model::{
         job::{Job, JobErrorCode, JobState},
+        node::NodeMode,
         status::NodeState,
     };
     use uniwrt_node::{ControllerKey, Target};
@@ -273,6 +274,13 @@ mod tests {
         .expect("the adopted node comes online");
         let link = fleet.sim_link(&host).unwrap();
         assert!(link.trusts(&key.authorized_key().unwrap()));
+
+        // Management goes on and off through the simulated transaction tool.
+        for (enable, mode) in [(true, NodeMode::Managed), (false, NodeMode::Observe)] {
+            let job = finished(&jobs, jobs.manage(id, enable, None).await.unwrap()).await;
+            assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+            assert_eq!(store.node(id).await.unwrap().unwrap().mode, mode);
+        }
 
         jobs.shutdown().await;
         tokio::time::timeout(Duration::from_secs(5), fleet.stop())

@@ -58,7 +58,8 @@ pub(crate) struct LogFollowing {
 impl SimLink {
     /// Whether the node's `authorized_keys` holds `line`, as adoption installs it.
     pub fn trusts(&self, line: &str) -> bool {
-        lock(&self.shared.nodes[self.node].authorized_keys)
+        lock(&self.shared.nodes[self.node].disk)
+            .authorized_keys
             .iter()
             .any(|key| key == line)
     }
@@ -158,11 +159,11 @@ impl SimLink {
             });
         }
         let world = self.shared.world();
-        let mut keys = lock(&self.shared.nodes[self.node].authorized_keys);
+        let mut disk = lock(&self.shared.nodes[self.node].disk);
         Ok(render::commands::exec(
             &world.nodes[self.node],
             &request.argv,
-            &mut keys,
+            &mut disk,
         ))
     }
 

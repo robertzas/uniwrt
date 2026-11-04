@@ -14,7 +14,8 @@
 //!   agent's pushes, from [`NodeLink::events`], parsed into ticks, `model::event`s and log
 //!   entries); [`SshLink`] (a
 //!   supervised connection that reconnects with jittered backoff, installs and restarts the
-//!   agent, and implements [`NodeLink`]); [`Error`].
+//!   agent, and implements [`NodeLink`]); [`txn`] (the transaction tool's commands, and the
+//!   [`Footprint`](txn::Footprint) that management installs); [`Error`].
 //! - **Invariants:** every connection checks the host key against its pin; a mismatch is
 //!   [`Error::HostKeyMismatch`] and quarantines the link ([`LinkState::Quarantined`]), never a
 //!   warning. Commands are argv arrays quoted for the remote shell ([`shell::command_line`]),
@@ -48,6 +49,7 @@ pub mod proto;
 pub mod shell;
 mod ssh;
 mod supervisor;
+pub mod txn;
 
 pub use agent::{Agent, HELLO_TIMEOUT};
 pub use bundle::Bundle;

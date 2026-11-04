@@ -234,6 +234,8 @@ export const strings = {
       backup: "Back up the configuration",
       record: "Record the device",
       watch: "Start watching",
+      install_tool: "Install the transaction tool",
+      remove_tool: "Remove the transaction tool",
     },
     stepState: {
       pending: "Waiting",
@@ -872,7 +874,11 @@ export const strings = {
       connectedFor: (d: string) => `Connected for ${d}`,
       fast: "Fast transition (802.11r)",
       wired: "Wired",
-      jobKind: { adopt: "adoption" },
+      jobKind: {
+        adopt: "adoption",
+        manage: "enabling management",
+        unmanage: "disabling management",
+      },
       radar: "Radar on its DFS channel made it move",
       busy: (percent: number) => `${percent}% busy`,
       busyFor: (percent: number, d: string) => `${percent}% busy, after ${d} congested`,

@@ -37,7 +37,7 @@ use uniwrt_model::{
     job::{Job, JobError, NewJob},
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
     metric::{Entity, Metric, Point, Resolution, Sample},
-    node::{HostKeyPin, NewNode, Node},
+    node::{HostKeyPin, NewNode, Node, NodeMode},
     notify::{Notifier, NotifierConfig},
     rf::{NewScan, Scan, ScanSummary},
     site::revision::{NewRevision, Revision, RevisionMeta},
@@ -67,6 +67,14 @@ pub trait NodeRepo: Send + Sync {
 
     /// Removes a node and everything stored about it; false when there was no such node.
     fn delete_node(&self, id: NodeId) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Sets a node's mode (management on or off); the node as it is now, or `None` when there
+    /// is no such node.
+    fn set_node_mode(
+        &self,
+        id: NodeId,
+        mode: NodeMode,
+    ) -> impl Future<Output = Result<Option<Node>>> + Send;
 }
 
 /// The latest facts snapshot of each node.

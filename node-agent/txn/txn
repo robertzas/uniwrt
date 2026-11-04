@@ -1,0 +1,450 @@
+#!/bin/sh
+# uniwrt's transaction tool (docs/features/lifecycle.md, Render → diff → apply; D-012, D-069),
+# installed as /etc/uniwrt/txn when management is enabled. One transaction at a time replaces
+# UCI packages and switches services, with a dead-man timer that rolls it back unless the
+# controller confirms it, and /etc/init.d/uniwrt-guard rolls back an unconfirmed one at boot.
+#
+# Usage: txn stage <id> [<service>=on|off]…   start staging (in RAM), replacing any other stage
+#        txn put <id> <package>               stage a package's file, read from stdin
+#        txn check <id>                       parse the staged packages with uci
+#        txn apply <id> <seconds>             snapshot, arm the timer, install, reload in procd
+#        txn extend <id> <seconds>            move the open transaction's deadline
+#        txn confirm <id> | rollback <id>     end the open transaction
+#        txn status | uninstall | install <dir>
+#        txn pending | wait <id> | reload <id> | boot    (for the guard)
+# Every command but pending prints one JSON line, {"ok":…} or {"err":{"code":…,"msg":…}}, and
+# exits 1 on an error. States of the open transaction: applying (installing), reloading,
+# applied, rolling_back. Outcomes: confirmed, rolled_back (reason timeout, boot, requested or invalid).
+
+set -u
+umask 077
+
+DIR=/etc/uniwrt
+JOURNAL=$DIR/journal
+RUN=/tmp/uniwrt
+STAGE=$RUN/txn
+LOCK=$RUN/txn.lock
+GUARD=/etc/init.d/uniwrt-guard
+KEEP=/lib/upgrade/keep.d/uniwrt
+MIN_S=30
+MAX_S=3600
+# A staged package's largest size, in 512-byte blocks (ulimit -f): 1 MiB.
+MAX_BLOCKS=2048
+# procd runs reload triggers PROCD_RELOAD_DELAY (1 s) after reload_config.
+TRIGGER_S=2
+
+# --- output
+
+esc() {
+	printf '%s' "$1" | tr '\n\t\r' '   ' | tr -d '\000-\037' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+ok() {
+	if [ $# -gt 0 ]; then printf '{"ok":%s}\n' "$1"; else printf '{"ok":{}}\n'; fi
+	exit 0
+}
+
+fail() {
+	code=$1
+	shift
+	printf '{"err":{"code":"%s","msg":"%s"}}\n' "$code" "$(esc "$*")"
+	exit 1
+}
+
+# --- helpers
+
+# Names: transaction ids, packages and services.
+valid() {
+	case $1 in '' | *[!A-Za-z0-9_-]*) return 1 ;; esac
+	[ ${#1} -le 64 ]
+}
+
+seconds() {
+	case $1 in '' | *[!0-9]*) return 1 ;; esac
+	[ ${#1} -le 5 ] && [ "$1" -ge $MIN_S ] && [ "$1" -le $MAX_S ]
+}
+
+uptime_s() {
+	read -r up _ </proc/uptime
+	echo "${up%.*}"
+}
+
+# Writes $2 into file $1 atomically.
+put_file() {
+	printf '%s\n' "$2" >"$1.tmp" && mv "$1.tmp" "$1"
+}
+
+lock() {
+	mkdir -p "$RUN" || fail failed "cannot create $RUN"
+	exec 9>"$LOCK"
+	flock 9 || fail failed "cannot lock $LOCK"
+}
+
+# The open transaction's id, or nothing.
+open_id() {
+	[ -f "$JOURNAL/current" ] && cat "$JOURNAL/current"
+}
+
+state_of() {
+	cat "$JOURNAL/$1/state" 2>/dev/null
+}
+
+# Fails unless $1 is the open transaction, saying how it ended if it did.
+require_open() {
+	[ "$(open_id)" = "$1" ] && return 0
+	if [ -f "$JOURNAL/last" ] && grep -q "\"id\":\"$1\"" "$JOURNAL/last"; then
+		fail expired "transaction $1 is no longer open: $(cat "$JOURNAL/last")"
+	fi
+	fail not_found "transaction $1 is not open"
+}
+
+# Replaces /etc/config/$1 with file $2, keeping the current file's mode.
+install_package() {
+	target=/etc/config/$1
+	if [ -f "$target" ]; then
+		cp -p "$target" "$target.uniwrt" || return 1
+	else
+		(umask 022 && : >"$target.uniwrt") || return 1
+	fi
+	cat "$2" >"$target.uniwrt" && mv "$target.uniwrt" "$target"
+}
+
+service() {
+	"/etc/init.d/$1" "$2" >/dev/null 2>&1
+}
+
+# Lines "<name> on|off" of file $1 whose state is $2.
+services_in() {
+	[ -f "$1" ] || return 0
+	while read -r name want; do
+		[ "$want" = "$2" ] && echo "$name"
+	done <"$1"
+}
+
+finished() {
+	put_file "$JOURNAL/last" "{\"id\":\"$1\",\"outcome\":\"$2\",\"reason\":$3,\"at\":$(date +%s)}"
+}
+
+reload_all() {
+	reload_config
+	sleep $TRIGGER_S
+}
+
+# Rolls the open transaction $1 back, for reason $2; the lock is held. At boot the services
+# are about to start, so nothing reloads.
+roll_back() {
+	j=$JOURNAL/$1
+	put_file "$j/state" rolling_back
+	for name in $(services_in "$j/before" off); do
+		service "$name" stop
+		service "$name" disable
+	done
+	for file in "$j"/config/*; do
+		[ -f "$file" ] && install_package "${file##*/}" "$file"
+	done
+	if [ -f "$j/absent" ]; then
+		while read -r name; do rm -f "/etc/config/$name"; done <"$j/absent"
+	fi
+	for name in $(services_in "$j/before" on); do
+		service "$name" enable
+	done
+	sync
+	if [ "$2" != boot ]; then
+		reload_all
+	fi
+	# Services the transaction stopped start again (at boot too: rcS listed the boot's scripts
+	# before the guard enabled them again).
+	for name in $(services_in "$j/before" on); do
+		grep -qx "$name off" "$j/services" 2>/dev/null && service "$name" start
+	done
+	# Ended only now: a reboot before this point rolls back again, from the same snapshot.
+	finished "$1" rolled_back "\"$2\""
+	rm -f "$JOURNAL/current"
+	sync
+	rm -rf "$j"
+}
+
+# Asks procd for the instances start_service declares: none once nothing is open.
+guard() {
+	"$GUARD" start >/dev/null 2>&1
+}
+
+# Rolls back the transaction $1 that apply could not finish, and fails with code $2.
+abort() {
+	roll_back "$1" invalid
+	guard
+	fail "$2" "$3"
+}
+
+# --- commands
+
+cmd_stage() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	id=$1
+	shift
+	lock
+	open=$(open_id)
+	[ -z "$open" ] || fail busy "transaction $open is open"
+	rm -rf "$STAGE"
+	mkdir -p "$STAGE/$id/config" || fail failed "cannot create the stage"
+	: >"$STAGE/$id/services"
+	for arg in "$@"; do
+		name=${arg%=*}
+		want=${arg##*=}
+		valid "$name" || fail bad_request "bad service name: $arg"
+		case $want in on | off) ;; *) fail bad_request "a service is on or off: $arg" ;; esac
+		echo "$name $want" >>"$STAGE/$id/services"
+	done
+	ok
+}
+
+cmd_put() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	valid "${2:-}" || fail bad_request "bad package name"
+	dir=$STAGE/$1
+	[ -d "$dir" ] || fail not_found "transaction $1 is not staged"
+	rm -f "$dir/checked"
+	(ulimit -f $MAX_BLOCKS && cat >"$dir/config/$2") 2>/dev/null ||
+		fail too_large "package $2 is larger than $((MAX_BLOCKS / 2)) KiB"
+	ok "{\"bytes\":$(wc -c <"$dir/config/$2")}"
+}
+
+cmd_check() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	dir=$STAGE/$1
+	[ -d "$dir" ] || fail not_found "transaction $1 is not staged"
+	packages=''
+	for file in "$dir"/config/*; do
+		[ -f "$file" ] || continue
+		name=${file##*/}
+		out=$(uci -c "$dir/config" show "$name" 2>&1 >/dev/null) ||
+			fail invalid "package $name: $out"
+		packages="$packages${packages:+,}\"$name\""
+	done
+	for name in $(services_in "$dir/services" on); do
+		[ -x "/etc/init.d/$name" ] || fail invalid "service $name is not installed"
+	done
+	[ -n "$packages" ] || [ -s "$dir/services" ] || fail bad_request "nothing is staged"
+	: >"$dir/checked"
+	ok "{\"packages\":[$packages]}"
+}
+
+cmd_apply() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	seconds "${2:-}" || fail bad_request "the timeout is $MIN_S to $MAX_S seconds"
+	id=$1
+	dir=$STAGE/$id
+	lock
+	open=$(open_id)
+	[ -z "$open" ] || fail busy "transaction $open is open"
+	[ -f "$dir/checked" ] || fail bad_request "transaction $id is not staged and checked"
+	[ -x "$GUARD" ] || fail unsupported "the guard is not installed"
+	j=$JOURNAL/$id
+	rm -rf "$j"
+	mkdir -p "$j/config" || fail failed "cannot create the journal"
+	# The snapshot: the packages it replaces and the services it switches.
+	for file in "$dir"/config/*; do
+		[ -f "$file" ] || continue
+		name=${file##*/}
+		if [ -f "/etc/config/$name" ]; then
+			cp -p "/etc/config/$name" "$j/config/$name" || fail failed "cannot snapshot $name"
+		else
+			echo "$name" >>"$j/absent"
+		fi
+	done
+	cp "$dir/services" "$j/services"
+	: >"$j/before"
+	while read -r name want; do
+		[ -x "/etc/init.d/$name" ] || continue
+		if service "$name" enabled; then echo "$name on"; else echo "$name off"; fi >>"$j/before"
+	done <"$dir/services"
+	put_file "$j/deadline" $(($(uptime_s) + $2))
+	put_file "$j/state" applying
+	put_file "$JOURNAL/current" "$id"
+	sync
+	guard
+	# Services that go off stop first: a stopped one has no reload triggers left.
+	for name in $(services_in "$dir/services" off); do
+		[ -x "/etc/init.d/$name" ] || continue
+		service "$name" stop
+		service "$name" disable
+	done
+	for file in "$dir"/config/*; do
+		[ -f "$file" ] || continue
+		install_package "${file##*/}" "$file" ||
+			abort "$id" failed "cannot install package ${file##*/}"
+	done
+	if [ -f "$dir/config/firewall" ] && command -v fw4 >/dev/null; then
+		out=$(fw4 check 2>&1) || abort "$id" invalid "fw4 check: $out"
+	fi
+	for name in $(services_in "$dir/services" on); do
+		service "$name" enable
+	done
+	put_file "$j/state" reloading
+	sync
+	rm -rf "$STAGE"
+	guard
+	ok "{\"timeout_s\":$2}"
+}
+
+cmd_extend() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	seconds "${2:-}" || fail bad_request "the timeout is $MIN_S to $MAX_S seconds"
+	lock
+	require_open "$1"
+	put_file "$JOURNAL/$1/deadline" $(($(uptime_s) + $2))
+	ok "{\"timeout_s\":$2}"
+}
+
+cmd_confirm() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	lock
+	require_open "$1"
+	state=$(state_of "$1")
+	[ "$state" = applied ] || fail busy "transaction $1 is $state"
+	put_file "$JOURNAL/$1/state" confirmed
+	finished "$1" confirmed null
+	rm -f "$JOURNAL/current"
+	sync
+	rm -rf "${JOURNAL:?}/$1"
+	guard
+	ok
+}
+
+cmd_rollback() {
+	valid "${1:-}" || fail bad_request "bad transaction id"
+	lock
+	require_open "$1"
+	roll_back "$1" requested
+	guard
+	ok
+}
+
+cmd_status() {
+	version=$(cat "$DIR/VERSION" 2>/dev/null)
+	open=null
+	id=$(open_id)
+	if [ -n "$id" ]; then
+		deadline=$(cat "$JOURNAL/$id/deadline" 2>/dev/null || echo 0)
+		left=$((deadline - $(uptime_s)))
+		[ $left -ge 0 ] || left=0
+		open="{\"id\":\"$id\",\"state\":\"$(state_of "$id")\",\"remaining_s\":$left}"
+	fi
+	last=$(cat "$JOURNAL/last" 2>/dev/null || echo null)
+	ok "{\"version\":\"$(esc "$version")\",\"open\":$open,\"last\":$last}"
+}
+
+# For the guard's start_service, without the lock (the lock's holder may be calling it):
+# "<id> <state>" of the open transaction, or exit status 1.
+cmd_pending() {
+	id=$(open_id)
+	[ -n "$id" ] || exit 1
+	echo "$id $(state_of "$id")"
+}
+
+# The dead-man timer, as the guard's procd instance: rolls back at the deadline.
+cmd_wait() {
+	valid "${1:-}" || exit 1
+	while [ "$(open_id)" = "$1" ]; do
+		deadline=$(cat "$JOURNAL/$1/deadline" 2>/dev/null) || exit 1
+		left=$((deadline - $(uptime_s)))
+		if [ $left -le 0 ]; then
+			lock
+			deadline=$(cat "$JOURNAL/$1/deadline" 2>/dev/null) || exit 0
+			if [ "$(open_id)" = "$1" ] && [ "$(uptime_s)" -ge "$deadline" ]; then
+				logger -t uniwrt-txn "transaction $1 was not confirmed in time: rolling back"
+				roll_back "$1" timeout
+				guard
+				exit 0
+			fi
+			exec 9>&-
+			continue
+		fi
+		[ $left -le 5 ] || left=5
+		sleep $left
+	done
+}
+
+# Reloads what the open transaction installed, as the guard's procd instance.
+cmd_reload() {
+	valid "${1:-}" || exit 1
+	lock
+	[ "$(open_id)" = "$1" ] && [ "$(state_of "$1")" = reloading ] || exit 0
+	reload_all
+	for name in $(services_in "$JOURNAL/$1/before" off); do
+		grep -qx "$name on" "$JOURNAL/$1/services" && service "$name" start
+	done
+	put_file "$JOURNAL/$1/state" applied
+}
+
+# At boot, from the guard: an open transaction was never confirmed.
+cmd_boot() {
+	id=$(open_id)
+	[ -n "$id" ] || exit 0
+	lock
+	if [ "$(state_of "$id")" = confirmed ]; then
+		rm -f "$JOURNAL/current"
+		exit 0
+	fi
+	logger -t uniwrt-txn "transaction $id was open at boot: rolling back"
+	roll_back "$id" boot
+}
+
+# Installs the tool and the guard from a checked copy of the footprint in $1.
+cmd_install() {
+	for tool in flock uci reload_config; do
+		command -v $tool >/dev/null || fail unsupported "$tool is missing"
+	done
+	[ -f /etc/rc.common ] || fail unsupported "procd's rc.common is missing"
+	[ -n "${1:-}" ] && [ -f "$1/txn" ] && [ -f "$1/uniwrt-guard" ] || fail bad_request "no footprint in ${1:-}"
+	lock
+	open=$(open_id)
+	[ -z "$open" ] || fail busy "transaction $open is open"
+	mkdir -p "$JOURNAL" "${KEEP%/*}" || fail failed "cannot create $DIR"
+	chmod 700 "$DIR"
+	(umask 022 && cp "$1/txn" "$DIR/txn.new" && chmod 755 "$DIR/txn.new" &&
+		cp "$1/uniwrt-guard" "$GUARD.new" && chmod 755 "$GUARD.new") ||
+		fail failed "cannot copy the footprint"
+	if ! { mv "$DIR/txn.new" "$DIR/txn" && mv "$GUARD.new" "$GUARD" &&
+		(umask 022 && printf '%s\n' "$DIR/" "$GUARD" >"$KEEP") &&
+		cp "$1/VERSION" "$DIR/VERSION"; }; then
+		fail failed "cannot install the footprint"
+	fi
+	"$GUARD" enable || fail failed "cannot enable the guard"
+	sync
+	ok
+}
+
+cmd_uninstall() {
+	lock
+	open=$(open_id)
+	[ -z "$open" ] || fail busy "transaction $open is open"
+	if [ -x "$GUARD" ]; then
+		"$GUARD" disable
+		"$GUARD" stop >/dev/null 2>&1
+	fi
+	rm -f "$GUARD" "$KEEP"
+	rm -rf "$DIR" "$STAGE"
+	sync
+	ok
+}
+
+command=${1:-}
+[ $# -gt 0 ] && shift
+case $command in
+stage) cmd_stage "$@" ;;
+put) cmd_put "$@" ;;
+check) cmd_check "$@" ;;
+apply) cmd_apply "$@" ;;
+extend) cmd_extend "$@" ;;
+confirm) cmd_confirm "$@" ;;
+rollback) cmd_rollback "$@" ;;
+status) cmd_status ;;
+pending) cmd_pending ;;
+wait) cmd_wait "$@" ;;
+reload) cmd_reload "$@" ;;
+boot) cmd_boot ;;
+install) cmd_install "$@" ;;
+uninstall) cmd_uninstall ;;
+*) fail bad_request "unknown command: $command" ;;
+esac

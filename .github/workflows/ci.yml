@@ -142,7 +142,7 @@ jobs:
         run: scripts/gen-map.sh --check
       - name: Scripts
         run: |
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh node-agent/txn/txn node-agent/txn/uniwrt-guard
           scripts/next-version.test.sh
           scripts/arch-check.test.sh
       - name: Layering (arch-check)

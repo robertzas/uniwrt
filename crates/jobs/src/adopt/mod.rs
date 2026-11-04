@@ -8,7 +8,7 @@ mod packages;
 #[cfg(test)]
 mod tests;
 
-use std::{error::Error as _, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use tracing::{info, warn};
 use uniwrt_model::{
@@ -21,7 +21,12 @@ use uniwrt_node::{Credential, ExecRequest, HostKey, Target, proto::ops::Set};
 use uniwrt_store::{Adoption, NodeRepo as _, VaultRepo as _};
 use zeroize::Zeroizing;
 
-use crate::{Remote, progress::Progress, runner::Shared};
+use crate::{
+    Remote,
+    errors::{chain, connect_error, internal, node_error, unsupported},
+    progress::Progress,
+    runner::Shared,
+};
 
 /// The adopt job's steps, in order.
 pub(crate) const STEPS: [StepName; 8] = [
@@ -37,7 +42,7 @@ pub(crate) const STEPS: [StepName; 8] = [
 
 /// Appends the controller's key (`$1`) to dropbear's `authorized_keys` unless it is there,
 /// keeping the file's last line intact; prints `present` or `added`.
-const INSTALL_KEY: &str = r#"f=/etc/dropbear/authorized_keys
+pub(crate) const INSTALL_KEY: &str = r#"f=/etc/dropbear/authorized_keys
 if [ -f "$f" ] && grep -qxF "$1" "$f"; then echo present; exit 0; fi
 umask 077
 if [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ]; then echo >>"$f"; fi
@@ -440,40 +445,6 @@ async fn text_argv(remote: &dyn Remote, argv: &[&str], what: &str) -> Result<Str
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn connect_error(err: &uniwrt_node::Error) -> JobError {
-    use uniwrt_node::Error;
-    let code = match err {
-        Error::HostKeyMismatch { .. } => JobErrorCode::HostKeyMismatch,
-        Error::AuthRejected { .. } => JobErrorCode::AuthRejected,
-        Error::Connect { .. } | Error::Ssh { .. } | Error::Timeout { .. } => {
-            JobErrorCode::Unreachable
-        }
-        _ => JobErrorCode::NodeFailed,
-    };
-    JobError {
-        code,
-        message: format!("Cannot log in: {}", chain(err)),
-    }
-}
-
-fn node_error(err: &uniwrt_node::Error, what: &str) -> JobError {
-    let code = match err {
-        uniwrt_node::Error::Disconnected { .. } => JobErrorCode::Unreachable,
-        _ => JobErrorCode::NodeFailed,
-    };
-    JobError {
-        code,
-        message: format!("{what}: {}", chain(err)),
-    }
-}
-
-fn unsupported(message: String) -> JobError {
-    JobError {
-        code: JobErrorCode::Unsupported,
-        message,
-    }
-}
-
 fn already_adopted(name: Option<&str>) -> JobError {
     JobError {
         code: JobErrorCode::AlreadyAdopted,
@@ -482,25 +453,4 @@ fn already_adopted(name: Option<&str>) -> JobError {
             None => "The node is adopted already".to_owned(),
         },
     }
-}
-
-/// A controller-side failure: the cause goes to the log, not to the job.
-fn internal(what: &str, err: &dyn std::fmt::Display) -> JobError {
-    warn!("{what}: {err}");
-    JobError {
-        code: JobErrorCode::Internal,
-        message: format!("The controller failed ({what}); its log has the cause"),
-    }
-}
-
-/// The error and its causes, as one line.
-fn chain(err: &uniwrt_node::Error) -> String {
-    let mut text = err.to_string();
-    let mut source = err.source();
-    while let Some(cause) = source {
-        text.push_str(": ");
-        text.push_str(&cause.to_string());
-        source = cause.source();
-    }
-    text
 }

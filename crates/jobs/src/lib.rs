@@ -5,6 +5,7 @@
 //!   controller key, a [`Dial`] to reach nodes and a [`Watch`] to start watching them);
 //!   [`Jobs::probe`] reads a node's host key for the user to confirm; [`Jobs::adopt`] starts
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
+//!   [`Jobs::manage`] switches a node's management on or off (D-069);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
 //!   them. [`SshDial`] reaches nodes over SSH; [`Remote`] is one login. Errors are [`Error`];
@@ -14,6 +15,9 @@
 //!   adopted yet) → install the key → log in with it → inventory (packages) → backup
 //!   (`sysupgrade -b`, sealed) → record (node, pin, facts, inventory and backup in one
 //!   transaction; the password in the vault if asked) → watch. At most 4 run at once; more wait.
+//! - **Management** steps: connect (the controller's key, the pinned host key) → install the
+//!   transaction tool and the guard unless that version is there (or remove them) → record the
+//!   mode. An open transaction on the node fails the job before anything changes.
 //! - **Discovery:** the devices in the adopted nodes' DHCP leases, IPv4 neighbors (not on WAN)
 //!   and batman-adv meshes, less the adopted nodes, probed on port 22 (the banner, then the
 //!   host key of dropbear servers and of hosts named `OpenWrt` or `uniwrt-*`; never a login),
@@ -28,15 +32,21 @@
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (SSH, the agent, the facts
 //!   parsers), `uniwrt-store` (jobs, adoption, the vault), tokio, `zeroize`.
 //! - **Tests:** unit tests of the parsers and checks; `discovery/tests.rs` discovers over
-//!   scripted facts and a scripted [`Dial`]; `adopt/tests.rs` runs adoptions over a
-//!   scripted [`Dial`] and a temporary store; `tests/agent.rs` adopts OpenWrt in a container
+//!   scripted facts and a scripted [`Dial`]; `adopt/tests.rs` and `manage_tests.rs` run
+//!   jobs over the scripted node of `testing.rs` and a temporary store; `tests/agent.rs` adopts OpenWrt in a container
 //!   (`just test-agent`).
 
 mod adopt;
 mod discovery;
+mod errors;
+mod manage;
+#[cfg(test)]
+mod manage_tests;
 mod progress;
 mod remote;
 mod runner;
+#[cfg(test)]
+mod testing;
 
 pub use adopt::AdoptRequest;
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
@@ -52,6 +62,8 @@ pub enum Error {
     Unavailable,
     #[error("a job is running for {target} already")]
     Busy { target: String },
+    #[error("there is no node {0}")]
+    NoNode(uniwrt_core::NodeId),
     #[error(transparent)]
     Node(#[from] uniwrt_node::Error),
     #[error(transparent)]

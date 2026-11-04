@@ -11,7 +11,7 @@ use std::{
 };
 
 use tokio::sync::broadcast;
-use uniwrt_core::{JobId, SystemClock};
+use uniwrt_core::{JobId, NodeId, SystemClock};
 use uniwrt_jobs::{AdoptRequest, BoxFuture, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
@@ -20,8 +20,9 @@ use uniwrt_model::{
 };
 use uniwrt_node::{
     ControllerKey, Credential, ExecRequest, HostKey, Session, SshConfig, Target, probe,
+    txn::Footprint,
 };
-use uniwrt_store::{InventoryRepo as _, MasterKey, Store, Vault};
+use uniwrt_store::{InventoryRepo as _, MasterKey, NodeRepo as _, Store, Vault};
 use zeroize::Zeroizing;
 
 #[derive(Default)]
@@ -185,7 +186,41 @@ async fn adoption_changes_only_authorized_keys() {
         job.error.as_ref().unwrap().code,
         JobErrorCode::AlreadyAdopted
     );
+
+    management_goes_on_and_off(&jobs, &store, &session, node.id, &mut updates).await;
+
     session.close().await;
     with_key.close().await;
     store.close().await;
+}
+
+/// Management on installs the transaction tool and the guard; off removes them.
+async fn management_goes_on_and_off(
+    jobs: &Jobs,
+    store: &Store,
+    session: &Session,
+    node: NodeId,
+    updates: &mut broadcast::Receiver<Arc<Job>>,
+) {
+    let on = jobs.manage(node, true, None).await.unwrap();
+    let job = ended(updates, on.id).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    let managed = store.node(node).await.unwrap().unwrap();
+    assert_eq!(managed.mode, NodeMode::Managed);
+    let status = run(session, &["/etc/uniwrt/txn", "status"]).await;
+    assert!(status.contains(Footprint::get().version()), "{status}");
+    assert!(
+        run(session, &["ls", "/etc/rc.d"])
+            .await
+            .contains("S13uniwrt-guard")
+    );
+    let off = jobs.manage(node, false, None).await.unwrap();
+    let job = ended(updates, off.id).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    assert_eq!(
+        store.node(node).await.unwrap().unwrap().mode,
+        NodeMode::Observe
+    );
+    let gone = "[ ! -e /etc/uniwrt ] && [ ! -e /etc/init.d/uniwrt-guard ] && echo gone";
+    assert_eq!(run(session, &["sh", "-c", gone]).await, "gone\n");
 }

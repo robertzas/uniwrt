@@ -58,7 +58,7 @@ if need web bun bun --version; then
     bash -c 'cd web && bun install --frozen-lockfile && bun run check'
 fi
 if command -v shellcheck >/dev/null; then
-  step shellcheck '' shellcheck scripts/*.sh
+  step shellcheck '' shellcheck scripts/*.sh node-agent/txn/txn node-agent/txn/uniwrt-guard
 else
   skip shellcheck 'not installed; CI runs it'
 fi

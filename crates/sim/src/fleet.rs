@@ -62,8 +62,8 @@ pub(crate) struct Channel {
     pub(crate) pushes: broadcast::Sender<AgentEvent>,
     session: Mutex<Session>,
     connection: Mutex<Connection>,
-    /// The lines of dropbear's `authorized_keys`, which survive reboots.
-    pub(crate) authorized_keys: Mutex<Vec<String>>,
+    /// What survives reboots: `authorized_keys`, the transaction tool.
+    pub(crate) disk: Mutex<crate::render::commands::Disk>,
 }
 
 /// Where the controller's connection to a node stands.
@@ -93,7 +93,7 @@ impl SimFleet {
                 pushes: broadcast::channel(PUSH_CAPACITY).0,
                 session: Mutex::new(Session::default()),
                 connection: Mutex::new(Connection::Up),
-                authorized_keys: Mutex::default(),
+                disk: Mutex::default(),
             })
             .collect();
         let shared = Arc::new(Shared {

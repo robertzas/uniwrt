@@ -1,6 +1,9 @@
 //! Every rendered set and push, through the node crate's parsers: what a simulated node reports
 //! must read as a real one's does, and agree with the world.
 
+use uniwrt_node::txn::{self, Footprint};
+
+use super::commands::Disk;
 use std::sync::Arc;
 
 use serde_json::{Value, value::to_raw_value};
@@ -204,11 +207,11 @@ fn raw(value: &Value) -> Arc<serde_json::value::RawValue> {
 #[test]
 fn adoption_s_commands_answer_as_on_openwrt() {
     let world = world();
-    let run = |node: usize, argv: &[&str], keys: &mut Vec<String>| {
+    let run = |node: usize, argv: &[&str], disk: &mut Disk| {
         let argv: Vec<String> = argv.iter().map(|&arg| arg.to_owned()).collect();
-        super::commands::exec(&world.nodes[node], &argv, keys)
+        super::commands::exec(&world.nodes[node], &argv, disk)
     };
-    let mut keys = Vec::new();
+    let mut keys = Disk::default();
     let release = run(0, &["cat", "/etc/openwrt_release"], &mut keys);
     let release = String::from_utf8(release.stdout).unwrap();
     assert!(release.starts_with("DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='"));
@@ -222,7 +225,7 @@ fn adoption_s_commands_answer_as_on_openwrt() {
     ];
     assert_eq!(run(0, &install, &mut keys).stdout, b"added\n");
     assert_eq!(run(0, &install, &mut keys).stdout, b"present\n");
-    assert_eq!(keys, ["ssh-ed25519 AAAA uniwrt"]);
+    assert_eq!(keys.authorized_keys, ["ssh-ed25519 AAAA uniwrt"]);
 
     // Each node reads its own package manager's database, and only that one.
     let opkg = [
@@ -252,4 +255,23 @@ fn adoption_s_commands_answer_as_on_openwrt() {
     assert!(backup.stdout.starts_with(&[0x1f, 0x8b]));
     let missing = run(0, &["reboot"], &mut keys);
     assert_eq!(missing.status, uniwrt_node::ExitStatus::Code(127));
+}
+
+#[test]
+fn management_installs_and_removes_the_transaction_tool() {
+    let world = world();
+    let mut disk = Disk::default();
+    let mut run = |command: &uniwrt_node::ExecRequest| {
+        super::commands::exec(&world.nodes[1], &command.argv, &mut disk)
+    };
+    let status = txn::status();
+    assert_eq!(status.parse(run(&status.request)).unwrap(), None);
+    let install = Footprint::get().install();
+    install.parse(run(&install.request)).unwrap();
+    let installed = status.parse(run(&status.request)).unwrap().unwrap();
+    assert_eq!(installed.version, Footprint::get().version());
+    assert_eq!(installed.open, None);
+    let uninstall = txn::uninstall();
+    uninstall.parse(run(&uninstall.request)).unwrap();
+    assert_eq!(status.parse(run(&status.request)).unwrap(), None);
 }

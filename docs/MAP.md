@@ -34,6 +34,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 - `src/logs.rs`: The logs routes, with a session (features/observability.md, Logs):
 - `src/logs_tests.rs`: The logs routes over the demo's store, with entries recorded by hand.
+- `src/management.rs`: Management on and off, with an admin's session (directive 8; D-069): `PUT /api/v1/nodes/{id}/management` with `{"enabled":true}` starts the job that installs the transaction tool and the boot guard on the node and records it as managed; `false` removes them and puts the node back in observe mode.
 - `src/metrics.rs`: The metrics routes, with a session (features/observability.md, Metrics): `GET /api/v1/metrics?entity=<entity>&metrics=<a,b>&from=<ms>&to=<ms>&width=<points>` reads an entity's series over a time range at the resolution that holds it, reduced with LTTB to about `width` points ([`MetricsResponse`]); `GET /api/v1/metrics/series?under=<entity>` lists the series kept ([`SeriesInfo`]), for every entity or for one and those below it.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
@@ -156,14 +157,18 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/check.rs`: What adoption checks before it changes anything (features/adoption.md, Path A): the release, the resources the agent needs, and the node's identity; and the role a node seems to have.
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
 - `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
-- `src/adopt/tests.rs`: Adoptions over a scripted node (a [`Dial`] that plays dropbear and the agent from a capture of OpenWrt 24.10 in a container) and a temporary store.
+- `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
+- `src/errors.rs`: How jobs word their failures: a [`JobError`] code the UI can act on, and a message.
 - `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
+- `src/manage.rs`: The manage and unmanage jobs (directive 8; D-069): management goes on only when the user asks, node by node.
+- `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
+- `src/testing.rs`: A scripted node for the jobs' tests: a [`Dial`] that plays dropbear, the agent (from a capture of OpenWrt 24.10 in a container) and the transaction tool, and a temporary store.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
 ### `uniwrt-metrics` (crates/metrics)
@@ -198,7 +203,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
-- `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, recorded as history.
+- `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one or enabling its management, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes, what it records about them, and the network it should make of them.
 - `src/log.rs`: Log entries (observability.md, Logs): what nodes log, read through the node agent or received by syslog, and what other hosts send by syslog; stored as [`LogRecord`]s, found with a [`LogFilter`], counted in [`LogBucket`]s, explained by [`LogPattern`]s, and kept as [`SavedSearch`]es.
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
@@ -277,12 +282,15 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/ssh/client.rs`: The russh client handler: checks the host key against the pin and reports why a session ended.
 - `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
 - `src/supervisor.rs`: [`SshLink`]: one node's connection, kept up by a task that reconnects with jittered backoff and restarts the agent, and that serves [`NodeLink`] from whatever session is current.
+- `src/txn.rs`: Transactions on a node (features/lifecycle.md, Render → diff → apply; D-012, D-069): the commands of the transaction tool, `node-agent/txn/txn`, which managed nodes keep as [`TOOL`], and the [`Footprint`] that enabling management installs (the tool and `/etc/init.d/uniwrt-guard`).
+- `src/txn/tests.rs`: (no header comment)
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
 - `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
+- `tests/txn.rs`: Transactions on real OpenWrt (TESTING.md, Agent; D-069): the footprint installs and goes, and a transaction that replaces `system` and stops dnsmasq is confirmed, rolled back on request, at its deadline or at boot, or refused before it changes anything.
 - `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point.
 
 ### `uniwrt-notify` (crates/notify)
@@ -378,7 +386,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
-- `src/render/commands.rs`: The commands adoption runs on a node (features/adoption.md, Path A), answered as OpenWrt would: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`.
+- `src/render/commands.rs`: The commands adoption runs on a node (features/adoption.md, Path A), answered as OpenWrt would: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`; and those that switch management (the transaction tool's status, its install and its removal, D-069).
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
@@ -541,7 +549,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (259 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (260 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
@@ -582,7 +590,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
 - `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.
-- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
+- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test last (it restarts the container).
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
 - `scripts/test-system.sh`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `scripts/tz.py`: (no header comment)

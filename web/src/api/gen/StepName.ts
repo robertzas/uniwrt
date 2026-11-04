@@ -3,4 +3,4 @@
 /**
  * The steps of every kind of job.
  */
-export type StepName = "connect" | "check" | "install_key" | "verify_key" | "inventory" | "backup" | "record" | "watch";
+export type StepName = "connect" | "check" | "install_key" | "verify_key" | "inventory" | "backup" | "record" | "watch" | "install_tool" | "remove_tool";

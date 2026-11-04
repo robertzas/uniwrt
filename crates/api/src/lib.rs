@@ -11,7 +11,8 @@
 //! - **Routes:** public: `GET v1/health`, `GET v1/tls`, `GET v1/tls/ca.crt`, `GET v1/auth`
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
-//!   `GET v1/nodes/{id}` ([`NodeDetail`]), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
+//!   on or off, a job), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -69,6 +70,7 @@ mod events;
 mod health;
 mod jobs;
 mod logs;
+mod management;
 mod metrics;
 mod nodes;
 mod notifiers;
@@ -107,6 +109,7 @@ pub use health::BuildInfo;
 pub use logs::{
     LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
 };
+pub use management::ManagementBody;
 pub use metrics::{MetricSeries, MetricsResponse, SeriesInfo};
 pub use nodes::{NodeDetail, NodeSummary};
 pub use notifiers::{
@@ -136,6 +139,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/auth/me", get(auth::me))
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
+        .route("/v1/nodes/{id}/management", put(management::put))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))

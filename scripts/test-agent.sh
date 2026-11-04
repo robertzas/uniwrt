@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt
 # rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs,
-# crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
+# crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then
+# crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test
+# last (it restarts the container).
 # Usage: scripts/test-agent.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -55,6 +57,11 @@ for image in "${images[@]}"; do
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" UNIWRT_NODE_RELEASE="${image##*-}" \
     cargo nextest run --locked -p uniwrt-node -p uniwrt-engine -p uniwrt-jobs --test agent --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
+  for tests in 'not test(/at_boot/)' 'test(/at_boot/)'; do
+    UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" UNIWRT_NODE_CONTAINER="$container" \
+      cargo nextest run --locked -p uniwrt-node --test txn --run-ignored only --test-threads 1 \
+      -E "$tests" --status-level fail --hide-progress-bar
+  done
   docker rm -f "$container" >/dev/null
   container=''
 done

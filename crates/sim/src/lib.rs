@@ -19,8 +19,9 @@
 //!   `subscribe`, `set_interval` and `log_follow` behave as the event-loop agent's (D-036):
 //!   hostapd's and dnsmasq's notifications, ticks, and logd batches polled or streamed. A
 //!   rebooting node's link goes down, is retried with backoff, and comes back with a new agent.
-//!   `exec` runs only what adoption runs (the release, the key, the packages, the backup;
-//!   `render/commands.rs`), keeping `authorized_keys` across reboots; `stream` and `upload`
+//!   `exec` runs only what adoption and management run (the release, the key, the packages, the
+//!   backup, the transaction tool's status, install and removal; `render/commands.rs`), keeping
+//!   `authorized_keys` and the tool across reboots; `stream` and `upload`
 //!   answer `unsupported`.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
 //!   timestamps counted from the clock's now at spawn; it reads no clock, uses no randomness

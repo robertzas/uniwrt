@@ -54,14 +54,15 @@ impl JobRepo for Store {
         self.write(move |conn| {
             Ok(conn
                 .prepare_cached(&format!(
-                    "INSERT INTO jobs (kind, state, target, created_by, started_at, steps)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING {COLUMNS}"
+                    "INSERT INTO jobs (kind, state, target, node_id, created_by, started_at, steps)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING {COLUMNS}"
                 ))?
                 .query_row(
                     params![
                         enum_text(job.kind),
                         enum_text(JobState::Running),
                         job.target,
+                        job.node.map(NodeId::get),
                         job.created_by.map(UserId::get),
                         now,
                         steps,
@@ -172,6 +173,7 @@ mod tests {
 
     fn new_job(target: &str) -> NewJob {
         NewJob {
+            node: None,
             kind: JobKind::Adopt,
             target: target.to_owned(),
             created_by: Some(UserId::new(1)),

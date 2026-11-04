@@ -1,17 +1,30 @@
 //! The commands adoption runs on a node (features/adoption.md, Path A), answered as OpenWrt
 //! would: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's
 //! `authorized_keys`, the package manager's database (opkg's status file, or apk's installed
-//! database and world file) and `sysupgrade -b -`. Anything else exits 127, as `sh` does for a
-//! command it cannot find.
+//! database and world file) and `sysupgrade -b -`; and those that switch management (the
+//! transaction tool's status, its install and its removal, D-069). Anything else exits 127, as
+//! `sh` does for a command it cannot find.
 
 use std::fmt::Write as _;
 
-use uniwrt_node::{ExecOutput, ExitStatus};
+use uniwrt_node::{
+    ExecOutput, ExitStatus,
+    txn::{self, Footprint},
+};
 
 use crate::world::Node;
 
 /// What `sysupgrade -b -` writes: a small backup with harmless settings.
 const BACKUP: &[u8] = include_bytes!("../../data/backup.tar.gz");
+
+/// What survives a node's reboots.
+#[derive(Debug, Default)]
+pub(crate) struct Disk {
+    /// The lines of dropbear's `authorized_keys`.
+    pub(crate) authorized_keys: Vec<String>,
+    /// The transaction tool's version, once management is on.
+    pub(crate) footprint: Option<String>,
+}
 
 /// The installed packages, `(name, version, installed on purpose)`, the same on every node.
 const PACKAGES: [(&str, &str, bool); 22] = [
@@ -39,8 +52,9 @@ const PACKAGES: [(&str, &str, bool); 22] = [
     ("wpad-mesh-mbedtls", "2025.08.26~ced4f2b0-r1", true),
 ];
 
-/// Runs `argv` on `node`, whose `authorized_keys` lines are `keys`.
-pub(crate) fn exec(node: &Node, argv: &[String], keys: &mut Vec<String>) -> ExecOutput {
+/// Runs `argv` on `node`, whose files are on `disk`.
+pub(crate) fn exec(node: &Node, argv: &[String], disk: &mut Disk) -> ExecOutput {
+    let keys = &mut disk.authorized_keys;
     let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
@@ -68,9 +82,31 @@ pub(crate) fn exec(node: &Node, argv: &[String], keys: &mut Vec<String>) -> Exec
             ok(apk_world().into_bytes())
         }
         ["sysupgrade", "-b", "-"] => ok(BACKUP.to_vec()),
+        ["sh", "-c", script] if *script == script_of(&txn::status().request) => {
+            ok(match &disk.footprint {
+                Some(version) => {
+                    format!(r#"{{"ok":{{"version":"{version}","open":null,"last":null}}}}"#)
+                }
+                None => r#"{"ok":null}"#.to_owned(),
+            }
+            .into_bytes())
+        }
+        ["sh", "-c", script] if *script == script_of(&Footprint::get().install().request) => {
+            disk.footprint = Some(Footprint::get().version().to_owned());
+            ok(br#"{"ok":{}}"#.to_vec())
+        }
+        ["sh", "-c", script] if *script == script_of(&txn::uninstall().request) => {
+            disk.footprint = None;
+            ok(br#"{"ok":{}}"#.to_vec())
+        }
         [command, ..] => failed(127, format!("sh: {command}: not found\n")),
         [] => failed(127, "sh: : not found\n".to_owned()),
     }
+}
+
+/// The script of an `sh -c` command.
+fn script_of(request: &uniwrt_node::ExecRequest) -> &str {
+    request.argv.get(2).map_or("", String::as_str)
 }
 
 fn release(node: &Node) -> String {

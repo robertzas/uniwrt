@@ -43,7 +43,7 @@ flowchart TB
 - **HTTP server** (axum): REST under `/api/v1`, a WebSocket at `/api/v1/ws`, the embedded UI and the ZTP endpoints.
 - **Engine:** one **NodeActor** (tokio task) per node. It follows the node's link and agent, keeps its live facts and status, sends its telemetry requests one at a time, and is restarted with backoff if it panics (D-037).
 - **Event bus:** tokio broadcast of typed `Event`s. Consumers are the WS hub, the metrics writer, the alert engine and the store.
-- **Job runner** (`jobs` crate): orchestrations on nodes (adopt now; apply, upgrade, rf-apply and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target.
+- **Job runner** (`jobs` crate): orchestrations on nodes (adopt, manage and unmanage now; apply, upgrade, rf-apply and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target.
 - **Store:** SQLite in WAL mode, with one batched writer task and a read pool.
 - **Syslog receiver** (`syslog` crate): UDP and TCP listeners (5514; `--syslog-listen`) → parser → the engine's log recorder, which also stores what the agents follow (D-059), annotates, and announces stored entries for the WS topic `logs`.
 - **Schedulers:** retention, backups, the RF optimizer, firmware checks and alert evaluation.
@@ -63,12 +63,12 @@ flowchart TB
 | L0 | `rf` | RF insight: channel spans and overlap, occupancy per channel, the networks on each radio's channel, the inter-node RSSI matrix and radar history from scans and facts (M2.6); the channel/width/power planner (M6.1) | core, model |
 | L0 | `isp` | ISP preset schema and embedded presets (`crates/isp/data/`) | core, model |
 | L1 adapters | `store` | SQLite: revisions, inventory, events, jobs, metrics, logs (FTS5), vault | core, model |
-| L1 | `node` | SSH transport (russh), agent protocol, `NodeLink` trait, embedded agent bundle | core, model |
+| L1 | `node` | SSH transport (russh), agent protocol, `NodeLink` trait, embedded agent bundle, the transaction tool's commands and footprint (`txn`) | core, model |
 | L1 | `syslog` | RFC 3164/5424 receiver and parser; log annotations (`log-patterns.toml`) | core, model |
 | L1 | `firmware` | release catalog, ASU client, image cache and verification | core, model |
 | L1 | `notify` | notifiers: alerts in words, rendered for ntfy, webhooks (Discord, Slack, Teams, Home Assistant, uniwrt's JSON, the user's template) and email; delivery over HTTP(S) (hyper, rustls, Mozilla's roots) and SMTP (lettre); the policy of what to send when (D-063) | core, model |
 | L2 services | `engine` | node actors, telemetry ingest, live state and topology, event bus, alerts, schedulers | L0, L1 |
-| L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7); apply, upgrade, rf-apply, backup later | L0, L1 |
+| L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7), manage and unmanage (M3.4a1); apply, upgrade, rf-apply, backup later | L0, L1 |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
 | test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands adoption runs; `serve --demo` and tests (D-038, D-048) | core, model, node |
@@ -109,7 +109,7 @@ Rules:
 {"tick":{"sets":{"radios":{},"stations":{}},"errors":{}}}
 ```
 
-- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c, event loop only; D-036); `txn`, which delegates to the transaction tool (M3). Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
+- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c, event loop only; D-036). Transactions don't go through the agent: the controller runs the transaction tool (`/etc/uniwrt/txn`) over exec (D-069), since the agent dies with the session a reload may cut. Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
 - **Source of truth:** `crates/node/src/proto.rs` and `proto/ops.rs`, mirrored by `node-agent/proto.uc` and `ops.uc`. The `proto` integer bumps on breaking changes; the controller supports the current version and the previous one.
 - **Jump hosts:** a `direct-tcpip` channel through an adopted node reaches isolated segments, such as the adoption port described in features/adoption.md.
 
@@ -118,7 +118,7 @@ Rules:
 | Mode | Persistent changes on the node |
 |---|---|
 | Observe | One `authorized_keys` entry (comment `uniwrt-controller`). Remote syslog only with consent. |
-| Managed | Adds `/etc/uniwrt/` (transaction journal and snapshots, ≤ 100 KB), `/etc/init.d/uniwrt-guard` (rolls back unconfirmed transactions after an unexpected reboot), `/lib/upgrade/keep.d/uniwrt`, and the managed UCI packages. |
+| Managed | Adds `/etc/uniwrt/` (the transaction tool `txn` and its `VERSION`; `journal/` with the open transaction's snapshot and the last outcome, ≤ 100 KB), `/etc/init.d/uniwrt-guard` (START=13: rolls back an unconfirmed transaction at boot; runs the open one's dead-man timer and reload as procd instances), `/lib/upgrade/keep.d/uniwrt` (keeps both across sysupgrade), and the managed UCI packages (D-069). |
 
 Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 

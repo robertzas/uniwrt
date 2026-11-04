@@ -12,7 +12,7 @@ use tokio::{
     task::AbortHandle,
 };
 use tracing::{Instrument as _, info, info_span, warn};
-use uniwrt_core::{Clock, JobId, UserId};
+use uniwrt_core::{Clock, JobId, NodeId, UserId};
 use uniwrt_model::{
     discovery::DiscoveryReport,
     facts::NodeFacts,
@@ -20,12 +20,13 @@ use uniwrt_model::{
     node::Node,
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
-use uniwrt_store::{JobRepo as _, Store, Vault};
+use uniwrt_store::{JobRepo as _, NodeRepo as _, Store, Vault};
 
 use crate::{
     AdoptRequest, BoxFuture, Dial, Error, Result,
     adopt::{self, STEPS},
     discovery::Discovery,
+    manage,
     progress::Progress,
 };
 
@@ -140,30 +141,58 @@ impl Jobs {
         }
         let target = request.target.to_string();
         let key = target.to_lowercase();
-        if !self.shared.running().targets.insert(key.clone()) {
-            return Err(Error::Busy { target });
+        let job = NewJob {
+            kind: JobKind::Adopt,
+            target,
+            node: None,
+            created_by: by,
+            steps: STEPS.to_vec(),
+        };
+        self.spawn(key, job, |shared, progress| {
+            adopt::run(shared, request, progress)
+        })
+        .await
+    }
+
+    /// Starts enabling management on a node (`enable`), or turning it off, and returns the job
+    /// as it starts. One job at a time per node.
+    pub async fn manage(&self, node: NodeId, enable: bool, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
         }
-        let created = self
+        let node = self
             .shared
             .store
-            .create_job(NewJob {
-                kind: JobKind::Adopt,
-                target,
-                created_by: by,
-                steps: STEPS.to_vec(),
-            })
-            .await;
-        let job = match created {
+            .node(node)
+            .await?
+            .ok_or(Error::NoNode(node))?;
+        let job = manage::job(&node, enable, by);
+        self.spawn(manage::target(node.id), job, move |shared, progress| {
+            manage::run(shared, node, enable, progress)
+        })
+        .await
+    }
+
+    /// Records a new job and runs it in its own task, holding `key` (its target) meanwhile.
+    async fn spawn<F, Fut>(&self, key: String, new: NewJob, run: F) -> Result<Job>
+    where
+        F: FnOnce(Arc<Shared>, Progress) -> Fut,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        if !self.shared.running().targets.insert(key.clone()) {
+            return Err(Error::Busy { target: new.target });
+        }
+        let job = match self.shared.store.create_job(new).await {
             Ok(job) => job,
             Err(err) => {
                 self.shared.running().targets.remove(&key);
                 return Err(err.into());
             }
         };
-        info!(job_id = %job.id, target = %job.target, "adopting a node");
+        info!(job_id = %job.id, kind = ?job.kind, target = %job.target, "starting a job");
         self.shared.announce(&job);
         let progress = Progress::new(job.clone(), Arc::clone(&self.shared));
-        let shared = Arc::clone(&self.shared);
+        let work = run(Arc::clone(&self.shared), progress);
         let span = info_span!("job", job_id = %job.id);
         // Locked while spawning, so that the task finds itself registered when it finishes.
         let release = Release(Arc::clone(&self.shared), job.id);
@@ -171,7 +200,7 @@ impl Jobs {
         let task = tokio::spawn(
             async move {
                 let _release = release;
-                adopt::run(shared, request, progress).await;
+                work.await;
             }
             .instrument(span),
         );

@@ -3,7 +3,7 @@
 //! a reboot clears it); the controller replaces it whenever its `VERSION` differs from the
 //! bundle's hash, and the agent's hello must then report that hash.
 
-mod tar;
+pub(crate) mod tar;
 
 use std::{fmt::Write as _, sync::LazyLock};
 
@@ -127,7 +127,7 @@ impl Bundle {
     }
 }
 
-fn sha256_hex(data: &[u8]) -> String {
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
     digest(&SHA256, data)
         .as_ref()
         .iter()

@@ -1,5 +1,6 @@
 //! Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as
-//! adopting one, recorded as history. Applying changes, upgrades and backups come later.
+//! adopting one or enabling its management, recorded as history. Applying changes, upgrades and
+//! backups come later.
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
@@ -29,6 +30,8 @@ pub struct Job {
 pub struct NewJob {
     pub kind: JobKind,
     pub target: String,
+    /// The node it acts on, when known from the start (not for an adoption).
+    pub node: Option<NodeId>,
     pub created_by: Option<UserId>,
     pub steps: Vec<StepName>,
 }
@@ -39,6 +42,10 @@ pub struct NewJob {
 pub enum JobKind {
     /// Adopting a running OpenWrt node in observe mode (features/adoption.md, Path A).
     Adopt,
+    /// Enabling management on a node: installing the transaction tool and the boot guard.
+    Manage,
+    /// Back to observe mode: removing them.
+    Unmanage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -95,6 +102,10 @@ pub enum StepName {
     Record,
     /// Start watching the node live.
     Watch,
+    /// Install the transaction tool and the boot guard (`/etc/uniwrt`, D-069).
+    InstallTool,
+    /// Remove them, leaving the node's configuration as it is.
+    RemoveTool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

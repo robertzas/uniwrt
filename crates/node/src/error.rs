@@ -56,10 +56,21 @@ pub enum Error {
         code: String,
         msg: String,
     },
+    /// The transaction tool (`/etc/uniwrt/txn`, [`txn`](crate::txn)) answered with an error;
+    /// `code` is one of [`txn::code`](crate::txn::code).
+    #[error("txn {command} failed: {code}: {msg}")]
+    Txn {
+        command: String,
+        code: String,
+        msg: String,
+    },
     #[error("agent protocol violation: {0}")]
     Protocol(String),
     #[error("invalid command: {0}")]
     InvalidArgv(&'static str),
+    /// A name a command can't take, such as a transaction id with a space.
+    #[error("invalid {what}")]
+    Invalid { what: String },
     #[error("invalid {what}")]
     Key {
         what: &'static str,

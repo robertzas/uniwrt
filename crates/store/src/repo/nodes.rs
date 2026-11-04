@@ -98,6 +98,21 @@ impl NodeRepo for Store {
         .await
     }
 
+    async fn set_node_mode(&self, id: NodeId, mode: NodeMode) -> Result<Option<Node>> {
+        let now = self.now().as_unix_ms();
+        let mode = enum_text(mode);
+        self.write(move |conn| {
+            Ok(conn
+                .prepare_cached(
+                    "UPDATE nodes SET mode = ?2, updated_at = ?3 WHERE id = ?1
+                     RETURNING id, name, mac, board_name, host, port, role, mode, created_at, updated_at",
+                )?
+                .query_row(params![id.get(), mode, now], node_from_row)
+                .optional()?)
+        })
+        .await
+    }
+
     async fn delete_node(&self, id: NodeId) -> Result<bool> {
         self.write(move |conn| {
             Ok(conn
@@ -125,6 +140,26 @@ pub(crate) mod tests {
             port: 22,
             role: NodeRole::Ap,
         }
+    }
+
+    #[tokio::test]
+    async fn the_mode_changes_and_an_unknown_node_is_none() {
+        let (_dir, store, clock) = testing::open().await;
+        let node = store.create_node(new_node(2)).await.unwrap();
+        clock.advance(std::time::Duration::from_secs(1));
+        let managed = store
+            .set_node_mode(node.id, NodeMode::Managed)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(managed.mode, NodeMode::Managed);
+        assert!(managed.updated_at > node.updated_at);
+        assert_eq!(store.node(node.id).await.unwrap(), Some(managed));
+        let missing = store
+            .set_node_mode(NodeId::new(99), NodeMode::Observe)
+            .await
+            .unwrap();
+        assert_eq!(missing, None);
     }
 
     #[tokio::test]
