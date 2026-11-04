@@ -1,0 +1,3 @@
+config 'wifi-iface' "n"
+	option 'x' "1"
+	option x"y" 2

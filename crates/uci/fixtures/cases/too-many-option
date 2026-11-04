@@ -1,0 +1,2 @@
+config a
+	option x 1 2

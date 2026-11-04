@@ -1,0 +1,96 @@
+package firewall
+
+config defaults
+	option syn_flood '1'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'lan'
+	list network 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+
+config zone
+	option name 'guest'
+	list network 'guest'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'iot'
+	list network 'iot'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'wan'
+	list network 'wan'
+	list network 'wan6rd'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+	option masq '1'
+	option mtu_fix '1'
+
+config forwarding
+	option src 'lan'
+	option dest 'wan'
+
+config forwarding
+	option src 'guest'
+	option dest 'wan'
+
+config forwarding
+	option src 'lan'
+	option dest 'iot'
+
+config rule
+	option name 'Allow-DHCP-Renew'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '68'
+	option target 'ACCEPT'
+	option family 'ipv4'
+
+config rule
+	option name 'Allow-Ping'
+	option src 'wan'
+	option proto 'icmp'
+	option icmp_type 'echo-request'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Guest-DHCP-DNS'
+	option src 'guest'
+	list proto 'tcp'
+	list proto 'udp'
+	option dest_port '53 67 68'
+	option target 'ACCEPT'
+
+config rule 'iot_dns'
+	option name 'IoT-DNS'
+	option src 'iot'
+	option proto 'udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+config redirect
+	option name 'NAS-HTTPS'
+	option src 'wan'
+	option src_dport '8443'
+	option dest 'lan'
+	option dest_ip '10.0.0.10'
+	option dest_port '443'
+	option proto 'tcp'
+	option target 'DNAT'
+
+config include 'uniwrt'
+	option path '/etc/uniwrt/firewall.include'
+	option fw4_compatible '1'
+

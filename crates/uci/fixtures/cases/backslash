@@ -1,0 +1,9 @@
+config a 'n'
+	option single 'ab\'
+	option double "a\
+b"
+	option bare a\
+b
+	option crlf a\
+b
+	option escaped a\;b

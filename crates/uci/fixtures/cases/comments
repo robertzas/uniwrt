@@ -1,0 +1,7 @@
+# head
+config a n # trailing
+	option x 'a'#glued
+	option y a #spaced
+#	option z 1
+	option w v#c
+  # indented

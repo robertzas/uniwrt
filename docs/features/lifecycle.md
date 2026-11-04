@@ -23,7 +23,7 @@ Milestones: M3.1–M3.5, M7.1–M7.2.
 ## Render → diff → apply [M3.3–M3.4]
 
 1. **Render** (pure): `(SiteConfig, NodeFacts capabilities)` → per-node UCI packages. Rendering depends on capabilities (DSA vs swconfig, wpad variant, apk vs opkg), not version strings.
-2. **Diff:** a semantic UCI diff against the node config, fetched fresh right before apply, shown on the review screen.
+2. **Diff:** a semantic UCI diff (`uniwrt_uci::diff`: sections added, removed, changed or moved, option by option; order counts only among the sections of one type; D-066) against the node config, fetched fresh right before apply, shown on the review screen.
 3. **Plan:** order the nodes. Disruptive changes go leaves → gateway; additive ones gateway first.
 4. **Apply** each node as a transaction (D-012):
    - Upload the bundle (files plus metadata). Validate it: `uci -c <stage> show` for each package, and `fw4 check` for the firewall.

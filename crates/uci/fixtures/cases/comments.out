@@ -1,0 +1,7 @@
+package comments
+
+config a 'n'
+	option x 'a'
+	option y 'a'
+	option w 'v'
+

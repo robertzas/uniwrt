@@ -1,0 +1,5 @@
+package semicolon-glued
+
+config a 'n'
+	option x '1'
+

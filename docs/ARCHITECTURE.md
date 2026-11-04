@@ -53,8 +53,8 @@ flowchart TB
 | Layer | Crate | Responsibility | May depend on |
 |---|---|---|---|
 | L0 pure | `core` | IDs, MAC/IP/prefix types, error conventions, `Clock` trait | — |
-| L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), the node record, validation, schema migrations | core |
-| L0 | `uci` | UCI AST, parser, serializer, semantic diff | core |
+| L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), the node record, validation, schema migrations | core, uci |
+| L0 | `uci` | UCI AST, parser and serializer that match libuci (strict mode, checked against `uci` of each release), semantic diff and its apply, libuci's identifier rules (which `model` validates raw sections with) | — |
 | L0 | `render` | (SiteConfig, facts) → per-node UCI packages | core, model, uci |
 | L0 | `topo` | facts → topology graph | core, model |
 | L0 | `clients` | the client inventory: vendors (embedded OUI table), device kinds, sessions, samples, experience score | core, model, topo |

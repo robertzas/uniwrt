@@ -3278,6 +3278,7 @@ dependencies = [
  "thiserror",
  "ts-rs",
  "uniwrt-core",
+ "uniwrt-uci",
 ]
 
 [[package]]
@@ -3396,6 +3397,16 @@ dependencies = [
  "ts-rs",
  "uniwrt-core",
  "uniwrt-model",
+]
+
+[[package]]
+name = "uniwrt-uci"
+version = "0.0.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "thiserror",
+ "ts-rs",
 ]
 
 [[package]]

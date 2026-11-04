@@ -18,7 +18,10 @@ use uniwrt_core::NodeId;
 
 use super::{SCHEMA_VERSION, SiteConfig};
 
-pub use names::{is_hostname, is_id, is_uci_name, is_uci_package, is_uci_type};
+pub use names::{is_hostname, is_id};
+pub use uniwrt_uci::{
+    is_name as is_uci_name, is_package as is_uci_package, is_type as is_uci_type,
+};
 
 /// A problem found in a document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

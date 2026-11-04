@@ -45,6 +45,10 @@ test:
 test-dropbear *images:
     @scripts/test-dropbear.sh {{ images }}
 
+# Rewrites the uci crate's expected outputs from `uci` in OpenWrt rootfs containers; --check compares (needs Docker)
+uci-conformance *args:
+    @scripts/uci-conformance.sh {{ args }}
+
 # The node agent tests in OpenWrt rootfs containers booted with procd (needs Docker)
 test-agent *images:
     @scripts/test-agent.sh {{ images }}

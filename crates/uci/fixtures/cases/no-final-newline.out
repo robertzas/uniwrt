@@ -1,0 +1,5 @@
+package no-final-newline
+
+config a 'n'
+	option x '1'
+

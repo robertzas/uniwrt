@@ -1,0 +1,12 @@
+package quoting
+
+config a 'x'
+	option single 'it'\''s'
+	option double 'dq " \ n end'
+	option joined 'unquotedcat'
+	option bare 'a b'
+	option hash '#'
+	option semi 'a;b'
+	option spaces '  sp	tab  '
+	option utf8 'ü€ 🛜'
+

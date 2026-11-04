@@ -1,4 +1,4 @@
-//! The names a document holds: ids, host and DNS names, UCI identifiers.
+//! The names a document holds: ids, host and DNS names. UCI identifiers follow `uniwrt_uci`.
 
 /// A network or WLAN id: `[a-z][a-z0-9_]{0,11}`, short enough for `br-<id>` to fit a Linux
 /// interface name.
@@ -23,30 +23,9 @@ pub(super) fn is_dns_name(name: &str) -> bool {
     name.len() <= 253 && name.split('.').all(is_hostname)
 }
 
-/// A UCI section or option name, as libuci checks it: `[A-Za-z0-9_]+`.
-pub fn is_uci_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-}
-
-/// A UCI package name: `[A-Za-z0-9_-]+`.
-pub fn is_uci_package(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-}
-
-/// A UCI section type: printable ASCII without spaces, such as `wifi-iface`.
-pub fn is_uci_type(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 64 && name.bytes().all(|b| b.is_ascii_graphic())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{is_dns_name, is_hostname, is_id, is_uci_name, is_uci_package, is_uci_type};
+    use super::{is_dns_name, is_hostname, is_id};
 
     #[test]
     fn names() {
@@ -55,8 +34,5 @@ mod tests {
         assert!(!is_id("lan-2"));
         assert!(is_hostname("ap-garden") && !is_hostname("-ap") && !is_hostname("a_b"));
         assert!(is_dns_name("home.arpa") && !is_dns_name("home..arpa") && !is_dns_name(""));
-        assert!(is_uci_name("wifi_iface") && !is_uci_name("wifi-iface") && !is_uci_name(""));
-        assert!(is_uci_package("luci-ssl") && !is_uci_package("a.b"));
-        assert!(is_uci_type("wifi-iface") && !is_uci_type("a b") && !is_uci_type(""));
     }
 }

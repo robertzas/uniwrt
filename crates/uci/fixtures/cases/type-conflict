@@ -1,0 +1,4 @@
+config a 'n'
+	option x 1
+config b 'n'
+	option y 2

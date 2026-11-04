@@ -1,0 +1,5 @@
+package package-statement
+
+config a 'n'
+	option x '1'
+

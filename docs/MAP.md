@@ -214,7 +214,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
 - `src/site/validate/gateway.rs`: The WAN, the firewall policy and services.
 - `src/site/validate/mod.rs`: Validating a [`SiteConfig`]: errors refuse a save, warnings are shown with it.
-- `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names, UCI identifiers.
+- `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names.
 - `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
 - `src/site/validate/nodes.rs`: Per-node overrides: hostnames, radios and raw UCI sections.
 - `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
@@ -456,6 +456,25 @@ The topology: the network graph that the adopted nodes' facts describe.
 - `src/wifi.rs`: Wi-Fi: each client at the access point it is associated with (the one it used last, while it roams), and nodes that are another node's stations (a bridge's uplink).
 - `src/wired.rs`: Wired links from the bridges' forwarding databases.
 
+### `uniwrt-uci` (crates/uci)
+
+UCI, OpenWrt's configuration format (docs/openwrt/REFERENCE.md, UCI syntax): the AST of a package, a parser and a serializer that agree with libuci, and the semantic diff that the review screen, transactions and drift detection read (features/lifecycle.md).
+
+- `src/ast.rs`: The AST: a package of sections, each a type, an optional name and its options in order.
+- `src/diff/align.rs`: Pairing the old package's sections with the new one's, and finding the ones that moved.
+- `src/diff/apply.rs`: Applying a diff to the package it was taken from: `apply(a, &diff(a, b))` is `b` up to the diff's semantics (the order between types and among a section's options may differ).
+- `src/diff/mod.rs`: The semantic diff of two versions of a package: which sections came, went, changed or moved, and how each option changed.
+- `src/diff/show.rs`: A diff as text, in `uci show`'s terms: a line per section and per option, `+` for what came, `-` for what went, and a context line, starting with a space, for a changed section.
+- `src/diff/tests.rs`: (no header comment)
+- `src/lib.rs`: UCI, OpenWrt's configuration format (docs/openwrt/REFERENCE.md, UCI syntax): the AST of a package, a parser and a serializer that agree with libuci, and the semantic diff that the review screen, transactions and drift detection read (features/lifecycle.md).
+- `src/name.rs`: UCI identifiers, as libuci checks them (`uci_validate_str` in util.c, ASCII in the C locale).
+- `src/parse/mod.rs`: The parser: a port of libuci's (file.c, strict mode, as `uci` and rpcd run it), so text reads here as on a node, quirks included. libuci parses each line in place in a buffer, and some outcomes depend on that: a `;` glued to an unquoted word ends the line, while after a quoted part it separates statements.
+- `src/parse/port.rs`: The port of libuci's parser: its buffer, positions and steps, function by function.
+- `src/tests/conformance.rs`: The fixtures against what `uci` printed for them (`scripts/uci-conformance.sh` writes the `.out` files and checks that each fixture is listed here).
+- `src/tests/mod.rs`: (no header comment)
+- `src/tests/props.rs`: Properties: what validates round-trips through text; any text either fails or parses into a package that round-trips; a diff is empty exactly when two packages mean the same, and applying it to the old package gives the new one.
+- `src/write.rs`: The serializer: text as `uci commit` writes it (libuci's `uci_export_package`), so a file the controller renders is byte for byte the file `uci` would write after a commit.
+
 ## Node agent (`node-agent`)
 
 ucode modules, embedded in the binary and installed on nodes by hash (`crates/node/src/bundle.rs`). The entry point is `main.uc`.
@@ -528,6 +547,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/oui.py`: (no header comment)
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
+- `scripts/uci-conformance.sh`: The uci crate's conformance fixtures (TESTING.md, Fixtures): runs `uci export` on every fixture in crates/uci/fixtures/{cases,openwrt/*} inside OpenWrt rootfs containers, requires the releases to agree, and writes what uci printed next to each fixture as <name>.out (its stdout when it succeeded, else its error).
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
 - `scripts/wifi-lab/a/setup.uci`: (no header comment)
 - `scripts/wifi-lab/a/wireless`: (no header comment)

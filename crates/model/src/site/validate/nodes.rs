@@ -37,7 +37,7 @@ fn radios(node: &NodeConfig, at: &str, issues: &mut Issues) {
     let mut seen = BTreeSet::new();
     for radio in &node.radios {
         let at = format!("{at}/radios/{}", radio.radio);
-        if !names::is_uci_name(&radio.radio) {
+        if !uniwrt_uci::is_name(&radio.radio) {
             issues.error(&at, format!("{:?} is not a radio's UCI name", radio.radio));
         }
         if !seen.insert(radio.radio.as_str()) {
@@ -56,9 +56,9 @@ fn raw(node: &NodeConfig, at: &str, issues: &mut Issues) {
     for (i, section) in node.raw.iter().enumerate() {
         let at = format!("{at}/raw/{i}");
         let checks: [Check<'_>; 3] = [
-            ("package", Some(&section.package), names::is_uci_package),
-            ("type", Some(&section.kind), names::is_uci_type),
-            ("name", section.name.as_ref(), names::is_uci_name),
+            ("package", Some(&section.package), uniwrt_uci::is_package),
+            ("type", Some(&section.kind), uniwrt_uci::is_type),
+            ("name", section.name.as_ref(), uniwrt_uci::is_name),
         ];
         for (field, name, valid) in checks {
             if let Some(name) = name
@@ -84,7 +84,7 @@ fn raw(node: &NodeConfig, at: &str, issues: &mut Issues) {
             );
         }
         for (option, value) in &section.options {
-            if !names::is_uci_name(option) {
+            if !uniwrt_uci::is_name(option) {
                 issues.error(
                     format!("{at}/options/{option}"),
                     format!("{option:?} is not a UCI option name"),

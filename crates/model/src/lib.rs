@@ -36,8 +36,8 @@
 //!   never what should be; rendering decides from [`facts::Capabilities`], not version strings.
 //!   Facts are persisted, so a field added later must be an `Option` or `#[serde(default)]` for
 //!   older snapshots to keep parsing; renaming or removing a field needs a store migration.
-//! - **Dependencies:** `uniwrt-core`, `serde`, `serde_json` (the site's diff and migrations),
-//!   `thiserror`.
+//! - **Dependencies:** `uniwrt-core`, `uniwrt-uci` (UCI identifier rules), `serde`,
+//!   `serde_json` (the site's diff and migrations), `thiserror`.
 //! - **Tests:** serde names per type, and canonical fixtures in `fixtures/facts/*.json` that must
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.

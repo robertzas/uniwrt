@@ -26,6 +26,7 @@ uniwrt-store = { path = "crates/store" }
 uniwrt-syslog = { path = "crates/syslog" }
 uniwrt-rf = { path = "crates/rf" }
 uniwrt-topo = { path = "crates/topo" }
+uniwrt-uci = { path = "crates/uci" }
 
 anyhow = "1.0.104"
 # Password hashing (Argon2id); already in the tree through ssh-key. Salts come from ring.

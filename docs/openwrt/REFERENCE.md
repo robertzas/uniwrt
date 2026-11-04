@@ -102,6 +102,18 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - ⚠️ DSA user ports have `DEVTYPE=dsa`.
 - ⚠️ `hostapd -v<feature>` and `wpa_supplicant -v<feature>` exit 0 when the feature is built in (LuCI checks it the same way).
 
+## UCI syntax ✅
+
+libuci's parser (`file.c`, strict mode as `uci` and rpcd run it), checked against `uci` of 24.10 and 25.12; `crates/uci` ports it and `crates/uci/fixtures/cases/` holds a case per rule.
+
+- Statements: `config <type> [<name>]`, `option <name> [<value>]`, `list <name> [<value>]`, `package <name>`, or `c`, `o`, `l`, `p`. A file's `package` statement is checked and ignored; in `uci import` it starts a package. The command word ends only at a space or tab, so a bare `config` on its line is an "invalid command".
+- Words: `'…'` is literal and may span lines (the newline is kept); in `"…"` and bare words `\` takes the next character literally; `\` at the end of a line continues it, but a continuation line that starts with whitespace ends the word. Parts concatenate (`un'quoted'"cat"`). `#` outside quotes ends the line, even glued to a word (`v#c` is `v`).
+- `;` alone between words separates statements. Glued to an unquoted word without escapes (`1;option y 2`), it ends the line silently; after a quoted part (`'a';b`), it separates. libuci parses in place, so the two differ. `;;` is an "invalid command", and so is an empty quoted word after a statement (`option x 1 ''`).
+- Names: section and option names are `[A-Za-z0-9_]+`; types are printable ASCII without spaces (`a.b` and `wifi-iface` pass); a `package` name is `[A-Za-z0-9_-]+`. A file whose name holds a `.` loads, but the CLI can't address it ("Entry not found").
+- Values: an `option` without a value or with `''` is skipped, and doesn't clear an earlier one. A `list` without a value adds `''`. A `list` after an `option` of the same name makes a list of both; an `option` after a list replaces it in place. A named section that comes again is the same section (its options merge); with another type it is an error. `config a ''` is anonymous. Anonymous sections are `@type[i]`; `uci show` names them so, and `uci -X` shows the `cfgXXXXXX` names it hashes from type and options.
+- Errors read `uci: Parse error (<reason>) at line <n>, byte <pos>`. The line counts only lines that end in a newline, and the byte is the offset in the (continued) line buffer.
+- Commit writes `\nconfig <type> '<name>'\n`, then `\toption <name> '<value>'\n` per option and a line per list item, with `'` as `'\''`, then a final `\n`. Comments and formatting are lost. CRLF reads fine.
+
 ## UCI snippets ⚠️
 
 VLAN-tagged WAN on DSA (Lumen uses VLAN 201):

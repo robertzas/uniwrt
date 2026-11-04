@@ -1,0 +1,6 @@
+package type-quoted
+
+config wifi-iface 'n'
+	option x '1'
+	option xy '2'
+

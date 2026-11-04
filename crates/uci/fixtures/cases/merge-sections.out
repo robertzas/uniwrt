@@ -1,0 +1,9 @@
+package merge-sections
+
+config a 'n'
+	list x '1'
+	list x '2'
+	option y '3'
+
+config b
+

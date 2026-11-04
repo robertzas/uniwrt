@@ -1,0 +1,5 @@
+config a
+config a ''
+	option x 1
+config b
+config a 'cfg0123'

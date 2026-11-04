@@ -1,0 +1,5 @@
+package crlf
+
+config a 'n'
+	option x '1'
+

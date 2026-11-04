@@ -1,0 +1,11 @@
+package multiline
+
+config a 'n'
+	option single 'multi
+line'
+	option double 'two
+
+blank'
+	option kept 'a\
+b'
+

@@ -1,0 +1,5 @@
+package whitespace
+
+config a 'n'
+	option x '1'
+

@@ -1,0 +1,10 @@
+package semicolons
+
+config a 'n'
+	option x '1'
+	option y '1'
+	option z '2'
+
+config b 'm'
+	option x '1'
+

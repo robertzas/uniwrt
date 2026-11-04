@@ -1,0 +1,9 @@
+package backslash
+
+config a 'n'
+	option single 'ab\'
+	option double 'ab'
+	option bare 'ab'
+	option crlf 'ab'
+	option escaped 'a;b'
+

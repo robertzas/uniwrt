@@ -1,0 +1,9 @@
+config a n
+	option none
+	option empty ''
+	option x 1
+	option x ''
+	list l 1
+	option l ''
+	list e ''
+	list e

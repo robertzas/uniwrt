@@ -1,0 +1,87 @@
+# A gateway as uniwrt's owner runs one: DSA ports, the WAN on VLAN 201, VLANs for guests and
+# IoT on the LAN bridge, and batman-adv over an 802.11s mesh. Hand-edited, with comments.
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	list ipaddr '127.0.0.1/8'
+
+config globals 'globals'
+	option ula_prefix 'fd3a:61b2:9c4e::/48'
+	option packet_steering '1'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'lan1'
+	list ports 'lan2'
+	list ports 'lan3'
+	list ports 'bat0'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '1'
+	list ports 'lan1:u*'
+	list ports 'lan2:u*'
+	list ports 'lan3:t'
+	list ports 'bat0:t'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '20'
+	list ports 'lan3:t'
+	list ports 'bat0:t'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '30'
+	list ports 'lan3:t'
+	list ports 'bat0:t'
+
+config interface 'lan'
+	option device 'br-lan.1'
+	option proto 'static'
+	list ipaddr '10.0.0.1/24'
+	option ip6assign '64'
+
+config interface 'guest'
+	option device 'br-lan.20'
+	option proto 'static'
+	option ipaddr '10.0.20.1'
+	option netmask '255.255.255.0'
+
+config interface 'iot'
+	option device 'br-lan.30'
+	option proto static
+	option ipaddr	10.0.30.1/24
+
+config device
+	option type '8021q'
+	option ifname 'wan'
+	option vid '201'
+	option name 'wan.201'
+
+config interface 'wan'
+	option device 'wan.201'
+	option proto 'dhcp'
+	option peerdns '0'
+	list dns '1.1.1.1'
+	list dns '9.9.9.9'
+
+config interface 'wan6rd'
+	option proto '6rd'
+	option peeraddr '205.171.2.64'
+	option ip6prefix '2602::'
+	option ip6prefixlen '24'
+	option ip4prefixlen '0'
+
+config interface 'bat0'
+	option proto 'batadv'
+	option routing_algo 'BATMAN_IV'
+	option gw_mode 'server'
+	option bridge_loop_avoidance '1'
+
+config interface 'mesh'
+	option proto 'batadv_hardif'
+	option master 'bat0'
+	option mtu '1536'

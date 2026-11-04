@@ -1,0 +1,9 @@
+package option-list
+
+config a
+	list x '1'
+	list x '2'
+	option y '4'
+	option z '6'
+	option w '7'
+

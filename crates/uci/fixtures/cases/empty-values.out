@@ -1,0 +1,8 @@
+package empty-values
+
+config a 'n'
+	option x '1'
+	list l '1'
+	list e ''
+	list e ''
+

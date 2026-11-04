@@ -1,0 +1,6 @@
+package abbreviations
+
+config t 'n'
+	option o '3'
+	list l '4'
+

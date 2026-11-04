@@ -1,0 +1,8 @@
+config a
+	option x 1
+	list x 2
+	option y 3
+	option y 4
+	list z 5
+	option z 6
+	option w 7
