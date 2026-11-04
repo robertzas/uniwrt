@@ -1,4 +1,5 @@
-//! The uniwrt domain model: what the controller observes on nodes and what it records about them.
+//! The uniwrt domain model: what the controller observes on nodes, what it records about them,
+//! and the network it should make of them.
 //!
 //! - **API:** [`facts`] holds the observed state of one node ([`facts::NodeFacts`]: board, system,
 //!   capabilities, interfaces, devices, phys, radios, stations, DHCP leases, neighbors, the bridge
@@ -24,6 +25,8 @@
 //!   they fire ([`alerts::AlertRecord`]) and maintenance windows.
 //!   [`rf`] is what radios' neighbor scans hear ([`rf::Scan`]: networks and the channel survey)
 //!   and the scanning settings ([`rf::RfSettings`]).
+//!   [`site`] is the desired state: the site's document ([`site::SiteConfig`]), its validation,
+//!   structural diff and schema migrations, and its revisions.
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
@@ -33,7 +36,8 @@
 //!   never what should be; rendering decides from [`facts::Capabilities`], not version strings.
 //!   Facts are persisted, so a field added later must be an `Option` or `#[serde(default)]` for
 //!   older snapshots to keep parsing; renaming or removing a field needs a store migration.
-//! - **Dependencies:** `uniwrt-core`, `serde`, `thiserror`.
+//! - **Dependencies:** `uniwrt-core`, `serde`, `serde_json` (the site's diff and migrations),
+//!   `thiserror`.
 //! - **Tests:** serde names per type, and canonical fixtures in `fixtures/facts/*.json` that must
 //!   round-trip without losing a field (`cargo nextest run -p uniwrt-model`). The fixtures double as
 //!   wire-format examples for the simulator and the UI.
@@ -51,6 +55,7 @@ pub mod metric;
 pub mod node;
 pub mod notify;
 pub mod rf;
+pub mod site;
 pub mod status;
 pub mod user;
 pub mod wifi;

@@ -1,6 +1,6 @@
 [package]
 name = "uniwrt-model"
-description = "uniwrt domain model: observed node facts, the node inventory record and Wi-Fi vocabulary"
+description = "uniwrt domain model: desired state and its revisions, observed node facts, the node inventory record and Wi-Fi vocabulary"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 uniwrt-core.workspace = true
 ts-rs = { workspace = true, optional = true }
@@ -17,9 +18,6 @@ ts-rs = { workspace = true, optional = true }
 [features]
 # TypeScript types (ts-rs) for the API's DTOs.
 ts = ["dep:ts-rs", "uniwrt-core/ts"]
-
-[dev-dependencies]
-serde_json.workspace = true
 
 [lints]
 workspace = true

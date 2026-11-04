@@ -67,6 +67,16 @@ pub enum Error {
     UnknownSeal { name: String, alg: String },
     #[error("cannot seal secret {name}")]
     Seal { name: String },
+    #[error("revision {base} is no longer the latest: {head} is")]
+    NotLatest { base: String, head: String },
+    #[error("the document refers to secret {name}, which neither it nor its parent sets")]
+    UnknownSecret { name: String },
+    #[error("stored revision {id} cannot be read")]
+    Document {
+        id: i64,
+        #[source]
+        source: uniwrt_model::site::migrate::SchemaError,
+    },
     #[error("the system's random number generator failed")]
     Random,
     /// The write succeeded inside its batch, but the batch did not commit.

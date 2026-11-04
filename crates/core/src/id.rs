@@ -63,6 +63,8 @@ ids! {
     NotifierId = "notifier";
     /// A radio's neighbor scan; ids grow in the order scans were stored.
     ScanId = "scan";
+    /// A revision of the site's desired state; ids grow in the order revisions were saved.
+    RevisionId = "rev";
 }
 
 #[cfg(test)]

@@ -105,7 +105,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;
         fleet.record_events(&store, &vault, &jobs).await;
-        let api = start_api(&args, &store, &fleet, &clock, &tls, &jobs).await?;
+        let api = start_api(&args, &store, &vault, &fleet, &clock, &tls, &jobs).await?;
         let renewal = tokio::spawn(renewer.run());
         let app = http::router(&ui::EMBEDDED, api.clone());
         let plain = http::plain::router(
@@ -153,6 +153,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
 async fn start_api(
     args: &ServeArgs,
     store: &Store,
+    vault: &Vault,
     fleet: &Fleet,
     clock: &Arc<dyn Clock>,
     tls: &crate::tls::Tls,
@@ -162,6 +163,7 @@ async fn start_api(
         alerts: fleet.alerts(),
         notify: fleet.notify(),
         rf: fleet.rf(),
+        vault: Some(vault.clone()),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

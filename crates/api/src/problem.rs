@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::Serialize;
 use tracing::error;
+use uniwrt_model::site::validate::Issue;
 
 #[derive(Debug, Serialize)]
 struct Problem {
@@ -19,15 +20,23 @@ struct Problem {
     title: &'static str,
     status: u16,
     detail: String,
+    /// What is wrong with a document, field by field (422).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    issues: Option<Vec<Issue>>,
 }
 
 /// A problem+json response with `about:blank` as its type, so the title is the status's.
 pub fn response(status: StatusCode, detail: String) -> Response {
+    problem(status, detail, None)
+}
+
+fn problem(status: StatusCode, detail: String, issues: Option<Vec<Issue>>) -> Response {
     let problem = Problem {
         kind: "about:blank",
         title: status.canonical_reason().unwrap_or("Error"),
         status: status.as_u16(),
         detail,
+        issues,
     };
     let headers = [
         (
@@ -73,6 +82,8 @@ pub enum ApiError {
     NotFound(String),
     /// The request conflicts with the current state (409).
     Conflict(String),
+    /// A document has errors (422): the detail sums them up, `issues` lists them by field.
+    Invalid(String, Vec<Issue>),
     /// A node the request needs could not be reached or failed (502); the detail says why.
     BadGateway(String),
     /// A part of the controller the request needs is not running (503).
@@ -97,6 +108,9 @@ impl IntoResponse for ApiError {
             Self::Forbidden(detail) => response(StatusCode::FORBIDDEN, detail),
             Self::NotFound(detail) => response(StatusCode::NOT_FOUND, detail),
             Self::Conflict(detail) => response(StatusCode::CONFLICT, detail),
+            Self::Invalid(detail, issues) => {
+                problem(StatusCode::UNPROCESSABLE_ENTITY, detail, Some(issues))
+            }
             Self::BadGateway(detail) => response(StatusCode::BAD_GATEWAY, detail),
             Self::Unavailable(detail) => response(StatusCode::SERVICE_UNAVAILABLE, detail),
             Self::TooManyRequests(wait) => {
@@ -130,6 +144,7 @@ impl std::fmt::Display for ApiError {
             | Self::Forbidden(detail)
             | Self::NotFound(detail)
             | Self::Conflict(detail)
+            | Self::Invalid(detail, _)
             | Self::BadGateway(detail)
             | Self::Unavailable(detail)
             | Self::Internal(detail) => f.write_str(detail),
@@ -142,7 +157,17 @@ impl std::error::Error for ApiError {}
 
 impl From<uniwrt_store::Error> for ApiError {
     fn from(err: uniwrt_store::Error) -> Self {
-        Self::Internal(format!("{:#}", error_chain(&err)))
+        match err {
+            uniwrt_store::Error::NotLatest { base, head } => Self::Conflict(format!(
+                "The site changed since revision {base}: revision {head} is the latest. Reload \
+                 it and make your changes again"
+            )),
+            uniwrt_store::Error::UnknownSecret { name } => Self::BadRequest(format!(
+                "The document refers to secret {name}, which the revision it was edited from \
+                 does not have"
+            )),
+            err => Self::Internal(format!("{:#}", error_chain(&err))),
+        }
     }
 }
 

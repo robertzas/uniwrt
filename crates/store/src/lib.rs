@@ -13,11 +13,14 @@
 //!   event timeline: folded repeats, the conditions still raised, retention by age and count),
 //!   [`AlertRepo`] (alert rules, alerts and maintenance windows), [`NotifierRepo`] (notifiers
 //!   without their secrets, and how their deliveries went), [`RfRepo`] (radios' neighbor scans,
-//!   with what they heard as JSON) and [`SettingsRepo`] (settings by key, as JSON);
+//!   with what they heard as JSON), [`RevisionRepo`] (the site's revisions: one linear history,
+//!   each committed with its diff and the configuration secrets it introduces) and
+//!   [`SettingsRepo`] (settings by key, as JSON);
 //!   [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
 //!   from the store and the [`MasterKey`]; it also seals configuration backups
-//!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them. Errors are [`Error`].
+//!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them, and seals configuration secrets
+//!   under new names ([`Vault::seal_config_secret`], [`SealedSecret`]). Errors are [`Error`].
 //! - **Vault:** each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the
 //!   master key, with a random 192-bit nonce and the secret's name as associated data. Opening
 //!   fails if any sealed row does not open with the key, and seals the rows the M1.2 stub stored
@@ -57,8 +60,8 @@ pub use error::{Error, Result};
 pub use repo::{
     Adoption, AlertRepo, AuditRepo, ClientRepo, EventRepo, EventsPrune, FactsRepo, HostKeyRepo,
     InventoryRepo, JobRepo, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewSession, NodeRepo,
-    NotifierRepo, Pin, RfRepo, Secret, SessionRepo, SettingsRepo, TopologyFrame, TopologyRepo,
-    UserRepo, VaultRepo,
+    NotifierRepo, Pin, RevisionRepo, RfRepo, Secret, SessionRepo, SettingsRepo, TopologyFrame,
+    TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
-pub use vault::{MasterKey, SealedBackup, Vault};
+pub use vault::{MasterKey, SealedBackup, SealedSecret, Vault};

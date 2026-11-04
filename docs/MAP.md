@@ -42,6 +42,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/rf.rs`: The RF insight routes, with a session (features/wifi.md, RF insight):
 - `src/rf_tests.rs`: The RF insight routes over the demo, whose scanner scans the simulated radios at once: the view once every radio has a scan, scans queued and refused, the stored scans, the settings.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
+- `src/site/mod.rs`: The site's desired state, with a session (features/lifecycle.md, Desired state & revisions; D-065):
+- `src/site/revisions.rs`: The site's history, with a session (features/lifecycle.md, Desired state & revisions):
+- `src/site/tests.rs`: The site and revisions routes over the demo: the defaults of a new site, saves with secrets sealed in the vault and never sent back, conflicts and invalid documents refused, the history paged and compared, restores, and revealing a secret.
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
@@ -175,7 +178,7 @@ Metrics (features/observability.md, Metrics): what the controller records as ser
 
 ### `uniwrt-model` (crates/model)
 
-The uniwrt domain model: what the controller observes on nodes and what it records about them.
+The uniwrt domain model: what the controller observes on nodes, what it records about them, and the network it should make of them.
 
 - `src/alerts/mod.rs`: Alerts (features/observability.md, Alerts): a rule firing for one subject (a node, a radio, a client, a link, the site) until it resolves on its own.
 - `src/alerts/rule.rs`: Alert rules: when an alert fires.
@@ -195,12 +198,27 @@ The uniwrt domain model: what the controller observes on nodes and what it recor
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, recorded as history.
-- `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes and what it records about them.
+- `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes, what it records about them, and the network it should make of them.
 - `src/log.rs`: Log entries (observability.md, Logs): what nodes log, read through the node agent or received by syslog, and what other hosts send by syslog; stored as [`LogRecord`]s, found with a [`LogFilter`], counted in [`LogBucket`]s, explained by [`LogPattern`]s, and kept as [`SavedSearch`]es.
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
 - `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
+- `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
+- `src/site/gateway.rs`: What only the gateway renders: the WAN (features/wan.md), the firewall policy between networks (features/network.md, Firewall policy) and services such as local DNS.
+- `src/site/migrate.rs`: Schema migrations: forward-only steps that bring a stored document to [`SCHEMA_VERSION`].
+- `src/site/mod.rs`: Desired state (features/lifecycle.md, Desired state & revisions): the one typed document the controller owns, [`SiteConfig`], and its history of [`revision`]s.
+- `src/site/network.rs`: Networks (features/network.md, Networks): a VLAN with its subnet, DHCP and IPv6 mode, which every node carries and the gateway routes.
+- `src/site/node.rs`: Per-node desired state: which UCI packages the controller owns on the node (D-011), its radios' overrides, and raw UCI sections (the validated escape hatch, also where brownfield import keeps what it cannot map).
+- `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
+- `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
+- `src/site/validate/gateway.rs`: The WAN, the firewall policy and services.
+- `src/site/validate/mod.rs`: Validating a [`SiteConfig`]: errors refuse a save, warnings are shown with it.
+- `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names, UCI identifiers.
+- `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
+- `src/site/validate/nodes.rs`: Per-node overrides: hostnames, radios and raw UCI sections.
+- `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
+- `src/site/wireless.rs`: Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
@@ -386,6 +404,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/nodes.rs`: [`NodeRepo`] on SQLite: the `nodes` table.
 - `src/repo/notifiers.rs`: [`NotifierRepo`] and [`SettingsRepo`] on SQLite: the `notifiers` and `settings` tables.
 - `src/repo/notifiers_tests.rs`: Notifiers and settings over a real database: created, listed, updated, deliveries recorded, deleted; a setting stored and replaced.
+- `src/repo/revisions.rs`: [`RevisionRepo`] on SQLite: the `revisions` table, and the configuration secrets committed with them into `vault`.
+- `src/repo/revisions_tests.rs`: Revisions over a real database: the linear history, conflicts, diffs, paging, and secrets committed with their revision and only referable from its descendants or a restore.
 - `src/repo/rf.rs`: [`RfRepo`] on SQLite: the `rf_scans` table, what each scan heard as JSON.
 - `src/repo/rf_tests.rs`: Scans over a real database: stored, the latest per radio, listed, read, pruned, and gone with their node.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
@@ -394,6 +414,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/vault/backup.rs`: Configuration backups, sealed like secrets: [`Vault::seal_backup`] before they are stored (with the node at adoption, [`Adoption`](crate::Adoption)), [`Vault::open_backup`] to read one back.
+- `src/vault/config.rs`: Configuration secrets (features/security.md, Secrets vault): Wi-Fi passphrases, the mesh key, the PPPoE password.
 - `src/vault/key.rs`: The master key: 32 random bytes that every secret in the vault is sealed under, kept outside the database (`master.key` or `UNIWRT_MASTER_KEY`; features/security.md, Secrets vault).
 - `src/vault/mod.rs`: The secrets vault ([`Vault`]): [`VaultRepo`] over the `vault` table, every value sealed with XChaCha20-Poly1305 under the [`MasterKey`] (features/security.md, Secrets vault).
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
@@ -468,7 +489,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (210 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (254 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

@@ -6,6 +6,7 @@
 //! unencrypted (`alg = 'plain'`, D-032).
 
 mod backup;
+mod config;
 mod key;
 mod seal;
 
@@ -16,6 +17,7 @@ use tracing::info;
 
 pub use backup::SealedBackup;
 pub(crate) use backup::backup_from_row;
+pub use config::SealedSecret;
 pub use key::MasterKey;
 pub(crate) use seal::ALG;
 use seal::Sealer;

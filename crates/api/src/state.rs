@@ -32,6 +32,8 @@ pub struct ApiConfig {
     /// The notifications, when they run, and the vault that keeps notifiers' secrets.
     pub notify: Option<(Notify, Vault)>,
     pub rf: Option<Rf>,
+    /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
+    pub vault: Option<Vault>,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -57,6 +59,7 @@ impl ApiConfig {
             alerts: None,
             notify: None,
             rf: None,
+            vault: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -79,6 +82,7 @@ struct Inner {
     alerts: Option<Alerts>,
     notify: Option<(Notify, Vault)>,
     rf: Option<Rf>,
+    vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
     setup: Setup,
@@ -87,9 +91,11 @@ struct Inner {
 }
 
 impl Api {
-    /// Opens the setup window if the store has no users. Takes one password hash's time.
+    /// Opens the setup window if the store has no users, and gives a new site its defaults
+    /// (the first revision). Takes one password hash's time.
     pub async fn new(config: ApiConfig) -> Result<Self, ApiError> {
         let has_users = config.store.has_users().await?;
+        crate::site::ensure_first_revision(&config.store).await?;
         let passwords = Passwords::new(config.password_cost)?;
         passwords.warm_up().await?;
         Ok(Self {
@@ -107,6 +113,7 @@ impl Api {
                 alerts: config.alerts,
                 notify: config.notify,
                 rf: config.rf,
+                vault: config.vault,
             }),
         })
     }
@@ -179,6 +186,14 @@ impl Api {
     }
 
     /// RF insight, or why not.
+    /// The vault that keeps the site's secrets, or why not.
+    pub(crate) fn vault(&self) -> Result<&Vault, ApiError> {
+        self.inner
+            .vault
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("The secrets vault is not open".to_owned()))
+    }
+
     pub(crate) fn rf(&self) -> Result<&Rf, ApiError> {
         self.inner
             .rf

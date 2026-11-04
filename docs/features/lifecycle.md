@@ -3,12 +3,17 @@
 Read this when working on desired state, revisions, render/diff/apply, drift, brownfield import, firmware upgrades, backups or node replacement.
 Milestones: M3.1–M3.5, M7.1–M7.2.
 
-## Desired state & revisions [M3.1]
+## Desired state & revisions [M3.1] (D-065)
 
-- The controller owns one typed document, `SiteConfig` (in the `model` crate): networks, WLANs, mesh, radio policy, WAN, firewall, services, nodes (role and overrides), plus a schema version.
-- Every save creates a revision with author, time, message and a structural diff. Secrets are stored as vault references, never inside revisions.
-- Inheritance: site defaults → node group (later) → node overrides → per-node raw UCI snippets (a validated escape hatch).
-- Schema migrations are forward-only and tested against fixtures of every old schema.
+- The controller owns one typed document, `SiteConfig` (`crates/model/src/site/`): site settings (name, country, time zone, domain, NTP), the address plan (IPv4 space and ULA), networks (purpose, VLAN, IPv4 with DHCP and reservations, IPv6 mode, isolation, mDNS, IGMP snooping), WLANs (security, passphrase, bands, node scope), the mesh, the radio policy per band, the WAN (DHCP, static or PPPoE; VLAN, MAC clone, IPv6), firewall policy overrides between networks, local DNS records, and per node its hostname, managed packages (D-011), radio overrides and raw UCI sections. A node's role stays on its inventory record. Schema v1 has every section; the fields are what M3.3 renders, and later WPs extend them.
+- Networks and WLANs have ids (`[a-z][a-z0-9_]{0,11}`), which name their UCI sections and `br-<id>`, so they never change once created. Nodes are keyed by their id.
+- **One linear history:** every save is an immutable revision (`revisions` table) with its author, time, message, schema and its structural diff from its parent (list items matched by key, so editing one network is one change at `networks/<id>/…`). A save names the revision it was edited from and is refused with 409 when another save came first. A save that changes nothing makes no revision. Restoring copies an older revision's document into a new revision. Discard (M3.4) is a restore of the last applied revision.
+- **Validation** (`site::validate`): errors refuse a save (422 with issues by path); warnings come with the document. It enforces the IPAM guarantees (features/network.md), unique ids, names and VLANs, WLAN security rules (6 GHz needs WPA3 or OWE; PSK modes need a passphrase), channel and width per band, the WAN's fields, firewall cells, DNS names, and UCI identifiers in raw sections.
+- **Secrets** are vault references, never values: each new value is sealed under a new name `config/<32 hex digits>` and committed with its revision, so an older revision (and a restore) still finds the value it had. A document may refer only to the secrets its parent or the revision it restores refers to, plus the ones committed with it. Values are checked (Wi-Fi and mesh keys 8–63 printable ASCII or a 64-hex PSK; PPPoE 1–128 characters).
+- A new site starts from the defaults (revision 1): the 10.0.0.0/16 plan with a random ULA, the default LAN at 10.0.0.1/24 (DHCP .100–.249), no WLANs, the mesh off, DHCP on the WAN, no country (a warning once radios broadcast). Nodes stay unmanaged, so nothing reaches them until management is enabled (M3.4, M3.5).
+- Inheritance: site defaults → node group (later) → node overrides → per-node raw UCI sections (the validated escape hatch).
+- Schema migrations (`site::migrate`) are forward-only steps on the JSON; revisions keep the schema they were written with and are upgraded when read. The tests upgrade a fixture of every schema (`crates/model/fixtures/site/v<n>.json`).
+- API: `GET`/`PUT /api/v1/site`, `POST /api/v1/site/secrets/reveal` (admins; audited), `GET /api/v1/revisions` (pages), `GET /api/v1/revisions/{id}`, `GET /api/v1/revisions/{id}/diff?against=<id>`, `POST /api/v1/revisions/{id}/restore` (admins; audited).
 
 ## Ownership (D-011)
 

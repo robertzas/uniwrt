@@ -118,7 +118,7 @@ pub(crate) async fn api_full(
             .unwrap(),
     };
     let jobs = Jobs::start(JobsConfig {
-        vault,
+        vault: vault.clone(),
         store: store.clone(),
         clock: Arc::clone(&clock),
         key: ControllerKey::generate().unwrap(),
@@ -132,6 +132,7 @@ pub(crate) async fn api_full(
         alerts,
         notify,
         rf,
+        vault: Some(vault),
         ..ApiConfig::new(
             store,
             fleet,

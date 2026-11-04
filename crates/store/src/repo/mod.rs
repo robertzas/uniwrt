@@ -13,14 +13,17 @@ mod logs;
 mod metrics;
 mod nodes;
 mod notifiers;
+mod revisions;
+#[cfg(test)]
+mod revisions_tests;
 mod rf;
 mod sessions;
 mod topology;
 mod users;
 
 use uniwrt_core::{
-    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RuleId, ScanId, SearchId,
-    Timestamp, UserId, WindowId,
+    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RuleId, ScanId,
+    SearchId, Timestamp, UserId, WindowId,
 };
 use uniwrt_model::{
     alerts::{
@@ -37,13 +40,14 @@ use uniwrt_model::{
     node::{HostKeyPin, NewNode, Node},
     notify::{Notifier, NotifierConfig},
     rf::{NewScan, Scan, ScanSummary},
+    site::revision::{NewRevision, Revision, RevisionMeta},
     user::{AuditEntry, Role, Session, User},
 };
 use zeroize::Zeroizing;
 
 pub use adoption::Adoption;
 
-use crate::Result;
+use crate::{Result, SealedSecret};
 
 /// The node inventory.
 pub trait NodeRepo: Send + Sync {
@@ -131,6 +135,32 @@ pub trait VaultRepo: Send + Sync {
 
     /// Removes a secret; false when there was no such secret.
     fn delete_secret(&self, name: &str) -> impl Future<Output = Result<bool>> + Send;
+}
+
+/// Revisions of the site's desired state: one linear history (D-065).
+pub trait RevisionRepo: Send + Sync {
+    /// The latest revision, if any.
+    fn head_revision(&self) -> impl Future<Output = Result<Option<Revision>>> + Send;
+
+    fn revision(&self, id: RevisionId) -> impl Future<Output = Result<Option<Revision>>> + Send;
+
+    /// Up to `limit` revisions older than `before` (from the latest when `None`), newest first.
+    fn revisions(
+        &self,
+        before: Option<RevisionId>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<RevisionMeta>>> + Send;
+
+    /// Commits `new` as the latest revision, with the diff from its parent and the
+    /// configuration secrets it introduces, all or nothing. Fails with
+    /// [`Error::NotLatest`](crate::Error::NotLatest) when `new.base` is no longer the latest,
+    /// and with [`Error::UnknownSecret`](crate::Error::UnknownSecret) when the document refers to
+    /// a secret that neither `secrets`, its parent nor the revision it restores has.
+    fn commit_revision(
+        &self,
+        new: NewRevision,
+        secrets: Vec<SealedSecret>,
+    ) -> impl Future<Output = Result<RevisionMeta>> + Send;
 }
 
 /// Controller users and their password hashes.

@@ -3,7 +3,7 @@
 //!
 //! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the engine as an
 //!   `Arc<dyn Fleet>`, the alert engine's handle, the notifications' handle with the vault, RF
-//!   insight's handle, the clock, the build identity, the HTTPS [`Certificate`], the password
+//!   insight's handle, the vault for the site's secrets, the clock, the build identity, the HTTPS [`Certificate`], the password
 //!   cost and the setup window); [`router`] for the server to nest under `/api`;
 //!   [`Api::close_sockets`] when the server stops; [`security::headers`] for every response, UI
 //!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
@@ -31,7 +31,11 @@
 //!   `PUT v1/notifications/settings`; secrets go to the vault and come back only as which are
 //!   set ([`SecretsView`]); see `notifiers`), RF insight (`GET v1/rf` ([`RfView`]), `POST` and
 //!   `GET v1/rf/scans` ([`ScanRequest`], [`ScansQueued`]), `GET v1/rf/scans/{id}`,
-//!   `PUT v1/rf/settings`; see `rf`), and `v1/ws`
+//!   `PUT v1/rf/settings`; see `rf`), the site's desired state (`GET` and `PUT v1/site`
+//!   ([`SiteView`], [`SiteSave`]), `POST v1/site/secrets/reveal` ([`RevealSecret`]), and its
+//!   history: `GET v1/revisions` ([`RevisionPage`]), `GET v1/revisions/{id}`,
+//!   `GET v1/revisions/{id}/diff` ([`RevisionDiff`]), `POST v1/revisions/{id}/restore`
+//!   ([`RestoreBody`]); see `site`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
 //!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `alerts`,
 //!   `jobs`, `topology`, `clients`, `client:<mac>`, `rf`, see `ws`). Handlers that need a user
@@ -73,6 +77,7 @@ mod rf;
 #[cfg(test)]
 mod rf_tests;
 pub mod security;
+mod site;
 mod state;
 #[cfg(test)]
 mod testing;
@@ -110,6 +115,10 @@ pub use notifiers::{
 };
 pub use problem::{ApiError, ApiResult, no_route};
 pub use rf::{ScanRequest, ScansQueued};
+pub use site::{
+    RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
+    revisions::{RestoreBody, RevisionDiff, RevisionPage},
+};
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
@@ -179,6 +188,12 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans", get(rf::scans).post(rf::scan))
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
+        .route("/v1/site", get(site::get).put(site::put))
+        .route("/v1/site/secrets/reveal", post(site::reveal))
+        .route("/v1/revisions", get(site::revisions::list))
+        .route("/v1/revisions/{id}", get(site::revisions::get))
+        .route("/v1/revisions/{id}/diff", get(site::revisions::changes))
+        .route("/v1/revisions/{id}/restore", post(site::revisions::restore))
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))

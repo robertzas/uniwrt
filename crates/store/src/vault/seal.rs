@@ -46,6 +46,11 @@ impl Sealer {
         }
     }
 
+    /// Fills `bytes` from the system's random number generator.
+    pub(crate) fn random(&self, bytes: &mut [u8]) -> Result<()> {
+        self.random.fill(bytes).map_err(|_| Error::Random)
+    }
+
     pub(crate) fn seal(&self, name: &str, secret: &[u8]) -> Result<Vec<u8>> {
         let mut nonce = [0; NONCE_LEN];
         self.random.fill(&mut nonce).map_err(|_| Error::Random)?;

@@ -63,6 +63,10 @@ pub enum AuditAction {
     Notifier,
     /// A user asked for neighbor scans or changed the scanning settings.
     Rf,
+    /// A user saved or restored the site's configuration (the detail names the revision).
+    Site,
+    /// A user viewed a configuration secret (the detail names it and the revision).
+    RevealSecret,
 }
 
 /// One audit log entry.
