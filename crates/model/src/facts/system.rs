@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{MacAddr, Timestamp};
 
+use super::BoardLayout;
+
 /// What the node is: hardware, kernel and firmware. Changes only with a reflash or upgrade.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -20,6 +22,9 @@ pub struct BoardFacts {
     /// The MAC printed on the label (`board.json`), when the board declares one.
     pub label_mac: Option<MacAddr>,
     pub release: Release,
+    /// The Ethernet layout `board.json` describes.
+    #[serde(default)]
+    pub layout: BoardLayout,
 }
 
 /// The firmware release (`/etc/openwrt_release`).

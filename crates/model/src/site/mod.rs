@@ -20,6 +20,7 @@ pub mod migrate;
 pub mod network;
 pub mod node;
 pub mod revision;
+pub mod tz;
 pub mod validate;
 pub mod wireless;
 
@@ -157,10 +158,11 @@ impl SiteConfig {
                         reservations: Vec::new(),
                     }),
                 }),
+                // As OpenWrt ships: the stable ULA beside the ISP's delegated prefix.
                 ipv6: if ula.is_some() {
-                    Ipv6Mode::Ula
+                    Ipv6Mode::Both
                 } else {
-                    Ipv6Mode::Off
+                    Ipv6Mode::Delegated
                 },
                 isolation: false,
                 mdns: true,

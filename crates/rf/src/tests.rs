@@ -38,6 +38,7 @@ fn radio(n: u8, band: Band, busy: Option<f32>) -> RadioFacts {
     RadioFacts {
         name: "radio1".to_owned(),
         phy: Some("phy1".to_owned()),
+        path: None,
         band,
         up: true,
         disabled: band == Band::G2,

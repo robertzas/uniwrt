@@ -139,6 +139,7 @@ fn node(id: u8) -> NodeFacts {
     facts.radios.push(RadioFacts {
         name: "radio1".to_owned(),
         phy: Some("phy1".to_owned()),
+        path: None,
         band: Band::G5,
         up: true,
         disabled: false,

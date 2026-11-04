@@ -31,8 +31,10 @@ Fields:
 - which nodes and ports carry the network
 
 Rendering:
-- **Gateway:** one static `interface` per network; `bridge-vlan` on a DSA bridge or `switch_vlan` on swconfig; dnsmasq `dhcp` sections; odhcpd for IPv6.
-- **APs:** layer 2 only. A bridge per VLAN, tagged over the uplink or mesh (batman carries `bat0.<vid>`). Management uses a DHCP client on the default network.
+- **Every node [M3.3]:** one bridge, `br-lan`, carries every network (D-067). With VLAN networks it filters VLANs: a `bridge-vlan` per network (the untagged network gets the lowest free VLAN ID inside the bridge), each network's interface on `br-lan.<vid>`, Ethernet ports and `bat0` as trunks, Wi-Fi joining through its interface. A swconfig switch gets a `switch_vlan` per network, tagged on the CPU port, and the CPU port's `<cpu>.<vid>` devices join the bridge as access ports.
+- **Gateway:** one static `interface` per network (`list ipaddr`, `ip6assign 64`, `ip6hint` = VLAN ID in hex, `ip6class` `local` for ULA-only or the delegating interface for delegated-only); dnsmasq `dhcp` sections with the pool as `start`/`limit`; odhcpd for IPv6 (RA with SLAAC and stateless DHCPv6); reservations as `host`, records as `domain` and `cname`.
+- **APs:** layer 2 only. Every port is bridged, the WAN port too. Management uses a DHCP client on the management network, else the default one; the other networks are `proto none`.
+- Bridge-wide in v1: IGMP snooping is on when any network asks for it. Client isolation renders on the network's WLANs (`isolate`) and, for the untagged network, as batman's `ap_isolation`; wired isolation and per-VLAN batman isolation come later. mDNS reflection needs M8.1's services.
 
 ## DHCP & local DNS
 

@@ -189,6 +189,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
 - `src/facts/interface.rs`: Logical interfaces (netifd) and the kernel network devices beneath them.
+- `src/facts/layout.rs`: The board's Ethernet layout (`/etc/board.json`, which OpenWrt's own `config_generate` reads): which ports form the LAN and the WAN, the swconfig switch and its CPU ports, and the MAC addresses the board assigns.
 - `src/facts/lease.rs`: DHCP leases the node handed out: dnsmasq's for IPv4, odhcpd's for DHCPv6 (and IPv4 where it serves DHCPv4).
 - `src/facts/mod.rs`: Observed facts: everything one collection round of the node agent reports about a node.
 - `src/facts/neighbor.rs`: Who is next to the node at layers 2 and 3: the ARP and NDP caches, and the MAC addresses the bridges learned on their ports.
@@ -212,6 +213,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/node.rs`: Per-node desired state: which UCI packages the controller owns on the node (D-011), its radios' overrides, and raw UCI sections (the validated escape hatch, also where brownfield import keeps what it cannot map).
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
+- `src/site/tz.rs`: Time zones: the IANA names a site may use and the POSIX TZ string OpenWrt's `system.timezone` takes for each (`data/tz.tsv`, built from tzdata by `just tz`).
 - `src/site/validate/gateway.rs`: The WAN, the firewall policy and services.
 - `src/site/validate/mod.rs`: Validating a [`SiteConfig`]: errors refuse a save, warnings are shown with it.
 - `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names.
@@ -242,11 +244,12 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 - `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
 - `src/facts/batman.rs`: The `batman` set: batctl's JSON queries per mesh device.
-- `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC).
+- `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC and the [`layout`](super::layout)).
 - `src/facts/capabilities.rs`: The `capabilities` set: binaries and modules found on the node, the build features that hostapd and `wpa_supplicant` report (`-v<feature>`), and how the switch is driven.
 - `src/facts/devices.rs`: The `devices` set: sysfs attributes of each device in /sys/class/net (text, as read) and the counters of /proc/net/dev.
 - `src/facts/ies.rs`: 802.11 information elements of a scan result (IEEE 802.11-2020, 9.4.2): the network's name, channel and width, standards, security and load.
 - `src/facts/interfaces.rs`: The `interfaces` set: `network.interface dump`.
+- `src/facts/layout.rs`: The board's Ethernet layout from `/etc/board.json` (part of the `board` set): its `network` roles, its swconfig `switch` and `system.compat_version`, as OpenWrt's `config_generate` reads them.
 - `src/facts/leases.rs`: The `leases` set: dnsmasq's lease files and odhcpd's leases over ubus.
 - `src/facts/mod.rs`: Parsing the agent's collect sets into [`NodeFacts`]: one parser per [`Set`], over the raw sources that `node-agent/collect/<set>.uc` gathers; [`scan`] parses the `scan` op's answer.
 - `src/facts/neighbors.rs`: The `neighbors` set: from rtnetlink (`rtnl`), the agent's selection of neighbor and bridge FDB entries; or else (`proc`) /proc/net/arp and each bridge's `brforward`.
@@ -302,6 +305,26 @@ Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in wo
 - `src/tests.rs`: Delivery over loopback: an HTTP and an HTTPS server (its CA trusted through [`Sender::with_roots`]) that record one request each, and an SMTP server that upgrades with STARTTLS and records what it is given.
 - `src/text.rs`: Alerts in words, as the UI says them (`web/src/lib/alerts.ts`, `entities.ts`, `metrics.ts`): what an alert is about, what made it fire, levels, durations and times.
 - `src/validate.rs`: What a notifier must be to be stored: checked as the API takes it, so that sending fails only for reasons outside uniwrt (a server down, a password changed).
+
+### `uniwrt-render` (crates/render)
+
+Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
+
+- `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 (SLAAC, with stateless DHCPv6); on APs every network is ignored, as their DHCP services are off.
+- `src/ext.rs`: Builders for sections whose options are optional, lists that may be empty, and flags.
+- `src/firewall.rs`: The `firewall` package (fw4; features/network.md, Firewall policy): a zone per network and one for the WAN, a forwarding for each allowed cell of the policy matrix ([`matrix`](self::matrix)), OpenWrt's stock WAN rules, and on the zones that don't reach the gateway freely the rules that let their clients get addresses and names. fw4 accepts replies to allowed connections in every direction, so "block" and "established" both render as no forwarding.
+- `src/lib.rs`: Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
+- `src/mesh.rs`: The mesh backhaul (features/mesh.md, D-013): batman-adv's `bat0` in the `network` package, a bridge trunk like the Ethernet ports, and an 802.11s mesh point as its hard interface in `wireless`.
+- `src/network.rs`: The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the swconfig switch, one interface per network, the WAN and the mesh.
+- `src/plan.rs`: What every package's renderer shares, worked out once per node: the VLAN each network has on the bridge, the bridge's ports, the WAN's device, the mesh radio, and the issues found.
+- `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
+- `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name.
+- `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (its user ports untagged for the untagged network, tagged for the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
+- `src/system.rs`: The `system` package: the node's hostname, time zone and NTP.
+- `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN, a cloned or the board's MAC), `wan` by DHCP, static or PPPoE, and `wan6` by DHCPv6 with prefix delegation.
+- `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the band's policy and the node's overrides, within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
+- `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
+- `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
 
 ### `uniwrt-rf` (crates/rf)
 
@@ -508,7 +531,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (254 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (259 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
@@ -535,7 +558,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 
 ## Scripts
 
-- `scripts/arch-check.sh`: Enforces the layering rules (`just arch-check`; `just check` and CI run it):   - each crate depends only on the crates that docs/ARCHITECTURE.md's table ("Crates and     layering") allows, read from the doc itself so the two cannot drift; dev-dependencies may     also use the test crates, whose own dev-dependencies are free;   - L0 crates have no async runtime, socket, database or SSH crate in their dependency tree,     and their source does no IO and reads no clock (CONVENTIONS.md, Architecture rules); a     line marked `arch-check: allow` is exempt, with the reason beside the marker;   - in web/src, features never import other features, ui/ imports only lib/strings from     outside itself, lib/ imports only api/, viz/ only ui/, lib/ and api/, and only a     feature's tests import app/.
+- `scripts/arch-check.sh`: Enforces the layering rules (`just arch-check`; `just check` and CI run it):   - each crate depends only on the crates that docs/ARCHITECTURE.md's table ("Crates and     layering") allows, read from the doc itself so the two cannot drift; dev-dependencies may     also use the test crates, whose own dev-dependencies are free;   - L0 crates have no async runtime, socket, database or SSH crate in their dependency tree,     and their source does no IO and reads no clock (CONVENTIONS.md, Architecture rules); a     line marked `arch-check: allow` is exempt, with the reason beside the marker;   - in web/src, features never import other features, ui/ imports only lib/strings from     outside itself, lib/ imports only api/, viz/ only ui/, lib/ and api/, and only a     feature's tests import app/;   - no two Rust types export one TypeScript name (ts-rs would write both to one file).
 - `scripts/arch-check.test.sh`: Tests scripts/arch-check.sh against a small fixture workspace, one violation per case; `just check` and CI run it.
 - `scripts/check.sh`: Runs everything CI gates on, one line per step (`just check`).
 - `scripts/cross.sh`: Builds static musl binaries with cargo-zigbuild inside its container, so the host needs only Docker.
@@ -547,6 +570,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/oui.py`: (no header comment)
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
+- `scripts/tz.py`: (no header comment)
 - `scripts/uci-conformance.sh`: The uci crate's conformance fixtures (TESTING.md, Fixtures): runs `uci export` on every fixture in crates/uci/fixtures/{cases,openwrt/*} inside OpenWrt rootfs containers, requires the releases to agree, and writes what uci printed next to each fixture as <name>.out (its stdout when it succeeded, else its error).
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
 - `scripts/wifi-lab/a/setup.uci`: (no header comment)

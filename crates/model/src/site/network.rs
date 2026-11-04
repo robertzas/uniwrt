@@ -10,7 +10,8 @@ use uniwrt_core::{Ipv4Net, MacAddr};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Network {
-    /// Its key, which names the UCI interface and bridge (`br-<id>`): `[a-z][a-z0-9_]{0,11}`.
+    /// Its key, which names its UCI interface, firewall zone and DHCP pool:
+    /// `[a-z][a-z0-9_]{0,11}`.
     pub id: String,
     /// Display name.
     pub name: String,

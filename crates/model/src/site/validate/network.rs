@@ -34,6 +34,10 @@ pub(super) fn addressing(config: &SiteConfig, issues: &mut Issues) {
     }
 }
 
+/// Network ids that render's own UCI interfaces and firewall zones use, besides the `uw_`
+/// prefix.
+pub(super) const RESERVED_IDS: [&str; 5] = ["loopback", "wan", "wan6", "wan_6", "bat0"];
+
 pub(super) fn networks(config: &SiteConfig, issues: &mut Issues) {
     let mut ids = BTreeSet::new();
     let mut names = BTreeSet::new();
@@ -58,6 +62,15 @@ pub(super) fn networks(config: &SiteConfig, issues: &mut Issues) {
                 format!(
                     "Network id {:?} must be a lowercase letter, then up to 11 lowercase \
                      letters, digits or underscores",
+                    network.id
+                ),
+            );
+        }
+        if RESERVED_IDS.contains(&network.id.as_str()) || network.id.starts_with("uw_") {
+            issues.error(
+                &at,
+                format!(
+                    "The network id {} is reserved for uniwrt's own interfaces",
                     network.id
                 ),
             );

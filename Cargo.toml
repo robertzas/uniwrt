@@ -24,6 +24,7 @@ uniwrt-notify = { path = "crates/notify" }
 uniwrt-sim = { path = "crates/sim" }
 uniwrt-store = { path = "crates/store" }
 uniwrt-syslog = { path = "crates/syslog" }
+uniwrt-render = { path = "crates/render" }
 uniwrt-rf = { path = "crates/rf" }
 uniwrt-topo = { path = "crates/topo" }
 uniwrt-uci = { path = "crates/uci" }
@@ -74,6 +75,8 @@ flate2 = "1.1.10"
 miniz_oxide = { version = "0.9.1", default-features = false, features = ["with-alloc"] }
 sha2 = "0.11.1"
 # Tests
+# Golden files of rendered UCI (crates/render/tests); review changes with `cargo insta review`.
+insta = { version = "1.49.0", default-features = false }
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 tempfile = "3.27.0"
 # A WebSocket client for the API's tests: the version axum's ws feature brings.

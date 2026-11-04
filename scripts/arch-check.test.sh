@@ -152,6 +152,23 @@ fn shows() { println!("hi"); }'
 run 'printing in an L0 crate test fails' 'print.rs:2: terminal IO'
 
 fixture
+ts='#[cfg_attr(feature = "ts", derive(ts_rs::TS))]'
+put crates/core/src/a.rs "$ts
+pub enum Channel { A }"
+put crates/model/src/b.rs "$ts
+#[serde(rename_all = \"snake_case\")]
+pub struct Channel { n: u8 }"
+run 'two Rust types with one TypeScript name fail' 'export the TypeScript type Channel'
+
+fixture
+put crates/core/src/a.rs "$ts
+pub enum Channel { A }"
+put crates/model/src/b.rs "$ts
+#[cfg_attr(feature = \"ts\", ts(rename = \"RadioChannel\"))]
+pub struct Channel { n: u8 }"
+run 'a ts(rename) tells them apart' pass
+
+fixture
 table "$(row L1 store 'core, nosuch')"
 run 'an unknown name in the table fails' 'store may depend on "nosuch", which is neither'
 

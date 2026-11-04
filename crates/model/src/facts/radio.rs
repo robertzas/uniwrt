@@ -14,6 +14,10 @@ pub struct RadioFacts {
     pub name: String,
     /// Kernel phy, such as `phy0`; unknown while a radio without interfaces is down.
     pub phy: Option<String>,
+    /// UCI `path`, the radio's device under `/sys/devices` (`platform/soc/18000000.wifi`),
+    /// which binds the `wifi-device` to its hardware.
+    #[serde(default)]
+    pub path: Option<String>,
     pub band: Band,
     pub up: bool,
     /// Disabled in the configuration.

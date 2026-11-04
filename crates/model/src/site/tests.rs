@@ -214,6 +214,15 @@ fn network_identity() {
     assert!(has(&issues, "wlans/things/network", Severity::Error));
     let issues = issues_after(|c| c.addressing.ula = None);
     assert!(has(&issues, "networks/lan/ipv6", Severity::Error));
+    for reserved in ["wan", "bat0", "uw_mesh"] {
+        let issues = issues_after(|c| c.networks[1].id = reserved.to_owned());
+        assert!(
+            has(&issues, &format!("networks/{reserved}"), Severity::Error),
+            "{reserved}"
+        );
+    }
+    let issues = issues_after(|c| c.site.timezone = "Mars/Olympus".to_owned());
+    assert!(has(&issues, "site/timezone", Severity::Error));
 }
 
 #[test]

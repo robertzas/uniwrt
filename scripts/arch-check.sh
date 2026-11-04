@@ -8,7 +8,8 @@
 #     line marked `arch-check: allow` is exempt, with the reason beside the marker;
 #   - in web/src, features never import other features, ui/ imports only lib/strings from
 #     outside itself, lib/ imports only api/, viz/ only ui/, lib/ and api/, and only a
-#     feature's tests import app/.
+#     feature's tests import app/;
+#   - no two Rust types export one TypeScript name (ts-rs would write both to one file).
 # Usage: scripts/arch-check.sh [root]; scripts/arch-check.test.sh runs it on fixture trees.
 set -euo pipefail
 cd "${1:-$(dirname "$0")/..}"
@@ -156,6 +157,23 @@ for crate in "${crates[@]}"; do
       if (why != "") printf "%s:%d: %s (L0 crates are pure): %s\n", FILENAME, FNR, why, line
     }' "${sources[@]}")
 done
+
+## TypeScript types: ts-rs writes each type to web/src/api/gen/<name>.ts, so two Rust types
+## with one name (and no `ts(rename)`) would overwrite each other's file.
+
+# shellcheck disable=SC2016 # the awk program's $0 is awk's
+while read -r count name; do
+  ((count > 1)) && fail "two Rust types export the TypeScript type $name: give one a ts(rename = \"…\")"
+done < <(find crates -name '*.rs' -not -path '*/target/*' -print0 | xargs -0 awk '
+  FNR == 1 { pending = 0 }
+  /derive\(.*ts_rs::TS/ { pending = 1; rename = ""; next }
+  pending && match($0, /ts\(rename = "[A-Za-z0-9_]+"/) {
+    rename = substr($0, RSTART + 13, RLENGTH - 14)
+  }
+  pending && match($0, /pub (struct|enum) [A-Za-z0-9_]+/) {
+    split(substr($0, RSTART, RLENGTH), word, " ")
+    print (rename != "" ? rename : word[3]); pending = 0
+  }' | sort | uniq -c)
 
 ## Web: the import directions in web/src (generated types excluded).
 

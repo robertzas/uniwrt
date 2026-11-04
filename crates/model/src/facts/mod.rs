@@ -3,6 +3,7 @@
 mod batman;
 mod capabilities;
 mod interface;
+mod layout;
 mod lease;
 mod neighbor;
 mod phy;
@@ -20,6 +21,7 @@ pub use self::{
     },
     capabilities::{Capabilities, PackageManager, Software, SwitchKind, WifiFeature},
     interface::{Counters, DeviceFacts, DeviceKind, InterfaceFacts},
+    layout::{BoardLayout, CpuPort, SwitchLayout},
     lease::LeaseFacts,
     neighbor::{FdbEntry, NeighborFacts, NeighborState},
     phy::{Channel, DfsState, PhyBand, PhyFacts},

@@ -8,6 +8,7 @@ use crate::name::{is_name, is_package, is_type};
 /// One `/etc/config` file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(rename = "UciPackage"))]
 pub struct Package {
     pub name: String,
     pub sections: Vec<Section>,

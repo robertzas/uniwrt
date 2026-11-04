@@ -8,7 +8,8 @@ import type { Purpose } from "./Purpose";
  */
 export type Network = { 
 /**
- * Its key, which names the UCI interface and bridge (`br-<id>`): `[a-z][a-z0-9_]{0,11}`.
+ * Its key, which names its UCI interface, firewall zone and DHCP pool:
+ * `[a-z][a-z0-9_]{0,11}`.
  */
 id: string, 
 /**

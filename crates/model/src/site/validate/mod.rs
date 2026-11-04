@@ -37,6 +37,7 @@ pub struct Issue {
 /// How bad an [`Issue`] is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(rename = "IssueSeverity"))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// The document cannot be saved.
@@ -120,13 +121,7 @@ fn site(config: &SiteConfig, issues: &mut Issues) {
         }
         _ => {}
     }
-    let timezone = &site.timezone;
-    if timezone.is_empty()
-        || timezone.len() > 64
-        || !timezone
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"/_+-".contains(&b))
-    {
+    if super::tz::posix(&site.timezone).is_none() {
         issues.error(
             "site/timezone",
             "The time zone is an IANA name, such as Europe/Berlin or UTC",

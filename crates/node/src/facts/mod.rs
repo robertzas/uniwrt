@@ -10,6 +10,7 @@ mod capabilities;
 mod devices;
 mod ies;
 mod interfaces;
+mod layout;
 mod leases;
 mod neighbors;
 mod phys;
@@ -32,7 +33,7 @@ use crate::proto::ops::{Collected, Set};
 #[derive(Debug, Clone, PartialEq)]
 pub enum SetFacts {
     Batman(Vec<BatmanFacts>),
-    Board(BoardFacts),
+    Board(Box<BoardFacts>),
     Capabilities(Capabilities),
     Devices(Vec<DeviceFacts>),
     Interfaces(Vec<InterfaceFacts>),
@@ -52,7 +53,7 @@ impl SetFacts {
         let raw = raw.get();
         Ok(match set {
             Set::Batman => Self::Batman(batman::parse(decode(set, raw)?)),
-            Set::Board => Self::Board(board::parse(decode(set, raw)?)),
+            Set::Board => Self::Board(Box::new(board::parse(decode(set, raw)?))),
             Set::Capabilities => Self::Capabilities(capabilities::parse(decode(set, raw)?)),
             Set::Devices => Self::Devices(devices::parse(decode(set, raw)?)),
             Set::Interfaces => Self::Interfaces(interfaces::parse(decode(set, raw)?)),
@@ -75,7 +76,7 @@ impl SetFacts {
                 facts.batman = meshes;
                 mark_meshes(facts);
             }
-            Self::Board(board) => facts.board = board,
+            Self::Board(board) => facts.board = *board,
             Self::Capabilities(capabilities) => facts.capabilities = capabilities,
             Self::Devices(devices) => {
                 facts.devices = devices;

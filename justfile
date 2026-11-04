@@ -114,9 +114,13 @@ demo seed="": (dev "--demo" (if seed == "" { "" } else { "--demo-seed " + seed }
 
 # Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
-    cargo install --locked cargo-nextest@0.9.150 cargo-deny@0.20.2
+    cargo install --locked cargo-nextest@0.9.150 cargo-deny@0.20.2 cargo-insta@1.49.0
     cd web && bun install --frozen-lockfile
 
 [private]
 web-build:
     cd web && bun install --frozen-lockfile && bun run build
+
+# Rebuild the embedded time-zone table (IANA name → POSIX TZ) from the host's tzdata
+tz *dir:
+    python3 scripts/tz.py {{dir}}

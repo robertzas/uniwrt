@@ -47,6 +47,14 @@ export function facts(cpu: number): NodeFacts {
         target: "mediatek/filogic",
         arch: "aarch64",
       },
+      layout: {
+        lan: ["lan1", "lan2"],
+        lan_mac: null,
+        wan: "wan",
+        wan_mac: null,
+        switch: null,
+        compat_version: null,
+      },
     },
     system: {
       uptime_s: 100,

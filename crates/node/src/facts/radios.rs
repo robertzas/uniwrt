@@ -131,6 +131,7 @@ pub(super) fn parse(raw: Raw) -> Vec<RadioFacts> {
             Some(RadioFacts {
                 name,
                 phy,
+                path: radio.config.path.clone(),
                 band,
                 up: radio.up,
                 disabled: radio.disabled,

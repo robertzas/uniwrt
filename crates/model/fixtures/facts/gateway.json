@@ -14,6 +14,20 @@
       "revision": "r32064-11f8b4e2b9",
       "target": "mediatek/filogic",
       "arch": "aarch64_cortex-a53"
+    },
+    "layout": {
+      "lan": [
+        "lan1",
+        "lan2",
+        "lan3",
+        "lan4",
+        "lan5"
+      ],
+      "lan_mac": null,
+      "wan": "eth1",
+      "wan_mac": null,
+      "switch": null,
+      "compat_version": null
     }
   },
   "system": {
@@ -451,6 +465,7 @@
     {
       "name": "radio0",
       "phy": "phy0",
+      "path": "platform/soc/18000000.wifi",
       "band": "2g",
       "up": true,
       "disabled": false,
@@ -482,6 +497,7 @@
     {
       "name": "radio1",
       "phy": "phy1",
+      "path": "platform/soc/18000000.wifi+1",
       "band": "5g",
       "up": true,
       "disabled": false,

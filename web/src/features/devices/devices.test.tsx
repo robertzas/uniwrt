@@ -31,6 +31,7 @@ function wirelessFacts(): NodeFacts {
     {
       name: "radio1",
       phy: "phy1",
+      path: null,
       band: "5g",
       up: true,
       disabled: false,

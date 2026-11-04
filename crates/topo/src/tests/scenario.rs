@@ -129,6 +129,7 @@ impl Node {
         self.facts.radios.push(RadioFacts {
             name,
             phy: None,
+            path: None,
             band,
             up: true,
             disabled: false,

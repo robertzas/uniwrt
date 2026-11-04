@@ -1,0 +1,207 @@
+//! Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a
+//! snapshot under `tests/snapshots/`. Review every change to one (`cargo insta review`).
+
+// Tests and their fixtures may panic on what they set up.
+#![allow(clippy::unwrap_used)]
+
+mod support;
+
+use insta::assert_snapshot;
+use uniwrt_model::{
+    facts::{Software, WifiFeature},
+    node::NodeRole,
+    site::{
+        gateway::WanProto,
+        node::ManagedPackage,
+        wireless::{Channel, WlanSecurity},
+    },
+    wifi::Band,
+};
+use uniwrt_render::Rendered;
+
+use support::*;
+
+fn ok(result: Result<Rendered, Vec<uniwrt_render::Issue>>) -> Rendered {
+    result.unwrap_or_else(|issues| panic!("{issues:?}"))
+}
+
+#[test]
+fn gateway_defaults() {
+    let result = run(
+        &defaults_site(),
+        GATEWAY,
+        NodeRole::Gateway,
+        &gateway_facts(),
+    );
+    assert_snapshot!("gateway_defaults", show(&result));
+}
+
+#[test]
+fn ap_defaults() {
+    let result = run(&defaults_site(), AP, NodeRole::Ap, &gateway_facts());
+    assert_snapshot!("ap_defaults", show(&result));
+}
+
+#[test]
+fn gateway_dsa_home() {
+    let result = run(&home_site(), GATEWAY, NodeRole::Gateway, &gateway_facts());
+    assert_snapshot!("gateway_dsa_home", show(&result));
+}
+
+#[test]
+fn ap_dsa_home() {
+    let result = run(&home_site(), AP, NodeRole::Ap, &gateway_facts());
+    assert_snapshot!("ap_dsa_home", show(&result));
+}
+
+#[test]
+fn ap_triband_dedicates_the_high_band_to_the_mesh() {
+    let mut site = home_site();
+    for policy in &mut site.radio.bands {
+        if policy.band == Band::G5 {
+            policy.channel = Channel::Fixed(149);
+        }
+    }
+    let result = run(&site, AP, NodeRole::Ap, &triband_facts());
+    let rendered = ok(result.clone());
+    let wireless = &rendered.packages[&ManagedPackage::Wireless];
+    let mesh = wireless.section("uw_mesh").unwrap();
+    assert_eq!(mesh.option("device"), Some("radio2"));
+    assert!(
+        wireless.sections.iter().all(|s| s.kind != "wifi-iface"
+            || s.name.as_deref() == Some("uw_mesh")
+            || s.option("device") != Some("radio2")),
+        "no WLAN on the mesh's radio"
+    );
+    assert_snapshot!("ap_triband_mesh", show(&result));
+}
+
+#[test]
+fn gateway_swconfig_pppoe() {
+    let result = run(&pppoe_site(), GATEWAY, NodeRole::Gateway, &swconfig_facts());
+    assert_snapshot!("gateway_swconfig_pppoe", show(&result));
+}
+
+#[test]
+fn ap_swconfig() {
+    let result = run(&pppoe_site(), AP, NodeRole::Ap, &swconfig_facts());
+    assert_snapshot!("ap_swconfig", show(&result));
+}
+
+#[test]
+fn gateway_x86_static() {
+    let mut site = defaults_site();
+    site.site.timezone = "Europe/Berlin".to_owned();
+    site.wan.proto = WanProto::Static {
+        address: "203.0.113.10/29".parse().unwrap(),
+        gateway: "203.0.113.9".parse().unwrap(),
+        dns: vec!["9.9.9.9".parse().unwrap(), "2620:fe::fe".parse().unwrap()],
+    };
+    site.wan.ipv6 = false;
+    let result = run(&site, GATEWAY, NodeRole::Gateway, &x86_facts());
+    assert_snapshot!("gateway_x86_static", show(&result));
+}
+
+#[test]
+fn rendering_is_deterministic_and_valid() {
+    let site = home_site();
+    for (role, node, facts) in [
+        (NodeRole::Gateway, GATEWAY, gateway_facts()),
+        (NodeRole::Ap, AP, gateway_facts()),
+        (NodeRole::Ap, AP, triband_facts()),
+    ] {
+        let a = ok(run(&site, node, role, &facts));
+        let b = ok(run(&site, node, role, &facts));
+        assert_eq!(a, b);
+        for package in a.packages.values() {
+            package.validate().unwrap();
+            let back = uniwrt_uci::parse(&package.name, &package.to_file()).unwrap();
+            assert_eq!(&back, package, "{} reads back as itself", package.name);
+        }
+    }
+}
+
+#[test]
+fn only_managed_packages_render() {
+    let mut site = home_site();
+    site.nodes[1].managed = [ManagedPackage::Wireless].into();
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &gateway_facts()));
+    assert_eq!(
+        rendered.packages.keys().copied().collect::<Vec<_>>(),
+        [ManagedPackage::Wireless]
+    );
+    assert!(rendered.services.is_empty());
+    site.nodes.clear();
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &gateway_facts()));
+    assert!(
+        rendered.packages.is_empty(),
+        "an unmanaged node gets nothing"
+    );
+}
+
+#[test]
+fn what_keeps_a_node_from_rendering() {
+    let errors = |result: Result<Rendered, Vec<uniwrt_render::Issue>>| -> Vec<String> {
+        result
+            .expect_err("errors")
+            .into_iter()
+            .map(|issue| issue.path)
+            .collect()
+    };
+    // A package without a renderer yet.
+    let mut site = defaults_site();
+    site.nodes[0].managed.insert(ManagedPackage::Dropbear);
+    assert_eq!(
+        errors(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts())),
+        ["node"]
+    );
+    // The mesh without batman-adv or 802.11s.
+    let mut facts = gateway_facts();
+    facts.capabilities.software.remove(&Software::BatmanAdv);
+    assert_eq!(
+        errors(run(&home_site(), AP, NodeRole::Ap, &facts)),
+        ["mesh"]
+    );
+    // A gateway without a WAN port.
+    let mut facts = x86_facts();
+    facts.board.layout.wan = None;
+    assert_eq!(
+        errors(run(&defaults_site(), GATEWAY, NodeRole::Gateway, &facts)),
+        ["wan"]
+    );
+    // A secret the vault doesn't have.
+    let mut site = home_site();
+    site.wlans[0].passphrase = Some(secret(9));
+    assert!(
+        errors(run(&site, AP, NodeRole::Ap, &gateway_facts()))
+            .contains(&"wlans/home/passphrase".to_owned())
+    );
+    // WPA3 on a hostapd without SAE.
+    let mut site = pppoe_site();
+    site.wlans[0].security = WlanSecurity::Wpa3;
+    let mut facts = swconfig_facts();
+    facts.capabilities.wifi.remove(&WifiFeature::Sae);
+    assert!(errors(run(&site, AP, NodeRole::Ap, &facts)).contains(&"wlans/home".to_owned()));
+    // A fixed channel the radio doesn't have.
+    let mut site = defaults_site();
+    site.radio.bands[1].channel = Channel::Fixed(165);
+    site.wlans = home_site().wlans;
+    site.wlans.retain(|w| w.passphrase.is_none());
+    assert_eq!(
+        errors(run(&site, AP, NodeRole::Ap, &gateway_facts())),
+        ["node/radios/radio1"]
+    );
+}
+
+#[test]
+fn transition_mode_falls_back_to_wpa2_without_sae() {
+    let mut facts = swconfig_facts();
+    facts.capabilities.wifi.remove(&WifiFeature::Sae);
+    let rendered = ok(run(&pppoe_site(), AP, NodeRole::Ap, &facts));
+    let wireless = &rendered.packages[&ManagedPackage::Wireless];
+    assert_eq!(
+        wireless.section("uw_home_2g").unwrap().option("encryption"),
+        Some("psk2")
+    );
+    assert!(rendered.warnings.iter().any(|w| w.path == "wlans/home"));
+}

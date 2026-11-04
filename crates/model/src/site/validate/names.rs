@@ -1,7 +1,7 @@
 //! The names a document holds: ids, host and DNS names. UCI identifiers follow `uniwrt_uci`.
 
-/// A network or WLAN id: `[a-z][a-z0-9_]{0,11}`, short enough for `br-<id>` to fit a Linux
-/// interface name.
+/// A network or WLAN id: `[a-z][a-z0-9_]{0,11}`, short enough for the UCI and device names
+/// built on it (`uw_<wlan>_5g2`).
 pub fn is_id(id: &str) -> bool {
     let mut bytes = id.bytes();
     bytes.next().is_some_and(|b| b.is_ascii_lowercase())

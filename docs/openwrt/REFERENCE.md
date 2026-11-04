@@ -26,7 +26,7 @@ Marks: ✅ verified (release notes, a test, or a real device) · ⚠️ from doc
 | Path | Use |
 |---|---|
 | `/etc/config/*` | UCI packages |
-| `/etc/board.json` | Model, LAN/WAN port names, switch layout, LEDs |
+| `/etc/board.json` | Model, LAN/WAN port names, switch layout, LEDs (render reads its layout from the facts) |
 | `/etc/openwrt_release`, `/etc/os-release` | Version, target, architecture |
 | `/tmp/dhcp.leases` | dnsmasq leases (gateway) |
 | `/etc/dropbear/authorized_keys` | SSH keys |
@@ -150,6 +150,12 @@ VLANs:
 - swconfig: `config switch_vlan` with `device 'switch0'`, `vlan`, and `ports '0t 1 2'`.
 
 Dumb AP: disable the `dnsmasq`, `odhcpd` and `firewall` services, set `lan` to `proto dhcp`, and bridge all ports.
+
+Stock packages, 24.10 vs 25.12 (`crates/uci/fixtures/openwrt/`) ✅: `system.timezone` is a POSIX TZ string with the IANA name in `zonename` (25.12 writes `GMT0` and `UTC`; 24.10 only `timezone 'UTC'`); loopback and LAN addresses are `ipaddr`/`netmask` in 24.10 and `list ipaddr '<a>/<len>'` in 25.12 (both read either); odhcpd's file options differ (24.10 `leasefile '/tmp/hosts/odhcpd'`, `piofolder`; 25.12 `leasefile '/tmp/odhcpd.leases'`, `piodir`, `hostsdir`); the WAN zone forwards `REJECT` in 24.10 and `DROP` in 25.12; 25.12's `globals` holds a generated `dhcp_default_duid`. Render writes what both read and carries the node's own values over (features/lifecycle.md).
+
+board.json ⚠️ (the swconfig shape is from OpenWrt's `config_generate`, not yet from a board): `network.<role>` has `ports` (DSA user ports) or `device`, and `macaddr`; `switch.<name>.ports[]` has `num`, and either `role` (`lan`/`wan`) with `index`, or `device` (a CPU port, with `need_tag`, `want_untag`); `switch.<name>.roles[]` has `role`, `ports` (`"1 2 3 4 0t"`, the CPU port tagged) and `device` (`eth0.1`); `system.compat_version` is what sysupgrade compares. The facts keep this as `board.layout`.
+
+Render's assumptions, to verify in the system harness (M3.3b) ⚠️: a `wifi-iface` whose network sits on `br-lan.<vid>` joins `br-lan` untagged in that VLAN (netifd's hotplug VLAN membership); `bat0` works as a `bridge-vlan` trunk (`bat0:t`, `bat0:u*`) and as a bridge port before it exists; netifd creates `<cpu>.<vid>` devices named in a bridge's ports; fw4 takes zone names of up to 12 characters.
 
 802.11s + batman: see [features/mesh.md](../features/mesh.md).
 

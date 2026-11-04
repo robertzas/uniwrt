@@ -15,7 +15,12 @@ name: string,
 /**
  * Kernel phy, such as `phy0`; unknown while a radio without interfaces is down.
  */
-phy: string | null, band: Band, up: boolean, 
+phy: string | null, 
+/**
+ * UCI `path`, the radio's device under `/sys/devices` (`platform/soc/18000000.wifi`),
+ * which binds the `wifi-device` to its hardware.
+ */
+path: string | null, band: Band, up: boolean, 
 /**
  * Disabled in the configuration.
  */

@@ -55,7 +55,7 @@ flowchart TB
 | L0 pure | `core` | IDs, MAC/IP/prefix types, error conventions, `Clock` trait | — |
 | L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), the node record, validation, schema migrations | core, uci |
 | L0 | `uci` | UCI AST, parser and serializer that match libuci (strict mode, checked against `uci` of each release), semantic diff and its apply, libuci's identifier rules (which `model` validates raw sections with) | — |
-| L0 | `render` | (SiteConfig, facts) → per-node UCI packages | core, model, uci |
+| L0 | `render` | (SiteConfig, secrets, role, facts, the node's current packages) → its managed UCI packages (system, network, wireless, dhcp, firewall), services and warnings; one VLAN-aware `br-lan` on every node (D-067) | core, model, uci |
 | L0 | `topo` | facts → topology graph | core, model |
 | L0 | `clients` | the client inventory: vendors (embedded OUI table), device kinds, sessions, samples, experience score | core, model, topo |
 | L0 | `metrics` | sampling facts, topology builds and client samples into 15 s windows; retention and the resolution a query reads; LTTB downsampling | core, model, topo, clients |

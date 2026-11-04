@@ -136,6 +136,7 @@ pub struct BandPolicy {
 /// A radio's channel: chosen by the node (later the RF planner, M6.1), or fixed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(rename = "RadioChannel"))]
 #[serde(rename_all = "snake_case")]
 pub enum Channel {
     Auto,
