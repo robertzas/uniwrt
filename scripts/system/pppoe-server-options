@@ -1,0 +1,7 @@
+# The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.
+require-pap
+lcp-echo-interval 10
+lcp-echo-failure 2
+mru 1492
+mtu 1492
+ms-dns 203.0.113.1

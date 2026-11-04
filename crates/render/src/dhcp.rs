@@ -110,6 +110,10 @@ fn pool(net: &Net<'_>) -> Section {
                 .with("start", start.to_string())
                 .with("limit", limit.to_string())
                 .with("leasetime", lease_time(dhcp.lease_time_s))
+                // The gateway is the site's DHCP server: without `force`, dnsmasq's init
+                // refuses to serve a segment where another server answers, such as an AP that
+                // still runs its stock one (found by the system harness, D-068).
+                .with("force", "1")
                 .with("dhcpv4", "server")
         }
         None => section.with("ignore", "1"),

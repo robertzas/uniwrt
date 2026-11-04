@@ -1,8 +1,9 @@
 # An OpenWrt rootfs with the Wi-Fi and batman-adv user space, for the hwsim lab
-# (scripts/wifi-lab.sh). The kernel side (mac80211_hwsim, batman-adv) is the host's.
+# (scripts/wifi-lab.sh), and `bridge` for the system harness's checks. The kernel side
+# (mac80211_hwsim, batman-adv) is the host's.
 ARG IMAGE
 FROM ${IMAGE}
-ARG PACKAGES="wpad-mbedtls wifi-scripts iw iwinfo rpcd-mod-iwinfo ucode-mod-nl80211 ucode-mod-rtnl kmod-batman-adv batctl-default"
+ARG PACKAGES="wpad-mbedtls wifi-scripts iw iwinfo rpcd-mod-iwinfo ucode-mod-nl80211 ucode-mod-rtnl kmod-batman-adv batctl-default ip-bridge"
 # Kernel modules can't load in a build container, so their install scripts fail; the check below
 # makes sure the user space arrived anyway. /tmp/resolv.conf is a mount while building. procd
 # jails dnsmasq with ujail, which can't make namespaces in a container; without it, procd runs
@@ -13,7 +14,7 @@ RUN mkdir -p /var/lock /var/run && \
     else \
       opkg update && opkg install $PACKAGES || true; \
     fi && \
-    for f in /usr/sbin/hostapd /usr/sbin/wpa_supplicant /usr/sbin/iw /usr/sbin/batctl \
+    for f in /usr/sbin/hostapd /usr/sbin/wpa_supplicant /usr/sbin/iw /usr/sbin/batctl /usr/sbin/bridge \
       /usr/lib/ucode/nl80211.so /usr/lib/ucode/rtnl.so /lib/netifd/proto/batadv.sh; do \
       [ -e "$f" ] || { echo "missing $f" >&2; exit 1; }; \
     done && \

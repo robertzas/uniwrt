@@ -454,6 +454,16 @@ Syslog: the RFC 3164/5424 parser, the UDP and TCP receiver, and the annotations 
 - `src/parse.rs`: Parsing one syslog message (RFC 5424, else RFC 3164 as BSD syslog and OpenWrt's logd send it).
 - `src/receiver.rs`: The receiver: syslog over UDP and TCP, each message parsed and handed on with its sender's address.
 
+### `uniwrt-system` (crates/system)
+
+The system harness (TESTING.md, System): rendered configs on real OpenWrt.
+
+- `src/docker.rs`: A node of the harness: an OpenWrt container that the tests reach through `docker exec`.
+- `src/lib.rs`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
+- `src/site.rs`: The sites the harness renders: a new site's defaults and a home site with VLANs, each behind one of the ISP's uplinks (scripts/system/): DHCP untagged or on VLAN 201, static, or PPPoE; and the hwsim lab's site (scripts/wifi-lab.sh), whose WLAN and mesh client c knows.
+- `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
+- `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
+
 ### `uniwrt-topo` (crates/topo)
 
 The topology: the network graph that the adopted nodes' facts describe.
@@ -568,8 +578,13 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
 - `scripts/oui.py`: (no header comment)
+- `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, and a PPPoE server and client, for the ISP's end.
+- `scripts/system/isp.uci`: (no header comment)
+- `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
+- `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it.
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
+- `scripts/test-system.sh`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `scripts/tz.py`: (no header comment)
 - `scripts/uci-conformance.sh`: The uci crate's conformance fixtures (TESTING.md, Fixtures): runs `uci export` on every fixture in crates/uci/fixtures/{cases,openwrt/*} inside OpenWrt rootfs containers, requires the releases to agree, and writes what uci printed next to each fixture as <name>.out (its stdout when it succeeded, else its error).
 - `scripts/wifi-lab.sh`: The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a batman-adv mesh, in containers booted with procd.
@@ -579,4 +594,4 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/wifi-lab/b/wireless`: (no header comment)
 - `scripts/wifi-lab/c/setup.uci`: (no header comment)
 - `scripts/wifi-lab/c/wireless`: (no header comment)
-- `scripts/wifi-node.Dockerfile`: An OpenWrt rootfs with the Wi-Fi and batman-adv user space, for the hwsim lab (scripts/wifi-lab.sh).
+- `scripts/wifi-node.Dockerfile`: An OpenWrt rootfs with the Wi-Fi and batman-adv user space, for the hwsim lab (scripts/wifi-lab.sh), and `bridge` for the system harness's checks.

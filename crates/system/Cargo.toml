@@ -1,0 +1,20 @@
+[package]
+name = "uniwrt-system"
+description = "uniwrt's system harness: rendered configs on OpenWrt containers, through docker exec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true, features = ["raw_value"] }
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+uniwrt-node.workspace = true
+uniwrt-render.workspace = true
+uniwrt-uci.workspace = true
+
+[lints]
+workspace = true

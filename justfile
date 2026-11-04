@@ -53,6 +53,10 @@ uci-conformance *args:
 test-agent *images:
     @scripts/test-agent.sh {{ images }}
 
+# Rendered configs on OpenWrt 24.10 and 25.12: an ISP, a gateway and an AP in rootfs containers (needs Docker)
+test-system *releases:
+    @scripts/test-system.sh {{ releases }}
+
 # The Playwright smoke test: a debug binary with the UI embedded serves the simulated fleet to Chrome
 e2e: web-build
     UNIWRT_WEB_DIST=web/dist cargo build --locked

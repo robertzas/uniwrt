@@ -11,7 +11,9 @@
 #
 # Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture [collect | events]
 #   up       builds the images, starts the lab and writes target/wifi-lab.env (addresses, password)
-#   test     runs crates/node/tests/wifi.rs against a running lab, starting it first if needed
+#   test     runs crates/node/tests/wifi.rs against a running lab, starting it first if needed,
+#            then crates/system/tests/wifi.rs, which renders a site onto it (and restarts a lab
+#            that was up before)
 #   capture  (both parts unless one is named) writes the collect answers of nodes a and b, from a running lab, to
 #            crates/node/fixtures/collect/hwsim-<role>-<release>.json, and a's neighbors set
 #            with and without rtnetlink to hwsim-a-<release>-neighbors.json; and what a's agent
@@ -265,12 +267,20 @@ capture)
 down) down ;;
 test)
   shift
-  [[ -e $ENV_FILE ]] || { trap down EXIT && up; }
+  started=''
+  [[ -e $ENV_FILE ]] || { trap down EXIT && up && started=1; }
   # shellcheck source=/dev/null # written by `up`
   set -a && source "$ENV_FILE" && set +a
   # One at a time: a test that kicks the client would fail the others' checks that it is there.
   cargo nextest run --locked -p uniwrt-node --test wifi --run-ignored only --status-level fail \
     --hide-progress-bar --test-threads 1 "$@"
+  # Then the system harness renders a site onto a and b (crates/system/tests/wifi.rs), which
+  # leaves the lab rendered: a lab that was up before is started again afterwards.
+  install_agent uniwrt-wifi-a
+  install_agent uniwrt-wifi-b
+  cargo nextest run --locked -p uniwrt-system --test wifi --run-ignored only --status-level fail \
+    --hide-progress-bar
+  [[ -n $started ]] || up
   ;;
 *)
   echo "usage: $0 up | down | test [nextest args…] | capture [collect | events]" >&2

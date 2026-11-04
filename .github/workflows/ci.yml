@@ -259,6 +259,37 @@ jobs:
       - name: The hwsim lab
         run: scripts/wifi-lab.sh test
 
+  # Rendered configs on OpenWrt 24.10 and 25.12 (TESTING.md, System): an ISP, a gateway and an
+  # AP in rootfs containers linked by veth pairs; uci, fw4 and netifd take what render writes.
+  system:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The kernel's 8021q and pppoe
+        run: |
+          if ! modinfo 8021q pppoe >/dev/null 2>&1; then
+            sudo apt-get update -q
+            sudo apt-get install -yq --no-install-recommends "linux-modules-extra-$(uname -r)"
+          fi
+          sudo modprobe -a 8021q pppoe
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install && rustc --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # The container tests share the dependencies agent builds (node, engine, jobs).
+          shared-key: containers
+          save-if: false
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
+      - name: Rendered configs on OpenWrt 24.10 and 25.12
+        run: scripts/test-system.sh
+
   build:
     name: build (${{ matrix.target }})
     needs: [version, ui]
@@ -387,7 +418,7 @@ jobs:
           retention-days: 7
 
   image:
-    needs: [version, web, rust, transport, agent, wifi, build, e2e]
+    needs: [version, web, rust, transport, agent, wifi, system, build, e2e]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 20

@@ -3417,6 +3417,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-system"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-node",
+ "uniwrt-render",
+ "uniwrt-uci",
+]
+
+[[package]]
 name = "uniwrt-topo"
 version = "0.0.0"
 dependencies = [

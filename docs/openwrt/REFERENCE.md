@@ -90,6 +90,11 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - BusyBox has `tar`, `sha256sum -c -s`, `flock`, `ulimit -f` (512-byte blocks) and `set -o pipefail`. It lacks `timeout`, `stat`, `od` and fractional `sleep`.
 - The 24.10 rootfs has opkg (`/bin/opkg`), and the 25.12 one has apk (`/usr/bin/apk`).
 
+- ✅ x86's `99-default_network` makes `eth0` the LAN and `eth1`, when it exists at first boot, the WAN; board.json's model is the host's DMI name. BusyBox's `ip` has no `-br`, and the stock rootfs has no `bridge` (package `ip-bridge`).
+- ✅ dnsmasq's init refuses to serve a segment where another DHCP server answers (`found already running DHCP-server on interface 'br-lan' refusing to start, use 'option force 1'`), as an AP on its stock config does: render sets `force '1'` on the gateway's pools (D-068).
+- ✅ procd runs reload triggers `PROCD_RELOAD_DELAY` (1 s) after `reload_config`; dnsmasq's reload starts it even when disabled, so a service that goes off must stop first. netifd keeps reporting the old interface until its trigger runs.
+- ✅ rp-pppoe-server's stock options hold `login` (PAP against system accounts): the harness's ISP uses its own options and `pap-secrets`. PPPoE in containers needs the host's `pppoe` module and `--device /dev/ppp`; VLANs need `8021q`, and fw4 the nftables expression modules (ct, reject, masquerade): a container can't load them.
+
 - ✅ Wi-Fi in containers (the hwsim lab, D-035): radios moved into a container's network namespace (`iw phy <phy> set netns <pid>`) appear in its `/sys/class/ieee80211`. netifd checks the Wi-Fi daemons it starts through `/proc/<pid>/exe`, which needs `--cap-add SYS_PTRACE`. hostapd and wpa_supplicant log harmless errors writing `/proc/sys`, which is read-only. A container's interfaces come in no fixed order when several Docker networks are attached before it starts, so the lab links nodes with a veth pair instead. hwsim radios are tri-band (2g, 5g, 6g, with EHT) and hear each other across namespaces.
 
 ## procd, netifd and sysfs
@@ -155,7 +160,12 @@ Stock packages, 24.10 vs 25.12 (`crates/uci/fixtures/openwrt/`) ✅: `system.tim
 
 board.json ⚠️ (the swconfig shape is from OpenWrt's `config_generate`, not yet from a board): `network.<role>` has `ports` (DSA user ports) or `device`, and `macaddr`; `switch.<name>.ports[]` has `num`, and either `role` (`lan`/`wan`) with `index`, or `device` (a CPU port, with `need_tag`, `want_untag`); `switch.<name>.roles[]` has `role`, `ports` (`"1 2 3 4 0t"`, the CPU port tagged) and `device` (`eth0.1`); `system.compat_version` is what sysupgrade compares. The facts keep this as `board.layout`.
 
-Render's assumptions, to verify in the system harness (M3.3b) ⚠️: a `wifi-iface` whose network sits on `br-lan.<vid>` joins `br-lan` untagged in that VLAN (netifd's hotplug VLAN membership); `bat0` works as a `bridge-vlan` trunk (`bat0:t`, `bat0:u*`) and as a bridge port before it exists; netifd creates `<cpu>.<vid>` devices named in a bridge's ports; fw4 takes zone names of up to 12 characters.
+Render's assumptions, checked by the system harness (M3.3b, `crates/system`) on 24.10 and 25.12:
+- ✅ A VLAN-filtering `br-lan` with each network on `br-lan.<vid>` and Ethernet trunks (`eth0:u*` for the untagged network, `:t` for the others) comes up as rendered: `bridge vlan show` lists `1 PVID Egress Untagged`, `30`, `40`, `50` on the trunk, on the gateway and the AP. The WAN on an `8021q` device (`eth1.201`) leases from an ISP's VLAN; static and PPPoE (`pppoe-wan`) come up too.
+- ✅ fw4 takes a 12-character zone name whole (`input_securitycams`), and `fw4 check` passes every rendered firewall.
+- ✅ An AP with dnsmasq, odhcpd and the firewall off leases its management address from the gateway, and reaches the ISP through the gateway's NAT.
+- ✅ In the hwsim lab (a on 25.12 the gateway, b on 24.10 the AP): a `wifi-iface` whose network sits on `br-lan.<vid>` joins `br-lan` untagged in that VLAN (`99 PVID Egress Untagged`); `bat0` is a trunk (`1 PU`, `99`) once batman-adv creates it, though the bridge names it before; the rendered 802.11s mesh and WLANs come up, and a client's lease crosses `bat0` tagged.
+- ⚠️ netifd creates `<cpu>.<vid>` devices named in a bridge's ports (swconfig): containers have no switch; it waits for a swconfig board.
 
 802.11s + batman: see [features/mesh.md](../features/mesh.md).
 
