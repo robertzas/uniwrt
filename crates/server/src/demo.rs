@@ -12,7 +12,7 @@ use uniwrt_jobs::{BoxFuture, Dial, Remote};
 use uniwrt_node::{
     ControllerKey, Credential, Error, ExecOutput, ExecRequest, HostKey, NodeLink as _, Result,
     Target,
-    proto::ops::{Collect, Collected, Op as _},
+    proto::ops::{Collect, Collected, Op as _, Set},
 };
 use uniwrt_sim::{SimFleet, SimLink};
 
@@ -143,11 +143,13 @@ impl Remote for DemoRemote {
         })
     }
 
-    fn collect(&self) -> BoxFuture<'_, Result<Collected>> {
+    fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
         Box::pin(async move {
             tokio::time::sleep(COLLECT_DELAY).await;
-            let args = serde_json::value::to_raw_value(&Collect::all())
-                .map_err(|err| Error::Protocol(err.to_string()))?;
+            let args = serde_json::value::to_raw_value(&Collect {
+                sets: sets.to_vec(),
+            })
+            .map_err(|err| Error::Protocol(err.to_string()))?;
             let answer = self.0.call(Collect::NAME, &args, COLLECT_DELAY).await?;
             serde_json::from_str(answer.get())
                 .map_err(|err| Error::Protocol(format!("unexpected answer to collect: {err}")))

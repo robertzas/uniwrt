@@ -32,6 +32,7 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         SecretRef, SiteConfig,
+        network::{Network, Purpose},
         node::{ManagedPackage, NodeConfig},
     },
 };
@@ -97,6 +98,22 @@ impl Issue {
             message: message.into(),
         }
     }
+}
+
+/// The network that carries an AP's own address (a DHCP client): the management network, else
+/// the default one; APs fall back to `lan` without either.
+pub fn management_network(site: &SiteConfig) -> Option<&Network> {
+    site.networks
+        .iter()
+        .find(|n| n.purpose == Purpose::Mgmt)
+        .or_else(|| site.networks.iter().find(|n| n.purpose == Purpose::Default))
+}
+
+/// Whether a rendered section carries a node's uplink, the WAN (`wan`, `wan6`, `wan_6`) or the
+/// mesh (`bat0`, `uw_mesh`): changing one takes longer to settle (a new lease, PPPoE, the mesh
+/// meeting its neighbors again), so its transaction gets a longer timer.
+pub fn uplink_section(name: &str) -> bool {
+    name.starts_with("wan") || name == plan::BAT || name == mesh::MESH_IFACE
 }
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.

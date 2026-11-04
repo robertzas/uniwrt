@@ -3262,6 +3262,8 @@ dependencies = [
 name = "uniwrt-jobs"
 version = "0.0.0"
 dependencies = [
+ "futures-util",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",
@@ -3270,7 +3272,11 @@ dependencies = [
  "uniwrt-core",
  "uniwrt-model",
  "uniwrt-node",
+ "uniwrt-render",
+ "uniwrt-sim",
  "uniwrt-store",
+ "uniwrt-topo",
+ "uniwrt-uci",
  "zeroize",
 ]
 

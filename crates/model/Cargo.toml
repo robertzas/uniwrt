@@ -18,7 +18,7 @@ ts-rs = { workspace = true, optional = true }
 
 [features]
 # TypeScript types (ts-rs) for the API's DTOs.
-ts = ["dep:ts-rs", "uniwrt-core/ts"]
+ts = ["dep:ts-rs", "uniwrt-core/ts", "uniwrt-uci/ts"]
 
 [lints]
 workspace = true

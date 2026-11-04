@@ -1,0 +1,298 @@
+//! The apply job (features/lifecycle.md, Render → diff → apply; D-012, D-069): applies the
+//! site's latest revision to every managed node as one fleet-wide two-phase commit.
+//!
+//! Steps: connect (every managed node, or nothing changes) → plan ([`survey`]: read what each
+//! holds, render, diff; any refused node stops it) → stage (stage and check every transaction)
+//! → apply (leaves → gateway, each with its dead-man timer) → verify (all at once, each over a
+//! new login at the address it moves to, against its health before) → confirm (all) → record
+//! (the revision each node holds, and the addresses that moved). A failure before a confirm
+//! rolls every applied node back, and one it can't reach rolls back by itself at its deadline.
+
+mod address;
+mod health;
+mod order;
+mod plan;
+mod run;
+mod survey;
+#[cfg(test)]
+mod tests;
+
+use std::{sync::Arc, time::Duration};
+
+use tracing::{info, warn};
+use uniwrt_core::UserId;
+use uniwrt_model::{
+    apply::{Applied, ApplyPlan, PlanAction},
+    job::{JobError, JobErrorCode, JobKind, JobNode, JobNodeState, NewJob, StepName},
+    node::{Node, NodeMode},
+    site::revision::Revision,
+};
+use uniwrt_node::txn::TxnId;
+use uniwrt_store::ApplyRepo as _;
+
+use self::{
+    run::{Live, Run, nodes},
+    survey::Survey,
+};
+use crate::{errors::internal, progress::Progress, runner::Shared};
+
+/// The key that keeps one apply at a time.
+pub(crate) const TARGET: &str = "apply";
+
+const STEPS: [StepName; 7] = [
+    StepName::Connect,
+    StepName::Plan,
+    StepName::Stage,
+    StepName::Apply,
+    StepName::Verify,
+    StepName::Confirm,
+    StepName::Record,
+];
+
+/// How patiently an apply verifies nodes.
+#[derive(Debug, Clone)]
+pub(crate) struct Timing {
+    /// Between two tries while a node reconnects, reloads or recovers.
+    pub(crate) poll: Duration,
+    /// How long a node may take to be reachable and healthy again.
+    pub(crate) verify: Duration,
+    /// The same, after a change of its WAN or the mesh.
+    pub(crate) verify_uplink: Duration,
+}
+
+impl Default for Timing {
+    fn default() -> Self {
+        Self {
+            poll: Duration::from_secs(2),
+            verify: Duration::from_secs(60),
+            verify_uplink: Duration::from_secs(150),
+        }
+    }
+}
+
+pub(crate) fn job(revision: &Revision, nodes: &[Node], by: Option<UserId>) -> NewJob {
+    NewJob {
+        kind: JobKind::Apply,
+        target: format!("revision {}", revision.meta.id),
+        node: None,
+        revision: Some(revision.meta.id),
+        created_by: by,
+        steps: STEPS.to_vec(),
+        nodes: nodes
+            .iter()
+            .map(|node| {
+                let managed = node.mode == NodeMode::Managed;
+                JobNode {
+                    node: node.id,
+                    name: node.name.clone(),
+                    state: if managed {
+                        JobNodeState::Pending
+                    } else {
+                        JobNodeState::Skipped
+                    },
+                    detail: (!managed).then(|| "Observe mode".to_owned()),
+                }
+            })
+            .collect(),
+    }
+}
+
+/// The plan of applying `revision` now; nothing changes on the nodes.
+pub(crate) async fn plan(
+    shared: &Shared,
+    revision: &Revision,
+    nodes: Vec<Node>,
+) -> Result<ApplyPlan, JobError> {
+    let (managed, observing) = survey::managed(nodes);
+    let (logins, failed) = survey::connect_all(shared, managed).await;
+    let Survey { plan, members } =
+        survey::plan_all(shared, revision, logins, failed, observing).await?;
+    for member in members {
+        member.login.remote.close().await;
+    }
+    Ok(plan)
+}
+
+pub(crate) async fn run(
+    shared: Arc<Shared>,
+    revision: Revision,
+    nodes: Vec<Node>,
+    mut progress: Progress,
+) {
+    let result = apply(&shared, &revision, nodes, &mut progress).await;
+    match &result {
+        Ok(()) => info!(revision = %revision.meta.id, "applied"),
+        Err(err) => warn!(revision = %revision.meta.id, code = ?err.code, "{}", err.message),
+    }
+    progress.finish(result.err()).await;
+}
+
+async fn apply(
+    shared: &Shared,
+    revision: &Revision,
+    nodes: Vec<Node>,
+    progress: &mut Progress,
+) -> Result<(), JobError> {
+    let (managed, observing) = survey::managed(nodes);
+    progress.start(StepName::Connect).await;
+    let (logins, failed) = survey::connect_all(shared, managed).await;
+    if !failed.is_empty() {
+        for login in logins {
+            login.remote.close().await;
+        }
+        let mut reasons = Vec::new();
+        for (node, why) in failed {
+            progress.node(node.id, JobNodeState::Failed, &why).await;
+            reasons.push(format!("{}: {why}", node.name));
+        }
+        return Err(JobError {
+            code: JobErrorCode::Unreachable,
+            message: format!("Nothing changed. {}", reasons.join(". ")),
+        });
+    }
+    progress
+        .done(Some(format!("Logged in to {}", run::nodes(logins.len()))))
+        .await;
+
+    progress.start(StepName::Plan).await;
+    let Survey { plan, members } =
+        survey::plan_all(shared, revision, logins, Vec::new(), observing).await?;
+    if !plan.ready() {
+        for member in members {
+            member.login.remote.close().await;
+        }
+        for node in plan
+            .nodes
+            .iter()
+            .filter(|n| n.action == PlanAction::Refused)
+        {
+            let why = node
+                .reason
+                .clone()
+                .or_else(|| node.issues.first().map(|issue| issue.message.clone()))
+                .unwrap_or_default();
+            progress.node(node.node, JobNodeState::Failed, why).await;
+        }
+        return Err(survey::refused(&plan));
+    }
+    let mut unchanged = Vec::new();
+    let mut lives = Vec::new();
+    for member in members {
+        if member.part.plan.action == PlanAction::Change {
+            lives.push(Live::from(member));
+        } else {
+            let detail = format!("Holds revision {} already", revision.meta.id);
+            progress
+                .node(member.login.node.id, JobNodeState::Unchanged, detail)
+                .await;
+            member.login.remote.close().await;
+            unchanged.push(member.login.node);
+        }
+    }
+    progress.done(Some(summary(&plan))).await;
+
+    if lives.is_empty() {
+        for step in [
+            StepName::Stage,
+            StepName::Apply,
+            StepName::Verify,
+            StepName::Confirm,
+        ] {
+            progress.skip(step, "Nothing to change").await;
+        }
+        return record(shared, revision, progress, &[], &unchanged).await;
+    }
+    let txn = TxnId::new(format!("uniwrt-{}", progress.job_id().get()))
+        .map_err(|err| internal("naming the transaction", &err))?;
+    let mut run = Run { shared, txn, lives };
+    let result = async {
+        run.stage(progress).await?;
+        run.apply(progress).await?;
+        run.verify(progress).await?;
+        run.confirm(progress).await
+    }
+    .await;
+    run.close().await;
+    match result {
+        Ok(()) => record(shared, revision, progress, &run.lives, &unchanged).await,
+        Err(err) if err.code == JobErrorCode::PartialApply => {
+            // The confirmed nodes hold the revision: record them before failing.
+            let confirmed: Vec<_> = run
+                .lives
+                .into_iter()
+                .filter(|live| live.confirmed)
+                .collect();
+            if let Err(why) = store(shared, revision, progress, &confirmed, &unchanged).await {
+                warn!("{}", why.message);
+            }
+            Err(err)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// The Record step: the revision each node holds now, and where the moved ones are.
+async fn record(
+    shared: &Shared,
+    revision: &Revision,
+    progress: &mut Progress,
+    confirmed: &[Live],
+    unchanged: &[Node],
+) -> Result<(), JobError> {
+    progress.start(StepName::Record).await;
+    store(shared, revision, progress, confirmed, unchanged).await?;
+    let detail = format!(
+        "Revision {} on {}",
+        revision.meta.id,
+        nodes(confirmed.len() + unchanged.len())
+    );
+    progress.done(Some(detail)).await;
+    Ok(())
+}
+
+async fn store(
+    shared: &Shared,
+    revision: &Revision,
+    progress: &Progress,
+    confirmed: &[Live],
+    unchanged: &[Node],
+) -> Result<(), JobError> {
+    let moved = |live: &Live| (live.host != live.node.host).then(|| live.host.clone());
+    let applied = Applied {
+        revision: revision.meta.id,
+        job: progress.job_id(),
+        nodes: confirmed
+            .iter()
+            .map(|live| (live.node.id, moved(live)))
+            .chain(unchanged.iter().map(|node| (node.id, None)))
+            .collect(),
+    };
+    shared
+        .store
+        .record_applied(applied)
+        .await
+        .map_err(|err| internal("recording the applied revision", &err))?;
+    for live in confirmed.iter().filter(|live| live.host != live.node.host) {
+        let node = Node {
+            host: live.host.clone(),
+            ..live.node.clone()
+        };
+        info!(node = %node.id, host = %node.host, "the apply moved the node");
+        shared.watch.moved(node, live.host_key.clone()).await;
+    }
+    Ok(())
+}
+
+fn summary(plan: &ApplyPlan) -> String {
+    let count = |action| plan.nodes.iter().filter(|n| n.action == action).count();
+    let mut parts = vec![format!("{} change", nodes(count(PlanAction::Change)))];
+    let unchanged = count(PlanAction::Unchanged);
+    if unchanged > 0 {
+        parts.push(format!("{} hold the revision already", nodes(unchanged)));
+    }
+    let skipped = count(PlanAction::Skipped);
+    if skipped > 0 {
+        parts.push(format!("{} in observe mode", nodes(skipped)));
+    }
+    parts.join(", ")
+}

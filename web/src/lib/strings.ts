@@ -236,6 +236,11 @@ export const strings = {
       watch: "Start watching",
       install_tool: "Install the transaction tool",
       remove_tool: "Remove the transaction tool",
+      plan: "Plan the changes",
+      stage: "Stage on every device",
+      apply: "Apply",
+      verify: "Check every device",
+      confirm: "Confirm",
     },
     stepState: {
       pending: "Waiting",
@@ -284,6 +289,21 @@ export const strings = {
         title: "The controller hit a problem",
         hint: "Its log has the details. Try again.",
         action: "Try again",
+      },
+      refused: {
+        title: "The changes cannot apply yet",
+        hint: "Some devices cannot take them; the details are below. Nothing changed.",
+        action: "Try again",
+      },
+      rolled_back: {
+        title: "The changes were rolled back",
+        hint: "A device failed its checks, so every device went back to what it had.",
+        action: "Try again",
+      },
+      partial_apply: {
+        title: "The changes applied only in part",
+        hint: "Some devices confirmed them and others rolled back. Keep them, or apply the previous revision.",
+        action: "Close",
       },
     },
     batch: {
@@ -878,6 +898,7 @@ export const strings = {
         adopt: "adoption",
         manage: "enabling management",
         unmanage: "disabling management",
+        apply: "applying the configuration",
       },
       radar: "Radar on its DFS channel made it move",
       busy: (percent: number) => `${percent}% busy`,

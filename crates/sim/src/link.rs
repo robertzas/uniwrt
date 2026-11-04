@@ -162,8 +162,9 @@ impl SimLink {
         let mut disk = lock(&self.shared.nodes[self.node].disk);
         Ok(render::commands::exec(
             &world.nodes[self.node],
-            &request.argv,
+            request,
             &mut disk,
+            world.now_ms(),
         ))
     }
 

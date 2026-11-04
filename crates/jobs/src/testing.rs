@@ -15,7 +15,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::{
     ControllerKey, Credential, ExecOutput, ExecRequest, ExitStatus, HostKey, Result, Target,
-    proto::ops::Collected,
+    proto::ops::{Collected, Set},
     txn::{self, Footprint},
 };
 use uniwrt_store::{JobRepo as _, MasterKey, Store, Vault};
@@ -195,7 +195,7 @@ impl Remote for FakeRemote {
         Box::pin(async move { Ok(self.0.run(&request.argv)) })
     }
 
-    fn collect(&self) -> BoxFuture<'_, Result<Collected>> {
+    fn collect<'a>(&'a self, _sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
         Box::pin(async { Ok(serde_json::from_str(COLLECTED).unwrap()) })
     }
 
@@ -204,12 +204,21 @@ impl Remote for FakeRemote {
     }
 }
 
+/// The nodes adopted, and the nodes an apply moved.
 #[derive(Default)]
-pub(crate) struct Watched(pub(crate) Mutex<Vec<(Node, HostKey, NodeFacts)>>);
+pub(crate) struct Watched(
+    pub(crate) Mutex<Vec<(Node, HostKey, NodeFacts)>>,
+    pub(crate) Mutex<Vec<Node>>,
+);
 
 impl Watch for Watched {
     fn watch(&self, node: Node, host_key: HostKey, facts: NodeFacts) -> BoxFuture<'_, ()> {
         self.0.lock().unwrap().push((node, host_key, facts));
+        Box::pin(async {})
+    }
+
+    fn moved(&self, node: Node, _host_key: HostKey) -> BoxFuture<'_, ()> {
+        self.1.lock().unwrap().push(node);
         Box::pin(async {})
     }
 }

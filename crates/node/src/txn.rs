@@ -7,7 +7,7 @@
 //! [`Session::exec`](crate::Session::exec) or any login), then [`parse`](Command::parse) the
 //! output. A transaction is staged ([`stage`], [`put`]), [`check`]ed, [`apply`]'d with a
 //! dead-man timer, and ends with [`confirm`] or [`rollback`], or rolls back by itself when the
-//! timer expires or the node boots.
+//! timer expires or the node boots. [`current`] reads what the node holds before planning.
 
 use std::{
     fmt::{self, Write as _},
@@ -370,5 +370,6 @@ impl Footprint {
     }
 }
 
+pub mod current;
 #[cfg(test)]
 mod tests;

@@ -12,19 +12,21 @@ use tokio::{
     task::AbortHandle,
 };
 use tracing::{Instrument as _, info, info_span, warn};
-use uniwrt_core::{Clock, JobId, NodeId, UserId};
+use uniwrt_core::{Clock, JobId, NodeId, RevisionId, UserId};
 use uniwrt_model::{
+    apply::ApplyPlan,
     discovery::DiscoveryReport,
     facts::NodeFacts,
     job::{Job, JobError, JobErrorCode, JobKind, NewJob},
     node::Node,
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
-use uniwrt_store::{JobRepo as _, NodeRepo as _, Store, Vault};
+use uniwrt_store::{JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault};
 
 use crate::{
     AdoptRequest, BoxFuture, Dial, Error, Result,
     adopt::{self, STEPS},
+    apply,
     discovery::Discovery,
     manage,
     progress::Progress,
@@ -40,6 +42,9 @@ const ADOPTIONS: usize = 4;
 pub trait Watch: Send + Sync + 'static {
     /// Watches a node just adopted, which shows `facts` until fresh ones arrive.
     fn watch(&self, node: Node, host_key: HostKey, facts: NodeFacts) -> BoxFuture<'_, ()>;
+
+    /// Watches a node at its new address (`node.host`), which an apply moved it to.
+    fn moved(&self, node: Node, host_key: HostKey) -> BoxFuture<'_, ()>;
 }
 
 /// What [`Jobs::start`] needs.
@@ -68,6 +73,7 @@ pub(crate) struct Shared {
     pub(crate) dial: Option<Arc<dyn Dial>>,
     pub(crate) watch: Arc<dyn Watch>,
     pub(crate) adoptions: Semaphore,
+    pub(crate) timing: apply::Timing,
     discovery: Discovery,
     updates: broadcast::Sender<Arc<Job>>,
     running: Mutex<Running>,
@@ -76,7 +82,7 @@ pub(crate) struct Shared {
 /// The jobs running now and the targets they hold.
 #[derive(Default)]
 struct Running {
-    tasks: BTreeMap<JobId, (String, AbortHandle)>,
+    tasks: BTreeMap<JobId, (Vec<String>, AbortHandle)>,
     targets: BTreeSet<String>,
 }
 
@@ -89,8 +95,10 @@ impl Shared {
     /// Releases a finished job's target.
     pub(crate) fn finished(&self, id: JobId) {
         let mut running = self.running();
-        if let Some((target, _)) = running.tasks.remove(&id) {
-            running.targets.remove(&target);
+        if let Some((keys, _)) = running.tasks.remove(&id) {
+            for key in keys {
+                running.targets.remove(&key);
+            }
         }
     }
 
@@ -102,6 +110,10 @@ impl Shared {
 impl Jobs {
     /// Fails the jobs that a stop interrupted, then accepts new ones.
     pub async fn start(config: JobsConfig) -> Result<Self> {
+        Self::start_with(config, apply::Timing::default()).await
+    }
+
+    pub(crate) async fn start_with(config: JobsConfig, timing: apply::Timing) -> Result<Self> {
         let interrupted = config.store.interrupt_jobs(interrupted()).await?;
         if interrupted > 0 {
             warn!(interrupted, "jobs were interrupted by the last stop");
@@ -116,6 +128,7 @@ impl Jobs {
                 dial: config.dial,
                 watch: config.watch,
                 adoptions: Semaphore::new(ADOPTIONS),
+                timing,
                 updates: broadcast::channel(UPDATES).0,
                 running: Mutex::default(),
             }),
@@ -145,10 +158,12 @@ impl Jobs {
             kind: JobKind::Adopt,
             target,
             node: None,
+            revision: None,
             created_by: by,
             steps: STEPS.to_vec(),
+            nodes: Vec::new(),
         };
-        self.spawn(key, job, |shared, progress| {
+        self.spawn(vec![key], job, |shared, progress| {
             adopt::run(shared, request, progress)
         })
         .await
@@ -167,25 +182,87 @@ impl Jobs {
             .await?
             .ok_or(Error::NoNode(node))?;
         let job = manage::job(&node, enable, by);
-        self.spawn(manage::target(node.id), job, move |shared, progress| {
-            manage::run(shared, node, enable, progress)
+        self.spawn(
+            vec![manage::target(node.id)],
+            job,
+            move |shared, progress| manage::run(shared, node, enable, progress),
+        )
+        .await
+    }
+
+    /// The plan of applying the site's latest revision now: what each node would get, read
+    /// fresh from the nodes. Nothing changes on them.
+    pub async fn plan(&self) -> Result<ApplyPlan> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let revision = self
+            .shared
+            .store
+            .head_revision()
+            .await?
+            .ok_or(Error::NoRevision)?;
+        let nodes = self.shared.store.nodes().await?;
+        apply::plan(&self.shared, &revision, nodes)
+            .await
+            .map_err(|err| Error::Failed(err.message))
+    }
+
+    /// Starts applying the site's latest revision, which must be `revision` (the one the user
+    /// reviewed), to every managed node, and returns the job as it starts. One apply at a
+    /// time, and none while another job runs on a managed node.
+    pub async fn apply(&self, revision: RevisionId, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let head = self
+            .shared
+            .store
+            .head_revision()
+            .await?
+            .ok_or(Error::NoRevision)?;
+        if head.meta.id != revision {
+            return Err(Error::Stale {
+                revision,
+                head: head.meta.id,
+            });
+        }
+        let nodes = self.shared.store.nodes().await?;
+        let job = apply::job(&head, &nodes, by);
+        let keys = std::iter::once(apply::TARGET.to_owned())
+            .chain(
+                nodes
+                    .iter()
+                    .filter(|node| node.mode == uniwrt_model::node::NodeMode::Managed)
+                    .map(|node| manage::target(node.id)),
+            )
+            .collect();
+        self.spawn(keys, job, move |shared, progress| {
+            apply::run(shared, head, nodes, progress)
         })
         .await
     }
 
-    /// Records a new job and runs it in its own task, holding `key` (its target) meanwhile.
-    async fn spawn<F, Fut>(&self, key: String, new: NewJob, run: F) -> Result<Job>
+    /// Records a new job and runs it in its own task, holding `keys` (its targets) meanwhile.
+    async fn spawn<F, Fut>(&self, keys: Vec<String>, new: NewJob, run: F) -> Result<Job>
     where
         F: FnOnce(Arc<Shared>, Progress) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        if !self.shared.running().targets.insert(key.clone()) {
-            return Err(Error::Busy { target: new.target });
+        {
+            let mut running = self.shared.running();
+            if keys.iter().any(|key| running.targets.contains(key)) {
+                return Err(Error::Busy { target: new.target });
+            }
+            running.targets.extend(keys.iter().cloned());
         }
         let job = match self.shared.store.create_job(new).await {
             Ok(job) => job,
             Err(err) => {
-                self.shared.running().targets.remove(&key);
+                let mut running = self.shared.running();
+                for key in &keys {
+                    running.targets.remove(key);
+                }
                 return Err(err.into());
             }
         };
@@ -204,7 +281,7 @@ impl Jobs {
             }
             .instrument(span),
         );
-        running.tasks.insert(job.id, (key, task.abort_handle()));
+        running.tasks.insert(job.id, (keys, task.abort_handle()));
         Ok(job)
     }
 

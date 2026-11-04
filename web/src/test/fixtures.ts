@@ -129,6 +129,7 @@ export function adoptJob(
     kind: "adopt",
     target: `root@${host}:22`,
     node: null,
+    revision: null,
     state: "running",
     steps: adoptSteps.map((name, i) => ({
       name,
@@ -137,6 +138,7 @@ export function adoptJob(
       started_at: i <= done ? 1 : null,
       finished_at: i < done ? 2 : null,
     })),
+    nodes: [],
     error: null,
     created_by: 1,
     started_at: 1,

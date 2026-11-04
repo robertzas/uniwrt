@@ -2,8 +2,10 @@
 import type { JobError } from "./JobError";
 import type { JobId } from "./JobId";
 import type { JobKind } from "./JobKind";
+import type { JobNode } from "./JobNode";
 import type { JobState } from "./JobState";
 import type { NodeId } from "./NodeId";
+import type { RevisionId } from "./RevisionId";
 import type { Step } from "./Step";
 import type { Timestamp } from "./Timestamp";
 import type { UserId } from "./UserId";
@@ -19,11 +21,19 @@ target: string,
 /**
  * The node it acts on; for an adoption, the node it adopted, once recorded.
  */
-node: NodeId | null, state: JobState, 
+node: NodeId | null, 
+/**
+ * The revision an apply applies.
+ */
+revision: RevisionId | null, state: JobState, 
 /**
  * Every step of the job, in order, the ones still to come as pending.
  */
-steps: Array<Step>, error: JobError | null, 
+steps: Array<Step>, 
+/**
+ * How far each node got, for a job on several (an apply); empty otherwise.
+ */
+nodes: Array<JobNode>, error: JobError | null, 
 /**
  * Who started it; `None` when the controller did.
  */

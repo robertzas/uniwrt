@@ -209,6 +209,8 @@ async fn alerts_during_a_job_are_silenced_and_resume_after_a_restart() {
         target: "root@10.0.0.3:22".to_owned(),
         node: Some(NODE),
         state: JobState::Running,
+        revision: None,
+        nodes: Vec::new(),
         steps: Vec::new(),
         error: None,
         created_by: None,

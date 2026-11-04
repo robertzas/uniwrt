@@ -43,6 +43,7 @@
 //!   wire-format examples for the simulator and the UI.
 
 pub mod alerts;
+pub mod apply;
 pub mod client;
 pub mod discovery;
 pub mod event;

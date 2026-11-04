@@ -198,6 +198,8 @@ async fn an_adoption_from_the_job_runner_is_an_event() {
         target: "root@192.0.2.2:22".into(),
         node: Some(NODE),
         state: JobState::Succeeded,
+        revision: None,
+        nodes: Vec::new(),
         steps: Vec::new(),
         error: None,
         created_by: None,

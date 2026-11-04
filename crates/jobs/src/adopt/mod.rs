@@ -245,7 +245,7 @@ async fn check(
     .await?;
     let release = check::release(&release).map_err(unsupported)?;
     let collected = remote
-        .collect()
+        .collect(&Set::ALL)
         .await
         .map_err(|err| node_error(&err, "The agent cannot collect the node's facts"))?;
     let mut facts = NodeFacts::default();

@@ -7,13 +7,7 @@ use crate::{Issue, Secrets, Target};
 use uniwrt_model::{
     facts::{NodeFacts, RadioFacts, Software, SwitchKind, SwitchLayout, WifiFeature},
     node::NodeRole,
-    site::{
-        SiteConfig,
-        gateway::WanProto,
-        network::{Network, Purpose},
-        node::NodeConfig,
-        wireless::Channel,
-    },
+    site::{SiteConfig, gateway::WanProto, network::Network, node::NodeConfig, wireless::Channel},
     wifi::Band,
 };
 
@@ -165,12 +159,7 @@ impl<'a> Plan<'a> {
             }
             _ => None,
         };
-        let mgmt = site
-            .networks
-            .iter()
-            .find(|n| n.purpose == Purpose::Mgmt)
-            .or_else(|| site.networks.iter().find(|n| n.purpose == Purpose::Default))
-            .map_or("lan", |n| n.id.as_str());
+        let mgmt = crate::management_network(site).map_or("lan", |n| n.id.as_str());
         if !errors.is_empty() {
             return Err(errors);
         }

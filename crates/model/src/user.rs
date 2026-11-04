@@ -69,6 +69,8 @@ pub enum AuditAction {
     Site,
     /// A user viewed a configuration secret (the detail names it and the revision).
     RevealSecret,
+    /// A user started applying a revision to the nodes (the detail names it and the job).
+    Apply,
 }
 
 /// One audit log entry.

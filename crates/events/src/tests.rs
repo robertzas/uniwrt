@@ -433,6 +433,8 @@ fn job(state: JobState) -> Job {
         target: "root@192.0.2.2:22".into(),
         node: Some(N2),
         state,
+        revision: None,
+        nodes: Vec::new(),
         steps: Vec::new(),
         error: None,
         created_by: None,

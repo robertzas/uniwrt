@@ -19,6 +19,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/alerts/mod.rs`: The alerts routes, with a session (features/observability.md, Alerts):
 - `src/alerts/rules.rs`: The alert rules, with a session (features/observability.md, Alerts):
 - `src/alerts/tests.rs`: The alerts routes over the demo's store and alert engine: alerts stored by hand, listed and acknowledged; the built-in rules edited, refused deletion and reset; a rule of the user's; maintenance windows.
+- `src/apply.rs`: Applying the site's configuration, with an admin's session (features/lifecycle.md, Render → diff → apply; D-069):
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
 - `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
@@ -158,6 +159,18 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
 - `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
+- `src/apply/address.rs`: Where the controller finds a node once an apply renumbers it (the owner's choice: follow the new address, features/lifecycle.md).
+- `src/apply/health.rs`: The health checks an apply verifies each node with (features/lifecycle.md, Render → diff → apply, step 4), relative to a baseline taken while planning (the owner's choice): a check that passed before must pass again, so a network that was already down doesn't block an apply, while what the change itself breaks rolls it back.
+- `src/apply/mod.rs`: The apply job (features/lifecycle.md, Render → diff → apply; D-012, D-069): applies the site's latest revision to every managed node as one fleet-wide two-phase commit.
+- `src/apply/order.rs`: The order an apply goes through its nodes: leaves → gateway (features/lifecycle.md, Plan), by wired and mesh hops from the gateway in the topology the nodes' facts describe, so that no node's change cuts the controller off from one not applied yet.
+- `src/apply/plan.rs`: One node's part of an apply, planned from what it reported (pure): render the revision, diff each package against the node's file (D-066: only a semantic change rewrites one), switch the services whose start at boot differs, find where the controller will reach it, and mask secrets for the review screen.
+- `src/apply/plan_tests.rs`: Planning a node's part from what it reports, on the facts of OpenWrt 24.10 in a container.
+- `src/apply/run.rs`: The transaction phases of an apply, after the survey (features/lifecycle.md, Render → diff → apply, steps 3–5): stage and check on every node, apply leaves → gateway with the dead-man timers armed, verify every node at once over new connections, then confirm all; any failure before a confirm rolls every applied node back.
+- `src/apply/survey.rs`: Surveying the managed nodes for an apply: log in to each (with the controller's key, against the pinned host key), read what it holds (packages, services, facts, and on the gateway its DNS), and plan its part.
+- `src/apply/tests/facts.rs`: Facts for the apply's unit tests, built field by field.
+- `src/apply/tests/fleet.rs`: A scripted fleet for the apply job: each node answers at its addresses with the simulated transaction tool (`uniwrt_sim::txn`), the agent's collect from a 24.10 container, and its dnsmasq's answers; faults break it once a transaction is open.
+- `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
+- `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
@@ -187,6 +200,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 
 - `src/alerts/mod.rs`: Alerts (features/observability.md, Alerts): a rule firing for one subject (a node, a radio, a client, a link, the site) until it resolves on its own.
 - `src/alerts/rule.rs`: Alert rules: when an alert fires.
+- `src/apply.rs`: An apply's plan (features/lifecycle.md, Render → diff → apply): what applying a revision would change on each node, for the review screen, before anything changes.
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
@@ -203,7 +217,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
-- `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one or enabling its management, recorded as history.
+- `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes, what it records about them, and the network it should make of them.
 - `src/log.rs`: Log entries (observability.md, Logs): what nodes log, read through the node agent or received by syslog, and what other hosts send by syslog; stored as [`LogRecord`]s, found with a [`LogFilter`], counted in [`LogBucket`]s, explained by [`LogPattern`]s, and kept as [`SavedSearch`]es.
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
@@ -283,6 +297,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/ssh/mod.rs`: SSH sessions with nodes: connecting directly or through a jump session (`direct-tcpip`), checking the host key against its pin, authenticating, and running commands.
 - `src/supervisor.rs`: [`SshLink`]: one node's connection, kept up by a task that reconnects with jittered backoff and restarts the agent, and that serves [`NodeLink`] from whatever session is current.
 - `src/txn.rs`: Transactions on a node (features/lifecycle.md, Render → diff → apply; D-012, D-069): the commands of the transaction tool, `node-agent/txn/txn`, which managed nodes keep as [`TOOL`], and the [`Footprint`] that enabling management installs (the tool and `/etc/init.d/uniwrt-guard`).
+- `src/txn/current.rs`: What a node holds now, read right before rendering and diffing (features/lifecycle.md, Render → diff → apply): its UCI packages ([`packages`]) and whether its services start at boot ([`services`]).
 - `src/txn/tests.rs`: (no header comment)
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
@@ -386,7 +401,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
-- `src/render/commands.rs`: The commands adoption runs on a node (features/adoption.md, Path A), answered as OpenWrt would: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`; and those that switch management (the transaction tool's status, its install and its removal, D-069).
+- `src/render/commands.rs`: The commands the jobs run on a node, answered as OpenWrt would: adoption's (features/adoption.md, Path A: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`), the transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and the gateway's DNS check (`nslookup`).
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
@@ -397,6 +412,8 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/tests.rs`: Every rendered set and push, through the node crate's parsers: what a simulated node reports must read as a real one's does, and agree with the world.
 - `src/render/wifi.rs`: The sets `radios` (netifd's wireless status, nl80211 interfaces and surveys), `stations` (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim capture's wiphys).
 - `src/rng.rs`: [`Rng`]: `xoshiro256**` seeded through `SplitMix64`.
+- `src/txn.rs`: The transaction tool as a node runs it (`node-agent/txn/txn`; features/lifecycle.md, Render → diff → apply, D-069), with the node's `/etc/config` files and init scripts: the simulated fleet runs it, and the jobs' tests drive it through their scripted nodes.
+- `src/txn/tests.rs`: The simulated tool answers the node crate's commands as the real one does.
 - `src/world/catalog.rs`: What the simulated fleet is made of: hardware models, firmware releases, the house's places and the kinds of client, each with how it moves, what it supports and how much it talks.
 - `src/world/clients.rs`: The clients' second: fading, walking, leaving and coming back, choosing an access point (5 GHz while it is good, roaming only once the current one is clearly worse), traffic, and renewing leases at half their time.
 - `src/world/layout.rs`: Building the world from a [`SimConfig`]: the gateway and the access points at their places, then the clients dealt from the deck, settled where they would be after a while.
@@ -420,6 +437,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/adoption.rs`: Adopting a node in one transaction ([`NodeRepo::adopt_node`]), and [`InventoryRepo`] on SQLite: the `node_inventory` and `node_backups` tables.
 - `src/repo/alerts.rs`: [`AlertRepo`] on SQLite: the `alert_rules`, `alerts` and `maintenance_windows` tables.
 - `src/repo/alerts_tests.rs`: Alerts over a real database: rules and presets, the engine's writes by rule and subject, filters and pages, what the engine resumes, acknowledgements, retention, and maintenance windows.
+- `src/repo/applies.rs`: [`ApplyRepo`] on SQLite: the `node_applied` table, and the nodes' addresses an apply moved.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
 - `src/repo/events.rs`: [`EventRepo`] on SQLite: the `events` table.
@@ -549,7 +567,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (260 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (275 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

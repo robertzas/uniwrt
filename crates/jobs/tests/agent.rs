@@ -33,6 +33,10 @@ impl Watch for Watched {
         self.0.lock().unwrap().push(node);
         Box::pin(async {})
     }
+
+    fn moved(&self, _node: Node, _host_key: HostKey) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 async fn run(session: &Session, argv: &[&str]) -> String {

@@ -43,7 +43,7 @@ flowchart TB
 - **HTTP server** (axum): REST under `/api/v1`, a WebSocket at `/api/v1/ws`, the embedded UI and the ZTP endpoints.
 - **Engine:** one **NodeActor** (tokio task) per node. It follows the node's link and agent, keeps its live facts and status, sends its telemetry requests one at a time, and is restarted with backoff if it panics (D-037).
 - **Event bus:** tokio broadcast of typed `Event`s. Consumers are the WS hub, the metrics writer, the alert engine and the store.
-- **Job runner** (`jobs` crate): orchestrations on nodes (adopt, manage and unmanage now; apply, upgrade, rf-apply and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target.
+- **Job runner** (`jobs` crate): orchestrations on nodes (adopt, manage, unmanage and apply now; upgrade, rf-apply and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target; an apply holds every managed node.
 - **Store:** SQLite in WAL mode, with one batched writer task and a read pool.
 - **Syslog receiver** (`syslog` crate): UDP and TCP listeners (5514; `--syslog-listen`) → parser → the engine's log recorder, which also stores what the agents follow (D-059), annotates, and announces stored entries for the WS topic `logs`.
 - **Schedulers:** retention, backups, the RF optimizer, firmware checks and alert evaluation.
@@ -68,10 +68,10 @@ flowchart TB
 | L1 | `firmware` | release catalog, ASU client, image cache and verification | core, model |
 | L1 | `notify` | notifiers: alerts in words, rendered for ntfy, webhooks (Discord, Slack, Teams, Home Assistant, uniwrt's JSON, the user's template) and email; delivery over HTTP(S) (hyper, rustls, Mozilla's roots) and SMTP (lettre); the policy of what to send when (D-063) | core, model |
 | L2 services | `engine` | node actors, telemetry ingest, live state and topology, event bus, alerts, schedulers | L0, L1 |
-| L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7), manage and unmanage (M3.4a1); apply, upgrade, rf-apply, backup later | L0, L1 |
+| L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7), manage and unmanage (M3.4a1), apply (M3.4a2a: plan, stage, apply, verify, confirm across the fleet); upgrade, rf-apply, backup later | L0, L1 |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
-| test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands adoption runs; `serve --demo` and tests (D-038, D-048) | core, model, node |
+| test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands the jobs run (adoption's, and the transaction tool with `/etc/config` in `uniwrt_sim::txn`, which the jobs' tests drive too); `serve --demo` and tests (D-038, D-048) | core, model, node |
 | test | `system` | the system harness: rendered configs on OpenWrt containers through `docker exec` (the agent's facts, write and read back, netifd, the bridge); `tests/system.rs` on `scripts/test-system.sh`'s wired topology, `tests/wifi.rs` on the hwsim lab (M3.3b) | core, model, node, render, uci |
 
 Rules:
@@ -169,7 +169,7 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 |---|---|
 | Controller down | The network is unaffected and steering stops changing. TCP syslog reconnects; nodes resync when the controller returns. |
 | SSH session drops | The actor reconnects. In-flight RPCs fail fast and the telemetry gap is flagged in the UI. |
-| An apply breaks connectivity | The node rolls back itself when the dead-man timer expires. The job is marked failed and the node stays locked until it is reachable again. |
+| An apply breaks connectivity | The node rolls back itself when the dead-man timer expires; the job rolls back the others and fails (D-070). |
 | Node reboots mid-transaction | The boot guard restores the snapshot. |
 | Host key changes | The node is quarantined and an alert is raised; an admin must re-trust it. |
 | Telemetry stops while the link is up | After three of its fastest intervals (at least 30 s) the node is degraded, and the engine asks the agent for its pushes again (D-037). |

@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use tracing::warn;
-use uniwrt_core::NodeId;
-use uniwrt_model::job::{Job, JobError, JobState, StepName, StepState};
+use uniwrt_core::{JobId, NodeId};
+use uniwrt_model::job::{Job, JobError, JobNodeState, JobState, StepName, StepState};
 use uniwrt_store::JobRepo as _;
 
 use crate::runner::Shared;
@@ -45,6 +45,32 @@ impl Progress {
             step.finished_at = Some(now);
         }
         self.save().await;
+    }
+
+    pub(crate) fn job_id(&self) -> JobId {
+        self.job.id
+    }
+
+    /// Moves a node of a job on several to `state`, with what happened.
+    pub(crate) async fn node(
+        &mut self,
+        node: NodeId,
+        state: JobNodeState,
+        detail: impl Into<String>,
+    ) {
+        if let Some(entry) = self.job.nodes.iter_mut().find(|entry| entry.node == node) {
+            entry.state = state;
+            entry.detail = Some(detail.into());
+        }
+        self.save().await;
+    }
+
+    pub(crate) fn node_state(&self, node: NodeId) -> Option<JobNodeState> {
+        self.job
+            .nodes
+            .iter()
+            .find(|entry| entry.node == node)
+            .map(|entry| entry.state)
     }
 
     pub(crate) fn set_node(&mut self, node: NodeId) {

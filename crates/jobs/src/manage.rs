@@ -41,8 +41,10 @@ pub(crate) fn job(node: &Node, enable: bool, by: Option<UserId>) -> NewJob {
         },
         target: node.name.clone(),
         node: Some(node.id),
+        revision: None,
         created_by: by,
         steps: if enable { MANAGE } else { UNMANAGE }.to_vec(),
+        nodes: Vec::new(),
     }
 }
 

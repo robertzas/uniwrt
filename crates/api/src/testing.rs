@@ -89,6 +89,10 @@ impl Watch for NoWatch {
     fn watch(&self, _: Node, _: HostKey, _: NodeFacts) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+
+    fn moved(&self, _: Node, _: HostKey) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 /// [`api`] whose jobs reach nodes with `dial`; `None` reaches nothing.

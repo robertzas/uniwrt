@@ -3,6 +3,7 @@
 
 mod adoption;
 mod alerts;
+mod applies;
 mod audit;
 mod clients;
 mod events;
@@ -30,6 +31,7 @@ use uniwrt_model::{
         Acknowledgement, AlertFilter, AlertRecord, AlertRule, AlertWrite, MaintenanceWindow,
         NewWindow, RuleSpec,
     },
+    apply::{Applied, AppliedRevision},
     client::{ClientRecord, ClientSession},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
@@ -48,6 +50,16 @@ use zeroize::Zeroizing;
 pub use adoption::Adoption;
 
 use crate::{Result, SealedSecret};
+
+/// The revision each node holds (features/lifecycle.md, Render → diff → apply).
+pub trait ApplyRepo: Send + Sync {
+    /// Records that `applied.nodes` hold `applied.revision`, and moves each whose address
+    /// changed, all or nothing. A node removed meanwhile is left out.
+    fn record_applied(&self, applied: Applied) -> impl Future<Output = Result<()>> + Send;
+
+    /// The revision each node holds, by node id.
+    fn applied_revisions(&self) -> impl Future<Output = Result<Vec<AppliedRevision>>> + Send;
+}
 
 /// The node inventory.
 pub trait NodeRepo: Send + Sync {

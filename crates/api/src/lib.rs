@@ -12,7 +12,8 @@
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
-//!   on or off, a job), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   on or off, a job), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
+//!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -62,6 +63,7 @@
 
 mod adopt;
 mod alerts;
+mod apply;
 pub mod auth;
 mod client;
 mod clients;
@@ -101,6 +103,7 @@ pub use alerts::{
     maintenance::WindowList,
     rules::{RuleList, RuleView},
 };
+pub use apply::ApplyBody;
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
@@ -140,6 +143,9 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
         .route("/v1/nodes/{id}/management", put(management::put))
+        .route("/v1/apply", post(apply::start))
+        .route("/v1/apply/plan", get(apply::plan))
+        .route("/v1/apply/applied", get(apply::applied))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))

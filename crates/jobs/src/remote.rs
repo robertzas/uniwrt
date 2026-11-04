@@ -7,7 +7,7 @@ use tokio::sync::{OnceCell, broadcast};
 use uniwrt_node::{
     Agent, AgentLaunch, Credential, ExecOutput, ExecRequest, HELLO_TIMEOUT, HostKey, Result,
     Session, SshConfig, Target,
-    proto::ops::{Collect, Collected, Op as _},
+    proto::ops::{Collect, Collected, Op as _, Set},
 };
 
 /// A boxed future, so that the traits stay dyn-compatible.
@@ -41,8 +41,8 @@ pub trait Dial: Send + Sync + 'static {
 pub trait Remote: Send + Sync {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>>;
 
-    /// Every collect set, from the agent, which starts on first use (installed into `/tmp`).
-    fn collect(&self) -> BoxFuture<'_, Result<Collected>>;
+    /// The collect `sets`, from the agent, which starts on first use (installed into `/tmp`).
+    fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>>;
 
     /// Logs out; the agent, if started, exits with it.
     fn close(&self) -> BoxFuture<'_, ()>;
@@ -91,7 +91,7 @@ impl Remote for SshRemote {
         Box::pin(async move { self.session.exec(&request).await })
     }
 
-    fn collect(&self) -> BoxFuture<'_, Result<Collected>> {
+    fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
         Box::pin(async move {
             let agent = self
                 .agent
@@ -103,8 +103,10 @@ impl Remote for SshRemote {
                         .await
                 })
                 .await?;
-            let args = serde_json::value::to_raw_value(&Collect::all())
-                .map_err(|err| uniwrt_node::Error::Protocol(err.to_string()))?;
+            let args = serde_json::value::to_raw_value(&Collect {
+                sets: sets.to_vec(),
+            })
+            .map_err(|err| uniwrt_node::Error::Protocol(err.to_string()))?;
             let answer = agent.call(Collect::NAME, &args, COLLECT_TIMEOUT).await?;
             serde_json::from_str(answer.get()).map_err(|err| {
                 uniwrt_node::Error::Protocol(format!("unexpected answer to collect: {err}"))

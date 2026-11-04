@@ -344,16 +344,29 @@ pub(crate) struct Watcher {
     pub(crate) demo: Option<Arc<DemoDial>>,
 }
 
+impl Watcher {
+    fn link(&self, node: &Node, host_key: HostKey) -> FleetLink {
+        match self.demo.as_ref().and_then(|demo| demo.link(&node.host)) {
+            Some(link) => FleetLink::Sim(link),
+            None => FleetLink::Ssh(ssh_link(node, host_key, &self.key, &self.clock)),
+        }
+    }
+}
+
 impl Watch for Watcher {
     fn watch(&self, node: Node, host_key: HostKey, facts: NodeFacts) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            let link = match self.demo.as_ref().and_then(|demo| demo.link(&node.host)) {
-                Some(link) => FleetLink::Sim(link),
-                None => FleetLink::Ssh(ssh_link(&node, host_key, &self.key, &self.clock)),
-            };
+            let link = self.link(&node, host_key);
             self.engine
                 .add(node.id, (&node).into(), link, Some(facts))
                 .await;
+        })
+    }
+
+    fn moved(&self, node: Node, host_key: HostKey) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            let link = self.link(&node, host_key);
+            self.engine.add(node.id, (&node).into(), link, None).await;
         })
     }
 }

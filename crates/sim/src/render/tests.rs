@@ -208,8 +208,8 @@ fn raw(value: &Value) -> Arc<serde_json::value::RawValue> {
 fn adoption_s_commands_answer_as_on_openwrt() {
     let world = world();
     let run = |node: usize, argv: &[&str], disk: &mut Disk| {
-        let argv: Vec<String> = argv.iter().map(|&arg| arg.to_owned()).collect();
-        super::commands::exec(&world.nodes[node], &argv, disk)
+        let request = uniwrt_node::ExecRequest::new(argv.iter().copied());
+        super::commands::exec(&world.nodes[node], &request, disk, world.now_ms())
     };
     let mut keys = Disk::default();
     let release = run(0, &["cat", "/etc/openwrt_release"], &mut keys);
@@ -262,7 +262,7 @@ fn management_installs_and_removes_the_transaction_tool() {
     let world = world();
     let mut disk = Disk::default();
     let mut run = |command: &uniwrt_node::ExecRequest| {
-        super::commands::exec(&world.nodes[1], &command.argv, &mut disk)
+        super::commands::exec(&world.nodes[1], command, &mut disk, world.now_ms())
     };
     let status = txn::status();
     assert_eq!(status.parse(run(&status.request)).unwrap(), None);

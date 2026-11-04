@@ -5,7 +5,8 @@
 //!   controller key, a [`Dial`] to reach nodes and a [`Watch`] to start watching them);
 //!   [`Jobs::probe`] reads a node's host key for the user to confirm; [`Jobs::adopt`] starts
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
-//!   [`Jobs::manage`] switches a node's management on or off (D-069);
+//!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::plan`] plans
+//!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
 //!   them. [`SshDial`] reaches nodes over SSH; [`Remote`] is one login. Errors are [`Error`];
@@ -18,6 +19,13 @@
 //! - **Management** steps: connect (the controller's key, the pinned host key) → install the
 //!   transaction tool and the guard unless that version is there (or remove them) → record the
 //!   mode. An open transaction on the node fails the job before anything changes.
+//! - **Apply** steps (`apply/`): connect (every managed node) → plan (read each node's packages,
+//!   services, facts and DNS at once; render; diff; any refused node stops it) → stage → apply
+//!   (leaves → gateway, dead-man timers armed) → verify (all at once, over new logins at the
+//!   address each moves to, health against the baseline) → confirm → record (the revision each
+//!   node holds; renumbered nodes moved and watched again). A failure before a confirm rolls
+//!   every applied node back; a later lost confirm is a partial apply. It holds every managed
+//!   node's key.
 //! - **Discovery:** the devices in the adopted nodes' DHCP leases, IPv4 neighbors (not on WAN)
 //!   and batman-adv meshes, less the adopted nodes, probed on port 22 (the banner, then the
 //!   host key of dropbear servers and of hosts named `OpenWrt` or `uniwrt-*`; never a login),
@@ -30,13 +38,17 @@
 //!   ones, at shutdown or else at the next start. Passwords are zeroized and never logged or
 //!   kept in jobs.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (SSH, the agent, the facts
-//!   parsers), `uniwrt-store` (jobs, adoption, the vault), tokio, `zeroize`.
+//!   parsers, the transaction tool), `uniwrt-render`, `uniwrt-uci`, `uniwrt-topo` (the apply's
+//!   order), `uniwrt-store` (jobs, adoption, the vault, applied revisions), tokio,
+//!   `futures-util`, `zeroize`.
 //! - **Tests:** unit tests of the parsers and checks; `discovery/tests.rs` discovers over
 //!   scripted facts and a scripted [`Dial`]; `adopt/tests.rs` and `manage_tests.rs` run
-//!   jobs over the scripted node of `testing.rs` and a temporary store; `tests/agent.rs` adopts OpenWrt in a container
+//!   jobs over the scripted node of `testing.rs` and a temporary store; `apply/tests/` applies
+//!   over a scripted fleet running `uniwrt_sim::txn`; `tests/agent.rs` adopts OpenWrt in a container
 //!   (`just test-agent`).
 
 mod adopt;
+mod apply;
 mod discovery;
 mod errors;
 mod manage;
@@ -64,6 +76,16 @@ pub enum Error {
     Busy { target: String },
     #[error("there is no node {0}")]
     NoNode(uniwrt_core::NodeId),
+    #[error("the site has no revision yet")]
+    NoRevision,
+    /// The revision to apply is no longer the latest.
+    #[error("revision {revision} is not the latest: {head} is")]
+    Stale {
+        revision: uniwrt_core::RevisionId,
+        head: uniwrt_core::RevisionId,
+    },
+    #[error("{0}")]
+    Failed(String),
     #[error(transparent)]
     Node(#[from] uniwrt_node::Error),
     #[error(transparent)]

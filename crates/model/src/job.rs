@@ -1,9 +1,9 @@
 //! Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as
-//! adopting one or enabling its management, recorded as history. Applying changes, upgrades and
-//! backups come later.
+//! adopting one, enabling its management or applying the site's configuration, recorded as
+//! history. Upgrades and backups come later.
 
 use serde::{Deserialize, Serialize};
-use uniwrt_core::{JobId, NodeId, Timestamp, UserId};
+use uniwrt_core::{JobId, NodeId, RevisionId, Timestamp, UserId};
 
 /// A job and how far it got.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,9 +15,15 @@ pub struct Job {
     pub target: String,
     /// The node it acts on; for an adoption, the node it adopted, once recorded.
     pub node: Option<NodeId>,
+    /// The revision an apply applies.
+    #[serde(default)]
+    pub revision: Option<RevisionId>,
     pub state: JobState,
     /// Every step of the job, in order, the ones still to come as pending.
     pub steps: Vec<Step>,
+    /// How far each node got, for a job on several (an apply); empty otherwise.
+    #[serde(default)]
+    pub nodes: Vec<JobNode>,
     pub error: Option<JobError>,
     /// Who started it; `None` when the controller did.
     pub created_by: Option<UserId>,
@@ -32,8 +38,44 @@ pub struct NewJob {
     pub target: String,
     /// The node it acts on, when known from the start (not for an adoption).
     pub node: Option<NodeId>,
+    pub revision: Option<RevisionId>,
     pub created_by: Option<UserId>,
     pub steps: Vec<StepName>,
+    pub nodes: Vec<JobNode>,
+}
+
+/// One node of a job on several.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct JobNode {
+    pub node: NodeId,
+    pub name: String,
+    pub state: JobNodeState,
+    /// What happened to it last, for people.
+    pub detail: Option<String>,
+}
+
+/// Where a node of an apply stands (features/lifecycle.md, Render → diff → apply).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum JobNodeState {
+    Pending,
+    /// It holds the revision's configuration already.
+    Unchanged,
+    /// Not managed: the apply leaves it alone.
+    Skipped,
+    /// Its transaction is staged and checked; nothing changed yet.
+    Staged,
+    /// Its transaction is applied, with the dead-man timer armed.
+    Applied,
+    /// It passed its health checks.
+    Verified,
+    Confirmed,
+    /// Its transaction rolled back, or never applied: it holds what it had.
+    RolledBack,
+    /// It failed; the job's error says how.
+    Failed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -46,6 +88,8 @@ pub enum JobKind {
     Manage,
     /// Back to observe mode: removing them.
     Unmanage,
+    /// Applying a revision of the site's configuration to the managed nodes (D-012, D-069).
+    Apply,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -106,6 +150,16 @@ pub enum StepName {
     InstallTool,
     /// Remove them, leaving the node's configuration as it is.
     RemoveTool,
+    /// Read each node's packages and facts, render the revision, and diff.
+    Plan,
+    /// Stage each node's transaction and check it there.
+    Stage,
+    /// Apply every transaction, each with its dead-man timer armed.
+    Apply,
+    /// Check each node's health over a new connection.
+    Verify,
+    /// Confirm every transaction.
+    Confirm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -146,6 +200,13 @@ pub enum JobErrorCode {
     NodeFailed,
     /// The controller stopped while the job ran.
     Interrupted,
+    /// The plan has issues (render refused a node, or a managed node is unreachable): nothing
+    /// changed.
+    Refused,
+    /// An apply failed before any confirm: every node rolled back (or will at its deadline).
+    RolledBack,
+    /// Some nodes confirmed and others rolled back: the network is split between revisions.
+    PartialApply,
     /// Something failed in the controller; its log has the cause.
     Internal,
 }
