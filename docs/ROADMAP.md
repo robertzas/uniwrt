@@ -113,7 +113,10 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
   - [x] **M3.4b Review & apply UI** (D-071). Split: b1 | b2.
     - [x] **M3.4b1 Device config & live state:** the device page's Config tab: management on/off (confirmed, followed live) and choosing a node's managed packages (empty by default, so an apply leaves a node alone until some are chosen); the WS topic `config` (latest revision, each node's applied revision); node records refreshed after node jobs; demo mode's first revision from the simulated network (192.168.1.0/24, its SSID and mesh), its nodes manageable.
     - [x] **M3.4b2 Review & apply:** the pending-changes tray in the top bar, the review page `/changes` (per-node diffs with secrets masked, impact summary, refused and skipped nodes), apply with live progress per node, history and rollback (restore a revision, discard to the last applied).
-- [ ] **M3.5 Brownfield import & drift** (L): lossless import, raw overrides, per-node managed-package toggles, drift detection; the review UI shows raw overrides and drift.
+- [ ] **M3.5 Brownfield import & drift** (L; D-072): lossless import, raw overrides, per-node managed-package toggles (done in M3.4b1), drift detection; the review UI shows raw overrides and drift. Split: a | b | c.
+  - [x] **M3.5a Import engine:** `uniwrt-import` (pure): the nodes' UCI → the site (settings, networks, WAN, firewall policy, DNS, WLANs, mesh, radios), raw sections whole or merged (`RawSection.merge`, `uniwrt_render::raw::key`), the residual and a confidence score; round trips on the sim's fleet (`uniwrt_sim::brownfield`), OpenWrt's stock configs, the hwsim gateway and render's golden sites.
+  - [ ] **M3.5b Import flow:** the API to preview an import of the adopted nodes (the site's changes, per node its confidence, raw sections and residual) and accept it as a revision (secrets sealed); the UI for it; the review shows a node's raw overrides; the demo imports its fleet.
+  - [ ] **M3.5c Drift:** the agent's config hashes (a collect set on a slow tick), the hashes the controller confirmed, drift events with a diff, and import, overwrite (re-apply) or ignore per package; drift in the review and on the device page.
 
 ## M4 — Gateway: WAN, LAN and firewall ("own the primary router")
 

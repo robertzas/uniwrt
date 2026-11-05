@@ -6,7 +6,8 @@
 //!   holds now. It gives a [`Rendered`]: one [`Package`] per managed package (D-011), the
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
 //!   being rendered. Packages render in the order `system`, `network`, `wireless`, `dhcp`,
-//!   `firewall`; the node's raw sections are merged last ([`raw`](mod@raw)).
+//!   `firewall`; the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
 //!   network's interface sits on `br-lan.<vid>`, Ethernet ports and `bat0` are trunks (the
@@ -45,7 +46,7 @@ mod mesh;
 mod network;
 mod plan;
 mod preserve;
-mod raw;
+pub mod raw;
 mod switch;
 mod system;
 mod wan;
@@ -116,6 +117,12 @@ pub fn uplink_section(name: &str) -> bool {
     name.starts_with("wan") || name == plan::BAT || name == mesh::MESH_IFACE
 }
 
+pub use self::{
+    firewall::seeded,
+    mesh::MESH_IFACE,
+    plan::{BAT, BRIDGE},
+};
+
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
 pub const RENDERABLE: [ManagedPackage; 5] = [
     ManagedPackage::System,
@@ -176,7 +183,7 @@ pub fn render(
         };
         let mut rendered = rendered;
         preserve::carry_over(&mut rendered, target.current);
-        raw::merge(&mut rendered, &config.raw);
+        raw::merge(&mut rendered, &config.raw, &mut plan.warnings);
         if let Err(invalid) = rendered.validate() {
             errors.push(Issue::new(
                 "node",

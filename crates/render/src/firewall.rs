@@ -76,6 +76,13 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
 }
 
 /// Networks whose clients reach the gateway and every other network.
+/// Whether a network of `purpose` may reach another network (or with `to_wan` the WAN) before
+/// the site's policy overrides the cell: trusted networks reach everything, the others only
+/// the WAN, and the WAN reaches nothing.
+pub const fn seeded(purpose: Purpose, to_wan: bool) -> bool {
+    trusted(purpose) || to_wan
+}
+
 const fn trusted(purpose: Purpose) -> bool {
     matches!(purpose, Purpose::Default | Purpose::Mgmt)
 }
@@ -96,10 +103,7 @@ pub(crate) fn matrix<'p>(plan: &'p Plan<'_>) -> Vec<(&'p str, &'p str)> {
             if from == to {
                 continue;
             }
-            let seeded = match purpose {
-                Some(purpose) => trusted(purpose) || to == WAN,
-                None => false,
-            };
+            let seeded = purpose.is_some_and(|purpose| seeded(purpose, to == WAN));
             let allowed = plan
                 .site
                 .firewall

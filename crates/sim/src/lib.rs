@@ -43,6 +43,7 @@
     clippy::cast_possible_wrap
 )]
 
+mod brownfield;
 mod fleet;
 mod link;
 mod render;
@@ -52,6 +53,7 @@ mod world;
 
 use std::time::Duration;
 
+pub use brownfield::{Brownfield, brownfield};
 pub use fleet::{SimFleet, SimNode};
 pub use link::SimLink;
 pub use render::{

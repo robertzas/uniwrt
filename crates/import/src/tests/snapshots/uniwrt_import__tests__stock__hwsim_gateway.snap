@@ -1,0 +1,78 @@
+---
+source: crates/import/src/tests/stock.rs
+expression: summary(&import)
+---
+# 1 — confidence 81%
+kept [packet_steering] network.globals (globals)
+kept [peerdns, dns] network.wan (interface)
+raw network.wan6rd (interface)
+network.mesh (interface) → uw_mesh
+kept [cell_density] wireless.radio0 (wifi-device)
+kept [ieee80211r, mobility_domain, ft_over_ds, ft_psk_generate_local, ieee80211k, bss_transition] wireless.uw_home_2g (wifi-iface)
+kept [ieee80211r, mobility_domain] wireless.uw_home_5g (wifi-iface)
+kept [server] dhcp.@ (dnsmasq)
+kept [network] firewall.@ (zone)
+raw firewall.@ (rule)
+raw firewall.iot_dns (rule)
+raw firewall.@ (redirect)
+raw firewall.uniwrt (include)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ system.ntp
+    enable_server: '0' → '1'
+~ network.@device[0]
+    ports: 'lan1' 'lan2' 'lan3' 'bat0' → 'lan1' 'lan2' 'lan3' 'lan4' 'lan5' 'bat0'
+~ network.@bridge-vlan[0]
+    ports: 'lan1:u*' 'lan2:u*' 'lan3:t' 'bat0:t' → 'lan1:u*' 'lan2:u*' 'lan3:u*' 'lan4:u*' 'lan5:u*' 'bat0:u*'
+~ network.@bridge-vlan[1]
+    ports: 'lan3:t' 'bat0:t' → 'lan1:t' 'lan2:t' 'lan3:t' 'lan4:t' 'lan5:t' 'bat0:t'
+~ network.@bridge-vlan[2]
+    ports: 'lan3:t' 'bat0:t' → 'lan1:t' 'lan2:t' 'lan3:t' 'lan4:t' 'lan5:t' 'bat0:t'
+~ network.guest
+    ipaddr: '10.0.20.1' → '10.0.20.1/24'
+    netmask: '255.255.255.0' → ∅
+~ network.bat0
+    distributed_arp_table: ∅ → '1'
+    multicast_mode: ∅ → '1'
+    orig_interval: ∅ → '1000'
+    aggregated_ogms: ∅ → '1'
+    fragmentation: ∅ → '1'
+~ network.uw_mesh
+    mtu: '1536' → '1532'
+~ network.wan6rd (moved)
+~ wireless.uw_home_2g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_guest_2g (moved)
+~ wireless.uw_home_5g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_mesh
+    mesh_rssi_threshold: '0' → '-80'
+~ dhcp.@dnsmasq[0]
+    boguspriv: ∅ → '1'
+    filterwin2k: ∅ → '0'
+    nonegcache: ∅ → '0'
+    resolvfile: ∅ → '/tmp/resolv.conf.d/resolv.conf.auto'
+    nonwildcard: ∅ → '1'
+~ dhcp.lan
+    force: ∅ → '1'
+    ra_slaac: ∅ → '1'
+    ra_flags: 'managed-config' 'other-config' → 'other-config'
+~ dhcp.guest
+    force: ∅ → '1'
+    dhcpv4: ∅ → 'server'
++ dhcp.iot interface='iot' ignore='1'
+~ firewall.@zone[3]
+    network: 'wan' 'wan6rd' → 'wan' 'wan6' 'wan6rd'
+    forward: 'REJECT' → 'DROP'
+~ firewall.@forwarding[0] (moved)
++ firewall.@rule[2] name='Allow-IGMP' src='wan' proto='igmp' family='ipv4' target='ACCEPT'
++ firewall.@rule[3] name='Allow-DHCPv6' src='wan' proto='udp' dest_port='546' family='ipv6' target='ACCEPT'
++ firewall.@rule[4] name='Allow-MLD' src='wan' proto='icmp' src_ip='fe80::/10' icmp_type='130/0' '131/0' '132/0' '143/0' family='ipv6' target='ACCEPT'
++ firewall.@rule[5] name='Allow-ICMPv6-Input' src='wan' proto='icmp' icmp_type='echo-request' 'echo-reply' 'destination-unreachable' 'packet-too-big' 'time-exceeded' 'bad-header' 'unknown-header-type' 'router-solicitation' 'neighbour-solicitation' 'router-advertisement' 'neighbour-advertisement' limit='1000/sec' family='ipv6' target='ACCEPT'
++ firewall.@rule[6] name='Allow-ICMPv6-Forward' src='wan' dest='*' proto='icmp' icmp_type='echo-request' 'echo-reply' 'destination-unreachable' 'packet-too-big' 'time-exceeded' 'bad-header' 'unknown-header-type' limit='1000/sec' family='ipv6' target='ACCEPT'
++ firewall.@rule[7] name='Allow-IPSec-ESP' src='wan' dest='lan' proto='esp' target='ACCEPT'
++ firewall.@rule[8] name='Allow-ISAKMP' src='wan' dest='lan' dest_port='500' proto='udp' target='ACCEPT'
++ firewall.@rule[9] name='Allow-guest-DHCP' src='guest' proto='udp' dest_port='67' family='ipv4' target='ACCEPT'
++ firewall.@rule[10] name='Allow-guest-DNS' src='guest' proto='tcp' 'udp' dest_port='53' target='ACCEPT'
++ firewall.@rule[11] name='Allow-iot-DHCP' src='iot' proto='udp' dest_port='67' family='ipv4' target='ACCEPT'
++ firewall.@rule[12] name='Allow-iot-DNS' src='iot' proto='tcp' 'udp' dest_port='53' target='ACCEPT'

@@ -82,7 +82,7 @@ Keeping costs 0.05 × D per request, where D is the context the next work won't 
 ## Repo layout (target; directories are created as their WPs start)
 
 ```
-crates/      Rust workspace. Pure: core, model, uci, render, topo, clients, rf, isp · adapters: store, node, syslog, firmware
+crates/      Rust workspace. Pure: core, model, uci, render, import, topo, clients, rf, isp · adapters: store, node, syslog, firmware
              · services: engine, jobs · interface: api, server (bin "uniwrt") · test support: sim
 node-agent/  ucode agent and transaction guard, pushed to nodes over SSH
 web/         SolidJS app: app/, ui/, lib/, api/gen/, features/<area>/, viz/<kind>/

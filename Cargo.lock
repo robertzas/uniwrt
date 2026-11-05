@@ -3259,6 +3259,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-import"
+version = "0.0.0"
+dependencies = [
+ "insta",
+ "serde_json",
+ "uniwrt-core",
+ "uniwrt-model",
+ "uniwrt-render",
+ "uniwrt-sim",
+ "uniwrt-uci",
+]
+
+[[package]]
 name = "uniwrt-jobs"
 version = "0.0.0"
 dependencies = [

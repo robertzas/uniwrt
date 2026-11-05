@@ -12,7 +12,8 @@ use crate::{
 };
 
 /// The interface, and the wifi-iface, of the mesh point.
-pub(crate) const MESH_IFACE: &str = "uw_mesh";
+/// The mesh point's interface, in `network` and `wireless`.
+pub const MESH_IFACE: &str = "uw_mesh";
 
 pub(crate) fn interfaces(plan: &Plan<'_>) -> Vec<Section> {
     if plan.mesh.is_none() {

@@ -1,0 +1,212 @@
+---
+source: crates/import/src/tests/sim.rs
+expression: summary(&import)
+---
+# 1 — confidence 93%
+network.batmesh (interface) → uw_mesh
+raw network.batwired (interface)
+kept [cell_density] wireless.radio0 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio0 (wifi-iface) → uw_uniwrt_demo_2g
+kept [cell_density] wireless.radio1 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio1 (wifi-iface) → uw_uniwrt_demo_5g
+wireless.mesh_radio1 (wifi-iface) → uw_mesh
+kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ system.ntp
+    enable_server: '0' → '1'
+~ network.lan
+    ip6assign: '60' → '64'
+~ network.bat0
+    distributed_arp_table: ∅ → '1'
+    multicast_mode: ∅ → '1'
+    orig_interval: ∅ → '1000'
+    aggregated_ogms: ∅ → '1'
+    fragmentation: ∅ → '1'
+~ network.uw_mesh
+    mtu: ∅ → '1532'
+~ wireless.radio0
+    htmode: 'HE20' → 'EHT20'
+~ wireless.radio1
+    htmode: 'HE80' → 'EHT80'
+~ wireless.uw_uniwrt_demo_2g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_uniwrt_demo_5g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_mesh
+    mesh_rssi_threshold: ∅ → '-80'
+~ dhcp.lan
+    force: ∅ → '1'
+    ra_flags: 'managed-config' 'other-config' → 'other-config'
+# 2 — confidence 92%
+network.batmesh (interface) → uw_mesh
+raw network.batwired (interface)
+kept [cell_density] wireless.radio0 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio0 (wifi-iface) → uw_uniwrt_demo_2g
+kept [cell_density] wireless.radio1 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio1 (wifi-iface) → uw_uniwrt_demo_5g
+wireless.mesh_radio1 (wifi-iface) → uw_mesh
+kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
+dropped firewall.@ (zone)
+dropped firewall.@ (zone)
+dropped firewall.@ (forwarding)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ network.globals
+    ula_prefix: 'fd83:c400:0110::/48' → 'fd83:c400:10::/48'
+~ network.bat0
+    distributed_arp_table: ∅ → '1'
+    multicast_mode: ∅ → '1'
+    orig_interval: ∅ → '1000'
+    aggregated_ogms: ∅ → '1'
+    fragmentation: ∅ → '1'
+    gw_mode: 'client' → 'off'
+~ network.uw_mesh
+    mtu: ∅ → '1532'
+~ wireless.radio0
+    htmode: 'HE20' → 'EHT20'
+~ wireless.radio1
+    htmode: 'HE80' → 'EHT80'
+~ wireless.uw_uniwrt_demo_2g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_uniwrt_demo_5g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_mesh
+    mesh_rssi_threshold: ∅ → '-80'
+~ firewall.@defaults[0]
+    input: 'REJECT' → 'ACCEPT'
+- firewall.@zone[0]
+- firewall.@zone[1]
+- firewall.@forwarding[0]
+- firewall.@rule[0]
+- firewall.@rule[1]
+- firewall.@rule[2]
+- firewall.@rule[3]
+- firewall.@rule[4]
+- firewall.@rule[5]
+- firewall.@rule[6]
+- firewall.@rule[7]
+- firewall.@rule[8]
+# 3 — confidence 93%
+network.batmesh (interface) → uw_mesh
+kept [cell_density] wireless.radio0 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio0 (wifi-iface) → uw_uniwrt_demo_2g
+kept [cell_density] wireless.radio1 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio1 (wifi-iface) → uw_uniwrt_demo_5g
+wireless.mesh_radio1 (wifi-iface) → uw_mesh
+kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
+dropped firewall.@ (zone)
+dropped firewall.@ (zone)
+dropped firewall.@ (forwarding)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ network.globals
+    ula_prefix: 'fd83:c400:0210::/48' → 'fd83:c400:10::/48'
+~ network.bat0
+    distributed_arp_table: ∅ → '1'
+    multicast_mode: ∅ → '1'
+    orig_interval: ∅ → '1000'
+    aggregated_ogms: ∅ → '1'
+    fragmentation: ∅ → '1'
+    gw_mode: 'client' → 'off'
+~ network.uw_mesh
+    mtu: ∅ → '1532'
+~ wireless.radio0
+    htmode: 'HE20' → 'EHT20'
+~ wireless.radio1
+    htmode: 'HE80' → 'EHT80'
+~ wireless.uw_uniwrt_demo_2g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_uniwrt_demo_5g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_mesh
+    mesh_rssi_threshold: ∅ → '-80'
+~ firewall.@defaults[0]
+    input: 'REJECT' → 'ACCEPT'
+- firewall.@zone[0]
+- firewall.@zone[1]
+- firewall.@forwarding[0]
+- firewall.@rule[0]
+- firewall.@rule[1]
+- firewall.@rule[2]
+- firewall.@rule[3]
+- firewall.@rule[4]
+- firewall.@rule[5]
+- firewall.@rule[6]
+- firewall.@rule[7]
+- firewall.@rule[8]
+# 4 — confidence 93%
+network.batmesh (interface) → uw_mesh
+kept [cell_density] wireless.radio0 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio0 (wifi-iface) → uw_uniwrt_demo_2g
+kept [cell_density] wireless.radio1 (wifi-device)
+kept [ieee80211r, ft_over_ds, ft_psk_generate_local] wireless.default_radio1 (wifi-iface) → uw_uniwrt_demo_5g
+wireless.mesh_radio1 (wifi-iface) → uw_mesh
+kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
+dropped firewall.@ (zone)
+dropped firewall.@ (zone)
+dropped firewall.@ (forwarding)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+dropped firewall.@ (rule)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ network.globals
+    ula_prefix: 'fd83:c400:0310::/48' → 'fd83:c400:10::/48'
+~ network.bat0
+    distributed_arp_table: ∅ → '1'
+    multicast_mode: ∅ → '1'
+    orig_interval: ∅ → '1000'
+    aggregated_ogms: ∅ → '1'
+    fragmentation: ∅ → '1'
+    gw_mode: 'client' → 'off'
+~ network.uw_mesh
+    mtu: ∅ → '1532'
+~ wireless.radio0
+    htmode: 'HE20' → 'EHT20'
+~ wireless.radio1
+    htmode: 'HE80' → 'EHT80'
+~ wireless.uw_uniwrt_demo_2g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_uniwrt_demo_5g
+    ieee80211w: ∅ → '1'
+~ wireless.uw_mesh
+    mesh_rssi_threshold: ∅ → '-80'
+~ firewall.@defaults[0]
+    input: 'REJECT' → 'ACCEPT'
+- firewall.@zone[0]
+- firewall.@zone[1]
+- firewall.@forwarding[0]
+- firewall.@rule[0]
+- firewall.@rule[1]
+- firewall.@rule[2]
+- firewall.@rule[3]
+- firewall.@rule[4]
+- firewall.@rule[5]
+- firewall.@rule[6]
+- firewall.@rule[7]
+- firewall.@rule[8]

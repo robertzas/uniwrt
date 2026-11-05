@@ -12,7 +12,7 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         gateway::WanProto,
-        node::ManagedPackage,
+        node::{ManagedPackage, RawSection, RawValue},
         wireless::{Channel, WlanSecurity},
     },
     wifi::Band,
@@ -119,6 +119,50 @@ fn rendering_is_deterministic_and_valid() {
             assert_eq!(&back, package, "{} reads back as itself", package.name);
         }
     }
+}
+
+#[test]
+fn a_port_a_raw_interface_takes_leaves_the_bridge() {
+    let mut site = home_site();
+    let facts = gateway_facts();
+    let port = facts.board.layout.wan.clone().unwrap();
+    let ap = site.nodes.iter_mut().find(|n| n.node == AP).unwrap();
+    ap.raw.push(RawSection {
+        package: "network".to_owned(),
+        kind: "interface".to_owned(),
+        name: Some("batwired".to_owned()),
+        options: [
+            ("proto", "batadv_hardif"),
+            ("master", "bat0"),
+            ("device", port.as_str()),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
+        .collect(),
+        merge: false,
+    });
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &facts));
+    let network = &rendered.packages[&ManagedPackage::Network];
+    let bridge = network
+        .sections_of("device")
+        .find(|d| d.option("name") == Some("br-lan"))
+        .unwrap();
+    let ports = bridge.get("ports").unwrap().items();
+    assert!(!ports.contains(&port), "{ports:?}");
+    assert!(ports.iter().any(|p| p == "bat0"));
+    assert!(
+        network.sections_of("bridge-vlan").all(|v| v
+            .get("ports")
+            .unwrap()
+            .items()
+            .iter()
+            .all(|p| !p.starts_with(&format!("{port}:")))),
+        "nor its VLANs"
+    );
+    assert_eq!(
+        network.section("batwired").unwrap().option("device"),
+        Some(port.as_str())
+    );
 }
 
 #[test]

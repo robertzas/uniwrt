@@ -56,6 +56,7 @@ flowchart TB
 | L0 | `model` | desired state (`SiteConfig`), observed facts (`NodeFacts`, capabilities), the node record, validation, schema migrations | core, uci |
 | L0 | `uci` | UCI AST, parser and serializer that match libuci (strict mode, checked against `uci` of each release), semantic diff and its apply, libuci's identifier rules (which `model` validates raw sections with) | — |
 | L0 | `render` | (SiteConfig, secrets, role, facts, the node's current packages) → its managed UCI packages (system, network, wireless, dhcp, firewall), services and warnings; one VLAN-aware `br-lan` on every node (D-067) | core, model, uci |
+| L0 | `import` | brownfield import (D-072): the nodes' UCI packages → the site's networks, WAN, firewall policy, DNS, WLANs, mesh and radios, each node's raw sections (whole, or merged into a rendered section) and the residual its first apply would change, with a confidence score | core, model, uci, render |
 | L0 | `topo` | facts → topology graph | core, model |
 | L0 | `clients` | the client inventory: vendors (embedded OUI table), device kinds, sessions, samples, experience score | core, model, topo |
 | L0 | `metrics` | sampling facts, topology builds and client samples into 15 s windows; retention and the resolution a query reads; LTTB downsampling | core, model, topo, clients |
@@ -71,7 +72,7 @@ flowchart TB
 | L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7), manage and unmanage (M3.4a1), apply (M3.4a2a: plan, stage, apply, verify, confirm across the fleet); upgrade, rf-apply, backup later | L0, L1 |
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
-| test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands the jobs run (adoption's, and the transaction tool with `/etc/config` in `uniwrt_sim::txn`, which the jobs' tests drive too; each node's `/etc/config` starts as OpenWrt 25.12's stock packages configured by hand for the simulated network); `serve --demo` and tests (D-038, D-048) | core, model, node |
+| test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands the jobs run (adoption's, and the transaction tool with `/etc/config` in `uniwrt_sim::txn`, which the jobs' tests drive too; each node's `/etc/config` starts as OpenWrt 25.12's stock packages configured by hand for the simulated network, also exported with each node's facts as `uniwrt_sim::brownfield` for import's tests); `serve --demo` and tests (D-038, D-048) | core, model, node |
 | test | `system` | the system harness: rendered configs on OpenWrt containers through `docker exec` (the agent's facts, write and read back, netifd, the bridge); `tests/system.rs` on `scripts/test-system.sh`'s wired topology, and `tests/apply/` the apply job end to end there over a `docker exec` dial (M3.4a2b; jobs and store as dev-dependencies), `tests/wifi.rs` on the hwsim lab (M3.3b) | core, model, node, render, uci |
 
 Rules:

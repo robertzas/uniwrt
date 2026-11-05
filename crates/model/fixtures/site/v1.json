@@ -128,7 +128,8 @@
           "package": "network",
           "type": "route",
           "name": "office",
-          "options": { "interface": "lan", "target": "10.8.0.0/24", "gateway": "10.0.0.2" }
+          "options": { "interface": "lan", "target": "10.8.0.0/24", "gateway": "10.0.0.2" },
+          "merge": false
         }
       ]
     },
@@ -145,7 +146,8 @@
           "package": "wireless",
           "type": "wifi-iface",
           "name": null,
-          "options": { "device": "radio1", "ifname": ["a", "b"] }
+          "options": { "device": "radio1", "ifname": ["a", "b"] },
+          "merge": true
         }
       ]
     }

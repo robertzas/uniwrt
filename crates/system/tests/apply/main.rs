@@ -398,6 +398,7 @@ async fn a_broken_wan_rolls_both_back() {
                     .into_iter()
                     .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
                     .collect(),
+                merge: false,
             });
         })
         .await;

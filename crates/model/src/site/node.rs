@@ -81,8 +81,8 @@ pub struct RadioOverride {
     pub tx_power: Option<TxPower>,
 }
 
-/// A raw UCI section, added to (or replacing the same named section of) what is rendered for
-/// its package.
+/// A raw UCI section: added to (or replacing the same named section of) what is rendered for
+/// its package, or with `merge` its options set on a rendered section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RawSection {
@@ -94,6 +94,12 @@ pub struct RawSection {
     /// The section's name; `None` is an anonymous section.
     pub name: Option<String>,
     pub options: BTreeMap<String, RawValue>,
+    /// Set the options on the rendered section instead: the one of this name, or for an
+    /// anonymous section the one of its type that shares its key options (render's
+    /// `raw::key`, such as a `zone`'s `name`). Brownfield import keeps a node's options that
+    /// render doesn't write this way, so the site's edits still reach the section.
+    #[serde(default)]
+    pub merge: bool,
 }
 
 /// A UCI option's value: one string (`option`) or several (`list`).

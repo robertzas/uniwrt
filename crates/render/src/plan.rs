@@ -12,9 +12,9 @@ use uniwrt_model::{
 };
 
 /// The bridge every network joins.
-pub(crate) const BRIDGE: &str = "br-lan";
+pub const BRIDGE: &str = "br-lan";
 /// batman-adv's mesh device.
-pub(crate) const BAT: &str = "bat0";
+pub const BAT: &str = "bat0";
 
 pub(crate) struct Plan<'a> {
     pub site: &'a SiteConfig,
@@ -131,7 +131,18 @@ impl<'a> Plan<'a> {
             _ => None,
         };
         let mesh = mesh(site, secrets, config, facts, &mut errors, &mut warnings);
-        let ports = ports(target.role, facts, switch, &nets, mesh.is_some());
+        // A port a raw interface takes as its device (a wired batman-adv link, a VLAN of its
+        // own) has another job: bridging it too would take it from that interface.
+        let claimed: BTreeSet<&str> = config
+            .raw
+            .iter()
+            .filter(|r| r.package == "network" && r.kind == "interface" && !r.merge)
+            .filter_map(|r| match r.options.get("device") {
+                Some(uniwrt_model::site::node::RawValue::Option(device)) => Some(device.as_str()),
+                _ => None,
+            })
+            .collect();
+        let ports = ports(target.role, facts, switch, &nets, mesh.is_some(), &claimed);
         if ports.is_empty() && mesh.is_none() {
             errors.push(Issue::new(
                 "node",
@@ -213,13 +224,15 @@ impl<'a> Plan<'a> {
 }
 
 /// The bridge's ports: the Ethernet ports (on an AP the WAN port too, as dumb APs bridge
-/// every port), a swconfig CPU port's device per VLAN, and `bat0`.
+/// every port) but those `claimed` by a raw interface, a swconfig CPU port's device per VLAN,
+/// and `bat0`.
 fn ports(
     role: NodeRole,
     facts: &NodeFacts,
     switch: Option<&SwitchLayout>,
     nets: &[Net<'_>],
     mesh: bool,
+    claimed: &BTreeSet<&str>,
 ) -> Vec<Port> {
     let layout = &facts.board.layout;
     let on_switch = |name: &str| {
@@ -239,7 +252,10 @@ fn ports(
     }
     let mut ports: Vec<Port> = Vec::new();
     for name in names {
-        if !on_switch(name) && !ports.iter().any(|p| p.device() == name) {
+        if !on_switch(name)
+            && !claimed.contains(name.as_str())
+            && !ports.iter().any(|p| p.device() == name)
+        {
             ports.push(Port::Trunk(name.clone()));
         }
     }

@@ -1,0 +1,17 @@
+---
+source: crates/import/src/tests/stock.rs
+expression: "stock_gateway(release!(\"25.12\"))"
+---
+# 1 — confidence 98%
+kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
+~ system.@system[0]
+    timezone: 'GMT0' → 'UTC0'
+~ system.ntp
+    enable_server: '0' → '1'
+~ network.lan
+    ip6assign: '60' → '64'
++ network.wan device='eth1' proto='dhcp'
++ network.wan6 device='eth1' proto='dhcpv6'
+~ dhcp.lan
+    force: ∅ → '1'
+    ra_flags: 'managed-config' 'other-config' → 'other-config'

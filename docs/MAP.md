@@ -152,6 +152,23 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/radios_tests.rs`: Radio events over hand-made facts: channel changes, with and without radar before them, and a congested channel.
 - `src/tests.rs`: The deriver over hand-made statuses, facts, topologies, clients, log entries and jobs.
 
+### `uniwrt-import` (crates/import)
+
+Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configuration a fleet holds, mapped into the site's desired state, so that managing the nodes keeps them as they are.
+
+- `src/firewall.rs`: The firewall policy between networks, from the gateway's fw4 zones and forwardings (features/network.md, Firewall policy): each zone takes its network's id as its name (the WAN's is `wan`), and each cell where the forwardings differ from what the networks' purposes seed becomes an override, so the policy renders as the node has it.
+- `src/fit.rs`: Fitting one node to the import (D-072): its sections renamed as render names them, paired with the rendered ones, and what the model doesn't hold kept raw, so that the import renders as the node is, up to the residual: the options render writes its own way.
+- `src/lib.rs`: Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configuration a fleet holds, mapped into the site's desired state, so that managing the nodes keeps them as they are.
+- `src/networks.rs`: Networks, from the gateway (features/network.md): each LAN interface on the bridge (DSA, with its VLAN from `bridge-vlan`) or on a swconfig CPU port's VLAN device, with its address, IPv6, DHCP pool and reservations; the ULA; the local DNS records; and an address space that holds them all.
+- `src/read.rs`: Reading a node's packages as OpenWrt does: booleans, lists written as options, addresses with or without a netmask; and the renames that render's naming needs.
+- `src/settings.rs`: The site's settings, from the gateway: its time zone and NTP servers (`system`) and the local domain (dnsmasq's `domain`).
+- `src/tests/golden.rs`: Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly, with nothing raw and no residual, on every capability set.
+- `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
+- `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
+- `src/tests/stock.rs`: OpenWrt's stock configs (`crates/uci/fixtures/openwrt/`): 24.10's and 25.12's on a PC router, and the hwsim lab's gateway with its radios.
+- `src/wan.rs`: The WAN, from the gateway (features/wan.md): `interface wan` by DHCP, static or PPPoE, the ISP's VLAN (an 802.1Q device, `<port>.<vid>`, or a tagged switch VLAN), a cloned MAC, and IPv6 (`wan6` by DHCPv6, or PPPoE's `ipv6`).
+- `src/wireless.rs`: Wi-Fi, from every node (features/wifi.md, features/mesh.md): the access points of the same SSID, network and security become one WLAN on the bands and nodes that carry it; a mesh point with batman-adv over it becomes the mesh; each band's most common channel, width and power become its policy, and the radios that differ get overrides; the radios' country becomes the site's.
+
 ### `uniwrt-jobs` (crates/jobs)
 
 Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
@@ -342,7 +359,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/network.rs`: The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the swconfig switch, one interface per network, the WAN and the mesh.
 - `src/plan.rs`: What every package's renderer shares, worked out once per node: the VLAN each network has on the bridge, the bridge's ports, the WAN's device, the mesh radio, and the issues found.
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
-- `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name.
+- `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name; a merge (D-072) sets its options on a rendered section instead, found by name or, for an anonymous one, by the key options of its type ([`key`]).
 - `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (its user ports untagged for the untagged network, tagged for the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
 - `src/system.rs`: The `system` package: the node's hostname, time zone and NTP.
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN, a cloned or the board's MAC), `wan` by DHCP, static or PPPoE, and `wan6` by DHCPv6 with prefix delegation.
@@ -399,6 +416,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 
 The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 
+- `src/brownfield.rs`: The simulated fleet as a brownfield (features/lifecycle.md, Brownfield import): each node's facts, as its agent reports them, and its `/etc/config` before uniwrt manages it (`render::config`), for import's round-trip tests and the demo.
 - `src/fleet.rs`: [`SimFleet`]: the world, a link per node, and the driver task that advances the world one second per second of tokio's clock.
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
