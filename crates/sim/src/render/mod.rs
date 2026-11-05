@@ -5,6 +5,7 @@
 
 mod batman;
 pub(crate) mod commands;
+pub(crate) mod config;
 mod devices;
 mod l2;
 mod logs;

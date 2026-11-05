@@ -17,12 +17,9 @@ use uniwrt_model::{
     },
     wifi::Band,
 };
-use uniwrt_sim::SimNode;
+use uniwrt_sim::{MESH_KEY, PASSPHRASE, SimNode};
 use zeroize::Zeroizing;
 
-/// The demo WLAN's passphrase and the mesh's key: the demo's, so not secret.
-const PASSPHRASE: &str = "uniwrt-demo-wifi";
-const MESH_KEY: &str = "uniwrt-demo-mesh-key";
 /// The 5 GHz channel every simulated node uses.
 const MESH_CHANNEL: u16 = 36;
 

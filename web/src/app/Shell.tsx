@@ -45,6 +45,7 @@ export function Shell(props: { children?: JSX.Element }) {
       devices: live.fleet.nodes,
       clients: clients(),
       signOut: () => void session.signOut(),
+      admin: session.user.role === "admin",
     }),
   );
   const rail = () => currentSkin() === "unifi";

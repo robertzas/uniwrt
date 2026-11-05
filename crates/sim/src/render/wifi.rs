@@ -17,7 +17,7 @@ pub const SSID: &str = "uniwrt-demo";
 /// The 802.11s mesh the nodes join on 5 GHz.
 pub const MESH_ID: &str = "uniwrt-demo-mesh";
 /// The SoC's Wi-Fi device; its second phy is `+1`.
-const WIFI_PATH: &str = "platform/soc/18000000.wifi";
+pub(super) const WIFI_PATH: &str = "platform/soc/18000000.wifi";
 
 static PHYS: LazyLock<Value> = LazyLock::new(|| {
     serde_json::from_str(include_str!("../../data/phys.json")).unwrap_or(Value::Null)

@@ -51,7 +51,7 @@ export function SettingsPage() {
           <NotificationsTab nodes={live.fleet.nodes} admin={admin()} />
         </TabPanel>
         <TabPanel value="revisions">
-          <RevisionsTab nodeName={(id) => names().get(id)} />
+          <RevisionsTab nodeName={(id) => names().get(id)} admin={admin()} />
         </TabPanel>
       </Tabs>
     </div>

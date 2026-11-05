@@ -1,3 +1,6 @@
+import type { JobKind } from "../api/gen/JobKind";
+import type { StepName } from "../api/gen/StepName";
+
 /** "a", "a and b", "a, b and c". */
 function list(items: readonly string[]): string {
   return items.length < 2
@@ -232,6 +235,25 @@ export const strings = {
       close: "Close",
       retry: "Try again",
     },
+    batch: {
+      title: (count: number) => `Adopt ${count} ${count === 1 ? "device" : "devices"}`,
+      description:
+        "Compare each fingerprint with the device's own key, then give the root password they share.",
+      passwordHint: "The same for every device. Leave it empty if they trust uniwrt's key already.",
+      submit: (count: number) => `Adopt ${count} ${count === 1 ? "device" : "devices"}`,
+      refused: "Not started",
+      done: (ok: number, total: number) => `${ok} of ${total} adopted`,
+    },
+  },
+  /** Jobs' steps and errors, shared by adoption, management and applies. */
+  job: {
+    /** What a job's steps list is about, by kind, for screen readers. */
+    title: {
+      adopt: (target: string) => `Adopting ${target}`,
+      manage: (target: string) => `Turning management on for ${target}`,
+      unmanage: (target: string) => `Turning management off for ${target}`,
+      apply: (target: string) => `Applying ${target}`,
+    },
     step: {
       connect: "Log in",
       check: "Check the device",
@@ -249,6 +271,10 @@ export const strings = {
       verify: "Check every device",
       confirm: "Confirm",
     },
+    /** Steps whose words differ by kind of job. */
+    stepOf: {
+      apply: { record: "Record the revision" },
+    } as Partial<Record<JobKind, Partial<Record<StepName, string>>>>,
     stepState: {
       pending: "Waiting",
       running: "In progress",
@@ -312,15 +338,6 @@ export const strings = {
         hint: "Some devices confirmed them and others rolled back. Keep them, or apply the previous revision.",
         action: "Close",
       },
-    },
-    batch: {
-      title: (count: number) => `Adopt ${count} ${count === 1 ? "device" : "devices"}`,
-      description:
-        "Compare each fingerprint with the device's own key, then give the root password they share.",
-      passwordHint: "The same for every device. Leave it empty if they trust uniwrt's key already.",
-      submit: (count: number) => `Adopt ${count} ${count === 1 ? "device" : "devices"}`,
-      refused: "Not started",
-      done: (ok: number, total: number) => `${ok} of ${total} adopted`,
     },
   },
   discovered: {
@@ -632,6 +649,8 @@ export const strings = {
         observed: "Applies leave this device alone.",
         never: "Nothing has been applied to this device yet.",
         latest: (revision: number) => `Holds the latest revision (${revision}).`,
+        copy: (revision: number, head: number) =>
+          `Holds revision ${revision}, which the latest revision (${head}) restores.`,
         behind: (revision: number, head: number) =>
           `Holds revision ${revision}; the latest is ${head}.`,
       },
@@ -1546,6 +1565,153 @@ export const strings = {
     },
     pinFailed: "Cannot save the position",
   },
+  /** The pending-changes tray and the review page, `/changes` (lifecycle.md, Render → diff → apply). */
+  changes: {
+    title: "Review changes",
+    description: "What applying the latest revision does to each device, read from them just now.",
+    tray: {
+      text: "Review changes",
+      label: (count: number) =>
+        `Pending changes: ${count} ${count === 1 ? "device" : "devices"} to update`,
+      applying: "Applying…",
+      applyingLabel: "Changes are being applied: follow them",
+    },
+    command: "Review and apply changes",
+    adminOnly: {
+      title: "Only admins apply changes",
+      description: "An admin reviews what each device would change and applies it.",
+    },
+    loading: "Reading every managed device",
+    loadingHint:
+      "uniwrt logs in to each to compare what it runs with what it would render. Nothing changes yet.",
+    failed: "The changes could not be planned",
+    retry: "Try again",
+    again: "Review again",
+    stale: (head: number) =>
+      `Revision ${head} was saved since this review: review again to apply it.`,
+    revision: (id: number, title: string) => `Revision ${id} · ${title}`,
+    by: (author: string | null, when: string) => `${author ?? "uniwrt"} · ${when}`,
+    count: {
+      change: (n: number) => `${n} ${n === 1 ? "device changes" : "devices change"}`,
+      unchanged: (n: number) => `${n} up to date`,
+      skipped: (n: number) => `${n} in observe mode`,
+      refused: (n: number) => `${n} can't apply`,
+    },
+    apply: (id: number) => `Apply revision ${id}`,
+    applying: "Starting…",
+    applyFailed: "The apply could not start",
+    applyHint:
+      "Every device stages the change and applies it with a timer armed. Unless every device passes its checks, all of them roll back by themselves.",
+    nothing: (id: number) =>
+      `No device changes. Applying records that every managed device holds revision ${id}.`,
+    noneManaged: {
+      title: "No device is managed yet",
+      description:
+        "Applies leave devices in observe mode alone. Turn management on in a device's Config tab, and choose the packages uniwrt writes.",
+      action: "Open the devices",
+    },
+    refused: {
+      title: "Some devices can't take these changes",
+      hint: "Nothing applies until every managed device can. Fix what is listed below, then review again.",
+    },
+    discard: {
+      action: "Discard changes",
+      title: (id: number) => `Go back to revision ${id}?`,
+      body: (id: number) =>
+        `Revision ${id} is what the devices hold. Its configuration becomes the next revision, so nothing is pending; the discarded changes stay in the history.`,
+      confirm: "Discard changes",
+      cancel: "Cancel",
+      message: (id: number) => `Discarded the changes after revision ${id}`,
+      done: (id: number) => `Back to revision ${id}`,
+      failed: "The changes could not be discarded",
+    },
+    impact: {
+      title: "Impact",
+      wireless: (names: string) => `Wi-Fi restarts on ${names}: clients reconnect within seconds.`,
+      network: (names: string) =>
+        `The network restarts on ${names}: traffic pauses for a few seconds.`,
+      dhcp: (names: string) => `DHCP and DNS restart on ${names}.`,
+      firewall: (names: string) => `The firewall reloads on ${names}.`,
+      system: (names: string) => `System settings change on ${names}.`,
+      other: (pkg: string, names: string) => `${pkg} changes on ${names}.`,
+      serviceOn: (service: string, names: string) =>
+        `${service} starts on ${names}, and at every boot.`,
+      serviceOff: (service: string, names: string) =>
+        `${service} stops on ${names}, and no longer starts at boot.`,
+      address: (name: string, from: string, to: string) =>
+        `${name} moves from ${from} to ${to}; uniwrt follows it.`,
+      warnings: (n: number) => `${n} ${n === 1 ? "warning" : "warnings"} below.`,
+      rollback: (duration: string) =>
+        `Safe to try: a device that isn't confirmed within ${duration} rolls back by itself.`,
+      names: (names: readonly string[]) =>
+        names.length > 3
+          ? `${names.length} devices`
+          : names.length <= 1
+            ? (names[0] ?? "")
+            : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`,
+    },
+    order: "In the order they apply",
+    leftAlone: "Left alone",
+    node: {
+      action: {
+        change: "Changes",
+        unchanged: "Up to date",
+        skipped: "Observe mode",
+        refused: "Can't apply",
+      },
+      hops: (n: number) => `${n} ${n === 1 ? "hop" : "hops"} from the gateway`,
+      timer: (duration: string) => `Rolls back after ${duration} unless confirmed`,
+      open: (name: string) => `Open ${name}`,
+      issues: "Why it can't apply",
+      warnings: "Warnings",
+      services: "Started at boot",
+      on: "on",
+      off: "off",
+      address: (from: string, to: string) => `Reached at ${to} once applied (now ${from})`,
+      packages: (n: number) => `${n} ${n === 1 ? "package changes" : "packages change"}`,
+      noPackages: "Only services change.",
+    },
+    diff: {
+      toggle: (pkg: string) => `The ${pkg} package`,
+      added: "Added",
+      removed: "Removed",
+      changed: "Changed",
+      moved: "Moved",
+      renamed: (from: string) => `was ${from}`,
+      count: (added: number, removed: number, changed: number) =>
+        [
+          added > 0 ? `${added} added` : "",
+          removed > 0 ? `${removed} removed` : "",
+          changed > 0 ? `${changed} changed` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      secret: "secret",
+      secretHint: "Secrets are masked here; the device receives the real value.",
+      movedHint: "Its place among the sections of its type changes.",
+      none: "(none)",
+    },
+    progress: {
+      title: (id: number) => `Applying revision ${id}`,
+      running:
+        "You can leave this page: the apply continues, and the top bar shows it until it ends.",
+      succeeded: (id: number) => `Revision ${id} is applied and confirmed.`,
+      devices: "Devices",
+      state: {
+        pending: "Waiting",
+        unchanged: "Up to date",
+        skipped: "Observe mode",
+        staged: "Staged",
+        applied: "Applied, checking",
+        verified: "Passed its checks",
+        confirmed: "Confirmed",
+        rolled_back: "Rolled back",
+        failed: "Failed",
+      },
+      history: "Open the history",
+      done: { ok: (id: number) => `Revision ${id} applied`, failed: "The apply failed" },
+    },
+  },
   settings: {
     tabs: { notifications: "Notifications", revisions: "Revisions" },
     revisions: {
@@ -1558,7 +1724,18 @@ export const strings = {
             : shown === 1
               ? "1 revision"
               : `${shown} revisions`,
-      hint: "Every save of the site's configuration is a revision. Restoring and applying come with the review of pending changes.",
+      hint: "Every save of the site's configuration is a revision. Restoring one makes it the next revision, which you then review and apply.",
+      restore: {
+        action: "Restore",
+        label: (id: number) => `Restore revision ${id}`,
+        title: (id: number) => `Restore revision ${id}?`,
+        body: "Its configuration becomes the next revision. Nothing changes on the devices until you review and apply it.",
+        confirm: "Restore",
+        cancel: "Cancel",
+        done: (id: number, as: number) => `Revision ${id} restored as revision ${as}`,
+        review: "Review and apply",
+        failed: "The revision could not be restored",
+      },
       loading: "Loading the revisions",
       failed: "The revisions could not be loaded.",
       retry: "Try again",

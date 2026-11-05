@@ -1,7 +1,8 @@
 import { RotateCw } from "lucide";
-import { createSignal, For, onSettled, Show } from "solid-js";
+import { createEffect, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import type { RevisionMeta } from "../../../api/gen/RevisionMeta";
 import { api } from "../../../lib/api";
+import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card } from "../../../ui/Card";
@@ -11,15 +12,18 @@ import { RevisionRow } from "./RevisionRow";
 const t = strings.settings.revisions;
 /** Revisions per page. */
 const PAGE = 50;
-/** How often the newest page is read again, for saves from elsewhere (there is no WS topic yet). */
-const POLL_MS = 30_000;
 
 /**
  * Settings › Revisions (features/lifecycle.md, Desired state & revisions): the site's history,
  * newest first with older pages on demand; a revision opens into its changes from its parent or
- * any other revision listed. Read-only: restoring comes with M3.4's review of pending changes.
+ * any other revision listed; admins restore one as the next revision. The newest page is read
+ * again whenever the `config` topic names a new latest revision (D-071).
  */
-export function RevisionsTab(props: { nodeName: (id: number) => string | undefined }) {
+export function RevisionsTab(props: {
+  nodeName: (id: number) => string | undefined;
+  admin: boolean;
+}) {
+  const live = useContext(LiveContext);
   const [revisions, setRevisions] = createSignal<readonly RevisionMeta[] | undefined>();
   const [more, setMore] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
@@ -45,12 +49,22 @@ export function RevisionsTab(props: { nodeName: (id: number) => string | undefin
   const controller = new AbortController();
   onSettled(() => {
     load(controller.signal);
-    const timer = setInterval(() => load(controller.signal), POLL_MS);
+    // Keeps "5m ago" current.
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       clearInterval(timer);
       controller.abort();
     };
   });
+  createEffect(
+    () => live.config.head?.id,
+    (head) => {
+      const known = revisions();
+      if (head !== undefined && known !== undefined && known[0]?.id !== head) {
+        load(controller.signal);
+      }
+    },
+  );
 
   const loadOlder = () => {
     const last = revisions()?.at(-1);
@@ -117,6 +131,8 @@ export function RevisionsTab(props: { nodeName: (id: number) => string | undefin
                     revisions={list()}
                     now={now()}
                     nodeName={props.nodeName}
+                    admin={props.admin}
+                    latestId={list()[0]?.id ?? revision().id}
                   />
                 )}
               </For>

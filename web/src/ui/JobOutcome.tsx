@@ -1,12 +1,17 @@
 import { CircleCheck, TriangleAlert } from "lucide";
 import { Show } from "solid-js";
-import type { JobError } from "../../../api/gen/JobError";
-import { strings } from "../../../lib/strings";
-import { Icon } from "../../../ui/Icon";
+import { strings } from "../lib/strings";
+import { Icon } from "./Icon";
+
+/** Why a job failed, as the API says it (`JobError`; ui/ imports no API types). */
+export interface JobFailure {
+  code: keyof typeof strings.job.error;
+  message: string;
+}
 
 /** Why a job failed, in words the user can act on, with the server's message below. */
-export function JobErrorNote(props: { error: JobError; compact?: boolean }) {
-  const explained = () => strings.adopt.error[props.error.code];
+export function JobErrorNote(props: { error: JobFailure; compact?: boolean }) {
+  const explained = () => strings.job.error[props.error.code];
   return (
     <div
       role="alert"

@@ -1,4 +1,4 @@
-import { Laptop, LogOut, Moon, Palette, Plus, RadioTower, Router, Sun } from "lucide";
+import { Laptop, LogOut, Moon, Palette, Plus, RadioTower, Router, Sun, Upload } from "lucide";
 import type { Client } from "../api/gen/Client";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
@@ -34,6 +34,8 @@ export interface CommandContext {
   /** Known clients; each gets a command that opens it, found by name, MAC, address or vendor. */
   clients?: readonly Client[];
   signOut?: () => void;
+  /** Admins also get the commands that change the network. */
+  admin?: boolean;
 }
 
 /**
@@ -61,6 +63,18 @@ export function appCommands(context: CommandContext): Command[] {
       keywords: "add new router access point openwrt ssh discovered",
       run: () => navigate("/devices?adopt=1"),
     },
+    ...(context.admin
+      ? [
+          {
+            id: "changes:review",
+            group: p.groups.devices,
+            label: strings.changes.command,
+            icon: Upload,
+            keywords: "pending apply review diff revision rollback discard",
+            run: () => navigate("/changes"),
+          },
+        ]
+      : []),
     ...(context.devices ?? []).map((node) => ({
       id: `device:${node.id}`,
       group: p.groups.devices,

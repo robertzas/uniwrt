@@ -12,7 +12,7 @@ use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus};
 
 use crate::{
     txn::{Now, Tool},
-    world::Node,
+    world::{Node, World},
 };
 
 /// What `sysupgrade -b -` writes: a small backup with harmless settings.
@@ -28,10 +28,28 @@ pub(crate) struct Disk {
 }
 
 impl Default for Disk {
+    /// A node with stock services and no `/etc/config`.
     fn default() -> Self {
         Self {
             authorized_keys: Vec::new(),
             tool: Tool::stock(),
+        }
+    }
+}
+
+impl Disk {
+    /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]).
+    pub(crate) fn of(world: &World, n: usize) -> Self {
+        let mut tool = Tool::stock();
+        tool.files = super::config::files(world, n);
+        if !world.nodes[n].gateway {
+            for service in super::config::AP_OFF {
+                tool.services.insert(service.to_owned(), false);
+            }
+        }
+        Self {
+            authorized_keys: Vec::new(),
+            tool,
         }
     }
 }

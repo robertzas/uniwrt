@@ -1,7 +1,8 @@
 //! Values the node generated for itself, carried over from its current packages: they are
 //! the node's, not the site's, and losing them would change it. The DHCPv6 DUID (an ISP keys
-//! the delegated prefix on it), `compat_version` when board.json has none (sysupgrade checks
-//! it), the board's LED sections, and odhcpd's file paths (they differ between releases).
+//! the delegated prefix on it), the IPv6 ULA prefix while the site sets none (firstboot
+//! generated it, and the LAN's ULA addresses depend on it), `compat_version` when board.json has
+//! none (sysupgrade checks it), the board's LED sections, and odhcpd's file paths (they differ between releases).
 //! Brownfield import (M3.5) keeps the rest a user added as raw sections.
 
 use std::collections::BTreeMap;
@@ -16,7 +17,15 @@ pub(crate) fn carry_over(package: &mut Package, current: &BTreeMap<String, Packa
         return;
     };
     match package.name.as_str() {
-        "network" => copy_option(package, now, "globals", "dhcp_default_duid"),
+        "network" => {
+            copy_option(package, now, "globals", "dhcp_default_duid");
+            if package
+                .section("globals")
+                .is_some_and(|globals| globals.get("ula_prefix").is_none())
+            {
+                copy_option(package, now, "globals", "ula_prefix");
+            }
+        }
         "system" => {
             if let (Some(system), Some(old)) = (
                 first_mut(package, "system"),
@@ -119,6 +128,14 @@ mod tests {
             globals.option("ula_prefix"),
             Some("fd00:2::/48"),
             "the site's ULA wins"
+        );
+
+        let mut network = package("network", vec![Section::named("globals", "globals")]);
+        carry_over(&mut network, &current);
+        assert_eq!(
+            network.section("globals").unwrap().option("ula_prefix"),
+            Some("fd00:1::/48"),
+            "the node's ULA stays while the site sets none"
         );
 
         let mut system = package("system", vec![Section::anonymous("system")]);

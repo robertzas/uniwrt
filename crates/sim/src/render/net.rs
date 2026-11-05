@@ -13,14 +13,19 @@ const WAN_ROUTER: &str = "203.0.113.1";
 const WAN_DNS: [&str; 2] = ["203.0.113.53", "203.0.113.54"];
 pub(super) const LAN_PREFIX6: &str = "2001:db8:4a:100::";
 
-pub(super) fn interfaces(world: &World, n: usize) -> Value {
-    let node = &world.nodes[n];
-    let uptime = ((world.now_ms() - node.booted_ms) / 1000 - 20).max(1);
-    let mask = if world.nodes[0].ip.octets()[2] == 1 {
+/// The LAN's prefix length: a /24 while the fleet fits, else a /16.
+pub(super) fn lan_mask(world: &World) -> u8 {
+    if world.nodes[0].ip.octets()[2] == 1 {
         24
     } else {
         16
-    };
+    }
+}
+
+pub(super) fn interfaces(world: &World, n: usize) -> Value {
+    let node = &world.nodes[n];
+    let uptime = ((world.now_ms() - node.booted_ms) / 1000 - 20).max(1);
+    let mask = lan_mask(world);
     let gateway_ip = world.nodes[0].ip.to_string();
     let mut list = vec![iface(
         "loopback",

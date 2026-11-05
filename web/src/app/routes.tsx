@@ -51,6 +51,12 @@ export const routes: RouteDefinition[] = [
     ),
   },
   {
+    path: "/changes",
+    component: lazy(() =>
+      import("../features/changes/ChangesPage").then((m) => ({ default: m.ChangesPage })),
+    ),
+  },
+  {
     path: "/clients/:mac",
     component: lazy(() =>
       import("../features/clients/ClientPage").then((m) => ({ default: m.ClientPage })),

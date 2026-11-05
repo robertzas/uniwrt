@@ -11,9 +11,9 @@ import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
 import { Dialog } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
+import { JobErrorNote, RequestError } from "../../../ui/JobOutcome";
+import { currentStep, jobProgress } from "../../../ui/JobSteps";
 import { TextField } from "../../../ui/TextField";
-import { JobErrorNote, RequestError } from "./JobOutcome";
-import { currentStep, jobProgress } from "./JobSteps";
 
 const s = strings.adopt;
 
@@ -194,13 +194,13 @@ function JobRow(props: { job: Job; label: string }) {
           <Match when={props.job.state === "succeeded"}>
             <span class="flex shrink-0 items-center gap-1 text-fg text-xs">
               <Icon icon={CircleCheck} class="size-3.5 text-ok" />
-              {s.stepState.done}
+              {strings.job.stepState.done}
             </span>
           </Match>
           <Match when={step()}>
             {(step) => (
               <span class="shrink-0 text-fg-muted text-xs">
-                {s.step[step().name]} · {s.stepState[step().state]}
+                {strings.job.step[step().name]} · {strings.job.stepState[step().state]}
               </span>
             )}
           </Match>

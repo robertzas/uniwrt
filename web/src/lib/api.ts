@@ -1,6 +1,8 @@
 import type { AdoptBody } from "../api/gen/AdoptBody";
 import type { AlertPage } from "../api/gen/AlertPage";
 import type { AlertRecord } from "../api/gen/AlertRecord";
+import type { ApplyBody } from "../api/gen/ApplyBody";
+import type { ApplyPlan } from "../api/gen/ApplyPlan";
 import type { AuthState } from "../api/gen/AuthState";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
@@ -36,6 +38,7 @@ import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { RestoreBody } from "../api/gen/RestoreBody";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
 import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
@@ -236,6 +239,19 @@ export const api = {
     /** Saves the next revision (admins); 409 when `base` is no longer the latest. */
     save: (save: SiteSave) => request<SiteView>("/site", { method: "PUT", body: save }),
   },
+  /** Applying the site's latest revision (lifecycle.md, Render → diff → apply); admins only. */
+  apply: {
+    /**
+     * What applying the latest revision would do to each node, read fresh from every managed
+     * node (it logs in to each, so it takes seconds); nothing changes on them.
+     */
+    plan: (signal?: AbortSignal) => request<ApplyPlan>("/apply/plan", { signal }),
+    /** Starts applying `revision`, which must still be the latest (409 otherwise); the `jobs` topic follows it. */
+    start: (revision: number) => {
+      const body: ApplyBody = { revision };
+      return request<Job>("/apply", { method: "POST", body });
+    },
+  },
   adopt: {
     /** Reads the node's host key, for the user to confirm before adopting it. */
     probe: (target: ProbeRequest) =>
@@ -379,6 +395,9 @@ export const api = {
         `/revisions/${id}/diff${against === null ? "" : `?against=${against}`}`,
         { signal },
       ),
+    /** Makes revision `id`'s document the next revision (admins); 409 when `base` is no longer the latest. */
+    restore: (id: number, body: RestoreBody) =>
+      request<SiteView>(`/revisions/${id}/restore`, { method: "POST", body }),
   },
   /** RF insight (wifi.md); the view itself comes over the WS topic `rf`. */
   rf: {

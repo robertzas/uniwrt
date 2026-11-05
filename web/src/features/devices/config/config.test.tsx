@@ -69,9 +69,12 @@ async function renderConfig(role: "admin" | "viewer" = "admin") {
       </SignedInProviders>
     </QueryClientProvider>
   ));
-  await waitFor(() =>
-    expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "config", "node:1"] }),
-  );
+  // Admins' top bar follows the applies on `jobs`.
+  const topics = ["fleet", "alerts", "config", "node:1", ...(role === "admin" ? ["jobs"] : [])];
+  await waitFor(() => {
+    const sent = ws.sent.at(-1) as { sub?: string[] } | undefined;
+    expect(new Set(sent?.sub)).toEqual(new Set(topics));
+  });
   ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(facts(1)) });
   ws.receive({
     type: "config",

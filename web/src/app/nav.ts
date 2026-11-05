@@ -80,3 +80,12 @@ export function findNavItem(pathname: string): NavItem | undefined {
     navItems.find((item) => item.path !== "/" && path.startsWith(`${item.path}/`))
   );
 }
+
+/** Pages outside the sidebar, by path. */
+const otherPages: Readonly<Record<string, string>> = { "/changes": strings.changes.title };
+
+/** The top bar's title for a path: its page's or section's label, if it has one. */
+export function pageTitle(pathname: string): string | undefined {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return findNavItem(path)?.label ?? otherPages[path];
+}

@@ -12,8 +12,8 @@ import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
 import { Dialog } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
+import { JobSteps } from "../../../ui/JobSteps";
 import { showToast } from "../../../ui/Toast";
-import { JobSteps } from "../adopt/JobSteps";
 
 const m = strings.device.management;
 
@@ -80,6 +80,8 @@ export function ManagementCard(props: { node: Node; admin: boolean }) {
         return m.held.never;
       case "latest":
         return m.held.latest(state.revision);
+      case "copy":
+        return m.held.copy(state.revision, state.head);
       case "behind":
         return m.held.behind(state.revision, state.head);
     }

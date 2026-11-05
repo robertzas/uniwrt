@@ -15,10 +15,10 @@ import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
 import { Dialog } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
+import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
+import { JobSteps } from "../../../ui/JobSteps";
 import { TextField } from "../../../ui/TextField";
 import { formatAddress, parseAddress } from "./address";
-import { JobErrorNote, JobSuccessNote, RequestError } from "./JobOutcome";
-import { JobSteps } from "./JobSteps";
 
 const s = strings.adopt;
 
@@ -390,7 +390,7 @@ function Progress(props: {
                     disabled={props.pending}
                     onClick={() => props.onRecover(error().code)}
                   >
-                    {s.error[error().code].action}
+                    {strings.job.error[error().code].action}
                   </Button>
                 </Show>
               </Footer>

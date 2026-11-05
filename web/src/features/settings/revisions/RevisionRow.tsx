@@ -1,4 +1,4 @@
-import { FilePlus2, History, Pencil, RotateCw } from "lucide";
+import { FilePlus2, History, Pencil, RotateCcw, RotateCw } from "lucide";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { RevisionDiff } from "../../../api/gen/RevisionDiff";
 import type { RevisionKind } from "../../../api/gen/RevisionKind";
@@ -11,6 +11,7 @@ import { SELECT } from "../../../ui/FormField";
 import { Icon, type IconNode } from "../../../ui/Icon";
 import { ChangeList } from "./ChangeList";
 import { counts, title } from "./changes";
+import { RestoreDialog } from "./RestoreDialog";
 
 const t = strings.settings.revisions;
 
@@ -47,6 +48,10 @@ export interface RevisionRowProps {
   revisions: readonly RevisionMeta[];
   now: number;
   nodeName: (id: number) => string | undefined;
+  /** Admins restore revisions other than the latest. */
+  admin: boolean;
+  /** The latest revision's id, the base of a restore. */
+  latestId: number;
 }
 
 /** One revision: its kind, title, author, time and size, opening into its changes. */
@@ -115,6 +120,7 @@ function Details(props: RevisionRowProps) {
     props.revisions.filter((r) => r.id !== props.revision.id && r.id !== props.revision.parent),
   );
   const selectId = () => `revision-${props.revision.id}-against`;
+  const [restoring, setRestoring] = createSignal(false);
 
   createEffect(
     () => [props.revision.id, against(), attempt()] as const,
@@ -171,6 +177,24 @@ function Details(props: RevisionRowProps) {
               <Show when={summary()}>{(text) => <> · {text()}</>}</Show>
             </span>
           )}
+        </Show>
+        <Show when={props.admin && !props.latest}>
+          <span class="sm:ml-auto">
+            <Button
+              size="sm"
+              icon={RotateCcw}
+              aria-label={t.restore.label(props.revision.id)}
+              onClick={() => setRestoring(true)}
+            >
+              {t.restore.action}
+            </Button>
+          </span>
+          <RestoreDialog
+            id={props.revision.id}
+            base={props.latestId}
+            open={restoring()}
+            onOpenChange={setRestoring}
+          />
         </Show>
       </div>
       <Show

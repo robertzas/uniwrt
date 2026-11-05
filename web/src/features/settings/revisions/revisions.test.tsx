@@ -8,6 +8,7 @@ import type { RevisionMeta } from "../../../api/gen/RevisionMeta";
 import { createAppRouter } from "../../../app/routes";
 import { summary } from "../../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../../test/providers";
+import { siteView } from "../../../test/site";
 
 const NOW = Date.now();
 /** Reading the history needs no admin. */
@@ -69,8 +70,9 @@ beforeEach(() => {
   };
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
-      calls.push(url);
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(init?.method === "POST" ? `POST ${url} ${init.body}` : url);
+      if (init?.method === "POST" && url.endsWith("/restore")) return Response.json(siteView(4));
       const page = url.match(/^\/api\/v1\/revisions\?limit=\d+(?:&before=(\d+))?$/);
       if (page) return Response.json(pages[page[1] ?? ""] ?? { revisions: [], more: false });
       const diff = url.match(/^\/api\/v1\/revisions\/(\d+)\/diff(.*)$/);
@@ -83,20 +85,24 @@ beforeEach(() => {
   );
 });
 
-async function renderRevisions() {
+async function renderRevisions(role: "admin" | "viewer" = VIEWER) {
   const { socket, ws } = openTestSocket();
-  const Router = createAppRouter(memoryHistory("/settings?tab=revisions"));
+  const history = memoryHistory("/settings?tab=revisions");
+  const Router = createAppRouter(history);
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
-      <SignedInProviders socket={socket} role={VIEWER}>
+      <SignedInProviders socket={socket} role={role}>
         <Router />
       </SignedInProviders>
     </QueryClientProvider>
   ));
   sendFleet(ws, [summary(1, "Gateway", { role: "gateway" }), summary(2, "Attic AP")]);
   await screen.findByRole("heading", { name: "Settings", level: 1 });
+  lastHistory = history;
   return screen.findByRole("region", { name: "Revisions" });
 }
+
+let lastHistory: ReturnType<typeof memoryHistory> | undefined;
 
 describe("Settings › Revisions", () => {
   it("lists the revisions newest first with their author, message and size", async () => {
@@ -162,6 +168,31 @@ describe("Settings › Revisions", () => {
     expect(calls).toContain("/api/v1/revisions?limit=50&before=2");
     await user.click(within(list).getByRole("button", { name: "Revision 1" }));
     expect(await within(list).findByText(/first revision/)).toBeVisible();
+  });
+
+  it("lets admins restore an older revision, then review it", async () => {
+    const user = userEvent.setup();
+    const list = await renderRevisions("admin");
+    await user.click(await within(list).findByRole("button", { name: "Revision 3" }));
+    // The latest is what restoring would copy already.
+    await within(list).findByText(/Changes from #2 to #3/);
+    expect(within(list).queryByRole("button", { name: "Restore revision 3" })).toBeNull();
+    await user.click(within(list).getByRole("button", { name: "Revision 2" }));
+    await user.click(await within(list).findByRole("button", { name: "Restore revision 2" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore revision 2?" });
+    await user.click(within(dialog).getByRole("button", { name: "Restore" }));
+    expect(await within(dialog).findByText("Revision 2 restored as revision 4")).toBeVisible();
+    expect(calls).toContain('POST /api/v1/revisions/2/restore {"base":3}');
+    await user.click(within(dialog).getByRole("button", { name: "Review and apply" }));
+    await waitFor(() => expect(lastHistory?.get()).toBe("/changes"));
+  });
+
+  it("offers viewers no restore", async () => {
+    const user = userEvent.setup();
+    const list = await renderRevisions();
+    await user.click(await within(list).findByRole("button", { name: "Revision 2" }));
+    await within(list).findByLabelText("Compare with");
+    expect(within(list).queryByRole("button", { name: /Restore/ })).toBeNull();
   });
 
   it("offers to try again when the list fails", async () => {

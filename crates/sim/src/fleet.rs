@@ -24,7 +24,7 @@ use uniwrt_node::{
 use crate::{
     SimConfig,
     link::{Session, SimLink},
-    render,
+    render::{self, commands::Disk},
     world::{Happening, What, World},
 };
 
@@ -63,7 +63,7 @@ pub(crate) struct Channel {
     session: Mutex<Session>,
     connection: Mutex<Connection>,
     /// What survives reboots: `authorized_keys`, the transaction tool.
-    pub(crate) disk: Mutex<crate::render::commands::Disk>,
+    pub(crate) disk: Mutex<Disk>,
 }
 
 /// Where the controller's connection to a node stands.
@@ -93,7 +93,7 @@ impl SimFleet {
                 pushes: broadcast::channel(PUSH_CAPACITY).0,
                 session: Mutex::new(Session::default()),
                 connection: Mutex::new(Connection::Up),
-                disk: Mutex::default(),
+                disk: Mutex::new(Disk::of(&world, node)),
             })
             .collect();
         let shared = Arc::new(Shared {

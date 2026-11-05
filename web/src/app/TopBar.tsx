@@ -6,11 +6,12 @@ import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
 import { AlertsBell } from "./AlertsBell";
 import { HealthBadge } from "./HealthBadge";
-import { findNavItem } from "./nav";
+import { pageTitle } from "./nav";
+import { PendingChanges } from "./PendingChanges";
 
 export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => void }) {
   const location = useLocation();
-  const title = () => findNavItem(location.pathname)?.label ?? strings.page.notFound.title;
+  const title = () => pageTitle(location.pathname) ?? strings.page.notFound.title;
 
   return (
     <header class="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-edge border-b bg-canvas/80 px-4 backdrop-blur md:px-8 glass:bg-transparent glass:backdrop-blur-panel">
@@ -37,6 +38,7 @@ export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => voi
             <Kbd>{paletteShortcut}</Kbd>
           </span>
         </button>
+        <PendingChanges />
         <AlertsBell />
         <HealthBadge />
       </div>

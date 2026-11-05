@@ -21,7 +21,8 @@
 //!   rebooting node's link goes down, is retried with backoff, and comes back with a new agent.
 //!   `exec` runs only what the jobs run (the release, the key, the packages, the backup, the
 //!   gateway's `nslookup`; `render/commands.rs`), and the transaction tool with the node's
-//!   `/etc/config` and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
+//!   `/etc/config` (OpenWrt's stock packages configured by hand for the simulated network,
+//!   `render/config.rs`) and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
 //!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); `stream` and `upload`
 //!   answer `unsupported`.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
@@ -53,7 +54,10 @@ use std::time::Duration;
 
 pub use fleet::{SimFleet, SimNode};
 pub use link::SimLink;
-pub use render::wifi::{MESH_ID, SSID};
+pub use render::{
+    config::{MESH_KEY, PASSPHRASE},
+    wifi::{MESH_ID, SSID},
+};
 
 /// What to simulate.
 #[derive(Debug, Clone, PartialEq, Eq)]

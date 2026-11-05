@@ -1,11 +1,19 @@
 import { Circle, CircleCheck, CircleMinus, CircleX, LoaderCircle } from "lucide";
 import { For, Show } from "solid-js";
-import type { Job } from "../../../api/gen/Job";
-import type { StepState } from "../../../api/gen/StepState";
-import { strings } from "../../../lib/strings";
-import { Icon, type IconNode } from "../../../ui/Icon";
+import { strings } from "../lib/strings";
+import { Icon, type IconNode } from "./Icon";
 
-const s = strings.adopt;
+const s = strings.job;
+
+type StepState = "pending" | "running" | "done" | "skipped" | "failed";
+
+/** A job as its checklist needs it (structurally the API's `Job`; ui/ imports no API types). */
+export interface StepsJob {
+  kind: keyof typeof s.title;
+  target: string;
+  state: "running" | "succeeded" | "failed";
+  steps: readonly { name: keyof typeof s.step; state: StepState; detail: string | null }[];
+}
 
 const stepIcons: Record<StepState, { icon: IconNode; class: string }> = {
   pending: { icon: Circle, class: "text-fg-subtle" },
@@ -16,9 +24,9 @@ const stepIcons: Record<StepState, { icon: IconNode; class: string }> = {
 };
 
 /** A job's steps as a checklist: what each did, the running one spinning. */
-export function JobSteps(props: { job: Job }) {
+export function JobSteps(props: { job: StepsJob }) {
   return (
-    <ol class="flex flex-col gap-0.5" aria-label={s.progress.title(props.job.target)}>
+    <ol class="flex flex-col gap-0.5" aria-label={s.title[props.job.kind](props.job.target)}>
       <For each={props.job.steps}>
         {(step) => (
           <li
@@ -40,7 +48,7 @@ export function JobSteps(props: { job: Job }) {
                     : "text-fg",
                 ]}
               >
-                {s.step[step.name]}
+                {s.stepOf[props.job.kind]?.[step.name] ?? s.step[step.name]}
                 <span class="sr-only">: {s.stepState[step.state]}</span>
               </p>
               <Show when={step.detail}>
@@ -55,7 +63,7 @@ export function JobSteps(props: { job: Job }) {
 }
 
 /** How far a job got, from 0 to 1: finished steps count whole, the running one half. */
-export function jobProgress(job: Job): number {
+export function jobProgress(job: StepsJob): number {
   if (job.steps.length === 0) return job.state === "running" ? 0 : 1;
   const done = job.steps.reduce(
     (sum, step) => sum + (step.state === "running" ? 0.5 : step.state === "pending" ? 0 : 1),
@@ -65,7 +73,7 @@ export function jobProgress(job: Job): number {
 }
 
 /** The step a job is on, or the one it failed at. */
-export function currentStep(job: Job) {
+export function currentStep(job: StepsJob) {
   return (
     job.steps.find((step) => step.state === "failed") ??
     job.steps.find((step) => step.state === "running") ??
