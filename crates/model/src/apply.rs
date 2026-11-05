@@ -3,9 +3,12 @@
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{JobId, NodeId, RevisionId, Timestamp};
-use uniwrt_uci::Diff;
+use uniwrt_uci::{Diff, Value};
 
-use crate::{node::NodeRole, site::node::RawSection};
+use crate::{
+    node::NodeRole,
+    site::node::{RawSection, is_secret_option},
+};
 
 /// The plan of applying `revision`: its nodes in the order they apply (leaves → gateway),
 /// then the ones it leaves alone.
@@ -45,6 +48,9 @@ pub struct NodePlan {
     /// The packages that change, as the node holds them → as rendered; the values of options
     /// that hold secrets (`key`, `password`) read [`MASKED`].
     pub packages: Vec<Diff>,
+    /// The packages that drifted on the node (features/lifecycle.md, Drift): changed there
+    /// after the controller confirmed them, which this apply overwrites where they change.
+    pub drift: Vec<String>,
     /// The node's raw overrides this apply writes (those of the packages it manages), in the
     /// site's order; options holding secrets as vault references, never their values.
     pub raw: Vec<RawSection>,
@@ -77,6 +83,24 @@ pub enum PlanAction {
 
 /// What an option holding a secret reads in a plan.
 pub const MASKED: &str = "••••••••";
+
+/// Masks the values of the options that hold secrets (`key`, `password`, …:
+/// [`is_secret_option`]) in a package's diff, for review screens.
+pub fn mask(diff: &mut Diff) {
+    let hide = |value: &mut Option<Value>| match value {
+        Some(Value::Single(text)) => MASKED.clone_into(text),
+        Some(Value::List(items)) => items.iter_mut().for_each(|item| MASKED.clone_into(item)),
+        None => {}
+    };
+    for section in &mut diff.sections {
+        for option in &mut section.options {
+            if is_secret_option(&option.name) {
+                hide(&mut option.before);
+                hide(&mut option.after);
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -113,11 +137,22 @@ pub struct AppliedRevision {
     pub at: Timestamp,
 }
 
-/// What an apply records once it ends: the nodes that hold `revision` now, and the address of
-/// each one the controller found elsewhere.
+/// What an apply records once it ends: the nodes that hold `revision` now, the address of each
+/// one the controller found elsewhere, and the managed packages each holds (drift's baseline).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Applied {
     pub revision: RevisionId,
     pub job: JobId,
-    pub nodes: Vec<(NodeId, Option<String>)>,
+    pub nodes: Vec<AppliedNode>,
+}
+
+/// One node that holds an apply's revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppliedNode {
+    pub node: NodeId,
+    /// Where the controller found it, when that moved.
+    pub host: Option<String>,
+    /// Its managed packages as it holds them now, by package: what drift compares with. The
+    /// packages it held before and no longer manages are forgotten.
+    pub packages: std::collections::BTreeMap<String, String>,
 }

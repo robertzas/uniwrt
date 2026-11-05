@@ -53,4 +53,9 @@ fdb: Array<FdbEntry>,
 /**
  * batman-adv meshes the node is part of.
  */
-batman: Array<BatmanFacts>, };
+batman: Array<BatmanFacts>, 
+/**
+ * The SHA-256 (lowercase hex) of each UCI package in `/etc/config`, by package: what drift
+ * detection compares with the files the controller confirmed (features/lifecycle.md, Drift).
+ */
+config: { [key in string]: string }, };

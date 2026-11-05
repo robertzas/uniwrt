@@ -22,6 +22,11 @@ reason: string | null,
  */
 packages: Array<Diff>, 
 /**
+ * The packages that drifted on the node (features/lifecycle.md, Drift): changed there
+ * after the controller confirmed them, which this apply overwrites where they change.
+ */
+drift: Array<string>, 
+/**
  * The node's raw overrides this apply writes (those of the packages it manages), in the
  * site's order; options holding secrets as vault references, never their values.
  */

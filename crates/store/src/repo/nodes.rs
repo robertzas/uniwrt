@@ -100,8 +100,16 @@ impl NodeRepo for Store {
 
     async fn set_node_mode(&self, id: NodeId, mode: NodeMode) -> Result<Option<Node>> {
         let now = self.now().as_unix_ms();
+        let observe = mode == NodeMode::Observe;
         let mode = enum_text(mode);
         self.write(move |conn| {
+            if observe {
+                // Drift is watched on managed nodes only.
+                conn.prepare_cached("DELETE FROM node_config WHERE node_id = ?1")?
+                    .execute([id.get()])?;
+                conn.prepare_cached("DELETE FROM config_drift WHERE node_id = ?1")?
+                    .execute([id.get()])?;
+            }
             Ok(conn
                 .prepare_cached(
                     "UPDATE nodes SET mode = ?2, updated_at = ?3 WHERE id = ?1

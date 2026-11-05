@@ -85,6 +85,8 @@ pub enum Set {
     Board,
     /// Detected features: package manager, optional software, hostapd build, switch kind.
     Capabilities,
+    /// The SHA-256 of each UCI package in `/etc/config`, for drift detection.
+    Config,
     /// Kernel network devices with their counters.
     Devices,
     /// netifd's logical interfaces.
@@ -105,10 +107,11 @@ pub enum Set {
 }
 
 impl Set {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Batman,
         Self::Board,
         Self::Capabilities,
+        Self::Config,
         Self::Devices,
         Self::Interfaces,
         Self::Leases,
@@ -124,6 +127,7 @@ impl Set {
             Self::Batman => "batman",
             Self::Board => "board",
             Self::Capabilities => "capabilities",
+            Self::Config => "config",
             Self::Devices => "devices",
             Self::Interfaces => "interfaces",
             Self::Leases => "leases",
@@ -265,7 +269,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Collect::all()).unwrap(),
             json!({"sets": [
-                "batman", "board", "capabilities", "devices", "interfaces", "leases", "neighbors",
+                "batman", "board", "capabilities", "config", "devices", "interfaces", "leases", "neighbors",
                 "phys", "radios", "stations", "system"
             ]})
         );

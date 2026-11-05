@@ -245,6 +245,7 @@ impl Intake {
                 deriver.removed(*node);
                 Vec::new()
             }
+            Event::Drift { changes, .. } => deriver.drift(changes, now),
             Event::Node { .. }
             | Event::Log { .. }
             | Event::Recorded { .. }

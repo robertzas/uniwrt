@@ -17,7 +17,8 @@
 //!   adopted nodes down (after 30 s) or weak (quality under 40 for 2 min, until 50); clients
 //!   joining, leaving, roaming and new ones; radios changing channel (marked when radar on their
 //!   node came just before) and their channel congested (at least 80 % busy for 15 min, until
-//!   65 %); log entries whose pattern is an event; adoptions and failed jobs. Raised conditions
+//!   65 %); log entries whose pattern is an event; adoptions and failed jobs; drift beginning
+//!   and ending ([`Deriver::drift`], from what the engine's drift watcher says changed). Raised conditions
 //!   clear with how long they lasted. Alerts: see [`alerts`].
 //! - **Invariants:** pure and deterministic: no IO and no clock (times come in with the input).
 //!   A condition raises once and clears once; nothing is derived about a node that is not
@@ -31,6 +32,8 @@ pub mod alerts;
 mod clients;
 mod conditions;
 mod derive;
+#[cfg(test)]
+mod drift_tests;
 mod fold;
 mod links;
 mod radios;

@@ -138,6 +138,7 @@ function factsFrom(patch: FactsPatch): NodeFacts | undefined {
     neighbors: [],
     fdb: [],
     batman: [],
+    config: {},
     ...patch,
     board,
     system,

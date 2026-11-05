@@ -71,6 +71,9 @@ pub enum AuditAction {
     RevealSecret,
     /// A user started applying a revision to the nodes (the detail names it and the job).
     Apply,
+    /// A user acknowledged a node's drift, or muted or watched a package's (the detail says
+    /// which).
+    Drift,
 }
 
 /// One audit log entry.

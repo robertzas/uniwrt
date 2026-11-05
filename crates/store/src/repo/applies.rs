@@ -2,9 +2,9 @@
 
 use rusqlite::params;
 use uniwrt_core::{JobId, NodeId, RevisionId};
-use uniwrt_model::apply::{Applied, AppliedRevision};
+use uniwrt_model::apply::{Applied, AppliedNode, AppliedRevision};
 
-use super::ApplyRepo;
+use super::{ApplyRepo, drift::sha256};
 use crate::{Result, Store, codec::timestamp_column};
 
 impl ApplyRepo for Store {
@@ -12,7 +12,12 @@ impl ApplyRepo for Store {
         let now = self.now().as_unix_ms();
         self.write(move |conn| {
             // A write runs in its own savepoint: all or nothing.
-            for (node, host) in &applied.nodes {
+            for AppliedNode {
+                node,
+                host,
+                packages,
+            } in &applied.nodes
+            {
                 if let Some(host) = host {
                     conn.prepare_cached(
                         "UPDATE nodes SET host = ?2, updated_at = ?3 WHERE id = ?1",
@@ -31,6 +36,23 @@ impl ApplyRepo for Store {
                     applied.job.get(),
                     now
                 ])?;
+                conn.prepare_cached("DELETE FROM node_config WHERE node_id = ?1")?
+                    .execute(params![node.get()])?;
+                for (package, text) in packages {
+                    conn.prepare_cached(
+                        "INSERT INTO node_config (node_id, package, sha256, text, revision_id,
+                         confirmed_at)
+                         SELECT id, ?2, ?3, ?4, ?5, ?6 FROM nodes WHERE id = ?1",
+                    )?
+                    .execute(params![
+                        node.get(),
+                        package,
+                        sha256(text),
+                        text,
+                        applied.revision.get(),
+                        now
+                    ])?;
+                }
             }
             Ok(())
         })
@@ -64,7 +86,7 @@ mod tests {
 
     use uniwrt_core::{Clock as _, JobId, MacAddr, NodeId};
     use uniwrt_model::{
-        apply::Applied,
+        apply::{Applied, AppliedNode},
         node::{NewNode, NodeRole},
         site::{
             SiteConfig,
@@ -72,7 +94,7 @@ mod tests {
         },
     };
 
-    use crate::{ApplyRepo as _, NodeRepo as _, RevisionRepo as _, testing};
+    use crate::{ApplyRepo as _, DriftRepo as _, NodeRepo as _, RevisionRepo as _, testing};
 
     #[tokio::test]
     async fn applies_record_the_revision_and_move_addresses() {
@@ -110,8 +132,8 @@ mod tests {
                 revision: revision.id,
                 job: JobId::new(3),
                 nodes: vec![
-                    (node.id, Some("10.0.0.20".to_owned())),
-                    (NodeId::new(99), None),
+                    applied_node(node.id, Some("10.0.0.20"), &[("network", "config x\n")]),
+                    applied_node(NodeId::new(99), None, &[]),
                 ],
             })
             .await
@@ -133,7 +155,7 @@ mod tests {
             .record_applied(Applied {
                 revision: revision.id,
                 job: JobId::new(4),
-                nodes: vec![(node.id, None)],
+                nodes: vec![applied_node(node.id, None, &[("dhcp", "config y\n")])],
             })
             .await
             .unwrap();
@@ -145,5 +167,25 @@ mod tests {
             store.node(node.id).await.unwrap().unwrap().host,
             "10.0.0.20"
         );
+        // The second apply replaced the node's confirmed packages.
+        let confirmed = store.confirmed(Some(node.id)).await.unwrap();
+        assert_eq!(confirmed.len(), 1);
+        assert_eq!(
+            (confirmed[0].package.as_str(), confirmed[0].text.as_str()),
+            ("dhcp", "config y\n")
+        );
+        assert_eq!(confirmed[0].sha256, super::sha256("config y\n"));
+        assert_eq!(confirmed[0].revision, revision.id);
+    }
+
+    fn applied_node(node: NodeId, host: Option<&str>, packages: &[(&str, &str)]) -> AppliedNode {
+        AppliedNode {
+            node,
+            host: host.map(str::to_owned),
+            packages: packages
+                .iter()
+                .map(|(p, t)| ((*p).to_owned(), (*t).to_owned()))
+                .collect(),
+        }
     }
 }

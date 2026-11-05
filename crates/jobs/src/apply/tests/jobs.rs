@@ -9,7 +9,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::txn::{self, Outcome, Reason};
 use uniwrt_sim::txn::Now;
-use uniwrt_store::{ApplyRepo as _, NodeRepo as _};
+use uniwrt_store::{ApplyRepo as _, DriftRepo as _, NodeRepo as _};
 
 use super::fleet::{Fault, Fleet, commit, fleet};
 use crate::{Error, testing::states};
@@ -109,6 +109,19 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
     let records = fleet.store.applied_revisions().await.unwrap();
     assert_eq!(records.len(), 3);
     assert!(records.iter().all(|record| record.job == job.id));
+    // Each node's managed packages are confirmed as it holds them now: drift's baseline.
+    let confirmed = fleet
+        .store
+        .confirmed(Some(fleet.nodes[1].0.id))
+        .await
+        .unwrap();
+    assert_ne!(confirmed, []);
+    for package in &confirmed {
+        assert_eq!(
+            ap.file(&package.package).as_deref(),
+            Some(package.text.as_str())
+        );
+    }
 
     // Applying again finds every node holding the revision.
     let again = fleet.apply().await;

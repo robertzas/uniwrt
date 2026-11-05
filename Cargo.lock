@@ -3228,6 +3228,7 @@ version = "0.0.0"
 dependencies = [
  "bytes",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "tokio",
@@ -3243,6 +3244,7 @@ dependencies = [
  "uniwrt-store",
  "uniwrt-syslog",
  "uniwrt-topo",
+ "uniwrt-uci",
  "zeroize",
 ]
 
@@ -3396,6 +3398,7 @@ dependencies = [
  "data-encoding",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "uniwrt-core",
  "uniwrt-engine",

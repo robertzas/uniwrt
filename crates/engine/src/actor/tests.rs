@@ -31,7 +31,7 @@ const BASE: [(u64, &[&str]); 4] = [
         &["devices", "interfaces", "radios", "stations", "system"],
     ),
     (30_000, &["batman", "neighbors"]),
-    (60_000, &["leases"]),
+    (60_000, &["config", "leases"]),
     (3_600_000, &["capabilities", "phys"]),
 ];
 
@@ -140,10 +140,10 @@ async fn a_new_agent_is_subscribed_collected_and_scheduled() {
         )
     );
     let collect = script.call().await;
-    assert_eq!((collect.op.as_str(), sets(&collect).len()), ("collect", 11));
+    assert_eq!((collect.op.as_str(), sets(&collect).len()), ("collect", 12));
     assert_eq!(schedule(&mut script, 4).await, groups(&BASE));
     assert_eq!(fleet.status_of(NODE, NodeState::Online).await.reasons, []);
-    assert_eq!(fleet.facts(NODE).await.len(), 11);
+    assert_eq!(fleet.facts(NODE).await.len(), 12);
     let view = fleet.engine.node(NODE).unwrap();
     let facts = view.facts.unwrap();
     assert_eq!(facts.collected_at, NOW);
@@ -231,7 +231,7 @@ async fn focus_speeds_ticks_up_and_letting_go_slows_them_down() {
         (10_000, &["batman"]),
         (15_000, &["interfaces"]),
         (30_000, &["neighbors"]),
-        (60_000, &["leases"]),
+        (60_000, &["config", "leases"]),
         (3_600_000, &["capabilities", "phys"]),
     ]);
     assert_eq!(schedule(&mut script, 6).await, focused);
@@ -249,7 +249,7 @@ async fn an_agent_without_an_event_loop_is_polled() {
     let fleet = Fleet::new();
     let mut script = fleet.node(NODE, false).await;
     let first = script.call().await;
-    assert_eq!((first.op.as_str(), sets(&first).len()), ("collect", 11));
+    assert_eq!((first.op.as_str(), sets(&first).len()), ("collect", 12));
     let poll = script.call().await;
     assert_eq!(sets(&poll), BASE[0].1);
     let _focus = fleet.engine.focus(NODE).unwrap();
@@ -376,7 +376,7 @@ async fn an_agent_that_refuses_ticks_is_polled() {
             error: "agent op set_interval failed: failed: no timers".to_owned()
         }]
     );
-    assert_eq!(sets(&script.call_of("collect").await).len(), 11);
+    assert_eq!(sets(&script.call_of("collect").await).len(), 12);
     assert_eq!(script.call().await.op, "set_interval");
     let poll = script.call().await;
     assert_eq!(
@@ -470,7 +470,7 @@ async fn an_actor_that_panics_starts_again() {
     assert_eq!(script.call_of("collect").await.op, "collect");
     // The new actor finds the agent running and starts over.
     set_up(&mut script).await;
-    assert_eq!(fleet.facts(NODE).await.len(), 11);
+    assert_eq!(fleet.facts(NODE).await.len(), 12);
     assert!(panicked.load(Ordering::Relaxed));
 }
 

@@ -166,6 +166,7 @@ fn differs(set: Set, a: &NodeFacts, b: &NodeFacts) -> bool {
         Set::Batman => a.batman != b.batman,
         Set::Board => a.board != b.board,
         Set::Capabilities => a.capabilities != b.capabilities,
+        Set::Config => a.config != b.config,
         Set::Devices => a.devices != b.devices,
         Set::Interfaces => a.interfaces != b.interfaces,
         Set::Leases => a.leases != b.leases,

@@ -5,6 +5,7 @@
 import * as batman from "./collect/batman.uc";
 import * as board from "./collect/board.uc";
 import * as capabilities from "./collect/capabilities.uc";
+import * as config from "./collect/config.uc";
 import * as devices from "./collect/devices.uc";
 import * as interfaces from "./collect/interfaces.uc";
 import * as leases from "./collect/leases.uc";
@@ -19,6 +20,7 @@ const SETS = {
 	batman: batman.collect,
 	board: board.collect,
 	capabilities: capabilities.collect,
+	config: config.collect,
 	devices: devices.collect,
 	interfaces: interfaces.collect,
 	leases: leases.collect,

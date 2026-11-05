@@ -6,6 +6,7 @@ mod alerts;
 mod applies;
 mod audit;
 mod clients;
+mod drift;
 mod events;
 mod facts;
 mod host_keys;
@@ -33,6 +34,7 @@ use uniwrt_model::{
     },
     apply::{Applied, AppliedRevision},
     client::{ClientRecord, ClientSession},
+    drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
     inventory::{Backup, Inventory},
@@ -61,6 +63,52 @@ pub trait ApplyRepo: Send + Sync {
     fn applied_revisions(&self) -> impl Future<Output = Result<Vec<AppliedRevision>>> + Send;
 }
 
+/// Drift (features/lifecycle.md, Drift): what the controller confirmed on each node, the
+/// packages that differ from it, and the packages whose drift isn't watched.
+pub trait DriftRepo: Send + Sync {
+    /// The managed packages as the controller confirmed them: on `node`, or on every node.
+    fn confirmed(
+        &self,
+        node: Option<NodeId>,
+    ) -> impl Future<Output = Result<Vec<Confirmed>>> + Send;
+
+    /// Takes the node's file as confirmed after all, as it reads now: it changed only in form.
+    /// Nothing happens without a confirmed row.
+    fn reconfirm(
+        &self,
+        node: NodeId,
+        package: String,
+        sha256: String,
+        text: String,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Every drift, by node and package.
+    fn drifts(&self) -> impl Future<Output = Result<Vec<DriftRecord>>> + Send;
+
+    /// Stores a drift, replacing the node's record for the package; a removed node is left
+    /// out.
+    fn put_drift(&self, record: DriftRecord) -> impl Future<Output = Result<()>> + Send;
+
+    /// Forgets a drift; whether there was one.
+    fn delete_drift(
+        &self,
+        node: NodeId,
+        package: String,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    fn drift_mutes(&self) -> impl Future<Output = Result<Vec<DriftMute>>> + Send;
+
+    /// Mutes a package's drift (`muted`, by the user named) or watches it again; whether that
+    /// changed anything.
+    fn set_drift_mute(
+        &self,
+        node: NodeId,
+        package: String,
+        muted: bool,
+        by: Option<String>,
+    ) -> impl Future<Output = Result<bool>> + Send;
+}
+
 /// The node inventory.
 pub trait NodeRepo: Send + Sync {
     /// Adds a node in observe mode. A node with the same MAC is an
@@ -81,7 +129,7 @@ pub trait NodeRepo: Send + Sync {
     fn delete_node(&self, id: NodeId) -> impl Future<Output = Result<bool>> + Send;
 
     /// Sets a node's mode (management on or off); the node as it is now, or `None` when there
-    /// is no such node.
+    /// is no such node. Observe mode forgets what the controller confirmed on it and its drift.
     fn set_node_mode(
         &self,
         id: NodeId,

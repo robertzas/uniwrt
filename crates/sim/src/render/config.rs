@@ -40,6 +40,19 @@ pub(crate) fn files(world: &World, n: usize) -> BTreeMap<String, String> {
     .collect()
 }
 
+/// The `config` set: each file's SHA-256, as `node-agent/collect/config.uc` reports it.
+pub(crate) fn hashes(files: &BTreeMap<String, String>) -> serde_json::Value {
+    use sha2::{Digest as _, Sha256};
+    let files: serde_json::Map<_, _> = files
+        .iter()
+        .map(|(name, text)| {
+            let hash = data_encoding::HEXLOWER.encode(&Sha256::digest(text.as_bytes()));
+            (name.clone(), serde_json::Value::String(hash))
+        })
+        .collect();
+    serde_json::json!({ "files": files })
+}
+
 fn system(node: &Node) -> String {
     let mut out = String::new();
     let _ = write!(

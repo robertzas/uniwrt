@@ -33,7 +33,10 @@
 //!   few hours while the radio is idle, and when an admin asks; one scan at a time), stores the
 //!   scans through `RfRepo` (30 days) and builds the RF report (`uniwrt_rf`) from the facts, the
 //!   latest scans and the radar history, announced as [`Event::Rf`]; [`Rf`] is the API's handle
-//!   on it (view, scan, settings).
+//!   on it (view, scan, settings); [`DriftWatch`] ([`DriftConfig`]) compares the agents' hashes
+//!   of `/etc/config` with what applies confirmed (`DriftRepo`), reads and diffs a package whose
+//!   hash moved, stores its drift and announces [`Event::Drift`]; [`Drifts`] is the API's
+//!   handle on it (state, acknowledge, mute).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -56,7 +59,8 @@
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
-//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`),
+//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`,
+//!   `DriftRepo`), `uniwrt-uci` (drift's semantic diff), `sha2` (the hash of a file read),
 //!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-rf` (the RF
 //!   report), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
 //!   receiver hands on, the annotations), tokio, tracing,
@@ -71,6 +75,7 @@ mod alerts;
 mod bus;
 mod clients;
 mod config;
+mod drift;
 mod engine;
 mod events;
 mod fleet;
@@ -93,6 +98,7 @@ pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
 pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;
+pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;
 pub use events::{EventRecorder, EventsConfig};
 pub use fleet::Fleet;

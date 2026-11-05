@@ -4,7 +4,9 @@
 //! - `POST /api/v1/import/preview`: reads every adopted node (observe mode too; nothing changes
 //!   on them) and answers what importing their configuration into the latest revision would
 //!   change ([`ImportPreview`]): the site's changes, and per node its confidence, sections, raw
-//!   sections and residual, secrets masked. The controller holds the newest preview, its
+//!   sections and residual, secrets masked. With `{"drift": {"node", "package"}}`
+//!   ([`ImportRequest`]) only that drift is imported: every other package is taken as the
+//!   latest revision renders it (404 without such a drift). The controller holds the newest preview, its
 //!   secrets sealed, for [`HELD`]; a new preview replaces it.
 //! - `POST /api/v1/import/accept` with `{"id": …, "message": …}` ([`ImportAccept`]): saves the
 //!   held preview as the next revision (kind `import`), as reviewed: 404 when it is not the
@@ -20,8 +22,8 @@ use axum::{
 use ring::rand::{SecureRandom as _, SystemRandom};
 use serde::Deserialize;
 use ts_rs::TS;
-use uniwrt_core::Timestamp;
-use uniwrt_jobs::ImportDraft;
+use uniwrt_core::{NodeId, Timestamp};
+use uniwrt_jobs::{ImportDraft, ImportScope};
 use uniwrt_model::{
     import::ImportPreview,
     site::{
@@ -35,6 +37,7 @@ use uniwrt_store::RevisionRepo as _;
 use crate::{
     Api, ApiError, ApiResult, Client, CurrentUser,
     alerts::{admin, audit},
+    drift::check_package,
     jobs::jobs_error,
     site::{SiteView, ensure_first_revision, message, view},
 };
@@ -57,13 +60,51 @@ pub(crate) struct Held {
     draft: ImportDraft,
 }
 
+/// What to import: everything the nodes hold (no body), or one drift.
+#[derive(Debug, Default, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct ImportRequest {
+    #[serde(default)]
+    #[ts(optional)]
+    pub drift: Option<DriftTarget>,
+}
+
+/// A node's drifted package.
+#[derive(Debug, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct DriftTarget {
+    #[ts(type = "number")]
+    pub node: NodeId,
+    pub package: String,
+}
+
 pub(crate) async fn preview(
     State(api): State<Api>,
     user: CurrentUser,
+    body: Result<Option<Json<ImportRequest>>, JsonRejection>,
 ) -> ApiResult<Json<ImportPreview>> {
     admin(&user, "import the nodes' configuration")?;
+    let request = body?.map(|Json(request)| request).unwrap_or_default();
+    let scope = match request.drift {
+        Some(DriftTarget { node, package }) => {
+            check_package(&package)?;
+            if api.drift()?.state().drift(node, &package).is_none() {
+                return Err(ApiError::NotFound(format!(
+                    "{package} on node {node} hasn't drifted"
+                )));
+            }
+            Some(ImportScope { node, package })
+        }
+        None => None,
+    };
     ensure_first_revision(&api, None).await?;
-    let mut draft = api.jobs().import().await.map_err(import_error)?;
+    let mut draft = api
+        .jobs()
+        .import(scope.as_ref())
+        .await
+        .map_err(import_error)?;
     draft.preview.id = random_id()?;
     let preview = draft.preview.clone();
     *api.imports() = Some(Held {
@@ -164,6 +205,8 @@ fn import_error(err: uniwrt_jobs::Error) -> ApiError {
         uniwrt_jobs::Error::Busy { .. } => {
             ApiError::Conflict("An apply is running: import once it has finished".to_owned())
         }
+        // A drift's node that can't be read, or that the latest revision doesn't render for.
+        uniwrt_jobs::Error::Failed(why) => ApiError::BadGateway(why),
         err => jobs_error(err),
     }
 }

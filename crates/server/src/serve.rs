@@ -163,6 +163,7 @@ async fn start_api(
         alerts: fleet.alerts(),
         notify: fleet.notify(),
         rf: fleet.rf(),
+        drift: fleet.drift(),
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
         ..ApiConfig::new(

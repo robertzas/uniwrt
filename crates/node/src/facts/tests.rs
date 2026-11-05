@@ -314,3 +314,19 @@ fn board_falls_back_to_the_release_file() {
     assert_eq!(board.release.arch, "mipsel_24kc");
     assert_eq!(board.label_mac, None);
 }
+
+#[test]
+fn config_hashes_keep_only_sha256_digests() {
+    let good = "a".repeat(64);
+    let Ok(SetFacts::Config(hashes)) = parse(
+        Set::Config,
+        json!({"files": {"network": good, "dhcp": "A".repeat(64), "wireless": "abc"}}),
+    ) else {
+        panic!("config");
+    };
+    assert_eq!(
+        hashes.into_iter().collect::<Vec<_>>(),
+        [("network".to_owned(), good)]
+    );
+    assert!(matches!(parse(Set::Config, json!({})), Ok(SetFacts::Config(h)) if h.is_empty()));
+}

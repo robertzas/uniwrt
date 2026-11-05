@@ -13,6 +13,7 @@ use tokio::{
     time::{self, Instant, MissedTickBehavior},
 };
 use tracing::{debug, warn};
+use uniwrt_engine::Event;
 
 use super::{
     message::{ClientMessage, ServerMessage},
@@ -83,6 +84,7 @@ async fn serve(
                 }
             }
             event = bus.recv() => match event {
+                Ok(Event::Drift { .. }) => subs.config(api).await,
                 Ok(event) => {
                     subs.apply(api, &event).await;
                     continue;

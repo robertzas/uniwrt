@@ -82,6 +82,7 @@ export function facts(cpu: number): NodeFacts {
     neighbors: [],
     fdb: [],
     batman: [],
+    config: {},
   };
 }
 

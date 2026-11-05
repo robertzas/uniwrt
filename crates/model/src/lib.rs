@@ -46,6 +46,7 @@ pub mod alerts;
 pub mod apply;
 pub mod client;
 pub mod discovery;
+pub mod drift;
 pub mod event;
 pub mod events;
 pub mod facts;

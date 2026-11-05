@@ -40,7 +40,8 @@ pub fn brownfield(config: &SimConfig, start: Timestamp) -> Vec<Brownfield> {
 pub(crate) fn of(world: &World) -> Vec<Brownfield> {
     (0..world.nodes.len())
         .map(|n| {
-            let collected: Collected = serde_json::from_value(collect(world, n, &Set::ALL))
+            let files = config::files(world, n);
+            let collected: Collected = serde_json::from_value(collect(world, n, &Set::ALL, &files))
                 .expect("the sim's collect parses");
             let mut found = NodeFacts::default();
             let _ = facts::apply(&collected, &mut found);
@@ -53,7 +54,7 @@ pub(crate) fn of(world: &World) -> Vec<Brownfield> {
                     NodeRole::Ap
                 },
                 facts: found,
-                files: config::files(world, n),
+                files,
             }
         })
         .collect()

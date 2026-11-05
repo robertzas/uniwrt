@@ -202,6 +202,21 @@ export function describeEvent(event: EventRecord, names: Names): Described {
     }
     case "job_failed":
       return withDetail(titles.jobFailed(d.jobKind[what.job_kind]), what.error);
+    case "config_drift":
+      return withDetail(
+        what.removed
+          ? titles.configDriftRemoved(node, what.package)
+          : titles.configDrift(node, what.package),
+        d.driftSince(what.revision),
+      );
+    case "config_drift_ended": {
+      const how = d.driftEnd[what.how];
+      const lasted = duration(what.drift_ms);
+      return withDetail(
+        titles.configDriftEnded(node, what.package),
+        lasted ? d.driftFor(how, lasted) : how,
+      );
+    }
     case "channel_changed": {
       const band = strings.device.radios.band[what.band];
       return withDetail(

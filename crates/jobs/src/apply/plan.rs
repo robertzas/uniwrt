@@ -6,17 +6,14 @@
 use std::{collections::BTreeMap, net::Ipv4Addr, time::Duration};
 
 use uniwrt_model::{
-    apply::{AddressChange, MASKED, NodePlan, PlanAction, PlanIssue, ServiceChange},
+    apply::{AddressChange, NodePlan, PlanAction, PlanIssue, ServiceChange},
     facts::NodeFacts,
     node::Node,
-    site::{
-        SiteConfig,
-        node::{RawSection, is_secret_option},
-    },
+    site::{SiteConfig, node::RawSection},
 };
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::{Issue, RENDERABLE, Secrets, Target, render, uplink_section};
-use uniwrt_uci::{Diff, Package, Value};
+use uniwrt_uci::Package;
 
 use super::{ApplyTiming, address};
 
@@ -35,6 +32,9 @@ pub(crate) struct Part {
     pub(crate) plan: NodePlan,
     /// The files to install, by package.
     pub(crate) files: Vec<(String, String)>,
+    /// Its managed packages as it holds them once applied (installed or kept): drift's
+    /// baseline.
+    pub(crate) held: BTreeMap<String, String>,
     pub(crate) services: Vec<(String, bool)>,
     /// Where the controller reaches it once applied, when that moves.
     pub(crate) address: Option<Ipv4Addr>,
@@ -57,6 +57,7 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
         action,
         reason: Some(reason.into()),
         packages: Vec::new(),
+        drift: Vec::new(),
         raw: Vec::new(),
         services: Vec::new(),
         address: None,
@@ -77,6 +78,7 @@ pub(crate) fn plan(
     let mut part = Part {
         plan: idle(node, PlanAction::Unchanged, ""),
         files: Vec::new(),
+        held: BTreeMap::new(),
         services: Vec::new(),
         address: None,
         timeout: timing.timer,
@@ -125,6 +127,9 @@ pub(crate) fn plan(
             .unwrap_or_else(|| Package::new(name));
         let mut diff = uniwrt_uci::diff(&before, after);
         if diff.is_empty() {
+            if let Some(Some(text)) = report.files.get(name) {
+                part.held.insert(name.to_owned(), text.clone());
+            }
             continue;
         }
         uplink |= diff.sections.iter().any(|section| {
@@ -134,7 +139,9 @@ pub(crate) fn plan(
                 .filter_map(|id| id.name.as_deref())
                 .any(uplink_section)
         });
-        part.files.push((name.to_owned(), after.to_file()));
+        let file = after.to_file();
+        part.held.insert(name.to_owned(), file.clone());
+        part.files.push((name.to_owned(), file));
         mask(&mut diff);
         part.plan.packages.push(diff);
     }
@@ -225,22 +232,7 @@ fn from_render(issue: Issue) -> PlanIssue {
     }
 }
 
-/// Hides the values of options that hold secrets; a change still shows as one.
-pub(crate) fn mask(diff: &mut Diff) {
-    let hide = |value: &mut Option<Value>| match value {
-        Some(Value::Single(text)) => MASKED.clone_into(text),
-        Some(Value::List(items)) => items.iter_mut().for_each(|item| MASKED.clone_into(item)),
-        None => {}
-    };
-    for section in &mut diff.sections {
-        for option in &mut section.options {
-            if is_secret_option(&option.name) {
-                hide(&mut option.before);
-                hide(&mut option.after);
-            }
-        }
-    }
-}
+pub(crate) use uniwrt_model::apply::mask;
 
 #[cfg(test)]
 #[path = "plan_tests.rs"]

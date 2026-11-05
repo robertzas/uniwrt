@@ -11,6 +11,8 @@ mod radio;
 mod station;
 mod system;
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use uniwrt_core::Timestamp;
 
@@ -62,6 +64,10 @@ pub struct NodeFacts {
     /// batman-adv meshes the node is part of.
     #[serde(default)]
     pub batman: Vec<BatmanFacts>,
+    /// The SHA-256 (lowercase hex) of each UCI package in `/etc/config`, by package: what drift
+    /// detection compares with the files the controller confirmed (features/lifecycle.md, Drift).
+    #[serde(default)]
+    pub config: BTreeMap<String, String>,
 }
 
 #[cfg(test)]

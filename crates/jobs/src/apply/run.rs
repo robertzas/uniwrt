@@ -4,6 +4,7 @@
 //! before a confirm rolls every applied node back.
 
 use std::{
+    collections::BTreeMap,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     time::Duration,
 };
@@ -61,6 +62,11 @@ impl From<Member> for Live {
 }
 
 impl Live {
+    /// Its managed packages as it holds them once applied.
+    pub(crate) fn held(&self) -> &BTreeMap<String, String> {
+        &self.part.held
+    }
+
     /// Runs a command of the tool over the current login.
     async fn tool<T: DeserializeOwned>(&self, command: &txn::Command<T>) -> uniwrt_node::Result<T> {
         let remote = self

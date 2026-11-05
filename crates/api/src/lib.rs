@@ -3,7 +3,7 @@
 //!
 //! - **API:** [`Api::new`] from an [`ApiConfig`] (the store, the engine as an
 //!   `Arc<dyn Fleet>`, the alert engine's handle, the notifications' handle with the vault, RF
-//!   insight's handle, the vault for the site's secrets, the clock, the build identity, the HTTPS [`Certificate`], the password
+//!   insight's handle, drift detection's handle, the vault for the site's secrets, the clock, the build identity, the HTTPS [`Certificate`], the password
 //!   cost and the setup window); [`router`] for the server to nest under `/api`;
 //!   [`Api::close_sockets`] when the server stops; [`security::headers`] for every response, UI
 //!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
@@ -15,7 +15,11 @@
 //!   on or off, a job), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
 //!   v1/import/preview` ([`ImportPreview`](uniwrt_model::import::ImportPreview)), `POST
-//!   v1/import/accept` ([`ImportAccept`]); see `import`), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   v1/import/accept` ([`ImportAccept`]); see `import`), drift (`GET v1/drift`
+//!   ([`DriftState`](uniwrt_model::drift::DriftState)), admins: `POST
+//!   v1/nodes/{id}/drift/{package}/acknowledge`, `PUT v1/nodes/{id}/drift/{package}/mute`
+//!   ([`DriftMuteBody`]), and a drift's import (`{"drift": …}`, [`ImportRequest`]); see
+//!   `drift`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -70,6 +74,7 @@ pub mod auth;
 mod client;
 mod clients;
 mod discovered;
+mod drift;
 mod events;
 mod health;
 mod import;
@@ -110,9 +115,10 @@ pub use apply::ApplyBody;
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
+pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use health::BuildInfo;
-pub use import::ImportAccept;
+pub use import::{DriftTarget, ImportAccept, ImportRequest};
 pub use logs::{
     LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
 };
@@ -151,6 +157,12 @@ pub fn router(api: Api) -> Router {
         .route("/v1/apply/plan", get(apply::plan))
         .route("/v1/apply/applied", get(apply::applied))
         .route("/v1/import/preview", post(import::preview))
+        .route("/v1/drift", get(drift::get))
+        .route(
+            "/v1/nodes/{id}/drift/{package}/acknowledge",
+            post(drift::acknowledge),
+        )
+        .route("/v1/nodes/{id}/drift/{package}/mute", put(drift::mute))
         .route("/v1/import/accept", post(import::accept))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))

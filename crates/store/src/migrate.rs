@@ -32,6 +32,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0012_rf",
     "0013_revisions",
     "0014_applies",
+    "0015_drift",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

@@ -108,7 +108,14 @@ pub(crate) fn collected(sets: &[Set]) -> Value {
     let captured = &CAPTURE["sets"];
     let sets: serde_json::Map<_, _> = sets
         .iter()
-        .map(|set| (set.as_str().to_owned(), captured[set.as_str()].clone()))
+        .map(|set| {
+            let raw = match (set, &captured[set.as_str()]) {
+                // Captured before the set existed.
+                (Set::Config, Value::Null) => json!({"files": {}}),
+                (_, raw) => raw.clone(),
+            };
+            (set.as_str().to_owned(), raw)
+        })
         .collect();
     json!({"sets": sets, "errors": {}})
 }
@@ -163,6 +170,11 @@ impl Script {
                 return call;
             }
         }
+    }
+
+    /// Forgets the requests sent so far.
+    pub(crate) fn drain(&mut self) {
+        while self.calls.try_recv().is_ok() {}
     }
 
     /// No request within `wait`.

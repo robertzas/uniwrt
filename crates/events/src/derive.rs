@@ -11,6 +11,7 @@ use std::{
 use uniwrt_clients::Client;
 use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
+    drift::DriftChange,
     event::Roam,
     events::{EventCategory, EventKind, EventLevel, NewEvent},
     facts::NodeFacts,
@@ -348,6 +349,53 @@ impl Deriver {
             Some(node) => event.node(node),
             None => event,
         })
+    }
+}
+
+impl Deriver {
+    /// Drift changed (features/lifecycle.md, Drift): a package that began to differ from what
+    /// the controller confirmed raises `node:<id>/drift:<package>`, and its end clears it.
+    pub fn drift(&mut self, changes: &[DriftChange], now: Timestamp) -> Vec<NewEvent> {
+        changes
+            .iter()
+            .filter_map(|change| match change {
+                DriftChange::Detected {
+                    node,
+                    package,
+                    revision,
+                    removed,
+                } => self.conditions.bad(
+                    &key(*node, &format!("drift:{package}")),
+                    now,
+                    Duration::ZERO,
+                    || {
+                        NewEvent::new(
+                            now,
+                            EventKind::ConfigDrift {
+                                package: package.clone(),
+                                revision: *revision,
+                                removed: *removed,
+                            },
+                        )
+                        .node(*node)
+                    },
+                ),
+                DriftChange::Ended { node, package, how } => {
+                    self.conditions
+                        .good(&key(*node, &format!("drift:{package}")), now, |lasted| {
+                            NewEvent::new(
+                                now,
+                                EventKind::ConfigDriftEnded {
+                                    package: package.clone(),
+                                    how: *how,
+                                    drift_ms: lasted.map(ms),
+                                },
+                            )
+                            .node(*node)
+                        })
+                }
+            })
+            .collect()
     }
 }
 

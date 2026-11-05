@@ -15,10 +15,10 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, ClientRecorder, Engine, EngineConfig, EventRecorder,
-    EventsConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder,
-    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, Snapshots,
-    TopologyHistory,
+    AlertEngine, Alerts, AlertsConfig, ClientRecorder, DriftConfig, DriftWatch, Drifts, Engine,
+    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder, LogsConfig,
+    MetricsConfig, MetricsRecorder, Notifications, Notify, NotifyConfig, RecorderConfig, Rf,
+    RfConfig, RfScanner, Snapshots, TopologyHistory,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -53,6 +53,8 @@ pub(crate) struct Fleet {
     notifications: Option<(Notifications, Vault)>,
     /// RF insight's scanner.
     rf: Option<RfScanner>,
+    /// Drift detection.
+    drift: Option<DriftWatch>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -105,6 +107,7 @@ impl Fleet {
             alerts: None,
             notifications: None,
             rf: None,
+            drift: None,
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
@@ -174,6 +177,7 @@ impl Fleet {
             alerts: None,
             notifications: None,
             rf: None,
+            drift: None,
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
@@ -218,6 +222,9 @@ impl Fleet {
         }
         if let Some(rf) = self.rf {
             rf.stop().await;
+        }
+        if let Some(drift) = self.drift {
+            drift.stop().await;
         }
         self.logs.stop().await;
         self.snapshots.stop().await;
@@ -284,6 +291,22 @@ impl Fleet {
             RfConfig::default()
         };
         self.rf = Some(RfScanner::start(&self.engine, store.clone(), rf).await);
+        match DriftWatch::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            DriftConfig::default(),
+        )
+        .await
+        {
+            Ok(drift) => self.drift = Some(drift),
+            Err(err) => warn!(%err, "drift detection cannot start"),
+        }
+    }
+
+    /// Drift detection's handle, once [`Fleet::record_events`] started it.
+    pub(crate) fn drift(&self) -> Option<Drifts> {
+        self.drift.as_ref().map(DriftWatch::handle)
     }
 
     /// RF insight's handle, once [`Fleet::record_events`] started it.

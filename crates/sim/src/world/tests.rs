@@ -19,8 +19,18 @@ fn a_seed_tells_one_story() {
     let (mut a, mut b) = (World::new(&config, START), World::new(&config, START));
     assert_eq!(run(&mut a, 600), run(&mut b, 600));
     assert_eq!(
-        render::collect(&a, 2, &uniwrt_node::proto::ops::Set::ALL),
-        render::collect(&b, 2, &uniwrt_node::proto::ops::Set::ALL)
+        render::collect(
+            &a,
+            2,
+            &uniwrt_node::proto::ops::Set::ALL,
+            &std::collections::BTreeMap::default()
+        ),
+        render::collect(
+            &b,
+            2,
+            &uniwrt_node::proto::ops::Set::ALL,
+            &std::collections::BTreeMap::default()
+        )
     );
     let other = World::new(&SimConfig { seed: 1, ..config }, START);
     assert_ne!(

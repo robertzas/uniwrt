@@ -16,17 +16,19 @@ use uniwrt_model::{
     site::{
         SecretRef, SiteConfig, check_secret,
         diff::diff,
+        node::NodeConfig,
         revision::Revision,
         validate::{Issue, Severity, validate},
     },
 };
 use uniwrt_node::{proto::ops::Set, txn::current};
+use uniwrt_render::{RENDERABLE, Secrets, Target, render};
 use uniwrt_store::{SealedSecret, VaultRepo as _};
 use uniwrt_uci::Package;
 use zeroize::Zeroizing;
 
 use crate::{
-    Result,
+    Error, Result,
     apply::{
         plan,
         survey::{self, Login},
@@ -46,6 +48,15 @@ pub struct ImportDraft {
     pub sealed: Vec<SealedSecret>,
 }
 
+/// A drift to import (features/lifecycle.md, Drift; D-074): only that package of that node is
+/// taken as the node holds it, and every other package as the latest revision renders it, so
+/// the preview shows only what the drift changes in the site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportScope {
+    pub node: NodeId,
+    pub package: String,
+}
+
 /// What a node holds.
 struct Reading {
     packages: BTreeMap<String, Package>,
@@ -56,6 +67,7 @@ pub(crate) async fn draft(
     shared: &Shared,
     head: &Revision,
     mut nodes: Vec<Node>,
+    scope: Option<&ImportScope>,
 ) -> Result<ImportDraft> {
     nodes.sort_by_key(|node| node.role != NodeRole::Gateway);
     let adopted: BTreeSet<NodeId> = nodes.iter().map(|node| node.id).collect();
@@ -74,6 +86,29 @@ pub(crate) async fn draft(
             Err(why) => {
                 unread.insert(login.node.id, why);
             }
+        }
+    }
+    if let Some(scope) = scope {
+        if let Some(why) = unread.get(&scope.node) {
+            return Err(Error::Failed(format!("Cannot read the node: {why}")));
+        }
+        let secrets = survey::secrets(shared, &head.config)
+            .await
+            .map_err(|err| Error::Failed(err.message))?;
+        read.retain_mut(
+            |(node, reading)| match scoped(head, &secrets, node, reading, scope) {
+                Ok(packages) => {
+                    reading.packages = packages;
+                    true
+                }
+                Err(why) => {
+                    unread.insert(node.id, why);
+                    false
+                }
+            },
+        );
+        if unread.contains_key(&scope.node) {
+            return Err(Error::Failed(unread[&scope.node].clone()));
         }
     }
     let sources: Vec<Source<'_>> = read
@@ -115,6 +150,54 @@ pub(crate) async fn draft(
         site,
         sealed,
     })
+}
+
+/// The node's packages as the latest revision renders them (all of render's, as the import
+/// engine fits them), the scope's package as the node holds it (or gone).
+fn scoped(
+    head: &Revision,
+    secrets: &dyn Secrets,
+    node: &Node,
+    reading: &Reading,
+    scope: &ImportScope,
+) -> Result<BTreeMap<String, Package>, String> {
+    let mut trial = head.config.clone();
+    if let Some(config) = trial.nodes.iter_mut().find(|n| n.node == node.id) {
+        config.managed = RENDERABLE.into_iter().collect();
+    } else {
+        let mut config = NodeConfig::new(node.id);
+        config.managed = RENDERABLE.into_iter().collect();
+        trial.nodes.push(config);
+    }
+    let target = Target {
+        node: node.id,
+        role: node.role,
+        facts: &reading.facts,
+        current: &reading.packages,
+    };
+    let rendered = render(&trial, secrets, target).map_err(|issues| {
+        let why: Vec<String> = issues.into_iter().map(|issue| issue.message).collect();
+        format!(
+            "The latest revision doesn't render for it: {}",
+            why.join("; ")
+        )
+    })?;
+    let mut packages: BTreeMap<String, Package> = rendered
+        .packages
+        .into_iter()
+        .map(|(package, rendered)| (package.name().to_owned(), rendered))
+        .collect();
+    if node.id == scope.node {
+        match reading.packages.get(&scope.package) {
+            Some(kept) => {
+                packages.insert(scope.package.clone(), kept.clone());
+            }
+            None => {
+                packages.remove(&scope.package);
+            }
+        }
+    }
+    Ok(packages)
 }
 
 async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {

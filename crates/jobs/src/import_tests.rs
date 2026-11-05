@@ -14,7 +14,7 @@ use uniwrt_model::{
 use uniwrt_store::{NodeRepo as _, RevisionRepo as _};
 
 use crate::{
-    Error, ImportDraft,
+    Error, ImportDraft, ImportScope,
     apply::tests::fleet::{Fleet, fleet},
 };
 
@@ -85,7 +85,7 @@ async fn every_node_is_read_its_secrets_sealed_once() {
         .set_node_mode(ap, NodeMode::Observe)
         .await
         .unwrap();
-    let draft = fleet.jobs.import().await.unwrap();
+    let draft = fleet.jobs.import(None).await.unwrap();
     let preview = &draft.preview;
     let head = fleet.store.head_revision().await.unwrap().unwrap();
     assert_eq!(preview.base, head.meta.id);
@@ -144,7 +144,7 @@ async fn every_node_is_read_its_secrets_sealed_once() {
     assert!(!draft.sealed.is_empty());
     accept(&fleet, draft).await;
 
-    let again = fleet.jobs.import().await.unwrap();
+    let again = fleet.jobs.import(None).await.unwrap();
     assert!(
         again.sealed.is_empty(),
         "the same values keep their references"
@@ -156,7 +156,7 @@ async fn every_node_is_read_its_secrets_sealed_once() {
 async fn nodes_not_reached_are_left_unread() {
     let fleet = brownfield().await;
     fleet.fake(1).down.store(true, Ordering::SeqCst);
-    let draft = fleet.jobs.import().await.unwrap();
+    let draft = fleet.jobs.import(None).await.unwrap();
     let ap = &draft.preview.nodes[1];
     assert_eq!(ap.state, NodeImportState::Unread);
     assert!(
@@ -169,7 +169,52 @@ async fn nodes_not_reached_are_left_unread() {
 #[tokio::test]
 async fn controllers_without_a_dial_cannot_import() {
     let fleet = brownfield().await;
-    drop(fleet.jobs.import().await.unwrap());
+    drop(fleet.jobs.import(None).await.unwrap());
     let setup = crate::testing::setup(false).await;
-    assert!(matches!(setup.jobs.import().await, Err(Error::Unavailable)));
+    assert!(matches!(
+        setup.jobs.import(None).await,
+        Err(Error::Unavailable)
+    ));
+}
+
+#[tokio::test]
+async fn a_scoped_import_takes_only_the_drifted_package() {
+    let fleet = brownfield().await;
+    let draft = fleet.jobs.import(None).await.unwrap();
+    accept(&fleet, draft).await;
+    let gateway = fleet.nodes[0].0.id;
+    {
+        let mut tool = fleet.fake(0).tool.lock().unwrap();
+        let dhcp = tool.files.get_mut("dhcp").unwrap();
+        *dhcp = dhcp.replace("option domain 'lan'", "option domain 'home'");
+        let system = tool.files.get_mut("system").unwrap();
+        *system = system.replace("option zonename 'UTC'", "option zonename 'Europe/Berlin'");
+    }
+    let scope = ImportScope {
+        node: gateway,
+        package: "dhcp".to_owned(),
+    };
+    let draft = fleet.jobs.import(Some(&scope)).await.unwrap();
+    let paths: Vec<String> = draft
+        .preview
+        .changes
+        .iter()
+        .map(|change| change.path.join("."))
+        .collect();
+    assert!(paths.iter().any(|p| p.ends_with("domain")), "{paths:?}");
+    assert!(!paths.iter().any(|p| p.contains("time")), "{paths:?}");
+
+    // A package that didn't drift imports as nothing.
+    let unchanged = ImportScope {
+        node: fleet.nodes[1].0.id,
+        package: "wireless".to_owned(),
+    };
+    let draft = fleet.jobs.import(Some(&unchanged)).await.unwrap();
+    assert_eq!(draft.preview.changes, Vec::new());
+
+    fleet.fake(0).down.store(true, Ordering::SeqCst);
+    assert!(matches!(
+        fleet.jobs.import(Some(&scope)).await,
+        Err(Error::Failed(why)) if why.contains("Cannot read")
+    ));
 }

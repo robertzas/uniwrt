@@ -25,7 +25,8 @@
 //!   gateway's `nslookup`; `render/commands.rs`), and the transaction tool with the node's
 //!   `/etc/config` (OpenWrt's stock packages configured by hand for the simulated network,
 //!   `render/config.rs`) and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
-//!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); `stream` and `upload`
+//!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); the
+//!   `config` set hashes those files and `read_file` reads them (drift); `stream` and `upload`
 //!   answer `unsupported`.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
 //!   timestamps counted from the clock's now at spawn; it reads no clock, uses no randomness

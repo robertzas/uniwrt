@@ -100,6 +100,7 @@ mod tests {
             "node_rebooted",
             "flash_low",
             "job_failed",
+            "config_drift",
             "wan_down",
             "mesh_link_down",
             "mesh_link_weak",

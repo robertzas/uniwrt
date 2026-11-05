@@ -7,6 +7,7 @@
 mod batman;
 mod board;
 mod capabilities;
+mod config;
 mod devices;
 mod ies;
 mod interfaces;
@@ -19,6 +20,8 @@ pub mod scan;
 mod stations;
 mod system;
 mod wifi;
+
+use std::collections::BTreeMap;
 
 use serde::de::DeserializeOwned;
 use serde_json::value::RawValue;
@@ -35,6 +38,7 @@ pub enum SetFacts {
     Batman(Vec<BatmanFacts>),
     Board(Box<BoardFacts>),
     Capabilities(Capabilities),
+    Config(BTreeMap<String, String>),
     Devices(Vec<DeviceFacts>),
     Interfaces(Vec<InterfaceFacts>),
     Leases(Vec<LeaseFacts>),
@@ -55,6 +59,7 @@ impl SetFacts {
             Set::Batman => Self::Batman(batman::parse(decode(set, raw)?)),
             Set::Board => Self::Board(Box::new(board::parse(decode(set, raw)?))),
             Set::Capabilities => Self::Capabilities(capabilities::parse(decode(set, raw)?)),
+            Set::Config => Self::Config(config::parse(decode(set, raw)?)),
             Set::Devices => Self::Devices(devices::parse(decode(set, raw)?)),
             Set::Interfaces => Self::Interfaces(interfaces::parse(decode(set, raw)?)),
             Set::Leases => Self::Leases(leases::parse(decode(set, raw)?)),
@@ -78,6 +83,7 @@ impl SetFacts {
             }
             Self::Board(board) => facts.board = *board,
             Self::Capabilities(capabilities) => facts.capabilities = capabilities,
+            Self::Config(config) => facts.config = config,
             Self::Devices(devices) => {
                 facts.devices = devices;
                 mark_meshes(facts);

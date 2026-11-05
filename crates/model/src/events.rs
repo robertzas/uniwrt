@@ -9,10 +9,11 @@
 //! annotation from the same source) fold into one record with a count.
 
 use serde::{Deserialize, Serialize};
-use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, Timestamp};
+use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, RevisionId, Timestamp};
 
 use crate::{
     client::ClientMedium,
+    drift::DriftEnd,
     event::Attachment,
     job::JobKind,
     log::Severity,
@@ -254,6 +255,19 @@ pub enum EventKind {
         job_kind: JobKind,
         error: Option<String>,
     },
+    /// A managed package changed on its node after the controller confirmed it (drift; raises
+    /// `drift:<package>`); `removed` when the file is gone.
+    ConfigDrift {
+        package: String,
+        revision: RevisionId,
+        removed: bool,
+    },
+    /// A drift ended: reverted, confirmed anew, acknowledged, muted or no longer watched.
+    ConfigDriftEnded {
+        package: String,
+        how: DriftEnd,
+        drift_ms: Option<u64>,
+    },
 }
 
 impl EventKind {
@@ -262,16 +276,19 @@ impl EventKind {
         use EventCategory as C;
         use EventLevel as L;
         match self {
-            Self::ControllerStarted { .. } | Self::NodeAdopted => (C::System, L::Notice),
             Self::NodeOffline { .. } => (C::System, L::Critical),
             Self::NodeDegraded { .. }
             | Self::FlashLow { .. }
             | Self::NodeRebooted { .. }
             | Self::LogPattern { .. }
-            | Self::JobFailed { .. } => (C::System, L::Warning),
-            Self::NodeOnline { .. } | Self::NodeRecovered { .. } | Self::FlashOk { .. } => {
-                (C::System, L::Notice)
-            }
+            | Self::JobFailed { .. }
+            | Self::ConfigDrift { .. } => (C::System, L::Warning),
+            Self::ControllerStarted { .. }
+            | Self::NodeAdopted
+            | Self::NodeOnline { .. }
+            | Self::NodeRecovered { .. }
+            | Self::FlashOk { .. }
+            | Self::ConfigDriftEnded { .. } => (C::System, L::Notice),
             Self::MeshLinkDown { .. } => (C::Mesh, L::Critical),
             Self::MeshLinkWeak { .. } => (C::Mesh, L::Warning),
             Self::MeshLinkUp { .. } | Self::MeshLinkRecovered { .. } => (C::Mesh, L::Notice),
@@ -316,6 +333,8 @@ impl EventKind {
             Self::ChannelClear { .. } => "channel_clear",
             Self::LogPattern { .. } => "log_pattern",
             Self::JobFailed { .. } => "job_failed",
+            Self::ConfigDrift { .. } => "config_drift",
+            Self::ConfigDriftEnded { .. } => "config_drift_ended",
         }
     }
 }

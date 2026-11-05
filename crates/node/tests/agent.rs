@@ -100,7 +100,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
 #[tokio::test]
 #[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
 async fn collected_sets_parse_into_facts() {
-    let (_, node) = adopt().await;
+    let (session, node) = adopt().await;
     let (link, _) = link(&node, AgentLaunch::Bundle).await;
     let mut facts = NodeFacts::default();
     for _ in 0..2 {
@@ -114,6 +114,14 @@ async fn collected_sets_parse_into_facts() {
     assert!(!facts.board.hostname.is_empty(), "{:?}", facts.board);
     assert!(facts.system.uptime_s > 0 && facts.system.memory.total_bytes > 0);
     assert!(facts.system.cpu_percent.is_some());
+    // The `config` set's hashes are sha256sum's (drift, features/lifecycle.md).
+    let network = run(&session, &["sha256sum", "/etc/config/network"]).await;
+    assert_eq!(
+        facts.config.get("network").map(String::as_str),
+        network.split_whitespace().next(),
+        "{:?}",
+        facts.config
+    );
     let lan = facts.interfaces.iter().find(|i| i.name == "lan").unwrap();
     assert!(lan.up, "{lan:?}");
     assert_eq!(lan.device.as_deref(), Some("br-lan"));

@@ -29,6 +29,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
 - `src/clients.rs`: The client routes, with a session (features/observability.md, Clients): `GET /api/v1/clients` is every client the controller knows (the WS topic `clients` keeps it current), `GET /api/v1/clients/{mac}` one client with its last hour of samples and last day of sessions ([`ClientDetail`], the `client:<mac>` topic's snapshot), `GET /api/v1/clients/{mac}/sessions?since=<ms>` its sessions since a time, and `PATCH /api/v1/clients/{mac}` renames it (admins; audited).
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
+- `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
+- `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/import.rs`: Brownfield import, with an admin's session (features/lifecycle.md, Brownfield import; D-072, D-073):
@@ -62,7 +64,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/subs_alerts.rs`: The `alerts` topic of a connection: the alerts firing, then each alert stored since (opened, changed, resolved or acknowledged), by id between flushes so that each is sent as it is now.
 - `src/ws/subs_clients.rs`: The clients' topics of a connection: `clients` keeps each changed client's latest view by MAC address between flushes, and `client:<mac>` one client's view, its new samples (up to a cap) and its changed sessions, with fast telemetry for the node it is at.
 - `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
-- `src/ws/subs_config.rs`: The `config` topic of a connection (D-071): the site's latest revision and the revision each node holds, whole, when subscribed and again whenever either changes (a save or a restore, [`Api::config_changed`]; an apply that ends).
+- `src/ws/subs_config.rs`: The `config` topic of a connection (D-071): the site's latest revision, the revision each node holds and drift (D-074), whole, when subscribed and again whenever any of them changes (a save or a restore, [`Api::config_changed`]; an apply that ends; drift announced).
 - `src/ws/subs_events.rs`: The `events` topic of a connection: the newest events recorded, then each one recorded or folded since that passes its filter (one node's, at a least level), by id between flushes so that a fold sends the record as it is now.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, nodes and the site's revisions after jobs and saves, the rate of deltas, and closing.
@@ -106,6 +108,13 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
 - `src/clients.rs`: Keeping the clients' book (`uniwrt_clients`; features/observability.md, Clients): restored from the store before the nodes are watched, its records and sessions saved through [`ClientRepo`] as [`Event::Clients`] announces them, and clients long gone (and sessions older than [`RecorderConfig::keep`]) pruned every [`RecorderConfig::prune_every`].
 - `src/config.rs`: The engine's settings.
+- `src/drift/mod.rs`: Drift detection (features/lifecycle.md, Drift; D-072, D-074): the agent's hashes of `/etc/config` (the `config` set) against what the controller confirmed on each managed node ([`DriftRepo::confirmed`], written as an apply records).
+- `src/drift/task.rs`: The drift watcher's task: what it knows of each node (confirmed packages, drifts, mutes, the agent's hashes, the jobs that hold it), its loop, and what it announces.
+- `src/drift/task/fetch.rs`: The watcher's reads, each in a task of its own that hands its result back as a command: the files whose hash is new, and the agent's hashes after a job.
+- `src/drift/task/look.rs`: How the watcher looks at a node: its hashes against what was confirmed, the files read back, drifts begun, changed and ended, and what the store confirmed reloaded.
+- `src/drift/task/user.rs`: What users do about drift: acknowledge one, mute a package or watch it again.
+- `src/drift/tests.rs`: The drift watcher over a store and an engine watching a scripted node whose `/etc/config` the test holds: a semantic change is drift (acknowledged, changed again, reverted), a change in form only is confirmed as it reads now, a muted package is left alone, a gone file is a removed drift, and a job holds the node until it ends and the apply confirms it anew.
+- `src/drift/view.rs`: What drift shows of a package (pure): its diff from what the controller confirmed, secrets masked, and whether two texts mean the same; with the hash `sha256sum` prints.
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
 - `src/events/mod.rs`: Recording events (features/observability.md, Events; `uniwrt_events`): a deriver fed by the bus (statuses, facts, topology builds, clients, roams, stored log entries) and by the job runner, ticked for conditions that must last, its events folded and stored in batches through [`EventRepo`] and announced as [`Event::Recorded`] once stored; retention runs beside it.
 - `src/events/tests.rs`: The recorder over a store and an engine without nodes, fed by hand on a manual clock: the controller's start, a node going offline (once it lasts) and back after a restart, log entries whose pattern is an event folding together, and an adoption from the job runner.
@@ -147,6 +156,7 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/clients.rs`: Clients' comings and goings, from their views: a client seen for the first time is new, one that comes online joined, one that goes offline left.
 - `src/conditions.rs`: Conditions: states that begin and end, such as a node being offline.
 - `src/derive.rs`: [`Deriver`]: what the engine announces, turned into events.
+- `src/drift_tests.rs`: (no header comment)
 - `src/fold.rs`: Folding repeats: an event with a fold key that happens again within the window of the last one (from its latest repeat) becomes a repeat of that record (its count grows and its `last_at` moves) instead of a new one, so a device retrying a wrong password makes one line.
 - `src/lib.rs`: Events (features/observability.md, Events, alerts, notifications): deriving the network's timeline from what the engine announces.
 - `src/links.rs`: Links from topology builds: gateways' WAN links (down while they have no default route) and mesh links between adopted nodes, down (reported down, or gone from the topology while both nodes are online: batman-adv forgets a lost neighbour) or weak.
@@ -225,6 +235,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/apply.rs`: An apply's plan (features/lifecycle.md, Render → diff → apply): what applying a revision would change on each node, for the review screen, before anything changes.
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
+- `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074): a managed package that changed on its node after the controller confirmed it, and what the user made of it.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
 - `src/events.rs`: Events (features/observability.md, Events, alerts, notifications): what happened on the network, as the controller records it for its timeline.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
@@ -288,6 +299,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/batman.rs`: The `batman` set: batctl's JSON queries per mesh device.
 - `src/facts/board.rs`: The `board` set: `system board`, `/etc/openwrt_release` (for the package architecture, which ubus lacks) and `/etc/board.json` (for the label MAC and the [`layout`](super::layout)).
 - `src/facts/capabilities.rs`: The `capabilities` set: binaries and modules found on the node, the build features that hostapd and `wpa_supplicant` report (`-v<feature>`), and how the switch is driven.
+- `src/facts/config.rs`: The `config` set: the SHA-256 of each UCI package in `/etc/config`, by package (`node-agent/collect/config.uc`).
 - `src/facts/devices.rs`: The `devices` set: sysfs attributes of each device in /sys/class/net (text, as read) and the counters of /proc/net/dev.
 - `src/facts/ies.rs`: 802.11 information elements of a scan result (IEEE 802.11-2020, 9.4.2): the network's name, channel and width, standards, security and load.
 - `src/facts/interfaces.rs`: The `interfaces` set: `network.interface dump`.
@@ -466,6 +478,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/applies.rs`: [`ApplyRepo`] on SQLite: the `node_applied` table, and the nodes' addresses an apply moved.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
+- `src/repo/drift.rs`: [`DriftRepo`] on SQLite: the `node_config` table (what the controller confirmed, written by [`ApplyRepo::record_applied`](super::ApplyRepo::record_applied)), `config_drift` and `drift_mutes`.
+- `src/repo/drift_tests.rs`: (no header comment)
 - `src/repo/events.rs`: [`EventRepo`] on SQLite: the `events` table.
 - `src/repo/events_tests.rs`: Events over a real database: recording and folding, filters and pages, the conditions still raised, and retention by age and count.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
@@ -571,6 +585,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/batman.uc`: The `batman` set: each batman-adv mesh device as batctl's JSON queries report it: the mesh, its hard interfaces, originators, neighbors, gateways and both translation tables.
 - `collect/board.uc`: The `board` set: what the node is (`system board`, the release file and board.json).
 - `collect/capabilities.uc`: The `capabilities` set: features detected on the node, never inferred from its version: the package manager, optional software, what hostapd and wpa_supplicant were built with, and how the switch is driven.
+- `collect/config.uc`: The `config` set: the SHA-256 of each UCI package in /etc/config, for drift detection (features/lifecycle.md, Drift).
 - `collect/devices.uc`: The `devices` set: every kernel network device, from sysfs, with the counters of /proc/net/dev.
 - `collect/interfaces.uc`: The `interfaces` set: netifd's logical interfaces (`network.interface dump`).
 - `collect/leases.uc`: The `leases` set: DHCP leases from dnsmasq's lease files (each `dnsmasq` section's `leasefile`, /tmp/dhcp.leases by default) and from odhcpd over ubus (`dhcp ipv6leases`, and `ipv4leases` where odhcpd serves DHCPv4), with the node's clock, which dnsmasq's expiry times are on.
@@ -595,7 +610,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (281 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (289 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

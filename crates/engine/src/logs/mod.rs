@@ -225,7 +225,8 @@ impl<L: NodeLink> Intake<L> {
             | Event::Recorded { .. }
             | Event::Sampled { .. }
             | Event::Alerts { .. }
-            | Event::Rf { .. } => {}
+            | Event::Rf { .. }
+            | Event::Drift { .. } => {}
         }
     }
 

@@ -16,8 +16,8 @@ use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, Engine, EngineConfig, Fleet, LogRecorder, LogsConfig,
-    Notifications, Notify, NotifyConfig, Rf, RfConfig, RfScanner,
+    AlertEngine, Alerts, AlertsConfig, DriftConfig, DriftWatch, Drifts, Engine, EngineConfig,
+    Fleet, LogRecorder, LogsConfig, Notifications, Notify, NotifyConfig, Rf, RfConfig, RfScanner,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -102,10 +102,12 @@ pub(crate) async fn api_with(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
 ) -> Api {
-    api_full(store, fleet, clock, dial, None, None, None).await
+    api_full(store, fleet, clock, dial, None, None, None, None).await
 }
 
-/// [`api_with`], with the alert engine's, the notifications' and RF insight's handles.
+/// [`api_with`], with the alert engine's, the notifications', RF insight's and drift
+/// detection's handles.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn api_full(
     store: Store,
     fleet: Arc<dyn Fleet>,
@@ -114,6 +116,7 @@ pub(crate) async fn api_full(
     alerts: Option<Alerts>,
     notify: Option<(Notify, Vault)>,
     rf: Option<Rf>,
+    drift: Option<Drifts>,
 ) -> Api {
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -136,6 +139,7 @@ pub(crate) async fn api_full(
         alerts,
         notify,
         rf,
+        drift,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -172,6 +176,8 @@ pub(crate) struct Demo {
     _notifications: Notifications,
     /// Scans the simulated radios at once, one after another, busy or not.
     _rf: RfScanner,
+    /// Watches for drift, reading what the store confirmed every 100 ms.
+    _drift: DriftWatch,
 }
 
 impl Demo {
@@ -240,16 +246,7 @@ impl Demo {
             }) as Arc<dyn Dial>
         });
         let notify = Some((notifications.handle(), vault));
-        let rf_config = RfConfig {
-            tick_every: Duration::from_millis(20),
-            first_delay: Duration::ZERO,
-            stagger: Duration::ZERO,
-            gap: Duration::ZERO,
-            idle_kbps: u64::MAX,
-            rebuild_after: Duration::ZERO,
-            ..RfConfig::default()
-        };
-        let rf = RfScanner::start(&engine, store.clone(), rf_config).await;
+        let (rf, drift) = scanners(&engine, &store).await;
         let api = api_full(
             store.clone(),
             fleet,
@@ -258,6 +255,7 @@ impl Demo {
             Some(alerts.handle()),
             notify,
             Some(rf.handle()),
+            Some(drift.handle()),
         )
         .await;
         api.create_admin("admin", PASSWORD).await.unwrap();
@@ -273,6 +271,7 @@ impl Demo {
             _alerts: alerts,
             _notifications: notifications,
             _rf: rf,
+            _drift: drift,
         };
         demo.cookie = login(&demo.api).await;
         demo
@@ -318,6 +317,29 @@ impl Demo {
         tokio::spawn(async move { axum::serve(listener, app).await });
         addr
     }
+}
+
+/// RF insight scanning the simulated radios at once, one after another, busy or not; drift
+/// detection reading what the store confirmed every 100 ms.
+async fn scanners(engine: &Engine<SimLink>, store: &Store) -> (RfScanner, DriftWatch) {
+    let rf_config = RfConfig {
+        tick_every: Duration::from_millis(20),
+        first_delay: Duration::ZERO,
+        stagger: Duration::ZERO,
+        gap: Duration::ZERO,
+        idle_kbps: u64::MAX,
+        rebuild_after: Duration::ZERO,
+        ..RfConfig::default()
+    };
+    let rf = RfScanner::start(engine, store.clone(), rf_config).await;
+    let drift_config = DriftConfig {
+        tick_every: Duration::from_millis(100),
+        ..DriftConfig::default()
+    };
+    let drift = DriftWatch::start(engine, store.clone(), None, drift_config)
+        .await
+        .unwrap();
+    (rf, drift)
 }
 
 pub(crate) fn post(uri: &str, body: &Value, cookie: Option<&str>) -> Request {

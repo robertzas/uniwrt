@@ -86,8 +86,10 @@ impl SimLink {
             "ping" => json!({"ts": now_ms}),
             "collect" => {
                 let sets: Vec<Set> = field(op, args, "sets")?;
-                render::collect(&world, self.node, &sets)
+                let disk = lock(&self.shared.nodes[self.node].disk);
+                render::collect(&world, self.node, &sets, &disk.tool.files)
             }
+            "read_file" => self.read_file(op, args)?,
             "subscribe" | "unsubscribe" => {
                 let topics: Vec<Topic> = field(op, args, "topics")?;
                 if op == "subscribe" {
@@ -159,6 +161,23 @@ impl SimLink {
             }
             _ => return Err(bad_request(op, "unknown op")),
         })
+    }
+
+    /// `read_file` of a package in `/etc/config`, which is all the controller reads so.
+    fn read_file(&self, op: &str, args: &RawValue) -> Result<Value> {
+        let path: String = field(op, args, "path")?;
+        let disk = lock(&self.shared.nodes[self.node].disk);
+        let file = path
+            .strip_prefix("/etc/config/")
+            .and_then(|name| disk.tool.files.get(name));
+        match file {
+            Some(data) => Ok(json!({"data": data, "truncated": false})),
+            None => Err(Error::Remote {
+                op: op.to_owned(),
+                code: "not_found".to_owned(),
+                msg: format!("{path}: No such file or directory"),
+            }),
+        }
     }
 
     fn run(&self, request: &ExecRequest) -> Result<ExecOutput> {

@@ -11,6 +11,7 @@ use uniwrt_model::{
     alerts::AlertRecord,
     apply::AppliedRevision,
     client::ClientSession,
+    drift::DriftState,
     event::{NodeEvent, Roam},
     events::EventRecord,
     facts::{
@@ -161,12 +162,16 @@ pub enum ServerMessage {
         topic: String,
         view: Arc<RfView>,
     },
-    /// The site's latest revision (`None` before the first) and the revision each node holds:
-    /// when `config` is subscribed, after a resync, and whenever either changes.
+    /// The site's latest revision (`None` before the first), the revision each node holds and
+    /// drift (when drift detection runs): when `config` is subscribed, after a resync, and
+    /// whenever any of them changes.
     Config {
         topic: String,
         head: Option<RevisionMeta>,
         applied: Vec<AppliedRevision>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        drift: Option<Arc<DriftState>>,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

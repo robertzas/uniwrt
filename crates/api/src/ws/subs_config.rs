@@ -1,6 +1,6 @@
-//! The `config` topic of a connection (D-071): the site's latest revision and the revision
-//! each node holds, whole, when subscribed and again whenever either changes (a save or a
-//! restore, [`Api::config_changed`]; an apply that ends). Small, rare and read fresh, so it keeps
+//! The `config` topic of a connection (D-071): the site's latest revision, the revision each
+//! node holds and drift (D-074), whole, when subscribed and again whenever any of them changes
+//! (a save or a restore, [`Api::config_changed`]; an apply that ends; drift announced). Small, rare and read fresh, so it keeps
 //! no state between flushes.
 
 use tracing::warn;
@@ -28,6 +28,7 @@ pub(super) async fn read(api: &Api, topic: String) -> Result<ServerMessage, BadT
         topic,
         head,
         applied,
+        drift: api.drifts().map(uniwrt_engine::Drifts::state),
     })
 }
 

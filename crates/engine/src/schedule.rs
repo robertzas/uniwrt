@@ -40,6 +40,7 @@ impl Default for Intervals {
                 (Set::Neighbors, secs(30)),
                 (Set::Batman, secs(30)),
                 (Set::Leases, secs(60)),
+                (Set::Config, secs(60)),
                 (Set::Capabilities, secs(3600)),
                 (Set::Phys, secs(3600)),
             ]),

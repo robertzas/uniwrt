@@ -266,7 +266,9 @@ impl Shared {
             for (&interval, tick) in &mut session.ticks {
                 if tick.due_ms <= now_ms {
                     let sets: Vec<Set> = tick.sets.iter().copied().collect();
-                    pushes.push(AgentEvent::Tick(raw(&render::collect(world, node, &sets))));
+                    let disk = lock(&self.nodes[node].disk);
+                    let body = render::collect(world, node, &sets, &disk.tool.files);
+                    pushes.push(AgentEvent::Tick(raw(&body)));
                     tick.due_ms = (tick.due_ms + interval as i64).max(now_ms + 1);
                 }
             }

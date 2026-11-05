@@ -24,12 +24,13 @@ macro_rules! file {
 
 /// The agent's files, relative to `node-agent/`; a test keeps the list in step with the
 /// directory.
-const FILES: [(&str, &str); 23] = [
+const FILES: [(&str, &str); 24] = [
     file!("bus.uc"),
     file!("collect.uc"),
     file!("collect/batman.uc"),
     file!("collect/board.uc"),
     file!("collect/capabilities.uc"),
+    file!("collect/config.uc"),
     file!("collect/devices.uc"),
     file!("collect/interfaces.uc"),
     file!("collect/leases.uc"),

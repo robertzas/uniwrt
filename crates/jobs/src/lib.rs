@@ -68,7 +68,7 @@ mod testing;
 
 pub use adopt::AdoptRequest;
 pub use apply::ApplyTiming;
-pub use import::ImportDraft;
+pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
 

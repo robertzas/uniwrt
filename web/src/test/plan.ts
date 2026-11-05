@@ -12,6 +12,7 @@ export function nodePlan(node: number, name: string, extra: Partial<NodePlan> = 
     action: "unchanged",
     reason: null,
     packages: [],
+    drift: [],
     raw: [],
     services: [],
     address: null,

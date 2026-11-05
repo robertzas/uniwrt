@@ -32,8 +32,13 @@ fn world() -> World {
 }
 
 fn facts_of(world: &World, node: usize) -> NodeFacts {
-    let collected: Collected =
-        serde_json::from_value(collect(world, node, &Set::ALL)).expect("a collect answer");
+    let collected: Collected = serde_json::from_value(collect(
+        world,
+        node,
+        &Set::ALL,
+        &super::config::files(world, node),
+    ))
+    .expect("a collect answer");
     let mut facts = NodeFacts::default();
     let errors = facts::apply(&collected, &mut facts);
     assert!(errors.is_empty(), "node {node}: {errors:?}");

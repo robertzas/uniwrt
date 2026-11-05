@@ -17,12 +17,12 @@ pub(crate) mod survey;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use tracing::{info, warn};
 use uniwrt_core::UserId;
 use uniwrt_model::{
-    apply::{Applied, ApplyPlan, PlanAction},
+    apply::{Applied, AppliedNode, ApplyPlan, PlanAction},
     job::{JobError, JobErrorCode, JobKind, JobNode, JobNodeState, NewJob, StepName},
     node::{Node, NodeMode},
     site::revision::Revision,
@@ -194,7 +194,7 @@ async fn apply(
                 .node(member.login.node.id, JobNodeState::Unchanged, detail)
                 .await;
             member.login.remote.close().await;
-            unchanged.push(member.login.node);
+            unchanged.push((member.login.node, member.part.held));
         }
     }
     progress.done(Some(summary(&plan))).await;
@@ -245,7 +245,7 @@ async fn record(
     revision: &Revision,
     progress: &mut Progress,
     confirmed: &[Live],
-    unchanged: &[Node],
+    unchanged: &[(Node, BTreeMap<String, String>)],
 ) -> Result<(), JobError> {
     progress.start(StepName::Record).await;
     store(shared, revision, progress, confirmed, unchanged).await?;
@@ -263,7 +263,7 @@ async fn store(
     revision: &Revision,
     progress: &Progress,
     confirmed: &[Live],
-    unchanged: &[Node],
+    unchanged: &[(Node, BTreeMap<String, String>)],
 ) -> Result<(), JobError> {
     let moved = |live: &Live| (live.host != live.node.host).then(|| live.host.clone());
     let applied = Applied {
@@ -271,8 +271,16 @@ async fn store(
         job: progress.job_id(),
         nodes: confirmed
             .iter()
-            .map(|live| (live.node.id, moved(live)))
-            .chain(unchanged.iter().map(|node| (node.id, None)))
+            .map(|live| AppliedNode {
+                node: live.node.id,
+                host: moved(live),
+                packages: live.held().clone(),
+            })
+            .chain(unchanged.iter().map(|(node, held)| AppliedNode {
+                node: node.id,
+                host: None,
+                packages: held.clone(),
+            }))
             .collect(),
     };
     shared

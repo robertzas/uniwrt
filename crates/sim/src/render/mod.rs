@@ -14,6 +14,8 @@ pub(crate) mod scan;
 mod system;
 pub(crate) mod wifi;
 
+use std::collections::BTreeMap;
+
 use serde_json::{Map, Value, json};
 use uniwrt_node::{
     Hello,
@@ -28,10 +30,11 @@ use crate::world::{Happening, What, World};
 pub(crate) use self::logs::{log_entries, log_lines};
 
 /// The ops a simulated agent answers.
-const OPS: [&str; 7] = [
+const OPS: [&str; 8] = [
     "collect",
     "log_follow",
     "ping",
+    "read_file",
     "scan",
     "set_interval",
     "subscribe",
@@ -55,11 +58,22 @@ pub(crate) fn hello(world: &World, node: usize) -> Hello {
     }
 }
 
-/// A collect answer (or a tick's body) for `sets`.
-pub(crate) fn collect(world: &World, node: usize, sets: &[Set]) -> Value {
+/// A collect answer (or a tick's body) for `sets`; `files` is the node's `/etc/config`.
+pub(crate) fn collect(
+    world: &World,
+    node: usize,
+    sets: &[Set],
+    files: &BTreeMap<String, String>,
+) -> Value {
     let sets: Map<_, _> = sets
         .iter()
-        .map(|&set| (set.as_str().to_owned(), set_of(world, node, set)))
+        .map(|&set| {
+            let value = match set {
+                Set::Config => config::hashes(files),
+                _ => set_of(world, node, set),
+            };
+            (set.as_str().to_owned(), value)
+        })
         .collect();
     json!({"sets": sets, "errors": {}})
 }
@@ -70,6 +84,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Batman => batman::batman(world, n),
         Set::Board => system::board(node),
         Set::Capabilities => system::capabilities(node),
+        Set::Config => json!({"files": {}}),
         Set::Devices => devices::devices(world, n),
         Set::Interfaces => net::interfaces(world, n),
         Set::Leases => l2::leases(world, n),

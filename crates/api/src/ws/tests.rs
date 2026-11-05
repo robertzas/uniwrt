@@ -259,6 +259,7 @@ async fn the_config_topic_follows_saves_and_applies() {
     assert_eq!(snapshot["type"], "config");
     assert_eq!(snapshot["head"]["id"], 1);
     assert_eq!(snapshot["applied"], json!([]));
+    assert_eq!(snapshot["drift"], json!({"drifts": [], "muted": []}));
 
     let site = demo
         .send(request(

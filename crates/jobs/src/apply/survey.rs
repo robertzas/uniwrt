@@ -18,7 +18,7 @@ use uniwrt_node::{
     txn::{self, current},
 };
 use uniwrt_render::Secrets;
-use uniwrt_store::{HostKeyRepo as _, VaultRepo as _};
+use uniwrt_store::{DriftRepo as _, HostKeyRepo as _, VaultRepo as _};
 use zeroize::Zeroizing;
 
 use super::{
@@ -206,7 +206,7 @@ pub(crate) async fn dns(remote: &dyn Remote, role: NodeRole) -> [bool; 2] {
 }
 
 /// The vault's values of the site's secrets, wiped when dropped.
-struct VaultSecrets(BTreeMap<SecretRef, Zeroizing<String>>);
+pub(crate) struct VaultSecrets(BTreeMap<SecretRef, Zeroizing<String>>);
 
 impl Secrets for VaultSecrets {
     fn get(&self, secret: &SecretRef) -> Option<&str> {
@@ -214,7 +214,7 @@ impl Secrets for VaultSecrets {
     }
 }
 
-async fn secrets(shared: &Shared, site: &SiteConfig) -> Result<VaultSecrets, JobError> {
+pub(crate) async fn secrets(shared: &Shared, site: &SiteConfig) -> Result<VaultSecrets, JobError> {
     let mut values = BTreeMap::new();
     for slot in site.secrets() {
         let Some(secret) = slot.value else { continue };
@@ -244,6 +244,11 @@ pub(crate) async fn plan_all(
 ) -> Result<Survey, JobError> {
     let site = &revision.config;
     let secrets = secrets(shared, site).await?;
+    let drifts = shared
+        .store
+        .drifts()
+        .await
+        .map_err(|err| internal("reading the drift", &err))?;
     let readings = join_all(logins.iter().map(|login| read(shared, login))).await;
     let read: Vec<(&Node, &NodeFacts)> = logins
         .iter()
@@ -274,6 +279,11 @@ pub(crate) async fn plan_all(
             &shared.timing,
         );
         part.plan.hops = hops.get(&login.node.id).copied();
+        part.plan.drift = drifts
+            .iter()
+            .filter(|drift| drift.node == login.node.id)
+            .map(|drift| drift.package.clone())
+            .collect();
         plans.push(part.plan.clone());
         members.push(Member {
             baseline: Health::measure(login.node.role, &reading.facts, reading.dns),

@@ -24,6 +24,8 @@ uniwrt-rf.workspace = true
 uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true
 uniwrt-topo.workspace = true
+uniwrt-uci.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true

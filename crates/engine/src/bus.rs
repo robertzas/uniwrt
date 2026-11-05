@@ -7,6 +7,7 @@ use uniwrt_clients::Changes;
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     alerts::AlertRecord,
+    drift::{DriftChange, DriftState},
     event::{NodeEvent, Roam},
     events::EventRecord,
     facts::NodeFacts,
@@ -70,6 +71,12 @@ pub enum Event {
     /// RF insight's view changed ([`RfScanner`](crate::RfScanner)): the report, the radios'
     /// scanning and the settings.
     Rf { view: Arc<RfView> },
+    /// Drift changed ([`DriftWatch`](crate::DriftWatch)): every drift and mute now, and what
+    /// changed about each drift (empty when only a drift's diff or a mute changed).
+    Drift {
+        state: Arc<DriftState>,
+        changes: Arc<[DriftChange]>,
+    },
 }
 
 impl Event {
@@ -89,7 +96,8 @@ impl Event {
             | Self::Recorded { .. }
             | Self::Sampled { .. }
             | Self::Alerts { .. }
-            | Self::Rf { .. } => None,
+            | Self::Rf { .. }
+            | Self::Drift { .. } => None,
         }
     }
 }

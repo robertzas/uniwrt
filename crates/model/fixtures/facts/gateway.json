@@ -890,5 +890,9 @@
         }
       ]
     }
-  ]
+  ],
+  "config": {
+    "network": "5f0c4e8a1b2d3c4e5f60718293a4b5c6d7e8f90112233445566778899aabbccd",
+    "wireless": "0e1d2c3b4a5968778695a4b3c2d1e0f1f2e3d4c5b6a798867564534231201f0e"
+  }
 }
