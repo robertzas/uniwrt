@@ -93,6 +93,8 @@ struct Inner {
     closing: watch::Sender<bool>,
     /// Bumped whenever a revision is committed ([`Api::config_changed`]).
     config: watch::Sender<u64>,
+    /// The newest import preview, until accepted (`import.rs`).
+    imports: std::sync::Mutex<Option<crate::import::Held>>,
 }
 
 impl Api {
@@ -120,6 +122,7 @@ impl Api {
                 notify: config.notify,
                 rf: config.rf,
                 vault: config.vault,
+                imports: std::sync::Mutex::default(),
             }),
         };
         crate::site::ensure_first_revision(&api, first_site).await?;
@@ -218,6 +221,14 @@ impl Api {
             .rf
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("RF insight is not running".to_owned()))
+    }
+
+    /// The held import preview; a poisoned lock is recovered (it holds no invariant).
+    pub(crate) fn imports(&self) -> std::sync::MutexGuard<'_, Option<crate::import::Held>> {
+        self.inner
+            .imports
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub(crate) fn jobs(&self) -> &Jobs {

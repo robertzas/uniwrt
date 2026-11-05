@@ -2,5 +2,5 @@
 //! simulated transaction tool.
 
 pub(crate) mod facts;
-mod fleet;
+pub(crate) mod fleet;
 mod jobs;

@@ -3,4 +3,4 @@
 /**
  * How a revision came about.
  */
-export type RevisionKind = "defaults" | "edit" | "restore";
+export type RevisionKind = "defaults" | "edit" | "restore" | "import";

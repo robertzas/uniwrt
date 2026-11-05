@@ -49,6 +49,7 @@ pub mod discovery;
 pub mod event;
 pub mod events;
 pub mod facts;
+pub mod import;
 pub mod inventory;
 pub mod job;
 pub mod log;

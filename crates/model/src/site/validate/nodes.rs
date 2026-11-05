@@ -93,6 +93,7 @@ fn raw(node: &NodeConfig, at: &str, issues: &mut Issues) {
             let values = match value {
                 RawValue::Option(value) => std::slice::from_ref(value),
                 RawValue::List(values) => values.as_slice(),
+                RawValue::Secret { .. } => &[],
             };
             if values
                 .iter()

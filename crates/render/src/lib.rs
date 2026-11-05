@@ -183,7 +183,12 @@ pub fn render(
         };
         let mut rendered = rendered;
         preserve::carry_over(&mut rendered, target.current);
-        raw::merge(&mut rendered, &config.raw, &mut plan.warnings);
+        let at = raw::Merge {
+            secrets,
+            warnings: &mut plan.warnings,
+            errors: &mut plan.errors,
+        };
+        raw::merge(&mut rendered, &config.raw, at);
         if let Err(invalid) = rendered.validate() {
             errors.push(Issue::new(
                 "node",

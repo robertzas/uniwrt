@@ -3149,6 +3149,7 @@ dependencies = [
  "uniwrt-api",
  "uniwrt-core",
  "uniwrt-engine",
+ "uniwrt-import",
  "uniwrt-jobs",
  "uniwrt-model",
  "uniwrt-node",
@@ -3156,6 +3157,7 @@ dependencies = [
  "uniwrt-sim",
  "uniwrt-store",
  "uniwrt-syslog",
+ "uniwrt-uci",
  "zeroize",
 ]
 
@@ -3283,6 +3285,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uniwrt-core",
+ "uniwrt-import",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-render",

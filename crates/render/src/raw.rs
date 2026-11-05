@@ -1,12 +1,13 @@
 //! A node's raw sections (the validated escape hatch, D-011): each joins its package after
 //! everything rendered, or replaces the rendered section of the same name; a merge (D-072)
 //! sets its options on a rendered section instead, found by name or, for an anonymous one, by
-//! the key options of its type ([`key`]).
+//! the key options of its type ([`key`]). A sealed value ([`RawValue::Secret`], D-073) is
+//! written as the vault holds it; one the vault lacks keeps the node from rendering.
 
 use uniwrt_model::site::node::{RawSection, RawValue};
 use uniwrt_uci::{Package, Section, Value};
 
-use crate::Issue;
+use crate::{Issue, Secrets};
 
 /// The options that identify an anonymous section of `kind` in `package`, as render writes
 /// them: a merge, and brownfield import pairing a node's sections with rendered ones, find a
@@ -54,10 +55,36 @@ pub fn find<'v>(
     })
 }
 
-pub(crate) fn merge(package: &mut Package, raw: &[RawSection], warnings: &mut Vec<Issue>) {
+/// Where raw sections join a package: the vault's values of their secrets, and the render's
+/// issues.
+pub(crate) struct Merge<'a> {
+    pub(crate) secrets: &'a dyn Secrets,
+    pub(crate) warnings: &'a mut Vec<Issue>,
+    pub(crate) errors: &'a mut Vec<Issue>,
+}
+
+pub(crate) fn merge(package: &mut Package, raw: &[RawSection], at: Merge<'_>) {
+    let Merge {
+        secrets,
+        warnings,
+        errors,
+    } = at;
     for (i, raw) in raw.iter().enumerate() {
         if raw.package != package.name {
             continue;
+        }
+        let mut values = Vec::with_capacity(raw.options.len());
+        for (name, value) in &raw.options {
+            match value_of(value, secrets) {
+                Some(value) => values.push((name, value)),
+                None => errors.push(Issue::new(
+                    format!("node/raw/{i}/options/{name}"),
+                    format!(
+                        "The vault lacks the secret of {}'s {name}: set it again",
+                        raw.package
+                    ),
+                )),
+            }
         }
         if raw.merge {
             let target = find(package, &raw.kind, raw.name.as_deref(), |k| {
@@ -69,8 +96,8 @@ pub(crate) fn merge(package: &mut Package, raw: &[RawSection], warnings: &mut Ve
             match target {
                 Some(index) => {
                     let section = &mut package.sections[index];
-                    for (name, value) in &raw.options {
-                        section.set(name, value_of(value));
+                    for (name, value) in values {
+                        section.set(name, value);
                     }
                 }
                 None => warnings.push(Issue::new(
@@ -87,8 +114,8 @@ pub(crate) fn merge(package: &mut Package, raw: &[RawSection], warnings: &mut Ve
             Some(name) => Section::named(raw.kind.as_str(), name.as_str()),
             None => Section::anonymous(raw.kind.as_str()),
         };
-        for (name, value) in &raw.options {
-            section.set(name, value_of(value));
+        for (name, value) in values {
+            section.set(name, value);
         }
         let existing = raw.name.as_ref().and_then(|name| {
             package
@@ -103,21 +130,42 @@ pub(crate) fn merge(package: &mut Package, raw: &[RawSection], warnings: &mut Ve
     }
 }
 
-fn value_of(value: &RawValue) -> Value {
-    match value {
+fn value_of(value: &RawValue, secrets: &dyn Secrets) -> Option<Value> {
+    Some(match value {
         RawValue::Option(value) => Value::Single(value.clone()),
         RawValue::List(items) => Value::List(items.clone()),
-    }
+        RawValue::Secret { secret } => Value::Single(secrets.get(secret)?.to_owned()),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use uniwrt_model::site::node::{RawSection, RawValue};
+    use uniwrt_model::site::{
+        SecretRef,
+        node::{RawSection, RawValue},
+    };
     use uniwrt_uci::{Package, Section};
 
-    use super::merge;
+    use super::{Merge, merge};
+    use crate::Issue;
+
+    /// Merges `raw` into `package` with the vault holding `secrets`; the warnings and errors.
+    fn merge_with(
+        package: &mut Package,
+        raw: &[RawSection],
+        secrets: &BTreeMap<SecretRef, String>,
+    ) -> (Vec<Issue>, Vec<Issue>) {
+        let (mut warnings, mut errors) = (Vec::new(), Vec::new());
+        let at = Merge {
+            secrets,
+            warnings: &mut warnings,
+            errors: &mut errors,
+        };
+        merge(package, raw, at);
+        (warnings, errors)
+    }
 
     fn raw(name: Option<&str>, kind: &str, options: &[(&str, RawValue)]) -> RawSection {
         RawSection {
@@ -145,8 +193,7 @@ mod tests {
         ];
         let mut other = raw(None, "rule", &[]);
         other.package = "firewall".to_owned();
-        let mut warnings = Vec::new();
-        merge(
+        let (warnings, errors) = merge_with(
             &mut package,
             &[
                 raw(Some("wan"), "interface", &[("proto", one("pppoe"))]),
@@ -157,12 +204,45 @@ mod tests {
                 ),
                 other,
             ],
-            &mut warnings,
+            &BTreeMap::new(),
         );
         assert_eq!(package.sections.len(), 3);
         assert_eq!(package.sections[1].option("proto"), Some("pppoe"));
         assert_eq!(package.sections[2].kind, "route");
-        assert_eq!(warnings, Vec::<crate::Issue>::new());
+        assert_eq!((warnings, errors), (Vec::new(), Vec::new()));
+    }
+
+    #[test]
+    fn sealed_values_are_written_as_the_vault_holds_them() {
+        let sealed = |c: char| SecretRef::new(format!("config/{}", c.to_string().repeat(32)));
+        let (known, lost) = (sealed('a').unwrap(), sealed('b').unwrap());
+        let secrets = BTreeMap::from([(known.clone(), "c2VjcmV0".to_owned())]);
+        let mut package = Package::new("network");
+        let (_, errors) = merge_with(
+            &mut package,
+            &[
+                raw(
+                    Some("wg0"),
+                    "interface",
+                    &[
+                        ("proto", one("wireguard")),
+                        ("private_key", RawValue::Secret { secret: known }),
+                    ],
+                ),
+                raw(
+                    None,
+                    "wireguard_wg0",
+                    &[("preshared_key", RawValue::Secret { secret: lost })],
+                ),
+            ],
+            &secrets,
+        );
+        assert_eq!(package.sections[0].option("private_key"), Some("c2VjcmV0"));
+        assert_eq!(package.sections[1].option("preshared_key"), None);
+        assert_eq!(
+            errors.iter().map(|e| e.path.as_str()).collect::<Vec<_>>(),
+            ["node/raw/1/options/preshared_key"]
+        );
     }
 
     #[test]
@@ -181,8 +261,7 @@ mod tests {
             raw.merge = true;
             raw
         };
-        let mut warnings = Vec::new();
-        merge(
+        let (warnings, _) = merge_with(
             &mut package,
             &[
                 merged(raw(Some("lan"), "interface", &[("mtu", one("1400"))])),
@@ -198,7 +277,7 @@ mod tests {
                 )),
                 merged(raw(None, "route", &[("target", one("10.9.0.0/16"))])),
             ],
-            &mut warnings,
+            &BTreeMap::new(),
         );
         assert_eq!(package.sections.len(), 3, "a merge never adds a section");
         assert_eq!(package.sections[0].option("mtu"), Some("1400"));

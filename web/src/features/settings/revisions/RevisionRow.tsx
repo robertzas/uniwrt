@@ -1,4 +1,4 @@
-import { FilePlus2, History, Pencil, RotateCcw, RotateCw } from "lucide";
+import { FileDown, FilePlus2, History, Pencil, RotateCcw, RotateCw } from "lucide";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { RevisionDiff } from "../../../api/gen/RevisionDiff";
 import type { RevisionKind } from "../../../api/gen/RevisionKind";
@@ -19,6 +19,7 @@ const KIND_ICONS: Record<RevisionKind, IconNode> = {
   defaults: FilePlus2,
   edit: Pencil,
   restore: History,
+  import: FileDown,
 };
 
 const time = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });

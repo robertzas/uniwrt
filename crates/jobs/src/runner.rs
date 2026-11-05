@@ -24,7 +24,7 @@ use uniwrt_node::{ControllerKey, HostKey, Target};
 use uniwrt_store::{JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault};
 
 use crate::{
-    AdoptRequest, BoxFuture, Dial, Error, Result,
+    AdoptRequest, BoxFuture, Dial, Error, ImportDraft, Result,
     adopt::{self, STEPS},
     apply,
     discovery::Discovery,
@@ -208,6 +208,28 @@ impl Jobs {
         apply::plan(&self.shared, &revision, nodes)
             .await
             .map_err(|err| Error::Failed(err.message))
+    }
+
+    /// The draft of importing what every adopted node holds into the site's latest revision
+    /// (brownfield import, D-072): read fresh from the nodes, its secrets sealed, for the
+    /// caller to show and commit. Nothing changes on the nodes; not while an apply runs.
+    pub async fn import(&self) -> Result<ImportDraft> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        if self.shared.running().targets.contains(apply::TARGET) {
+            return Err(Error::Busy {
+                target: "the configuration".to_owned(),
+            });
+        }
+        let head = self
+            .shared
+            .store
+            .head_revision()
+            .await?
+            .ok_or(Error::NoRevision)?;
+        let nodes = self.shared.store.nodes().await?;
+        crate::import::draft(&self.shared, &head, nodes).await
     }
 
     /// Starts applying the site's latest revision, which must be `revision` (the one the user

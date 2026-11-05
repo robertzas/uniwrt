@@ -28,7 +28,7 @@ use ts_rs::TS;
 use uniwrt_core::{Ipv6Net, NodeId, RevisionId};
 use uniwrt_model::{
     site::{
-        SCHEMA_VERSION, SiteConfig, check_secret,
+        SCHEMA_VERSION, SecretRef, SiteConfig, check_secret,
         revision::{NewRevision, RevisionKind, RevisionMeta},
         validate::{Issue, Severity, has_errors, validate},
     },
@@ -278,13 +278,16 @@ fn no_site() -> ApiError {
     ApiError::Unavailable("The site has no configuration yet".to_owned())
 }
 
-/// A new site's first revision when it isn't the defaults, such as demo mode's (the simulated
-/// network's): the document, why, and its secrets' values by path, sealed as a save seals them.
+/// A new site's first revision when it isn't the defaults, such as demo mode's (the import of
+/// the simulated fleet): the document, why, and its secrets' values under the placeholder
+/// references the document holds, each sealed under a name of its own.
 #[derive(Debug, Clone)]
 pub struct FirstSite {
     pub config: SiteConfig,
+    /// How it came about, such as an import.
+    pub kind: RevisionKind,
     pub message: String,
-    pub secrets: BTreeMap<String, Zeroizing<String>>,
+    pub secrets: BTreeMap<SecretRef, Zeroizing<String>>,
 }
 
 /// Commits a new site's first revision when there is no revision yet: `first`, checked as a
@@ -294,29 +297,27 @@ pub(crate) async fn ensure_first_revision(api: &Api, first: Option<FirstSite>) -
     if store.head_revision().await?.is_some() {
         return Ok(());
     }
-    let (config, message, sealed) = match first {
+    let (config, kind, message, sealed) = match first {
         Some(FirstSite {
             mut config,
+            kind,
             message,
             secrets: values,
         }) => {
-            let values = values
-                .into_iter()
-                .map(|(path, value)| (path, Some(value.to_string())))
-                .collect();
-            let sealed = secrets(api, &mut config, values)?;
+            let sealed = seal_found(api, &mut config, values)?;
             checked(api, &config).await?;
-            (config, message, sealed)
+            (config, kind, message, sealed)
         }
         None => (
             SiteConfig::defaults(Some(random_ula()?)),
+            RevisionKind::Defaults,
             "The defaults of a new site".to_owned(),
             Vec::new(),
         ),
     };
     let new = NewRevision {
         base: None,
-        kind: RevisionKind::Defaults,
+        kind,
         restored_from: None,
         author_id: None,
         author: None,
@@ -331,6 +332,38 @@ pub(crate) async fn ensure_first_revision(api: &Api, first: Option<FirstSite>) -
         Err(uniwrt_store::Error::NotLatest { .. }) => Ok(()),
         Err(err) => Err(err.into()),
     }
+}
+
+/// Seals the secrets found for `config`, held under placeholder references, each checked as
+/// its slot requires, and points the slots at their new names.
+fn seal_found(
+    api: &Api,
+    config: &mut SiteConfig,
+    found: BTreeMap<SecretRef, Zeroizing<String>>,
+) -> ApiResult<Vec<SealedSecret>> {
+    let paths: BTreeMap<SecretRef, String> = config
+        .secrets()
+        .into_iter()
+        .filter_map(|slot| Some((slot.value?.clone(), slot.path)))
+        .collect();
+    let mut sealed = Vec::new();
+    for (placeholder, value) in found {
+        let Some(path) = paths.get(&placeholder) else {
+            continue;
+        };
+        if let Err(why) = check_secret(path, &value) {
+            let issue = Issue {
+                path: path.clone(),
+                severity: Severity::Error,
+                message: why.to_owned(),
+            };
+            return Err(ApiError::Invalid(why.to_owned(), vec![issue]));
+        }
+        let secret = api.vault()?.seal_config_secret(value.as_bytes())?;
+        config.replace_secret(&placeholder, secret.reference());
+        sealed.push(secret);
+    }
+    Ok(sealed)
 }
 
 /// A random unique local prefix (RFC 4193): `fd` and a 40-bit global ID, as a /48.

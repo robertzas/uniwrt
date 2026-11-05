@@ -134,6 +134,12 @@ impl SimFleet {
             .collect()
     }
 
+    /// What the nodes hold now, in the order of [`nodes`](Self::nodes): their facts and
+    /// `/etc/config`, as a brownfield import reads them (the demo's first revision).
+    pub fn brownfield(&self) -> Vec<crate::Brownfield> {
+        crate::brownfield::of(&self.shared.world())
+    }
+
     /// The link of the `index`-th node of [`nodes`](Self::nodes).
     pub fn link(&self, index: usize) -> Option<SimLink> {
         (index < self.shared.nodes.len()).then(|| SimLink {

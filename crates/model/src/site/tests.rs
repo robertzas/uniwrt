@@ -132,6 +132,39 @@ fn secrets_are_listed_and_set_by_path() {
 }
 
 #[test]
+fn raw_secrets_are_slots_that_replace_secret_renames() {
+    let mut config = sample();
+    let old = SecretRef::new(format!("config/{}", "b".repeat(32))).unwrap();
+    let options = &mut config.nodes[1].raw[0].options;
+    options.insert(
+        "private_key".to_owned(),
+        super::node::RawValue::Secret {
+            secret: old.clone(),
+        },
+    );
+    let json = serde_json::to_value(&config.nodes[1].raw[0]).unwrap();
+    assert_eq!(
+        json["options"]["private_key"],
+        json!({"secret": old.name()})
+    );
+    let back: super::node::RawSection = serde_json::from_value(json).unwrap();
+    assert_eq!(back, config.nodes[1].raw[0]);
+    let path = format!("nodes/{}/raw/0/private_key", config.nodes[1].node);
+    assert_eq!(config.secret(&path), Some(&old));
+    assert!(config.secret_mut(&path).is_none());
+    let new = SecretRef::new(format!("config/{}", "c".repeat(32))).unwrap();
+    let mesh = config.mesh.key.clone().unwrap();
+    config.replace_secret(&old, &new);
+    config.replace_secret(&mesh, &new);
+    assert_eq!(config.secret(&path), Some(&new));
+    assert_eq!(config.mesh.key.as_ref(), Some(&new));
+    assert!(super::check_secret(&path, "aGVsbG8=").is_ok());
+    assert!(super::check_secret(&path, "a\nb").is_err());
+    assert!(super::node::is_secret_option("preshared_key"));
+    assert!(!super::node::is_secret_option("ssid"));
+}
+
+#[test]
 fn secret_values() {
     use super::check_secret;
     assert!(check_secret("wlans/home/passphrase", "correct horse").is_ok());

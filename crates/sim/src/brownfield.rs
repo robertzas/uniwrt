@@ -33,10 +33,14 @@ pub struct Brownfield {
 ///
 /// If the simulated agent's answer doesn't parse: the sim's own tests forbid that.
 pub fn brownfield(config: &SimConfig, start: Timestamp) -> Vec<Brownfield> {
-    let world = World::new(config, start);
+    of(&World::new(config, start))
+}
+
+/// The nodes of `world` as found, the gateway first.
+pub(crate) fn of(world: &World) -> Vec<Brownfield> {
     (0..world.nodes.len())
         .map(|n| {
-            let collected: Collected = serde_json::from_value(collect(&world, n, &Set::ALL))
+            let collected: Collected = serde_json::from_value(collect(world, n, &Set::ALL))
                 .expect("the sim's collect parses");
             let mut found = NodeFacts::default();
             let _ = facts::apply(&collected, &mut found);
@@ -49,7 +53,7 @@ pub fn brownfield(config: &SimConfig, start: Timestamp) -> Vec<Brownfield> {
                     NodeRole::Ap
                 },
                 facts: found,
-                files: config::files(&world, n),
+                files: config::files(world, n),
             }
         })
         .collect()

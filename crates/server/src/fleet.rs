@@ -56,6 +56,8 @@ pub(crate) struct Fleet {
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
+    /// The simulated nodes demo mode adopted, in the sim's order.
+    demo_adopted: Vec<uniwrt_core::NodeId>,
 }
 
 impl Fleet {
@@ -105,6 +107,7 @@ impl Fleet {
             rf: None,
             syslog,
             sim: None,
+            demo_adopted: Vec::new(),
         })
     }
 
@@ -127,6 +130,7 @@ impl Fleet {
             ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
         let nodes = sim.nodes();
         let adopted = nodes.len().saturating_sub(DEMO_UNADOPTED).max(1);
+        let mut demo_adopted = Vec::with_capacity(adopted);
         for (index, node) in nodes.into_iter().enumerate().take(adopted) {
             let adopted = store
                 .create_node(NewNode {
@@ -148,6 +152,7 @@ impl Fleet {
                 .await
                 .context("cannot pin a simulated node's host key")?;
             link.authorize(&controller_key.authorized_key()?);
+            demo_adopted.push(adopted.id);
             engine
                 .add(adopted.id, (&adopted).into(), FleetLink::Sim(link), None)
                 .await;
@@ -171,14 +176,16 @@ impl Fleet {
             rf: None,
             syslog,
             sim: Some((sim, dial)),
+            demo_adopted,
         })
     }
 
-    /// Demo mode's first revision: the simulated network (`None` outside demo mode).
+    /// Demo mode's first revision: the import of the simulated nodes it adopted (`None` outside
+    /// demo mode).
     pub(crate) fn first_site(&self) -> anyhow::Result<Option<uniwrt_api::FirstSite>> {
         self.sim
             .as_ref()
-            .map(|(sim, _)| crate::demo_site::first_site(&sim.nodes()))
+            .map(|(sim, _)| crate::demo_site::first_site(&sim.brownfield(), &self.demo_adopted))
             .transpose()
     }
 

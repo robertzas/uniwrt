@@ -7,6 +7,7 @@
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
 //!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
+//!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
 //!   them. [`SshDial`] reaches nodes over SSH; [`Remote`] is one login. Errors are [`Error`];
@@ -26,6 +27,10 @@
 //!   node holds; renumbered nodes moved and watched again). A failure before a confirm rolls
 //!   every applied node back; a later lost confirm is a partial apply. It holds every managed
 //!   node's key.
+//! - **Import** (`import.rs`, no job: the caller waits): log in to every adopted node (observe
+//!   mode too) → read the packages render writes and the facts → `uniwrt_import` on the latest
+//!   revision → seal the secrets found (keeping a reference whose vault value is the same) → the
+//!   draft. Read-only; a node with an open transaction, or not reached, is left unread.
 //! - **Discovery:** the devices in the adopted nodes' DHCP leases, IPv4 neighbors (not on WAN)
 //!   and batman-adv meshes, less the adopted nodes, probed on port 22 (the banner, then the
 //!   host key of dropbear servers and of hosts named `OpenWrt` or `uniwrt-*`; never a login),
@@ -38,19 +43,20 @@
 //!   ones, at shutdown or else at the next start. Passwords are zeroized and never logged or
 //!   kept in jobs.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (SSH, the agent, the facts
-//!   parsers, the transaction tool), `uniwrt-render`, `uniwrt-uci`, `uniwrt-topo` (the apply's
+//!   parsers, the transaction tool), `uniwrt-render`, `uniwrt-import`, `uniwrt-uci`, `uniwrt-topo` (the apply's
 //!   order), `uniwrt-store` (jobs, adoption, the vault, applied revisions), tokio,
 //!   `futures-util`, `zeroize`.
 //! - **Tests:** unit tests of the parsers and checks; `discovery/tests.rs` discovers over
 //!   scripted facts and a scripted [`Dial`]; `adopt/tests.rs` and `manage_tests.rs` run
 //!   jobs over the scripted node of `testing.rs` and a temporary store; `apply/tests/` applies
-//!   over a scripted fleet running `uniwrt_sim::txn`; `tests/agent.rs` adopts OpenWrt in a container
+//!   over a scripted fleet running `uniwrt_sim::txn`, which `import_tests.rs` imports; `tests/agent.rs` adopts OpenWrt in a container
 //!   (`just test-agent`).
 
 mod adopt;
 mod apply;
 mod discovery;
 mod errors;
+mod import;
 mod manage;
 #[cfg(test)]
 mod manage_tests;
@@ -62,6 +68,7 @@ mod testing;
 
 pub use adopt::AdoptRequest;
 pub use apply::ApplyTiming;
+pub use import::ImportDraft;
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
 

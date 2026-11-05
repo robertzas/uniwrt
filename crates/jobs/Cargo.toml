@@ -16,6 +16,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 tracing.workspace = true
 uniwrt-core.workspace = true
+uniwrt-import.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-render.workspace = true

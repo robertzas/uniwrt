@@ -13,7 +13,9 @@
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
 //!   on or off, a job), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
-//!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
+//!   v1/import/preview` ([`ImportPreview`](uniwrt_model::import::ImportPreview)), `POST
+//!   v1/import/accept` ([`ImportAccept`]); see `import`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -70,6 +72,7 @@ mod clients;
 mod discovered;
 mod events;
 mod health;
+mod import;
 mod jobs;
 mod logs;
 mod management;
@@ -109,6 +112,7 @@ pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
 pub use events::EventPage;
 pub use health::BuildInfo;
+pub use import::ImportAccept;
 pub use logs::{
     LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
 };
@@ -146,6 +150,8 @@ pub fn router(api: Api) -> Router {
         .route("/v1/apply", post(apply::start))
         .route("/v1/apply/plan", get(apply::plan))
         .route("/v1/apply/applied", get(apply::applied))
+        .route("/v1/import/preview", post(import::preview))
+        .route("/v1/import/accept", post(import::accept))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))

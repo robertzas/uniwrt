@@ -9,16 +9,13 @@ use uniwrt_model::{
     apply::{AddressChange, MASKED, NodePlan, PlanAction, PlanIssue, ServiceChange},
     facts::NodeFacts,
     node::Node,
-    site::SiteConfig,
+    site::{SiteConfig, node::is_secret_option},
 };
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::{Issue, RENDERABLE, Secrets, Target, render, uplink_section};
 use uniwrt_uci::{Diff, Package, Value};
 
 use super::{ApplyTiming, address};
-
-/// Options that hold secrets in rendered packages (render's contract).
-const SECRET_OPTIONS: [&str; 2] = ["key", "password"];
 
 /// What a managed node reported while planning.
 pub(crate) struct Report<'a> {
@@ -206,7 +203,7 @@ fn from_render(issue: Issue) -> PlanIssue {
 }
 
 /// Hides the values of options that hold secrets; a change still shows as one.
-fn mask(diff: &mut Diff) {
+pub(crate) fn mask(diff: &mut Diff) {
     let hide = |value: &mut Option<Value>| match value {
         Some(Value::Single(text)) => MASKED.clone_into(text),
         Some(Value::List(items)) => items.iter_mut().for_each(|item| MASKED.clone_into(item)),
@@ -214,7 +211,7 @@ fn mask(diff: &mut Diff) {
     };
     for section in &mut diff.sections {
         for option in &mut section.options {
-            if SECRET_OPTIONS.contains(&option.name.as_str()) {
+            if is_secret_option(&option.name) {
                 hide(&mut option.before);
                 hide(&mut option.after);
             }

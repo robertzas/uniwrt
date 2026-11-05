@@ -1744,7 +1744,7 @@ export const strings = {
       loadingMore: "Loading…",
       moreFailed: "Older revisions could not be loaded.",
       latest: "Latest",
-      kind: { defaults: "Defaults", edit: "Edit", restore: "Restore" },
+      kind: { defaults: "Defaults", edit: "Edit", restore: "Restore", import: "Import" },
       defaultsTitle: "The defaults",
       restoredTitle: (id: number) => `Restored revision ${id}`,
       untitled: "No message",

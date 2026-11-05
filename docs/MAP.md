@@ -31,6 +31,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
+- `src/import.rs`: Brownfield import, with an admin's session (features/lifecycle.md, Brownfield import; D-072, D-073):
+- `src/import/tests.rs`: (no header comment)
 - `src/jobs.rs`: The job routes, with a session: `GET /api/v1/jobs` (the latest, newest first; `?limit=`, 50 by default) and `GET /api/v1/jobs/{id}`.
 - `src/lib.rs`: uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+json errors, the security headers, authentication with sessions, the nodes, and the WS hub.
 - `src/logs.rs`: The logs routes, with a session (features/observability.md, Logs):
@@ -193,6 +195,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
 - `src/errors.rs`: How jobs word their failures: a [`JobError`] code the UI can act on, and a message.
+- `src/import.rs`: Brownfield import's reading (features/lifecycle.md, Brownfield import; D-072, D-073): log in to every adopted node, read the packages render writes and the facts render needs, run the import engine on the site's latest revision, and seal the secrets it found.
+- `src/import_tests.rs`: Imports over the scripted fleet of the apply tests: every adopted node read, the secrets found sealed once, nodes not reached left unread.
 - `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
 - `src/manage.rs`: The manage and unmanage jobs (directive 8; D-069): management goes on only when the user asks, node by node.
 - `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
@@ -234,6 +238,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/radio.rs`: Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they operate.
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
+- `src/import.rs`: A brownfield import's preview (features/lifecycle.md, Brownfield import; D-072, D-073): what accepting the configuration the adopted nodes hold would change in the site, and per node how well the model holds it, for the review screen, before anything is saved.
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
 - `src/lib.rs`: The uniwrt domain model: what the controller observes on nodes, what it records about them, and the network it should make of them.
@@ -390,7 +395,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
-- `src/demo_site.rs`: Demo mode's first revision (D-071): the simulated network as the site's document, so that what the demo applies matches what its nodes run: the LAN on the gateway's subnet (192.168.1.0/24 while the fleet fits), the sim's WPA2/WPA3 SSID on both bands and its batman-adv mesh on 5 GHz channel 36, in the sim's country.
+- `src/demo_site.rs`: Demo mode's first revision (D-071, D-073): the brownfield import of the simulated nodes it adopted (their facts and `/etc/config` as they hold them, which `POST v1/import/preview` reads too) into the defaults, named "Demo home".
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications, the alert engine and RF insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode scans sooner and busy or not).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
@@ -590,7 +595,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (275 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (281 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

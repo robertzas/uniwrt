@@ -16,12 +16,19 @@ use uniwrt_uci::{Package, Section, Value};
 
 use crate::{Fate, NodeImport, SectionImport, Source, node_config, read::Renames};
 
+/// The secrets found so far, and how to name a new one.
+pub(crate) type Vault<'a> = (
+    &'a mut BTreeMap<SecretRef, String>,
+    &'a mut dyn FnMut() -> SecretRef,
+);
+
 pub(crate) fn node(
     site: &mut SiteConfig,
-    secrets: &BTreeMap<SecretRef, String>,
+    vault: Vault<'_>,
     source: &Source<'_>,
     renames: &Renames,
 ) -> NodeImport {
+    let (secrets, mint) = vault;
     let mut original: BTreeMap<ManagedPackage, Package> = RENDERABLE
         .iter()
         .map(|&p| {
@@ -62,8 +69,9 @@ pub(crate) fn node(
         Err(issues) => return failed(issues),
     };
     rename_wifi(&mut original, &rendered);
-    let (sections, raws, confidence) =
+    let (sections, mut raws, confidence) =
         classify(&mut original, &names, &rendered, renames, source.role);
+    seal(&mut raws, secrets, mint);
     node_config(site, source.node).raw = raws;
     let rendered = match trial(site, secrets, source) {
         Ok(rendered) => rendered,
@@ -179,6 +187,23 @@ fn classify(
         .checked_div(total)
         .map_or(100, |c| u8::try_from(c).unwrap_or(100));
     (sections, raws, confidence)
+}
+
+/// Seals the raw options that hold secrets (D-073): the site keeps them as references.
+fn seal(
+    raws: &mut [RawSection],
+    secrets: &mut BTreeMap<SecretRef, String>,
+    mint: &mut dyn FnMut() -> SecretRef,
+) {
+    for (name, value) in raws.iter_mut().flat_map(|raw| raw.options.iter_mut()) {
+        if let RawValue::Option(text) = value
+            && uniwrt_model::site::node::is_secret_option(name)
+        {
+            let secret = mint();
+            secrets.insert(secret.clone(), std::mem::take(text));
+            *value = RawValue::Secret { secret };
+        }
+    }
 }
 
 /// Renders the node with every package render writes managed.

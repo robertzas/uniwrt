@@ -7,7 +7,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use uniwrt_core::NodeId;
 
-use super::wireless::{Channel, TxPower};
+use super::{
+    SecretRef,
+    wireless::{Channel, TxPower},
+};
 use crate::wifi::ChannelWidth;
 
 /// One node's overrides.
@@ -102,11 +105,41 @@ pub struct RawSection {
     pub merge: bool,
 }
 
-/// A UCI option's value: one string (`option`) or several (`list`).
+/// A UCI option's value: one string (`option`), several (`list`), or a secret sealed in the
+/// vault (`{"secret": "config/…"}`), which render writes as one string.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(untagged)]
 pub enum RawValue {
     Option(String),
     List(Vec<String>),
+    /// The value of an option that holds a secret ([`is_secret_option`]), such as a WireGuard
+    /// `private_key`: brownfield import seals these (D-073).
+    Secret {
+        secret: SecretRef,
+    },
+}
+
+/// The UCI options that hold secrets in the packages render writes: Wi-Fi keys and RADIUS
+/// secrets, passwords of WAN protocols, WireGuard's keys. Rendered packages carry their values,
+/// so review screens mask them; raw sections hold them sealed ([`RawValue::Secret`]).
+pub const SECRET_OPTIONS: [&str; 13] = [
+    "key",
+    "key1",
+    "key2",
+    "key3",
+    "key4",
+    "password",
+    "sae_password",
+    "auth_secret",
+    "acct_secret",
+    "dae_secret",
+    "priv_key_pwd",
+    "private_key",
+    "preshared_key",
+];
+
+/// Whether a UCI option of that name holds a secret ([`SECRET_OPTIONS`]).
+pub fn is_secret_option(name: &str) -> bool {
+    SECRET_OPTIONS.contains(&name)
 }

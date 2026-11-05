@@ -11,11 +11,11 @@
 mod address;
 mod health;
 mod order;
-mod plan;
+pub(crate) mod plan;
 mod run;
-mod survey;
+pub(crate) mod survey;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::{sync::Arc, time::Duration};
 

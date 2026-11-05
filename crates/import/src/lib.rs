@@ -60,8 +60,9 @@ pub struct Source<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Import {
     pub site: SiteConfig,
-    /// The values of the secrets found (Wi-Fi passphrases, the mesh key, the PPPoE password),
-    /// under the references `site` holds: the caller seals them in the vault.
+    /// The values of the secrets found (Wi-Fi passphrases, the mesh key, the PPPoE password, and
+    /// the options of raw sections that hold secrets, such as WireGuard's keys, D-073), under the
+    /// references `site` holds: the caller seals them in the vault.
     pub secrets: BTreeMap<SecretRef, String>,
     pub nodes: Vec<NodeImport>,
 }
@@ -138,7 +139,7 @@ pub fn import(
     }
     let nodes = sources
         .iter()
-        .map(|source| fit::node(&mut site, &secrets, source, &renames))
+        .map(|source| fit::node(&mut site, (&mut secrets, &mut *mint), source, &renames))
         .collect();
     Import {
         site,

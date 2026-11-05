@@ -34,7 +34,7 @@ use crate::{
 
 /// The collect sets render reads: without one of them it would render a node it doesn't see
 /// (no radios, say, and so no Wi-Fi), so an error there refuses the node.
-const RENDER_SETS: [Set; 6] = [
+pub(crate) const RENDER_SETS: [Set; 6] = [
     Set::Board,
     Set::Capabilities,
     Set::Devices,
@@ -125,27 +125,8 @@ struct Reading {
 
 async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
     let remote = login.remote.as_ref();
-    let status = txn::status();
-    let status = remote
-        .exec(status.request.clone())
-        .await
-        .and_then(|output| status.parse(output))
-        .map_err(|err| format!("Cannot read the transaction tool's status: {}", chain(&err)))?;
-    match status {
-        None => {
-            return Err(
-                "The transaction tool is missing: turn management off and on again".to_owned(),
-            );
-        }
-        Some(txn::Status {
-            open: Some(open), ..
-        }) => {
-            return Err(format!(
-                "Transaction {} is open on the node ({} s left)",
-                open.id, open.remaining_s
-            ));
-        }
-        Some(_) => {}
+    if !idle_tool(remote).await? {
+        return Err("The transaction tool is missing: turn management off and on again".to_owned());
     }
     let packages = current::packages(&plan::packages()).map_err(|err| err.to_string())?;
     let files = remote
@@ -167,6 +148,27 @@ async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
         facts,
         dns,
     })
+}
+
+/// Whether the node has the transaction tool; an error when its status can't be read or a
+/// transaction is open, whose config is in flux.
+pub(crate) async fn idle_tool(remote: &dyn Remote) -> Result<bool, String> {
+    let status = txn::status();
+    let status = remote
+        .exec(status.request.clone())
+        .await
+        .and_then(|output| status.parse(output))
+        .map_err(|err| format!("Cannot read the transaction tool's status: {}", chain(&err)))?;
+    match status {
+        None => Ok(false),
+        Some(txn::Status {
+            open: Some(open), ..
+        }) => Err(format!(
+            "Transaction {} is open on the node ({} s left)",
+            open.id, open.remaining_s
+        )),
+        Some(_) => Ok(true),
+    }
 }
 
 /// The node's facts from the agent's `sets`; an error in one of the `required` sets fails.

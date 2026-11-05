@@ -107,6 +107,12 @@ impl SecretRef {
         &self.0
     }
 
+    /// The reference numbered `n`: a placeholder for a secret not sealed yet, such as one that
+    /// brownfield import found, until it is sealed under a name of its own.
+    pub fn numbered(n: u128) -> Self {
+        Self(format!("{}{n:032x}", Self::PREFIX))
+    }
+
     fn is_valid(name: &str) -> bool {
         name.strip_prefix(Self::PREFIX).is_some_and(|id| {
             id.len() == 32
@@ -203,10 +209,46 @@ impl SiteConfig {
                 value: password.as_ref(),
             });
         }
+        for config in &self.nodes {
+            for (i, raw) in config.raw.iter().enumerate() {
+                for (option, value) in &raw.options {
+                    if let node::RawValue::Secret { secret } = value {
+                        slots.push(SecretSlot {
+                            path: format!("nodes/{}/raw/{i}/{option}", config.node),
+                            value: Some(secret),
+                        });
+                    }
+                }
+            }
+        }
         slots
     }
 
-    /// The slot at `path` ([`SiteConfig::secrets`]), to set or clear.
+    /// Points every slot that holds `from` at `to` instead: a secret sealed under a new name.
+    pub fn replace_secret(&mut self, from: &SecretRef, to: &SecretRef) {
+        let wlans = self.wlans.iter_mut().filter_map(|w| w.passphrase.as_mut());
+        let wan = match &mut self.wan.proto {
+            WanProto::Pppoe { password, .. } => password.as_mut(),
+            _ => None,
+        };
+        let raw = self
+            .nodes
+            .iter_mut()
+            .flat_map(|config| config.raw.iter_mut())
+            .flat_map(|raw| raw.options.values_mut())
+            .filter_map(|value| match value {
+                node::RawValue::Secret { secret } => Some(secret),
+                _ => None,
+            });
+        for secret in wlans.chain(self.mesh.key.as_mut()).chain(wan).chain(raw) {
+            if secret == from {
+                *secret = to.clone();
+            }
+        }
+    }
+
+    /// The slot at `path` ([`SiteConfig::secrets`]), to set or clear; not a raw section's, which
+    /// only brownfield import fills ([`SiteConfig::replace_secret`]).
     pub fn secret_mut(&mut self, path: &str) -> Option<&mut Option<SecretRef>> {
         match path.split('/').collect::<Vec<_>>().as_slice() {
             ["wlans", id, "passphrase"] => self
@@ -234,9 +276,17 @@ impl SiteConfig {
 
 /// Whether `value` suits the secret at `path`: a Wi-Fi passphrase or the mesh key is 8 to 63
 /// printable ASCII characters (a WLAN's may instead be 64 hexadecimal digits, a raw PSK), a PPPoE
-/// password 1 to 128 characters without control characters.
+/// password 1 to 128 characters without control characters, and a raw section's any value
+/// without line breaks.
 pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     let printable = |value: &str| value.bytes().all(|b| (b' '..=b'~').contains(&b));
+    if path.starts_with("nodes/") {
+        return if value.contains(['\0', '\n', '\r']) {
+            Err("A value holds no line breaks or NUL characters")
+        } else {
+            Ok(())
+        };
+    }
     if path == "wan/password" {
         return if value.is_empty() || value.chars().count() > 128 {
             Err("A PPPoE password is 1 to 128 characters")
