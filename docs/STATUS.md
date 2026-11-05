@@ -23,6 +23,7 @@
 
 - No e2e covers review & apply yet (component tests do): one that manages the demo's nodes, applies and discards would guard the flow end to end; mind the e2e flakes below.
 - CI's vitest logs Solid dev diagnostics a local run doesn't (`STRICT_READ_UNTRACKED` in ThemeToggle's SegmentedControl, `createGatewayLeases.gateway`, `ASYNC_OUTSIDE_LOADING_BOUNDARY`): find why, then fix.
+- Wi-Fi lab flake: `the_gateway_pushes_station_and_lease_events_across_radio_restarts` once got no push within 30 s (CI on 9c749b1; passed on rerun): find which push it waited for, or give the radio restart longer.
 - e2e flakes: the adoption test's fingerprint step; the first test counts 4 devices when the serial retry reruns it (let it tolerate an adopted device); the dashboard test's throughput sometimes isn't stored within 80 s ("No throughput stored yet", seen locally twice, once alone) — find why the site's first window is late. The events test no longer waits for chance: the sim's opening walk roams within 30 s (`World::opening_walk`).
 - vitest flakes when it runs right after cargo builds (`just check`): the first test of a Settings file misses its 1 s wait for the lazy page, the clients test its navigation; each passes alone and on a rerun. Raise those waits, or warm the routes once per worker.
 - `uniwrt_notify::http` could word transport errors for people (refused, DNS, TLS, timeout).
