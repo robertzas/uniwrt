@@ -164,6 +164,7 @@ async fn start_api(
         notify: fleet.notify(),
         rf: fleet.rf(),
         vault: Some(vault.clone()),
+        first_site: fleet.first_site()?,
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),
@@ -207,7 +208,14 @@ async fn start_fleet(
             config.access_points,
             config.clients
         );
-        Fleet::demo(store, &config, Arc::clone(clock), args.syslog_addr()).await
+        Fleet::demo(
+            store,
+            &config,
+            controller_key,
+            Arc::clone(clock),
+            args.syslog_addr(),
+        )
+        .await
     } else {
         Fleet::start(store, controller_key, Arc::clone(clock), args.syslog_addr()).await
     }

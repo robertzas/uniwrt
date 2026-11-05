@@ -11,7 +11,8 @@
 //! - `POST /api/v1/site/secrets/reveal` (admins; audited): a secret's value ([`RevealSecret`]).
 //! - The history, under `v1/revisions`: see [`revisions`].
 //!
-//! [`ensure_first_revision`] gives a new site its defaults when the API starts.
+//! [`ensure_first_revision`] gives a new site its first revision when the API starts: the
+//! defaults, or a [`FirstSite`] (demo mode's, from the simulated network).
 
 pub(crate) mod revisions;
 
@@ -133,6 +134,7 @@ pub(crate) async fn put(
         config: config.clone(),
     };
     let meta = api.store().commit_revision(new, sealed).await?;
+    api.config_changed();
     let detail = format!("saved revision {} ({} changes)", meta.id, meta.changes);
     audit(&api, &user, &client, AuditAction::Site, detail).await?;
     Ok(Json(SiteView {
@@ -276,22 +278,57 @@ fn no_site() -> ApiError {
     ApiError::Unavailable("The site has no configuration yet".to_owned())
 }
 
-/// Commits the defaults of a new site (with a random ULA) when there is no revision yet.
-pub(crate) async fn ensure_first_revision(store: &Store) -> ApiResult<()> {
+/// A new site's first revision when it isn't the defaults, such as demo mode's (the simulated
+/// network's): the document, why, and its secrets' values by path, sealed as a save seals them.
+#[derive(Debug, Clone)]
+pub struct FirstSite {
+    pub config: SiteConfig,
+    pub message: String,
+    pub secrets: BTreeMap<String, Zeroizing<String>>,
+}
+
+/// Commits a new site's first revision when there is no revision yet: `first`, checked as a
+/// save is, or else the defaults (with a random ULA).
+pub(crate) async fn ensure_first_revision(api: &Api, first: Option<FirstSite>) -> ApiResult<()> {
+    let store = api.store();
     if store.head_revision().await?.is_some() {
         return Ok(());
     }
+    let (config, message, sealed) = match first {
+        Some(FirstSite {
+            mut config,
+            message,
+            secrets: values,
+        }) => {
+            let values = values
+                .into_iter()
+                .map(|(path, value)| (path, Some(value.to_string())))
+                .collect();
+            let sealed = secrets(api, &mut config, values)?;
+            checked(api, &config).await?;
+            (config, message, sealed)
+        }
+        None => (
+            SiteConfig::defaults(Some(random_ula()?)),
+            "The defaults of a new site".to_owned(),
+            Vec::new(),
+        ),
+    };
     let new = NewRevision {
         base: None,
         kind: RevisionKind::Defaults,
         restored_from: None,
         author_id: None,
         author: None,
-        message: "The defaults of a new site".to_owned(),
-        config: SiteConfig::defaults(Some(random_ula()?)),
+        message,
+        config,
     };
-    match store.commit_revision(new, Vec::new()).await {
-        Ok(_) | Err(uniwrt_store::Error::NotLatest { .. }) => Ok(()),
+    match store.commit_revision(new, sealed).await {
+        Ok(_) => {
+            api.config_changed();
+            Ok(())
+        }
+        Err(uniwrt_store::Error::NotLatest { .. }) => Ok(()),
         Err(err) => Err(err.into()),
     }
 }

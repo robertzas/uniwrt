@@ -41,7 +41,7 @@ pub struct ApplyBody {
 
 pub(crate) async fn plan(State(api): State<Api>, user: CurrentUser) -> ApiResult<Json<ApplyPlan>> {
     admin(&user, "plan applies")?;
-    ensure_first_revision(api.store()).await?;
+    ensure_first_revision(&api, None).await?;
     Ok(Json(api.jobs().plan().await.map_err(apply_error)?))
 }
 

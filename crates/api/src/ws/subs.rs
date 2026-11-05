@@ -13,7 +13,7 @@ use tracing::warn;
 use uniwrt_core::{JobId, LogId, NodeId};
 use uniwrt_engine::{Event, Interest};
 use uniwrt_model::{
-    job::Job,
+    job::{Job, JobKind},
     log::{LogFilter, LogRecord, Severity},
     node::Node,
 };
@@ -26,6 +26,7 @@ use super::{
     message::{FactsPatch, ServerMessage, TimedEvent, TimedRoam},
     subs_alerts::AlertsPending,
     subs_clients::{ClientPending, ClientsPending},
+    subs_config,
     subs_events::EventsPending,
     topic::{BadTopic, Topic},
 };
@@ -95,6 +96,8 @@ enum Pending {
     Alerts(AlertsPending),
     /// The newest view announced since the last flush.
     Rf(Option<Arc<RfView>>),
+    /// Read fresh on each change ([`Subscriptions::config`]).
+    Config,
 }
 
 impl Subscriptions {
@@ -132,20 +135,69 @@ impl Subscriptions {
     pub(crate) async fn resync(&mut self, api: &Api) -> Vec<ServerMessage> {
         let mut out = Vec::new();
         for name in self.topics.keys().cloned().collect::<Vec<_>>() {
-            // The new interest is taken before the old one goes, so telemetry stays fast.
-            match subscribe(api, &name).await {
-                Ok((sub, snapshot)) => {
-                    self.topics.insert(name, sub);
-                    out.push(snapshot);
-                }
-                Err(BadTopic(message)) => {
-                    self.topics.remove(&name);
-                    out.push(ServerMessage::Error {
-                        topic: Some(name),
-                        message,
-                    });
-                }
+            self.renew(api, name, &mut out).await;
+        }
+        out
+    }
+
+    /// Snapshots the topic `name` again into `out`, or drops it with an error.
+    async fn renew(&mut self, api: &Api, name: String, out: &mut Vec<ServerMessage>) {
+        // The new interest is taken before the old one goes, so telemetry stays fast.
+        match subscribe(api, &name).await {
+            Ok((sub, snapshot)) => {
+                self.topics.insert(name, sub);
+                out.push(snapshot);
             }
+            Err(BadTopic(message)) => {
+                self.topics.remove(&name);
+                out.push(ServerMessage::Error {
+                    topic: Some(name),
+                    message,
+                });
+            }
+        }
+    }
+
+    /// After a job on nodes ended ([`job_ended`]): their records, which it may have changed (a
+    /// manage job's mode, an apply's addresses), read again for the `fleet` topics (sent with
+    /// the next flush) and the `node:<id>` topics (snapshotted again), and the `config` topics
+    /// after an apply.
+    pub(crate) async fn job_ended(&mut self, api: &Api, job: &Job) -> Vec<ServerMessage> {
+        let nodes: BTreeSet<NodeId> = job
+            .node
+            .into_iter()
+            .chain(job.nodes.iter().map(|node| node.node))
+            .collect();
+        let mut renew = Vec::new();
+        for (name, sub) in &mut self.topics {
+            match &mut sub.pending {
+                Pending::Fleet { records, dirty, .. } => {
+                    for &node in &nodes {
+                        if !records.contains_key(&node) {
+                            continue;
+                        }
+                        match api.store().node(node).await {
+                            Ok(Some(record)) => {
+                                records.insert(node, record);
+                                dirty.insert(node);
+                            }
+                            Ok(None) => {}
+                            Err(err) => {
+                                warn!(%err, node_id = %node, "cannot read a node for the fleet topic");
+                            }
+                        }
+                    }
+                }
+                Pending::Node { node, .. } if nodes.contains(node) => renew.push(name.clone()),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for name in renew {
+            self.renew(api, name, &mut out).await;
+        }
+        if subs_config::changes_config(job) {
+            out.extend(self.config(api).await);
         }
         out
     }
@@ -164,6 +216,31 @@ impl Subscriptions {
                 changed.insert(job.id, Arc::clone(job));
             }
         }
+    }
+
+    /// The `config` topics read again, after a save, a restore or an apply that ended. A topic
+    /// that cannot be read is dropped with an error.
+    pub(crate) async fn config(&mut self, api: &Api) -> Vec<ServerMessage> {
+        let names: Vec<String> = self
+            .topics
+            .iter()
+            .filter(|(_, sub)| matches!(sub.pending, Pending::Config))
+            .map(|(name, _)| name.clone())
+            .collect();
+        let mut out = Vec::new();
+        for name in names {
+            match subs_config::read(api, name.clone()).await {
+                Ok(message) => out.push(message),
+                Err(BadTopic(message)) => {
+                    self.topics.remove(&name);
+                    out.push(ServerMessage::Error {
+                        topic: Some(name),
+                        message,
+                    });
+                }
+            }
+        }
+        out
     }
 
     /// One delta per topic with something to tell.
@@ -228,6 +305,15 @@ async fn fleet(api: &Api, topic: String) -> Result<(Sub, ServerMessage), BadTopi
         removed: BTreeSet::new(),
     };
     Ok((sub(pending, None), snapshot))
+}
+
+/// Whether `job` ended a job on nodes, which may have changed their records or what they hold.
+pub(crate) fn job_ended(job: &Job) -> bool {
+    job.finished_at.is_some()
+        && matches!(
+            job.kind,
+            JobKind::Manage | JobKind::Unmanage | JobKind::Apply
+        )
 }
 
 /// Subscribes to the topic named `name`: its state and snapshot.
@@ -307,6 +393,10 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
                 ServerMessage::Rf { topic, view },
             )
         }
+        Topic::Config => (
+            sub(Pending::Config, None),
+            subs_config::read(api, topic).await?,
+        ),
     })
 }
 
@@ -409,7 +499,7 @@ impl Pending {
                     *latest = Some(Arc::clone(view));
                 }
             }
-            Self::Jobs { .. } => {}
+            Self::Jobs { .. } | Self::Config => {}
         }
     }
 
@@ -496,6 +586,7 @@ impl Pending {
             Self::Events(pending) => pending.flush(topic),
             Self::Alerts(pending) => pending.flush(topic),
             Self::Rf(latest) => latest.take().map(|view| ServerMessage::Rf { topic, view }),
+            Self::Config => None,
         }
     }
 }

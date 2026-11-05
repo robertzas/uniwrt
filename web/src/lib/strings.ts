@@ -1,3 +1,10 @@
+/** "a", "a and b", "a, b and c". */
+function list(items: readonly string[]): string {
+  return items.length < 2
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 /** Every user-facing string, kept in one place so the UI is ready for translation (ui.md). */
 export const strings = {
   appName: "uniwrt",
@@ -609,6 +616,71 @@ export const strings = {
       stations: "Wi-Fi clients",
       radio: (band: string, name: string) => `${band} · ${name}`,
       empty: "History appears here a minute after the device first reports.",
+    },
+    tabs: { overview: "Overview", config: "Config" },
+    management: {
+      title: "Management",
+      observe:
+        "Observe mode: uniwrt watches this device and changes nothing on it. Turn management on to apply the site's configuration to it.",
+      managed:
+        "uniwrt applies the site's configuration to the packages chosen below. Each apply is a transaction that rolls back by itself unless uniwrt confirms the device is healthy.",
+      adminOnly: "Only admins can turn management on or off.",
+      turnOn: "Turn management on",
+      turnOff: "Turn management off",
+      running: "Working on the device…",
+      held: {
+        observed: "Applies leave this device alone.",
+        never: "Nothing has been applied to this device yet.",
+        latest: (revision: number) => `Holds the latest revision (${revision}).`,
+        behind: (revision: number, head: number) =>
+          `Holds revision ${revision}; the latest is ${head}.`,
+      },
+      confirmOn: {
+        title: (name: string) => `Turn management on for ${name}?`,
+        body: "uniwrt installs its transaction tool and boot guard on the device, a few kilobytes that survive firmware upgrades. Its configuration doesn't change until you apply, and then only in the packages you choose.",
+        action: "Turn on",
+      },
+      confirmOff: {
+        title: (name: string) => `Turn management off for ${name}?`,
+        body: "uniwrt removes its transaction tool and boot guard and stops applying changes to the device. Its configuration stays as it is.",
+        action: "Turn off",
+      },
+      cancel: "Cancel",
+      done: { on: "Management is on", off: "Management is off" },
+      failed: "The device's management didn't change",
+    },
+    packages: {
+      title: "Managed packages",
+      description:
+        "uniwrt owns each chosen UCI package whole and never touches the others. Nothing is chosen at first, so applies leave the device alone until you choose.",
+      observeNote: "Your choice takes effect once management is on.",
+      later: "Comes in a later release.",
+      save: "Save",
+      reset: "Reset",
+      saved: (revision: number) => `Saved as revision ${revision}`,
+      savedHint: "Apply the site's configuration to change the device.",
+      failed: "The choice wasn't saved",
+      loading: "Loading the site's configuration",
+      names: {
+        system: "Hostname, time zone and time sync",
+        network: "Interfaces, bridges, VLANs and the WAN",
+        wireless: "Radios, Wi-Fi networks and the mesh",
+        dhcp: "DHCP and DNS (dnsmasq, odhcpd)",
+        firewall: "Zones, forwarding and rules",
+        dropbear: "The SSH server",
+        usteer: "Band and client steering",
+        sqm: "Smart queue management",
+        wireguard: "WireGuard VPN",
+      },
+      message: (name: string, added: readonly string[], removed: readonly string[]) =>
+        [
+          added.length > 0 ? `Manage ${list(added)} on ${name}` : "",
+          removed.length > 0
+            ? `${added.length > 0 ? "stop" : "Stop"} managing ${list(removed)}${added.length > 0 ? "" : ` on ${name}`}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("; "),
     },
   },
   chart: {

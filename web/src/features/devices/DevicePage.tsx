@@ -1,4 +1,4 @@
-import { useParams } from "@solidjs/router";
+import { useParams, useSearchParams } from "@solidjs/router";
 import { useQuery } from "@tanstack/solid-query";
 import { ArrowLeft, BellRing, CircleAlert, Router, ScrollText } from "lucide";
 import { createEffect, createMemo, For, Match, Show, Switch, useContext } from "solid-js";
@@ -14,7 +14,9 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { Sparkline } from "../../ui/Sparkline";
 import { Stat } from "../../ui/Stat";
+import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { ClientsCard, clientRows } from "./ClientsCard";
+import { ConfigTab } from "./config/ConfigTab";
 import { DeviceCharts } from "./DeviceCharts";
 import { RadiosCard } from "./RadiosCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
@@ -96,6 +98,8 @@ function Overview(props: {
 }) {
   const node = () => props.detail.node;
   const status = () => props.detail.status;
+  const [params, setParams] = useSearchParams<{ tab?: string }>();
+  const tab = () => (params.tab === "config" ? "config" : "overview");
   return (
     <div class="flex flex-col gap-4">
       <header class="flex flex-wrap items-start gap-x-4 gap-y-2">
@@ -146,24 +150,39 @@ function Overview(props: {
           </ul>
         </Card>
       </Show>
-      <Show
-        when={props.detail.facts}
-        fallback={<p class="py-12 text-center text-fg-subtle text-sm">{d.waiting}</p>}
+      <Tabs
+        value={tab()}
+        onChange={(value) => setParams({ tab: value === "overview" ? undefined : value })}
+        aria-label={node().name}
       >
-        {(facts) => (
-          <>
-            <Stats facts={facts()} view={props.view} />
-            <div class="grid gap-4 lg:grid-cols-3">
-              <div class="min-w-0 lg:col-span-2">
-                <RadiosCard facts={facts()} />
-              </div>
-              <Details detail={props.detail} facts={facts()} />
-            </div>
-            <DeviceCharts id={props.detail.node.id} facts={facts()} />
-            <ClientsCard facts={facts()} leases={props.leases} />
-          </>
-        )}
-      </Show>
+        <TabList>
+          <Tab value="overview">{d.tabs.overview}</Tab>
+          <Tab value="config">{d.tabs.config}</Tab>
+        </TabList>
+        <TabPanel value="overview" class="flex flex-col gap-4">
+          <Show
+            when={props.detail.facts}
+            fallback={<p class="py-12 text-center text-fg-subtle text-sm">{d.waiting}</p>}
+          >
+            {(facts) => (
+              <>
+                <Stats facts={facts()} view={props.view} />
+                <div class="grid gap-4 lg:grid-cols-3">
+                  <div class="min-w-0 lg:col-span-2">
+                    <RadiosCard facts={facts()} />
+                  </div>
+                  <Details detail={props.detail} facts={facts()} />
+                </div>
+                <DeviceCharts id={props.detail.node.id} facts={facts()} />
+                <ClientsCard facts={facts()} leases={props.leases} />
+              </>
+            )}
+          </Show>
+        </TabPanel>
+        <TabPanel value="config">
+          <ConfigTab node={node()} />
+        </TabPanel>
+      </Tabs>
     </div>
   );
 }

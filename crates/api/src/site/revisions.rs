@@ -153,6 +153,7 @@ pub(crate) async fn restore(
         config: old.config.clone(),
     };
     let meta = api.store().commit_revision(new, Vec::new()).await?;
+    api.config_changed();
     let detail = format!("restored revision {id} as revision {}", meta.id);
     audit(&api, &user, &client, AuditAction::Site, detail).await?;
     Ok(Json(SiteView {

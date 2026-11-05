@@ -9,6 +9,7 @@ use uniwrt_clients::{Client, ClientSample};
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
     alerts::AlertRecord,
+    apply::AppliedRevision,
     client::ClientSession,
     event::{NodeEvent, Roam},
     events::EventRecord,
@@ -18,6 +19,7 @@ use uniwrt_model::{
     },
     job::Job,
     log::LogRecord,
+    site::revision::RevisionMeta,
     status::NodeStatus,
 };
 use uniwrt_node::proto::ops::Set;
@@ -158,6 +160,13 @@ pub enum ServerMessage {
     Rf {
         topic: String,
         view: Arc<RfView>,
+    },
+    /// The site's latest revision (`None` before the first) and the revision each node holds:
+    /// when `config` is subscribed, after a resync, and whenever either changes.
+    Config {
+        topic: String,
+        head: Option<RevisionMeta>,
+        applied: Vec<AppliedRevision>,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

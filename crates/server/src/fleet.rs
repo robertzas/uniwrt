@@ -109,18 +109,20 @@ impl Fleet {
     }
 
     /// Simulates the fleet `config` describes, adopting all its nodes but the last into
-    /// `store`, which should be empty (the demo's own). Syslog is received at `syslog` when
-    /// given.
+    /// `store`, which should be empty (the demo's own), as adoption would: their host keys
+    /// pinned and `controller_key` authorized on them, so management and applies reach them.
+    /// Syslog is received at `syslog` when given.
     pub(crate) async fn demo(
         store: &Store,
         config: &SimConfig,
+        controller_key: &ControllerKey,
         clock: Arc<dyn Clock>,
         syslog: Option<std::net::SocketAddr>,
     ) -> anyhow::Result<Self> {
         let syslog = receive_syslog(syslog, &clock).await?;
         let sim = SimFleet::spawn(config, clock.as_ref());
         let dial = Arc::new(DemoDial::new(&sim).context("cannot make the demo's host keys")?);
-        let engine = Engine::new(EngineConfig::default(), clock);
+        let engine = Engine::new(EngineConfig::default(), Arc::clone(&clock));
         let clients =
             ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
         let nodes = sim.nodes();
@@ -138,6 +140,14 @@ impl Fleet {
                 .await
                 .context("cannot adopt a simulated node")?;
             let link = sim.link(index).context("a simulated node has no link")?;
+            let host_key = dial
+                .host_key(&adopted.host)
+                .context("a simulated node has no host key")?;
+            store
+                .pin_host_key(adopted.id, host_key.pin(clock.now()))
+                .await
+                .context("cannot pin a simulated node's host key")?;
+            link.authorize(&controller_key.authorized_key()?);
             engine
                 .add(adopted.id, (&adopted).into(), FleetLink::Sim(link), None)
                 .await;
@@ -162,6 +172,14 @@ impl Fleet {
             syslog,
             sim: Some((sim, dial)),
         })
+    }
+
+    /// Demo mode's first revision: the simulated network (`None` outside demo mode).
+    pub(crate) fn first_site(&self) -> anyhow::Result<Option<uniwrt_api::FirstSite>> {
+        self.sim
+            .as_ref()
+            .map(|(sim, _)| crate::demo_site::first_site(&sim.nodes()))
+            .transpose()
     }
 
     /// The simulated node at `host`, in demo mode.
@@ -470,9 +488,16 @@ mod tests {
             .unwrap();
         // Syslog on a free port of loopback.
         let syslog = "127.0.0.1:0".parse().ok();
-        let fleet = Fleet::demo(&store, &uniwrt_sim::SimConfig::default(), clock, syslog)
-            .await
-            .unwrap();
+        let key = ControllerKey::generate().unwrap();
+        let fleet = Fleet::demo(
+            &store,
+            &uniwrt_sim::SimConfig::default(),
+            &key,
+            clock,
+            syslog,
+        )
+        .await
+        .unwrap();
         assert!(
             fleet
                 .syslog

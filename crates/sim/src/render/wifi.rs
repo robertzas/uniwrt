@@ -12,8 +12,10 @@ use crate::world::{
     radio::{Band, Rate},
 };
 
-pub(crate) const SSID: &str = "uniwrt-demo";
-pub(crate) const MESH_ID: &str = "uniwrt-demo-mesh";
+/// The SSID every access point broadcasts.
+pub const SSID: &str = "uniwrt-demo";
+/// The 802.11s mesh the nodes join on 5 GHz.
+pub const MESH_ID: &str = "uniwrt-demo-mesh";
 /// The SoC's Wi-Fi device; its second phy is `+1`.
 const WIFI_PATH: &str = "platform/soc/18000000.wifi";
 

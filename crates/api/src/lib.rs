@@ -122,7 +122,7 @@ pub use notifiers::{
 pub use problem::{ApiError, ApiResult, no_route};
 pub use rf::{ScanRequest, ScansQueued};
 pub use site::{
-    RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
+    FirstSite, RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
     revisions::{RestoreBody, RevisionDiff, RevisionPage},
 };
 pub use state::{Api, ApiConfig};

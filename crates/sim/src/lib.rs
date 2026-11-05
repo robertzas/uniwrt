@@ -53,6 +53,7 @@ use std::time::Duration;
 
 pub use fleet::{SimFleet, SimNode};
 pub use link::SimLink;
+pub use render::wifi::{MESH_ID, SSID};
 
 /// What to simulate.
 #[derive(Debug, Clone, PartialEq, Eq)]

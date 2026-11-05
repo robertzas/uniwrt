@@ -64,6 +64,15 @@ impl SimLink {
             .any(|key| key == line)
     }
 
+    /// Adds `line` to the node's `authorized_keys`, as adoption does: demo mode's nodes
+    /// adopted at start trust the controller's key.
+    pub fn authorize(&self, line: &str) {
+        let keys = &mut lock(&self.shared.nodes[self.node].disk).authorized_keys;
+        if !keys.iter().any(|key| key == line) {
+            keys.push(line.to_owned());
+        }
+    }
+
     fn answer(&self, op: &str, args: &RawValue) -> Result<Value> {
         if !self.running() {
             return Err(Error::AgentUnavailable {

@@ -13,7 +13,7 @@ use uniwrt_store::{Store, UserRepo as _, Vault};
 use zeroize::Zeroizing;
 
 use crate::{
-    ApiError, BuildInfo, Certificate, PasswordCost, SETUP_WINDOW,
+    ApiError, BuildInfo, Certificate, FirstSite, PasswordCost, SETUP_WINDOW,
     auth::{limit::LoginLimiter, password, password::Passwords, setup::Setup},
 };
 
@@ -34,6 +34,8 @@ pub struct ApiConfig {
     pub rf: Option<Rf>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
+    /// A new site's first revision instead of the defaults (demo mode's).
+    pub first_site: Option<FirstSite>,
     pub password_cost: PasswordCost,
     /// How long setup stays open after a start without users ([`SETUP_WINDOW`]).
     pub setup_window: Duration,
@@ -60,6 +62,7 @@ impl ApiConfig {
             notify: None,
             rf: None,
             vault: None,
+            first_site: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
         }
@@ -88,17 +91,19 @@ struct Inner {
     setup: Setup,
     /// True once the server stops: the WS connections close.
     closing: watch::Sender<bool>,
+    /// Bumped whenever a revision is committed ([`Api::config_changed`]).
+    config: watch::Sender<u64>,
 }
 
 impl Api {
-    /// Opens the setup window if the store has no users, and gives a new site its defaults
-    /// (the first revision). Takes one password hash's time.
+    /// Opens the setup window if the store has no users, and gives a new site its first
+    /// revision (the defaults, or [`ApiConfig::first_site`]). Takes one password hash's time.
     pub async fn new(config: ApiConfig) -> Result<Self, ApiError> {
         let has_users = config.store.has_users().await?;
-        crate::site::ensure_first_revision(&config.store).await?;
         let passwords = Passwords::new(config.password_cost)?;
         passwords.warm_up().await?;
-        Ok(Self {
+        let first_site = config.first_site;
+        let api = Self {
             inner: Arc::new(Inner {
                 passwords,
                 limiter: LoginLimiter::default(),
@@ -106,6 +111,7 @@ impl Api {
                 store: config.store,
                 fleet: config.fleet,
                 closing: watch::Sender::new(false),
+                config: watch::Sender::new(0),
                 clock: config.clock,
                 build: config.build,
                 certificate: config.certificate,
@@ -115,7 +121,9 @@ impl Api {
                 rf: config.rf,
                 vault: config.vault,
             }),
-        })
+        };
+        crate::site::ensure_first_revision(&api, first_site).await?;
+        Ok(api)
     }
 
     /// Creates the first admin without setup or the password policy: demo mode's `demo` user.
@@ -154,6 +162,17 @@ impl Api {
 
     pub(crate) fn closing(&self) -> watch::Receiver<bool> {
         self.inner.closing.subscribe()
+    }
+
+    /// Tells the WS hub's `config` topics that a revision was committed.
+    pub(crate) fn config_changed(&self) {
+        self.inner
+            .config
+            .send_modify(|count| *count = count.wrapping_add(1));
+    }
+
+    pub(crate) fn config_watch(&self) -> watch::Receiver<u64> {
+        self.inner.config.subscribe()
     }
 
     pub(crate) fn now(&self) -> Timestamp {

@@ -50,6 +50,8 @@ import type { ScanRequest } from "../api/gen/ScanRequest";
 import type { ScanSummary } from "../api/gen/ScanSummary";
 import type { ScansQueued } from "../api/gen/ScansQueued";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
+import type { SiteSave } from "../api/gen/SiteSave";
+import type { SiteView } from "../api/gen/SiteView";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
@@ -224,6 +226,15 @@ export const api = {
   nodes: {
     list: (signal?: AbortSignal) => request<NodeSummary[]>("/nodes", { signal }),
     get: (id: NodeId, signal?: AbortSignal) => request<NodeDetail>(`/nodes/${id}`, { signal }),
+    /** Starts the job that turns management on or off (admins); the `jobs` topic follows it. */
+    manage: (id: NodeId, enabled: boolean) =>
+      request<Job>(`/nodes/${id}/management`, { method: "PUT", body: { enabled } }),
+  },
+  /** The site's desired state (lifecycle.md, Desired state & revisions). */
+  site: {
+    get: (signal?: AbortSignal) => request<SiteView>("/site", { signal }),
+    /** Saves the next revision (admins); 409 when `base` is no longer the latest. */
+    save: (save: SiteSave) => request<SiteView>("/site", { method: "PUT", body: save }),
   },
   adopt: {
     /** Reads the node's host key, for the user to confirm before adopting it. */

@@ -16,7 +16,7 @@ use tracing::{debug, warn};
 
 use super::{
     message::{ClientMessage, ServerMessage},
-    subs::Subscriptions,
+    subs::{self, Subscriptions},
 };
 use crate::{Api, auth::session};
 
@@ -56,6 +56,7 @@ async fn serve(
     // Subscribed before any snapshot is read, so that nothing falls between.
     let mut bus = api.fleet().subscribe();
     let mut jobs = api.jobs().subscribe();
+    let mut config = api.config_watch();
     let mut closing = api.closing();
     // Set once and never unset, so a change means the server is stopping.
     if *closing.borrow_and_update() {
@@ -95,13 +96,20 @@ async fn serve(
             update = jobs.recv() => match update {
                 Ok(job) => {
                     subs.job(&job);
-                    continue;
+                    if !subs::job_ended(&job) {
+                        continue;
+                    }
+                    subs.job_ended(api, &job).await
                 }
                 Err(RecvError::Lagged(missed)) => {
                     debug!(missed, "a WS connection fell behind the jobs; sending snapshots");
                     subs.resync(api).await
                 }
                 Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
+            },
+            changed = config.changed() => match changed {
+                Ok(()) => subs.config(api).await,
+                Err(_) => return Some((CLOSE_GOING_AWAY, STOPPING)),
             },
             _ = flush.tick() => subs.flush(api),
             _ = ping.tick() => {

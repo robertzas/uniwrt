@@ -65,6 +65,12 @@ impl DemoDial {
         self.node(host).map(|node| node.link.clone())
     }
 
+    /// The host key of the node at `host`, which demo mode pins for the nodes it adopts at
+    /// start.
+    pub(crate) fn host_key(&self, host: &str) -> Option<&HostKey> {
+        self.node(host).map(|node| &node.host_key)
+    }
+
     fn node(&self, host: &str) -> Option<&DemoNode> {
         self.nodes.iter().find(|node| node.host == host)
     }
@@ -205,7 +211,8 @@ mod tests {
             reboot_every: None,
             ..SimConfig::default()
         };
-        let fleet = Fleet::demo(&store, &config, clock.clone(), None)
+        let key = uniwrt_node::ControllerKey::generate().unwrap();
+        let fleet = Fleet::demo(&store, &config, &key, clock.clone(), None)
             .await
             .unwrap();
         let vault = Vault::open(&store, &MasterKey::generate().unwrap())

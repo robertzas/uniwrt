@@ -1,6 +1,6 @@
 //! The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks,
-//! snapshots then deltas, interest while topics are held, jobs as they change, the rate of
-//! deltas, and closing.
+//! snapshots then deltas, interest while topics are held, jobs as they change, nodes and the
+//! site's revisions after jobs and saves, the rate of deltas, and closing.
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -24,9 +24,10 @@ use tokio_tungstenite::{
 };
 use uniwrt_core::NodeId;
 use uniwrt_engine::Interests;
+use uniwrt_store::NodeRepo as _;
 
 use super::conn::{CLOSE_SESSION_ENDED, FLUSH_EVERY, SESSION_CHECK_EVERY};
-use crate::testing::{Demo, ORIGIN, post};
+use crate::testing::{Demo, ORIGIN, json as body_json, post, request};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -247,6 +248,95 @@ async fn the_jobs_topic_has_the_latest_jobs_then_their_changes() {
     assert_eq!(failed["topic"], "jobs");
     assert_eq!(failed["jobs"].as_array().unwrap().len(), 1);
     assert_eq!(failed["jobs"][0]["error"]["code"], "unreachable");
+}
+
+#[tokio::test]
+async fn the_config_topic_follows_saves_and_applies() {
+    let demo = Demo::start().await;
+    let mut ws = open(&demo).await;
+    sub(&mut ws, &["config"]).await;
+    let snapshot = next(&mut ws).await;
+    assert_eq!(snapshot["type"], "config");
+    assert_eq!(snapshot["head"]["id"], 1);
+    assert_eq!(snapshot["applied"], json!([]));
+
+    let site = demo
+        .send(request(
+            axum::http::Method::GET,
+            "/v1/site",
+            None,
+            Some(&demo.cookie),
+        ))
+        .await;
+    let mut config = body_json(site).await["config"].clone();
+    config["site"]["name"] = json!("Cabin");
+    let save = json!({ "base": 1, "config": config });
+    let res = demo
+        .send(request(
+            axum::http::Method::PUT,
+            "/v1/site",
+            Some(&save),
+            Some(&demo.cookie),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let saved = until(&mut ws, |message| message["type"] == "config").await;
+    assert_eq!(saved["topic"], "config");
+    assert_eq!(saved["head"]["id"], 2);
+
+    // Every node is observed, so the apply skips them all and ends at once.
+    let res = demo
+        .send(post(
+            "/v1/apply",
+            &json!({ "revision": 2 }),
+            Some(&demo.cookie),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let applied = until(&mut ws, |message| message["type"] == "config").await;
+    assert_eq!(applied["head"]["id"], 2);
+}
+
+#[tokio::test]
+async fn a_manage_job_that_ends_updates_the_node_and_fleet_topics() {
+    let demo = Demo::start().await;
+    let node = demo.ids[1];
+    let mut ws = open(&demo).await;
+    let topic = format!("node:{node}");
+    sub(&mut ws, &["fleet", &topic]).await;
+    until(&mut ws, |message| message["type"] == "fleet_snapshot").await;
+    until(&mut ws, |message| message["type"] == "node_snapshot").await;
+
+    // The record changes behind the topics' backs, as a manage job records it; the job then
+    // fails at once (no host key is pinned in this demo), and its end is what the topics heed.
+    demo.store
+        .set_node_mode(node, uniwrt_model::node::NodeMode::Managed)
+        .await
+        .unwrap();
+    let uri = format!("/v1/nodes/{node}/management");
+    let res = demo
+        .send(request(
+            axum::http::Method::PUT,
+            &uri,
+            Some(&json!({ "enabled": false })),
+            Some(&demo.cookie),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let snapshot = until(&mut ws, |message| {
+        message["type"] == "node_snapshot" && message["node"]["node"]["mode"] == "managed"
+    })
+    .await;
+    assert_eq!(snapshot["topic"], topic);
+    until(&mut ws, |message| {
+        message["type"] == "fleet_delta"
+            && message["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|n| n["id"] == node.get() && n["mode"] == "managed")
+    })
+    .await;
 }
 
 #[tokio::test]

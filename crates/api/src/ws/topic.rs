@@ -1,7 +1,7 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs` or
 //! `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every
 //! source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`,
-//! `jobs`, `topology`, `clients` and `client:<mac>`.
+//! `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
 
 use std::fmt;
 
@@ -40,6 +40,9 @@ pub(crate) enum Topic {
     Client(MacAddr),
     /// RF insight's view, whole, then again whenever it changes.
     Rf,
+    /// The site's latest revision and the one each node holds, whole, then again whenever
+    /// they change.
+    Config,
 }
 
 /// Why a topic name is refused.
@@ -75,6 +78,9 @@ impl Topic {
         if name == "rf" {
             return Ok(Self::Rf);
         }
+        if name == "config" {
+            return Ok(Self::Config);
+        }
         if let Some(mac) = name.strip_prefix("client:") {
             return mac
                 .parse()
@@ -102,7 +108,7 @@ impl Topic {
         }
         Err(BadTopic(format!(
             "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, \
-             events?node=<id>&min=<level>, alerts, jobs, topology, clients, client:<mac> or rf"
+             events?node=<id>&min=<level>, alerts, jobs, topology, clients, client:<mac>, rf or config"
         )))
     }
 }
@@ -189,6 +195,7 @@ mod tests {
         assert_eq!(Topic::parse("clients"), Ok(Topic::Clients));
         assert_eq!(Topic::parse("alerts"), Ok(Topic::Alerts));
         assert_eq!(Topic::parse("rf"), Ok(Topic::Rf));
+        assert_eq!(Topic::parse("config"), Ok(Topic::Config));
         assert_eq!(
             Topic::parse("client:F0:18:98:00:00:01"),
             Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))

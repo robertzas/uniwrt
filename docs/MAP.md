@@ -60,10 +60,11 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/subs_alerts.rs`: The `alerts` topic of a connection: the alerts firing, then each alert stored since (opened, changed, resolved or acknowledged), by id between flushes so that each is sent as it is now.
 - `src/ws/subs_clients.rs`: The clients' topics of a connection: `clients` keeps each changed client's latest view by MAC address between flushes, and `client:<mac>` one client's view, its new samples (up to a cap) and its changed sessions, with fast telemetry for the node it is at.
 - `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
+- `src/ws/subs_config.rs`: The `config` topic of a connection (D-071): the site's latest revision and the revision each node holds, whole, when subscribed and again whenever either changes (a save or a restore, [`Api::config_changed`]; an apply that ends).
 - `src/ws/subs_events.rs`: The `events` topic of a connection: the newest events recorded, then each one recorded or folded since that passes its filter (one node's, at a least level), by id between flushes so that a fold sends the record as it is now.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
-- `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients` and `client:<mac>`.
+- `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, nodes and the site's revisions after jobs and saves, the rate of deltas, and closing.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
 
 ### `uniwrt-clients` (crates/clients)
 
@@ -372,6 +373,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
+- `src/demo_site.rs`: Demo mode's first revision (D-071): the simulated network as the site's document, so that what the demo applies matches what its nodes run: the LAN on the gateway's subnet (192.168.1.0/24 while the fleet fits), the sim's WPA2/WPA3 SSID on both bands and its batman-adv mesh on 5 GHz channel 36, in the sim's country.
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications, the alert engine and RF insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode scans sooner and busy or not).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
@@ -578,6 +580,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, JobOutcome.tsx, JobSteps.tsx, address.ts
+- `features/devices/config/`: ConfigTab.tsx, ManagementCard.tsx, PackagesCard.tsx, packages.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
@@ -586,7 +589,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, rf.ts, session.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, rf.ts, session.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
