@@ -8,10 +8,14 @@
 //!   whose kernel can't do what it needs (8021q, pppoe, nftables), except in CI.
 //! - **Topologies:** `scripts/test-system.sh` links an ISP, a gateway and an AP (wired), and
 //!   `scripts/wifi-lab.sh` the hwsim lab (Wi-Fi and the mesh); each test renders onto them.
+//!   `tests/apply/` drives `uniwrt_jobs`' apply onto the wired topology over a `docker exec`
+//!   `uniwrt_jobs::Dial` (logins go to the container holding the address; a container
+//!   can be lost after it applies).
 //! - **Invariants:** a test owns the topology while it runs (`--test-threads 1`) and renders
 //!   every package it relies on, so tests don't depend on their order. Values reach a
 //!   container's shell as arguments, never in a script's text.
-//! - **Dependencies:** core, model, node (the agent's facts), render and uci; Docker at run
+//! - **Dependencies:** core, model, node (the agent's facts), render and uci (and jobs, store
+//!   and tokio for `tests/apply/`); Docker at run
 //!   time. The tests are `#[ignore]`d: the scripts run them with `--run-ignored only`.
 
 mod docker;

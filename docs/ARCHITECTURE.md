@@ -72,7 +72,7 @@ flowchart TB
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
 | test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands the jobs run (adoption's, and the transaction tool with `/etc/config` in `uniwrt_sim::txn`, which the jobs' tests drive too); `serve --demo` and tests (D-038, D-048) | core, model, node |
-| test | `system` | the system harness: rendered configs on OpenWrt containers through `docker exec` (the agent's facts, write and read back, netifd, the bridge); `tests/system.rs` on `scripts/test-system.sh`'s wired topology, `tests/wifi.rs` on the hwsim lab (M3.3b) | core, model, node, render, uci |
+| test | `system` | the system harness: rendered configs on OpenWrt containers through `docker exec` (the agent's facts, write and read back, netifd, the bridge); `tests/system.rs` on `scripts/test-system.sh`'s wired topology, and `tests/apply/` the apply job end to end there over a `docker exec` dial (M3.4a2b; jobs and store as dev-dependencies), `tests/wifi.rs` on the hwsim lab (M3.3b) | core, model, node, render, uci |
 
 Rules:
 - Dependencies point only to the same layer or a lower one.

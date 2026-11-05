@@ -15,12 +15,7 @@ use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::{Issue, RENDERABLE, Secrets, Target, render, uplink_section};
 use uniwrt_uci::{Diff, Package, Value};
 
-use super::address;
-
-/// The dead-man timer of a transaction (features/lifecycle.md), and of one that changes the
-/// WAN or the mesh, which take longer to settle.
-pub(crate) const TIMEOUT: Duration = Duration::from_secs(120);
-pub(crate) const UPLINK_TIMEOUT: Duration = Duration::from_secs(300);
+use super::{ApplyTiming, address};
 
 /// Options that hold secrets in rendered packages (render's contract).
 const SECRET_OPTIONS: [&str; 2] = ["key", "password"];
@@ -43,7 +38,9 @@ pub(crate) struct Part {
     pub(crate) services: Vec<(String, bool)>,
     /// Where the controller reaches it once applied, when that moves.
     pub(crate) address: Option<Ipv4Addr>,
+    /// Its dead-man timer, longer when it changes the WAN or the mesh (`uplink`).
     pub(crate) timeout: Duration,
+    pub(crate) uplink: bool,
 }
 
 /// The names of the packages render writes, which the planner reads.
@@ -69,14 +66,20 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
     }
 }
 
-pub(crate) fn plan(site: &SiteConfig, secrets: &dyn Secrets, report: &Report<'_>) -> Part {
+pub(crate) fn plan(
+    site: &SiteConfig,
+    secrets: &dyn Secrets,
+    report: &Report<'_>,
+    timing: &ApplyTiming,
+) -> Part {
     let node = report.node;
     let mut part = Part {
         plan: idle(node, PlanAction::Unchanged, ""),
         files: Vec::new(),
         services: Vec::new(),
         address: None,
-        timeout: TIMEOUT,
+        timeout: timing.timer,
+        uplink: false,
     };
     part.plan.reason = None;
     let mut current = BTreeMap::new();
@@ -146,7 +149,12 @@ pub(crate) fn plan(site: &SiteConfig, secrets: &dyn Secrets, report: &Report<'_>
         Err(why) if !part.files.is_empty() => part.plan.issues.push(issue("node", why)),
         Err(_) => {}
     }
-    part.timeout = if uplink { UPLINK_TIMEOUT } else { TIMEOUT };
+    part.uplink = uplink;
+    part.timeout = if uplink {
+        timing.timer_uplink
+    } else {
+        timing.timer
+    };
     part.plan.timeout_s = u32::try_from(part.timeout.as_secs()).unwrap_or(u32::MAX);
     part.plan.action = if !part.plan.issues.is_empty() {
         PlanAction::Refused

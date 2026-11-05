@@ -397,7 +397,7 @@ async fn check(
     stop: &AtomicBool,
 ) -> Result<(), String> {
     let timing = &shared.timing;
-    let window = if live.part.timeout > super::plan::TIMEOUT {
+    let window = if live.part.uplink {
         timing.verify_uplink
     } else {
         timing.verify

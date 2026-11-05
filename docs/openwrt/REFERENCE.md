@@ -68,7 +68,7 @@ Detect which one is present by trying `command -v apk` first.
 
 `uci` · `ubus call|listen|subscribe` · `batctl meshif <dev> mj|hj|oj|nj|gwj|tgj|tlj` (JSON ✅: throughputs and gateway bandwidths in 100 kbit/s, translation-table VLAN -1 for untagged; `batctl s` has no JSON) · `iw dev|phy|station dump|survey dump|scan` · `iwinfo` · `batctl o|n|tg|gwl|s|tp` · `logread [-f] [-e regex] [-l N] [-t]` (✅ `-t` adds `[<s>.<ms>]` after the date: `<ctime> [<s>.<ms>] <facility>.<severity> <msg>`, the kernel's as `kern.<severity> kernel: <text>`; `-f -l N` sends the last N, 0 for none, then follows) · `sysupgrade -T|-b|-n|-k` · `firstboot` · `reload_config` · `wifi reload|up|down|status` · `fw4 check|print|reload` · `jsonfilter` · `uclient-fetch` · `owut` · `apk` / `opkg`
 
-The apply relies on (⚠️ until M3.4a2b checks them on both releases): BusyBox `nslookup <name> 127.0.0.1` prints a `Name:` line per answer and `** server can't find …` otherwise; `/etc/init.d/<service> enabled` exits 0 exactly when the service starts at boot (an `S??<service>` link in `/etc/rc.d`).
+The apply relies on (✅ 24.10 and 25.12, M3.4a2b): BusyBox `nslookup <name> 127.0.0.1` prints `Server:`/`Address:` lines, then a `Name:` line per answer (`localhost` gets two, 127.0.0.1 and ::1) and exits 0; a name it can't find prints `** server can't find <name>: NXDOMAIN` (once per query type) and exits 1. `/etc/init.d/<service> enabled` exits 0 exactly when the service starts at boot (an `S??<service>` link in `/etc/rc.d`, which `disable` removes), else 1.
 
 ## ucode ✅
 

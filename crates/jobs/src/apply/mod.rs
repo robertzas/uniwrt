@@ -49,23 +49,31 @@ const STEPS: [StepName; 7] = [
     StepName::Record,
 ];
 
-/// How patiently an apply verifies nodes.
+/// How patiently an apply waits on nodes. [`Default`] is production's; the system harness's
+/// end-to-end tests shorten it ([`Jobs::start_with`](crate::Jobs::start_with)).
 #[derive(Debug, Clone)]
-pub(crate) struct Timing {
+pub struct ApplyTiming {
     /// Between two tries while a node reconnects, reloads or recovers.
-    pub(crate) poll: Duration,
+    pub poll: Duration,
     /// How long a node may take to be reachable and healthy again.
-    pub(crate) verify: Duration,
+    pub verify: Duration,
     /// The same, after a change of its WAN or the mesh.
-    pub(crate) verify_uplink: Duration,
+    pub verify_uplink: Duration,
+    /// The dead-man timer of a transaction (features/lifecycle.md), within the tool's bounds
+    /// (`uniwrt_node::txn::MIN_TIMEOUT`, `MAX_TIMEOUT`); longer than `verify`.
+    pub timer: Duration,
+    /// The same for one that changes the WAN or the mesh, which take longer to settle.
+    pub timer_uplink: Duration,
 }
 
-impl Default for Timing {
+impl Default for ApplyTiming {
     fn default() -> Self {
         Self {
             poll: Duration::from_secs(2),
             verify: Duration::from_secs(60),
             verify_uplink: Duration::from_secs(150),
+            timer: Duration::from_secs(120),
+            timer_uplink: Duration::from_secs(300),
         }
     }
 }

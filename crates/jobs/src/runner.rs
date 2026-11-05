@@ -73,7 +73,7 @@ pub(crate) struct Shared {
     pub(crate) dial: Option<Arc<dyn Dial>>,
     pub(crate) watch: Arc<dyn Watch>,
     pub(crate) adoptions: Semaphore,
-    pub(crate) timing: apply::Timing,
+    pub(crate) timing: apply::ApplyTiming,
     discovery: Discovery,
     updates: broadcast::Sender<Arc<Job>>,
     running: Mutex<Running>,
@@ -110,10 +110,12 @@ impl Shared {
 impl Jobs {
     /// Fails the jobs that a stop interrupted, then accepts new ones.
     pub async fn start(config: JobsConfig) -> Result<Self> {
-        Self::start_with(config, apply::Timing::default()).await
+        Self::start_with(config, apply::ApplyTiming::default()).await
     }
 
-    pub(crate) async fn start_with(config: JobsConfig, timing: apply::Timing) -> Result<Self> {
+    /// [`start`](Self::start) with the apply's `timing`, for tests that can't wait
+    /// production's timers.
+    pub async fn start_with(config: JobsConfig, timing: apply::ApplyTiming) -> Result<Self> {
         let interrupted = config.store.interrupt_jobs(interrupted()).await?;
         if interrupted > 0 {
             warn!(interrupted, "jobs were interrupted by the last stop");

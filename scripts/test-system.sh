@@ -9,7 +9,8 @@
 # (198.51.100.0/24), and PPPoE (user@isp, 203.0.113.0/24). crates/system/tests/system.rs
 # collects the gateway's and the AP's facts with the working tree's agent, renders sites for
 # them, writes the packages and checks that uci, fw4 and netifd take them, through
-# `docker exec`.
+# `docker exec`; crates/system/tests/apply/ drives the controller's apply job onto both (the
+# transaction tool, the agent and the health checks; a confirm and two rollbacks).
 #
 # Linking the containers and loading the kernel's 8021q and pppoe modules need root, which a
 # privileged helper container provides, as in the hwsim lab (D-035).
@@ -146,7 +147,7 @@ down) down ;;
     # One at a time: the tests share the topology, and each renders its own site onto it.
     # shellcheck source=/dev/null # written by `up`
     set -a && source "$ENV_FILE" && set +a
-    UNIWRT_SYSTEM_RELEASE=$release cargo nextest run --locked -p uniwrt-system --test system \
+    UNIWRT_SYSTEM_RELEASE=$release cargo nextest run --locked -p uniwrt-system --test system --test apply \
       --run-ignored only --test-threads 1 --status-level fail --hide-progress-bar
     down
   done

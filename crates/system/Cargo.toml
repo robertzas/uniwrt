@@ -16,5 +16,11 @@ uniwrt-node.workspace = true
 uniwrt-render.workspace = true
 uniwrt-uci.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "process", "rt-multi-thread", "time"] }
+uniwrt-jobs.workspace = true
+uniwrt-store.workspace = true
+
 [lints]
 workspace = true

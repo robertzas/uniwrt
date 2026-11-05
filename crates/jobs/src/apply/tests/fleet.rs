@@ -30,8 +30,7 @@ use uniwrt_store::{
 };
 
 use crate::{
-    BoxFuture, Dial, Jobs, JobsConfig, Remote,
-    apply::{Timing, plan::tests::collected},
+    ApplyTiming, BoxFuture, Dial, Jobs, JobsConfig, Remote, apply::plan::tests::collected,
     testing::Watched,
 };
 
@@ -284,10 +283,11 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
             dial: Some(Arc::new(dial)),
             watch: Arc::clone(&watched) as _,
         },
-        Timing {
+        ApplyTiming {
             poll: Duration::from_millis(5),
             verify: Duration::from_millis(300),
             verify_uplink: Duration::from_millis(300),
+            ..ApplyTiming::default()
         },
     )
     .await

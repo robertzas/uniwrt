@@ -15,7 +15,8 @@ use uniwrt_model::{
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::RENDERABLE;
 
-use super::{Part, Report, TIMEOUT, plan};
+use super::{Part, Report, plan};
+use crate::ApplyTiming;
 use crate::testing::COLLECTED;
 
 /// What the agent collects on OpenWrt 24.10 in a container; a gateway's board.json gets a WAN
@@ -94,6 +95,7 @@ fn part(site: &SiteConfig, node: &Node, files: &BTreeMap<String, Option<String>>
             files,
             services: &stock_services(),
         },
+        &ApplyTiming::default(),
     )
 }
 
@@ -119,7 +121,10 @@ fn a_new_node_gets_every_package_and_then_holds_them() {
             ("odhcpd".to_owned(), false)
         ]
     );
-    assert_eq!((first.address, first.timeout), (None, TIMEOUT));
+    assert_eq!(
+        (first.address, first.timeout),
+        (None, ApplyTiming::default().timer)
+    );
 
     // Holding what it rendered, with the services off, nothing changes.
     let files = first
@@ -142,6 +147,7 @@ fn a_new_node_gets_every_package_and_then_holds_them() {
             files: &files,
             services: &off,
         },
+        &ApplyTiming::default(),
     );
     assert_eq!(again.plan.action, PlanAction::Unchanged);
     assert!(again.files.is_empty() && again.plan.packages.is_empty());

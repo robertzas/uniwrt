@@ -487,6 +487,8 @@ The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `src/docker.rs`: A node of the harness: an OpenWrt container that the tests reach through `docker exec`.
 - `src/lib.rs`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `src/site.rs`: The sites the harness renders: a new site's defaults and a home site with VLANs, each behind one of the ISP's uplinks (scripts/system/): DHCP untagged or on VLAN 201, static, or PPPoE; and the hwsim lab's site (scripts/wifi-lab.sh), whose WLAN and mesh client c knows.
+- `tests/apply/dial.rs`: A [`Dial`] over `docker exec`: the controller's logins to the harness's containers.
+- `tests/apply/main.rs`: End-to-end applies (TESTING.md, System; D-070) on scripts/test-system.sh's topology, `isp ═ gw ═ ap`: the controller's apply job reaches the gateway and the AP over a `docker exec` dial ([`dial`]), turns management on (installing the transaction tool and the guard), and applies revisions through the real tool, agent and health checks: a confirmed apply, a broken WAN that rolls both back, and a lost AP that rolls back at its deadline.
 - `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
 - `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
 

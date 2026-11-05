@@ -1,7 +1,7 @@
 //! Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in
 //! its own task, recorded as history. Adoption first (features/adoption.md, Path A).
 //!
-//! - **API:** [`Jobs::start`] from a [`JobsConfig`] (the store, the vault, the clock, the
+//! - **API:** [`Jobs::start`] from a [`JobsConfig`] ([`Jobs::start_with`] and an [`ApplyTiming`] in tests) (the store, the vault, the clock, the
 //!   controller key, a [`Dial`] to reach nodes and a [`Watch`] to start watching them);
 //!   [`Jobs::probe`] reads a node's host key for the user to confirm; [`Jobs::adopt`] starts
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
@@ -61,6 +61,7 @@ mod runner;
 mod testing;
 
 pub use adopt::AdoptRequest;
+pub use apply::ApplyTiming;
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
 

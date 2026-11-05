@@ -269,6 +269,7 @@ pub(crate) async fn plan_all(
                 files: &reading.files,
                 services: &reading.services,
             },
+            &shared.timing,
         );
         part.plan.hops = hops.get(&login.node.id).copied();
         plans.push(part.plan.clone());

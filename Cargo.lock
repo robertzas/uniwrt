@@ -3427,10 +3427,14 @@ name = "uniwrt-system"
 version = "0.0.0"
 dependencies = [
  "serde_json",
+ "tempfile",
+ "tokio",
  "uniwrt-core",
+ "uniwrt-jobs",
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-render",
+ "uniwrt-store",
  "uniwrt-uci",
 ]
 
