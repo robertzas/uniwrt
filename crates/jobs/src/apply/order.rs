@@ -112,6 +112,7 @@ mod tests {
             action,
             reason: None,
             packages: Vec::new(),
+            raw: Vec::new(),
             services: Vec::new(),
             address: None,
             hops,

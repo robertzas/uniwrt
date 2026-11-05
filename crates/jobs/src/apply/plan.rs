@@ -9,7 +9,10 @@ use uniwrt_model::{
     apply::{AddressChange, MASKED, NodePlan, PlanAction, PlanIssue, ServiceChange},
     facts::NodeFacts,
     node::Node,
-    site::{SiteConfig, node::is_secret_option},
+    site::{
+        SiteConfig,
+        node::{RawSection, is_secret_option},
+    },
 };
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::{Issue, RENDERABLE, Secrets, Target, render, uplink_section};
@@ -54,6 +57,7 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
         action,
         reason: Some(reason.into()),
         packages: Vec::new(),
+        raw: Vec::new(),
         services: Vec::new(),
         address: None,
         hops: None,
@@ -79,6 +83,7 @@ pub(crate) fn plan(
         uplink: false,
     };
     part.plan.reason = None;
+    part.plan.raw = raw_overrides(site, node);
     let mut current = BTreeMap::new();
     for (name, file) in report.files {
         let Some(text) = file else { continue };
@@ -161,6 +166,24 @@ pub(crate) fn plan(
         PlanAction::Change
     };
     part
+}
+
+/// The node's raw sections that render writes: those of the packages it manages.
+fn raw_overrides(site: &SiteConfig, node: &Node) -> Vec<RawSection> {
+    let Some(config) = site.nodes.iter().find(|config| config.node == node.id) else {
+        return Vec::new();
+    };
+    config
+        .raw
+        .iter()
+        .filter(|raw| {
+            config
+                .managed
+                .iter()
+                .any(|package| package.name() == raw.package && RENDERABLE.contains(package))
+        })
+        .cloned()
+        .collect()
 }
 
 /// Switches the services whose start at boot differs from what render wants.

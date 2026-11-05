@@ -5,6 +5,7 @@ import type { NodeId } from "./NodeId";
 import type { NodeRole } from "./NodeRole";
 import type { PlanAction } from "./PlanAction";
 import type { PlanIssue } from "./PlanIssue";
+import type { RawSection } from "./RawSection";
 import type { ServiceChange } from "./ServiceChange";
 
 /**
@@ -20,6 +21,11 @@ reason: string | null,
  * that hold secrets (`key`, `password`) read [`MASKED`].
  */
 packages: Array<Diff>, 
+/**
+ * The node's raw overrides this apply writes (those of the packages it manages), in the
+ * site's order; options holding secrets as vault references, never their values.
+ */
+raw: Array<RawSection>, 
 /**
  * Services whose start at boot changes.
  */

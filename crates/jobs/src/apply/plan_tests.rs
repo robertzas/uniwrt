@@ -9,7 +9,7 @@ use uniwrt_model::{
     node::{Node, NodeMode, NodeRole},
     site::{
         SecretRef, SiteConfig,
-        node::{ManagedPackage, NodeConfig},
+        node::{ManagedPackage, NodeConfig, RawSection, RawValue},
     },
 };
 use uniwrt_node::txn::current::ServiceState;
@@ -219,4 +219,22 @@ fn secrets_are_masked_in_the_plan() {
         option.after,
         Some(uniwrt_uci::Value::Single(MASKED.to_owned()))
     );
+}
+
+#[test]
+fn the_plan_shows_the_raw_overrides_of_the_packages_it_writes() {
+    let gw = node(1, NodeRole::Gateway, "192.168.1.1");
+    let raw = |package: &str, name: &str| RawSection {
+        package: package.to_owned(),
+        kind: "interface".to_owned(),
+        name: Some(name.to_owned()),
+        options: [("proto".to_owned(), RawValue::Option("none".to_owned()))].into(),
+        merge: false,
+    };
+    let mut site = site(&[gw.id]);
+    site.nodes[0].raw = vec![raw("network", "spare"), raw("dropbear", "x")];
+    let planned = part(&site, &gw, &BTreeMap::new());
+    assert_eq!(planned.plan.raw, vec![raw("network", "spare")]);
+    site.nodes[0].managed.remove(&ManagedPackage::Network);
+    assert_eq!(part(&site, &gw, &BTreeMap::new()).plan.raw, Vec::new());
 }

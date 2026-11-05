@@ -1,11 +1,12 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
-import { Plus, RadioTower, Router } from "lucide";
+import { Download, Plus, RadioTower, Router } from "lucide";
 import { createEffect, createSignal, Show, useContext } from "solid-js";
 import type { Discovered } from "../../api/gen/Discovered";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { formatDuration, formatPercent, NONE } from "../../lib/format";
 import { createJobsView } from "../../lib/jobs";
 import { LiveContext } from "../../lib/live";
+import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
@@ -82,6 +83,13 @@ export function DevicesPage() {
   const [params, setParams] = useSearchParams<AdoptParams>();
   const [jobs, addJobs] = createJobsView(live);
   const [batch, setBatch] = createSignal<Discovered[]>();
+  const session = useContext(SessionContext);
+  /** Admins see the import banner while the site is still the defaults (D-073). */
+  const stillDefaults = () =>
+    session.user.role === "admin" &&
+    live.config.ready &&
+    live.config.head?.kind === "defaults" &&
+    live.fleet.nodes.length > 0;
   const openAdopt = (host?: string) => setParams({ adopt: "1", host }, { replace: true });
   // Only while open: Kobalte also reports a close as the page unmounts, when navigating away.
   const closeAdopt = () => {
@@ -121,6 +129,9 @@ export function DevicesPage() {
             </EmptyState>
           }
         >
+          <Show when={stillDefaults()}>
+            <ImportBanner onImport={() => navigate("/settings/import")} />
+          </Show>
           <Card class="mx-auto max-w-7xl overflow-hidden">
             <CardHeader
               title={strings.devices.title}
@@ -159,5 +170,26 @@ export function DevicesPage() {
         addJobs={addJobs}
       />
     </>
+  );
+}
+
+/** The site is still the defaults, and nodes are adopted: import before managing them. */
+function ImportBanner(props: { onImport: () => void }) {
+  const t = strings.settings.import.banner;
+  return (
+    <div
+      role="note"
+      aria-label={t.title}
+      class="mx-auto mb-4 flex w-full max-w-7xl flex-col gap-3 rounded-card border border-info/40 bg-info/10 px-4 py-3 sm:flex-row sm:items-center"
+    >
+      <Icon icon={Download} class="hidden size-5 shrink-0 text-info sm:block" />
+      <div class="min-w-0 flex-1 text-sm">
+        <p class="font-medium text-fg">{t.title}</p>
+        <p class="mt-0.5 text-fg-muted">{t.body}</p>
+      </div>
+      <Button size="sm" variant="primary" icon={Download} onClick={props.onImport}>
+        {t.action}
+      </Button>
+    </div>
   );
 }

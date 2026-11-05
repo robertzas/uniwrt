@@ -9,7 +9,8 @@ import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Card } from "../../ui/Card";
 import { Icon, type IconNode } from "../../ui/Icon";
-import { PackageDiff } from "./PackageDiff";
+import { PackageDiff } from "../../ui/PackageDiff";
+import { RawOverrides } from "./RawOverrides";
 
 const t = strings.changes.node;
 
@@ -85,7 +86,11 @@ export function NodePlanCard(props: { plan: NodePlan }) {
         </div>
         <Badge tone={ACTION_TONES[p().action]}>{t.action[p().action]}</Badge>
       </div>
-      <Show when={p().action === "change" || p().action === "refused" || p().reason}>
+      <Show
+        when={
+          p().action === "change" || p().action === "refused" || p().reason || p().raw.length > 0
+        }
+      >
         <div class="flex flex-col gap-3 border-edge/60 border-t px-4 pt-3 pb-4">
           <Show when={p().reason && p().action !== "change"}>
             <p class="text-fg-muted text-sm">{p().reason}</p>
@@ -126,6 +131,9 @@ export function NodePlanCard(props: { plan: NodePlan }) {
                 <For each={p().packages}>{(diff) => <PackageDiff diff={diff} />}</For>
               </div>
             </Show>
+          </Show>
+          <Show when={p().raw.length > 0}>
+            <RawOverrides raw={p().raw} />
           </Show>
         </div>
       </Show>

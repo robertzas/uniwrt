@@ -193,6 +193,14 @@ describe("Settings › Revisions", () => {
     await user.click(await within(list).findByRole("button", { name: "Revision 2" }));
     await within(list).findByLabelText("Compare with");
     expect(within(list).queryByRole("button", { name: /Restore/ })).toBeNull();
+    expect(within(list).queryByRole("button", { name: "Import from the devices" })).toBeNull();
+  });
+
+  it("links admins to the import", async () => {
+    const user = userEvent.setup();
+    const list = await renderRevisions("admin");
+    await user.click(within(list).getByRole("button", { name: "Import from the devices" }));
+    await waitFor(() => expect(lastHistory?.get()).toBe("/settings/import"));
   });
 
   it("offers to try again when the list fails", async () => {

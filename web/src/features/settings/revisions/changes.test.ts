@@ -27,6 +27,14 @@ describe("revision changes", () => {
     expect(isSecret(`config/${"A".repeat(32)}`)).toBe(false);
     expect(isSecret("hunter22")).toBe(false);
     expect(isSecret(7)).toBe(false);
+    // A raw option's sealed value (D-073).
+    expect(isSecret({ secret: SECRET_A })).toBe(true);
+    expect(isSecret({ secret: "hunter22" })).toBe(false);
+    expect(isSecret({ secret: SECRET_A, other: 1 })).toBe(false);
+    expect(shown({ private_key: { secret: SECRET_A } })).toEqual({
+      kind: "fields",
+      fields: [{ path: ["private_key"], value: { kind: "secret" } }],
+    });
   });
 
   it("names devices in paths and keeps other segments", () => {

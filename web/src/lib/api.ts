@@ -16,6 +16,8 @@ import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
 import type { Health } from "../api/gen/Health";
+import type { ImportAccept } from "../api/gen/ImportAccept";
+import type { ImportPreview } from "../api/gen/ImportPreview";
 import type { Job } from "../api/gen/Job";
 import type { LogContext } from "../api/gen/LogContext";
 import type { LogFilter } from "../api/gen/LogFilter";
@@ -250,6 +252,21 @@ export const api = {
     start: (revision: number) => {
       const body: ApplyBody = { revision };
       return request<Job>("/apply", { method: "POST", body });
+    },
+  },
+  /** Brownfield import (lifecycle.md, Brownfield import; D-073); admins only. */
+  import: {
+    /**
+     * Reads every adopted node (it logs in to each, so it takes seconds; nothing changes on
+     * them) and what importing them into the latest revision would change; the controller holds
+     * it for 15 minutes.
+     */
+    preview: (signal?: AbortSignal) =>
+      request<ImportPreview>("/import/preview", { method: "POST", signal }),
+    /** Saves the held preview `id` as the next revision: 404 once expired, 409 when stale. */
+    accept: (id: string, message: string | null) => {
+      const body: ImportAccept = { id, message };
+      return request<SiteView>("/import/accept", { method: "POST", body });
     },
   },
   adopt: {

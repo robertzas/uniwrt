@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::{JobId, NodeId, RevisionId, Timestamp};
 use uniwrt_uci::Diff;
 
-use crate::node::NodeRole;
+use crate::{node::NodeRole, site::node::RawSection};
 
 /// The plan of applying `revision`: its nodes in the order they apply (leaves → gateway),
 /// then the ones it leaves alone.
@@ -45,6 +45,9 @@ pub struct NodePlan {
     /// The packages that change, as the node holds them → as rendered; the values of options
     /// that hold secrets (`key`, `password`) read [`MASKED`].
     pub packages: Vec<Diff>,
+    /// The node's raw overrides this apply writes (those of the packages it manages), in the
+    /// site's order; options holding secrets as vault references, never their values.
+    pub raw: Vec<RawSection>,
     /// Services whose start at boot changes.
     pub services: Vec<ServiceChange>,
     /// Where the controller reaches it once applied, when that moves.

@@ -600,7 +600,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
 - `features/auth/`: SignIn.tsx
-- `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, PackageDiff.tsx, plan.ts
+- `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
 - `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
@@ -611,11 +611,12 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
 - `features/settings/`: SettingsPage.tsx
+- `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, platform.ts, rf.ts, session.ts, strings.ts, ws.ts
-- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css
+- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
 - `viz/topology/`: TopologyCanvas.tsx, graph.ts, scene.ts

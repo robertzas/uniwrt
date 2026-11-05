@@ -9,6 +9,7 @@ import { Shell } from "../../app/Shell";
 import { detail, facts, summary } from "../../test/fixtures";
 import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
+import { revisionMeta } from "../../test/site";
 
 function renderAt(path: string) {
   const { socket, ws } = openTestSocket();
@@ -140,6 +141,23 @@ describe("Devices", () => {
 
     await user.click(within(table).getByText("attic"));
     await waitFor(() => expect(history.get()).toBe("/devices/2"));
+  });
+
+  it("offers the import while the site is still the defaults", async () => {
+    const user = userEvent.setup();
+    const { ws, history } = renderAt("/devices");
+    sendFleet(ws, [summary(1, "gateway", { role: "gateway" })]);
+    await screen.findByRole("table", { name: "Devices" });
+    expect(screen.queryByRole("note", { name: "The site is still the defaults" })).toBeNull();
+    const config = (head: number) =>
+      ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
+    config(2);
+    await screen.findByRole("table", { name: "Devices" });
+    expect(screen.queryByRole("note", { name: "The site is still the defaults" })).toBeNull();
+    config(1);
+    const banner = await screen.findByRole("note", { name: "The site is still the defaults" });
+    await user.click(within(banner).getByRole("button", { name: "Import from the devices" }));
+    await waitFor(() => expect(history.get()).toBe("/settings/import"));
   });
 
   it("shows an empty fleet", async () => {

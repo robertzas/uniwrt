@@ -1,4 +1,5 @@
-import { RotateCw } from "lucide";
+import { useNavigate } from "@solidjs/router";
+import { Download, RotateCw } from "lucide";
 import { createEffect, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import type { RevisionMeta } from "../../../api/gen/RevisionMeta";
 import { api } from "../../../lib/api";
@@ -24,6 +25,7 @@ export function RevisionsTab(props: {
   admin: boolean;
 }) {
   const live = useContext(LiveContext);
+  const navigate = useNavigate();
   const [revisions, setRevisions] = createSignal<readonly RevisionMeta[] | undefined>();
   const [more, setMore] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
@@ -107,12 +109,19 @@ export function RevisionsTab(props: {
     >
       {(list) => (
         <Card class="overflow-hidden" aria-label={t.listTitle}>
-          <div class="border-edge border-b px-4 py-2.5">
-            <h2 class="font-medium text-sm">{t.listTitle}</h2>
-            <p role="status" class="text-fg-subtle text-xs tabular-nums">
-              {t.count(list().length, more())}
-            </p>
-            <p class="mt-1 text-fg-muted text-xs">{t.hint}</p>
+          <div class="flex items-start gap-3 border-edge border-b px-4 py-2.5">
+            <div class="min-w-0 flex-1">
+              <h2 class="font-medium text-sm">{t.listTitle}</h2>
+              <p role="status" class="text-fg-subtle text-xs tabular-nums">
+                {t.count(list().length, more())}
+              </p>
+              <p class="mt-1 text-fg-muted text-xs">{t.hint}</p>
+            </div>
+            <Show when={props.admin}>
+              <Button size="sm" icon={Download} onClick={() => navigate("/settings/import")}>
+                {strings.settings.importLink}
+              </Button>
+            </Show>
           </div>
           <Show
             when={list().length > 0}

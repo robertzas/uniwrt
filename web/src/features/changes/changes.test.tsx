@@ -110,6 +110,17 @@ describe("Review & apply", () => {
     // Packages open and close.
     await user.click(within(gateway).getByRole("button", { name: "The network package" }));
     expect(gateway).not.toHaveTextContent("br-lan.20");
+    // Its raw overrides, closed until opened, a sealed secret never shown.
+    expect(gateway).not.toHaveTextContent("wireguard");
+    await user.click(within(gateway).getByRole("button", { name: /Raw overrides/ }));
+    expect(gateway).toHaveTextContent("2 sections");
+    expect(gateway).toHaveTextContent("config interface 'wg0'");
+    expect(gateway).toHaveTextContent("option proto 'wireguard'");
+    expect(gateway).toHaveTextContent("list addresses '10.9.0.1/24'");
+    expect(gateway).toHaveTextContent("option private_key secret");
+    expect(gateway).not.toHaveTextContent("7777");
+    expect(gateway).toHaveTextContent("Merged");
+    expect(within(attic).queryByRole("button", { name: /Raw overrides/ })).toBeNull();
 
     const alone = screen.getByRole("region", { name: "Left alone" });
     expect(alone).toHaveTextContent("Hall AP");

@@ -1,10 +1,7 @@
 import { ChevronRight, Lock } from "lucide";
 import { createSignal, For, Show } from "solid-js";
-import type { Diff } from "../../api/gen/Diff";
-import type { SectionDiff } from "../../api/gen/SectionDiff";
-import type { SectionId } from "../../api/gen/SectionId";
-import { strings } from "../../lib/strings";
-import { Icon } from "../../ui/Icon";
+import { strings } from "../lib/strings";
+import { Icon } from "./Icon";
 import {
   diffCounts,
   MASKED,
@@ -14,7 +11,10 @@ import {
   type SectionChange,
   sectionChange,
   sectionLabel,
-} from "./plan";
+  type UciDiff,
+  type UciSectionDiff,
+  type UciSectionId,
+} from "./uciDiff";
 
 const t = strings.changes.diff;
 
@@ -81,10 +81,10 @@ function Line(props: { line: OptionLine }) {
   );
 }
 
-function Section(props: { section: SectionDiff }) {
+function Section(props: { section: UciSectionDiff }) {
   const change = () => sectionChange(props.section);
   // A diff has a section before or after, or both.
-  const id = () => (props.section.after ?? props.section.before) as SectionId;
+  const id = () => (props.section.after ?? props.section.before) as UciSectionId;
   const op = () => OPS[SECTION_OPS[change()]];
   return (
     <li class="py-1">
@@ -116,9 +116,12 @@ function Section(props: { section: SectionDiff }) {
   );
 }
 
-/** One package's semantic diff, as the node holds it → as rendered, opening and closing. */
-export function PackageDiff(props: { diff: Diff }) {
-  const [open, setOpen] = createSignal(props.diff.sections.length <= OPEN_UP_TO);
+/**
+ * One package's semantic diff, as the node holds it → as rendered, opening and closing; it
+ * starts open when small, unless `open` says otherwise.
+ */
+export function PackageDiff(props: { diff: UciDiff; open?: boolean }) {
+  const [open, setOpen] = createSignal(props.open ?? props.diff.sections.length <= OPEN_UP_TO);
   const c = () => diffCounts(props.diff);
   return (
     <div class="overflow-hidden rounded-control border border-edge">

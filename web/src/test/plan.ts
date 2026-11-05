@@ -12,6 +12,7 @@ export function nodePlan(node: number, name: string, extra: Partial<NodePlan> = 
     action: "unchanged",
     reason: null,
     packages: [],
+    raw: [],
     services: [],
     address: null,
     hops: 1,
@@ -57,6 +58,26 @@ export function applyPlan(): ApplyPlan {
         role: "gateway",
         hops: 0,
         timeout_s: 300,
+        raw: [
+          {
+            package: "network",
+            type: "interface",
+            name: "wg0",
+            options: {
+              proto: "wireguard",
+              private_key: { secret: "config/77777777777777777777777777777777" },
+              addresses: ["10.9.0.1/24"],
+            },
+            merge: false,
+          },
+          {
+            package: "firewall",
+            type: "zone",
+            name: null,
+            options: { name: "lan", log: "1" },
+            merge: true,
+          },
+        ],
         packages: [
           {
             package: "network",

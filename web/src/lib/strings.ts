@@ -1670,6 +1670,15 @@ export const strings = {
       address: (from: string, to: string) => `Reached at ${to} once applied (now ${from})`,
       packages: (n: number) => `${n} ${n === 1 ? "package changes" : "packages change"}`,
       noPackages: "Only services change.",
+      raw: {
+        toggle: "Raw overrides",
+        count: (n: number) => `${n} ${n === 1 ? "section" : "sections"}`,
+        hint: "UCI the site keeps for this device as the device held it: a whole section is written as it is; merged options are set on the section uniwrt renders.",
+        whole: "Whole section",
+        merged: "Merged",
+        secret: "secret",
+        secretHint: "Sealed in the vault; the device receives the real value.",
+      },
     },
     diff: {
       toggle: (pkg: string) => `The ${pkg} package`,
@@ -1714,6 +1723,96 @@ export const strings = {
   },
   settings: {
     tabs: { notifications: "Notifications", revisions: "Revisions" },
+    importLink: "Import from the devices",
+    import: {
+      title: "Import from the devices",
+      crumb: "Import",
+      description:
+        "Reads the configuration your adopted devices hold into the site, so applying it keeps your network as it is.",
+      adminOnly: {
+        title: "Only admins import",
+        description: "An admin reads the devices' configuration and saves it as a revision.",
+      },
+      loading: "Reading every adopted device",
+      loadingHint:
+        "uniwrt logs in to each and reads its configuration, in observe mode too. Nothing changes on them.",
+      failed: "The devices could not be read",
+      retry: "Try again",
+      again: "Read again",
+      into: (base: number) => `Into revision ${base}`,
+      count: {
+        imported: (n: number) => `${n} imported`,
+        failed: (n: number) => `${n} failed`,
+        unread: (n: number) => `${n} not read`,
+        changes: (n: number) =>
+          n === 0 ? "Nothing new" : `${n} ${n === 1 ? "change" : "changes"} to the site`,
+      },
+      ready: (next: number) =>
+        `Accepting saves this as revision ${next}. Nothing changes on the devices until you review and apply it.`,
+      nothing: "The site holds everything the devices hold already: there is nothing to import.",
+      blocked: "Fix the errors below on the devices, then read them again.",
+      message: "Revision message",
+      messageHint: "Optional; “Imported from the devices” when empty.",
+      accept: (next: number) => `Accept as revision ${next}`,
+      accepting: "Saving…",
+      acceptFailed: "The import could not be saved",
+      stale: (head: number) =>
+        `Revision ${head} was saved since this preview: read the devices again to import into it.`,
+      errors: "Why it can't be accepted",
+      warnings: "Warnings",
+      changesTitle: "Changes to the site",
+      changesHint: "What the site's configuration becomes; secrets go to the vault, sealed.",
+      noChanges: "None: the site already holds this.",
+      devices: "Devices",
+      done: {
+        title: (id: number) => `Imported as revision ${id}`,
+        none: "Nothing to save: the site holds this already.",
+        body: "Review what applying it changes on each managed device, then apply it.",
+        review: "Review changes",
+        revisions: "Revisions",
+      },
+      node: {
+        open: (name: string) => `Open ${name}`,
+        state: { imported: "Imported", failed: "Failed", unread: "Not read" },
+        mode: { observe: "Observe mode", managed: "Managed" },
+        confidence: (n: number) => `${n}% in the model`,
+        confidenceHint:
+          "The share of its options the site's model holds; the rest is kept as raw UCI.",
+        unreadHint: "It keeps the settings the site has for it.",
+        issues: "Why it can't be imported",
+        warnings: "Warnings",
+        siteWarnings: "Kept for later",
+        times: (n: number) => `×${n}`,
+        sections: "Sections",
+        sectionCounts: (mapped: number, raw: number, dropped: number) =>
+          [
+            mapped > 0 ? `${mapped} mapped` : "",
+            raw > 0 ? `${raw} kept raw` : "",
+            dropped > 0 ? `${dropped} dropped` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        toggle: (name: string) => `${name}'s sections`,
+        fate: { mapped: "Mapped", raw: "Kept raw", dropped: "Dropped" },
+        fateHint: {
+          mapped: "The site's model holds it.",
+          raw: "Kept as it is, as a raw section the site writes back.",
+          dropped:
+            "Not written on this device: an access point's firewall keeps only its defaults.",
+        },
+        kept: (options: string) => `keeps ${options}`,
+        renamed: (to: string) => `→ '${to}'`,
+        anonymous: (type: string) => `@${type}`,
+        residual: "What the first apply would still change",
+        residualHint:
+          "uniwrt writes these its own way; nothing is lost beyond them. Secrets are masked.",
+      },
+      banner: {
+        title: "The site is still the defaults",
+        body: "Import what your devices hold before you manage them, so the first apply keeps your network as it is.",
+        action: "Import from the devices",
+      },
+    },
     revisions: {
       listTitle: "Revisions",
       count: (shown: number, more: boolean) =>

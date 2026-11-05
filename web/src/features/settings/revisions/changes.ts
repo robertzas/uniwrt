@@ -14,9 +14,17 @@ const t = strings.settings.revisions;
 /** A configuration secret's vault reference, as `SecretRef` checks it. */
 const SECRET = /^config\/[0-9a-f]{32}$/;
 
-/** Whether `value` is a vault reference to a configuration secret. */
+/**
+ * Whether `value` is a vault reference to a configuration secret: as a slot holds it, or as a
+ * raw option holds one (`{"secret": "config/…"}`, D-073).
+ */
 export function isSecret(value: unknown): boolean {
-  return typeof value === "string" && SECRET.test(value);
+  if (typeof value === "string") return SECRET.test(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.length === 1 && keys[0] === "secret" && isSecret((value as { secret: unknown }).secret)
+  );
 }
 
 /** One leaf of an added or removed item: its path below the change's, and its value. */
