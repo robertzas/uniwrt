@@ -219,6 +219,7 @@ fn client(
         lease_ms: epoch_ms - rng.range(0.0, DAY_MS / 4.0) as i64,
         busy: false,
         hold_until: 0,
+        steer: None,
         farewell: None,
     }
 }

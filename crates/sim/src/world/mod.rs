@@ -150,6 +150,8 @@ pub(crate) struct Client {
     busy: bool,
     /// No roaming before this second.
     hold_until: u64,
+    /// Roam to this node once at `target` (an access point's steering).
+    steer: Option<usize>,
     /// After a fast transition the old access point notices the client is gone: (second,
     /// node, band).
     farewell: Option<(u64, usize, Band)>,
@@ -282,6 +284,7 @@ impl World {
         for _ in 0..WARMUP_S {
             world.step();
         }
+        world.opening_walk();
         world
     }
 

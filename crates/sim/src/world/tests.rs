@@ -155,3 +155,34 @@ fn reboots_happen_about_as_often_as_configured() {
         .count();
     assert!((4..=24).contains(&downs), "{downs} reboots in 6 h");
 }
+
+#[test]
+fn a_client_roams_soon_after_start() {
+    // Demo mode and its tests always have a roam to show (the opening walk).
+    for seed in (0..12).chain([42]) {
+        let config = SimConfig {
+            seed,
+            reboot_every: None,
+            ..SimConfig::default()
+        };
+        let mut world = World::new(&config, START);
+        let mut at: BTreeMap<MacAddr, usize> = world
+            .clients
+            .iter()
+            .filter_map(|c| Some((c.mac, c.assoc.as_ref()?.node)))
+            .collect();
+        // Between nodes demo mode adopts: all but the last.
+        let last = world.nodes.len() - 1;
+        let roamed = (1..=45).find(|_| {
+            world.step().iter().any(|happening| match &happening.what {
+                What::Authorized { mac, .. } => {
+                    at.insert(*mac, happening.node).is_some_and(|before| {
+                        before != happening.node && before != last && happening.node != last
+                    })
+                }
+                _ => false,
+            })
+        });
+        assert!(roamed.is_some(), "seed {seed}: no roam within 45 s");
+    }
+}

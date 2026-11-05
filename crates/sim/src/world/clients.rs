@@ -43,6 +43,45 @@ impl World {
         }
     }
 
+    /// Sends a walking client across the house as the world starts, from its access point to
+    /// the spot nearest the one farthest from it, where that access point steers it over (as
+    /// usteer would, should its old one still hear it well), so that a roam comes within half
+    /// a minute. Neither is the last node, which demo mode leaves for the user to adopt: the
+    /// demo always has a roam to show, and its tests one to wait for.
+    pub(super) fn opening_walk(&mut self) {
+        let now = self.now_s;
+        let last = self.nodes.len().saturating_sub(1);
+        let walker = self.clients.iter().enumerate().find_map(|(c, client)| {
+            let walks = client.home() && client.port.is_none() && client.spec.moves.is_some();
+            let node = client.assoc.as_ref()?.node;
+            (walks && node != last).then_some((c, node))
+        });
+        let Some((c, from)) = walker else {
+            return;
+        };
+        let origin = self.nodes[from].pos;
+        let far = (0..last)
+            .filter(|&n| n != from && self.nodes[n].up())
+            .max_by(|&a, &b| {
+                super::distance(origin, self.nodes[a].pos)
+                    .total_cmp(&super::distance(origin, self.nodes[b].pos))
+            });
+        let Some(far) = far else {
+            return;
+        };
+        let to = self.nodes[far].pos;
+        let spot = SPOTS
+            .iter()
+            .copied()
+            .min_by(|a, b| super::distance(*a, to).total_cmp(&super::distance(*b, to)));
+        let client = &mut self.clients[c];
+        client.target = spot;
+        client.steer = Some(far);
+        client.next_move = now + 120;
+        client.next_leave = client.next_leave.max(now + 600);
+        client.hold_until = now;
+    }
+
     pub(super) fn step_clients(&mut self, out: &mut Vec<Happening>) {
         for c in 0..self.clients.len() {
             let rng = &mut self.rng;
@@ -73,8 +112,13 @@ impl World {
 
     /// The access point and band client `c` would pick now, with its signal.
     fn best(&self, c: usize) -> Option<(usize, Band, f64)> {
+        self.best_of(c, |_| true)
+    }
+
+    /// The same among the nodes `pick` allows.
+    fn best_of(&self, c: usize, pick: impl Fn(usize) -> bool) -> Option<(usize, Band, f64)> {
         let mut best: Option<(usize, Band, f64)> = None;
-        for node in (0..self.nodes.len()).filter(|&node| self.nodes[node].up()) {
+        for node in (0..self.nodes.len()).filter(|&node| self.nodes[node].up() && pick(node)) {
             for band in Band::BOTH {
                 if band == Band::G5 && !self.clients[c].spec.five_ghz {
                     continue;
@@ -193,12 +237,25 @@ impl World {
         if let Some(assoc) = &mut self.clients[c].assoc {
             assoc.signal = signal;
         }
+        // Once there, a steered client is sent to the access point it walked to.
+        let steer = self.clients[c]
+            .steer
+            .filter(|_| self.clients[c].target.is_none());
+        let best = match steer {
+            Some(to) => {
+                self.clients[c].steer = None;
+                self.best_of(c, |node| node == to)
+            }
+            None => best,
+        };
         let Some((to, to_band, to_signal)) = best else {
             return;
         };
-        if (to, to_band) == current
-            || signal >= ROAM_BELOW
-            || score(to_band, to_signal) < score(band, signal) + ROAM_MARGIN
+        if steer.is_some() && to == node
+            || steer.is_none()
+                && ((to, to_band) == current
+                    || signal >= ROAM_BELOW
+                    || score(to_band, to_signal) < score(band, signal) + ROAM_MARGIN)
         {
             return;
         }

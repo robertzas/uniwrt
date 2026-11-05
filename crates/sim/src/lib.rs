@@ -10,7 +10,9 @@
 //! - **The world** (`world/`): nodes at fixed places in a house, clients that sit or walk
 //!   between spots and leave the house now and then. Signals follow indoor path loss plus slow
 //!   fading; clients prefer 5 GHz while it is good and roam only once their access point is
-//!   clearly worse, with 802.11r where they support it; traffic, retries and air time follow
+//!   clearly worse, with 802.11r where they support it (as the world starts, one walks across
+//!   the house and is steered over, so a roam between two of the first nodes comes within half
+//!   a minute); traffic, retries and air time follow
 //!   the signal; dnsmasq's leases renew at half time; access points reboot about every
 //!   `reboot_every` and their clients move. The gateway reaches one access point by wire and
 //!   the others over a batman-adv mesh on 5 GHz, multi-hop where that is better.
