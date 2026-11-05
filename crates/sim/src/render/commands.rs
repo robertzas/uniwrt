@@ -11,6 +11,7 @@ use std::fmt::Write as _;
 use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus};
 
 use crate::{
+    hand_edit::HandEdit,
     txn::{Now, Tool},
     world::{Node, World},
 };
@@ -25,6 +26,8 @@ pub(crate) struct Disk {
     pub(crate) authorized_keys: Vec<String>,
     /// The transaction tool, `/etc/config` and the init scripts.
     pub(crate) tool: Tool,
+    /// Demo mode's drift, still to come or done.
+    pub(crate) hand_edit: HandEdit,
 }
 
 impl Default for Disk {
@@ -33,6 +36,7 @@ impl Default for Disk {
         Self {
             authorized_keys: Vec::new(),
             tool: Tool::stock(),
+            hand_edit: HandEdit::default(),
         }
     }
 }
@@ -50,6 +54,7 @@ impl Disk {
         Self {
             authorized_keys: Vec::new(),
             tool,
+            hand_edit: HandEdit::default(),
         }
     }
 }

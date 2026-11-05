@@ -33,6 +33,7 @@ export type ImpactKind =
   | "other"
   | "service"
   | "address"
+  | "drift"
   | "warnings";
 
 export interface Impact {
@@ -97,8 +98,18 @@ export function impacts(plan: ApplyPlan): Impact[] {
       });
     }
   }
+  const drifted = changing.filter((node) => overwrites(node).length > 0);
+  if (drifted.length > 0) {
+    const n = drifted.reduce((sum, node) => sum + overwrites(node).length, 0);
+    out.push({ kind: "drift", text: t.impact.drift(n, names(drifted)), disruptive: false });
+  }
   const warnings = plan.nodes.reduce((sum, n) => sum + n.warnings.length, 0);
   if (warnings > 0)
     out.push({ kind: "warnings", text: t.impact.warnings(warnings), disruptive: false });
   return out;
+}
+
+/** The node's drifted packages this apply rewrites: those that change (lifecycle.md, Drift). */
+export function overwrites(node: NodePlan): string[] {
+  return node.drift.filter((pkg) => node.packages.some((diff) => diff.package === pkg));
 }

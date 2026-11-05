@@ -27,13 +27,14 @@
 //!   `render/config.rs`) and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
 //!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); the
 //!   `config` set hashes those files and `read_file` reads them (drift); `stream` and `upload`
-//!   answer `unsupported`.
+//!   answer `unsupported`. A minute after a node's first confirmed apply, someone edits one of
+//!   the packages it wrote by hand (`hand_edit.rs`), once per node, so the demo shows a drift.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
 //!   timestamps counted from the clock's now at spawn; it reads no clock, uses no randomness
 //!   but its seeded generator, and iterates in a fixed order. Addresses are documentation or
 //!   private ranges, and MACs use real vendors' OUIs only where devices do.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (node roles), `uniwrt-node` (the link
-//!   trait and the ops), tokio (the driver, channels), `serde_json`.
+//!   trait and the ops), `uniwrt-uci` (the hand edit), tokio (the driver, channels), `serde_json`.
 //! - **Tests:** unit tests next to the pure parts (generator, radio arithmetic, log lines, the
 //!   world's dynamics, every rendered set through the node crate's parsers); `tests/engine.rs`
 //!   runs the engine over the fleet on tokio's paused clock (`cargo nextest run -p uniwrt-sim`).
@@ -48,6 +49,7 @@
 
 mod brownfield;
 mod fleet;
+mod hand_edit;
 mod link;
 mod render;
 mod rng;

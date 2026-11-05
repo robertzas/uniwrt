@@ -18,12 +18,12 @@ tokio = { workspace = true, features = ["rt", "sync", "time"] }
 uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
+uniwrt-uci.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 uniwrt-engine.workspace = true
 uniwrt-topo.workspace = true
-uniwrt-uci.workspace = true
 
 [lints]
 workspace = true

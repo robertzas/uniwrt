@@ -39,6 +39,14 @@ pub struct Tool {
     stage: Option<Stage>,
     open: Option<Open>,
     last: Option<serde_json::Value>,
+    confirmed: Option<Confirmed>,
+}
+
+/// The last transaction confirmed: when, and the packages it wrote.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Confirmed {
+    pub unix_s: i64,
+    pub packages: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -113,6 +121,11 @@ impl Tool {
     /// The open transaction's id, if any.
     pub fn open(&self) -> Option<&str> {
         self.open.as_ref().map(|open| open.id.as_str())
+    }
+
+    /// The last transaction confirmed, if any.
+    pub fn confirmed(&self) -> Option<&Confirmed> {
+        self.confirmed.as_ref()
     }
 
     fn command(&mut self, command: &str, args: &[&str], stdin: Option<&[u8]>, now: Now) -> Reply {
@@ -269,6 +282,12 @@ impl Tool {
 
     fn finish(&mut self, outcome: &str, reason: Option<&str>, now: Now) {
         if let Some(open) = self.open.take() {
+            if outcome == "confirmed" {
+                self.confirmed = Some(Confirmed {
+                    unix_s: now.unix_s,
+                    packages: open.files.keys().cloned().collect(),
+                });
+            }
             self.last = Some(json!({
                 "id": open.id, "outcome": outcome, "reason": reason, "at": now.unix_s,
             }));

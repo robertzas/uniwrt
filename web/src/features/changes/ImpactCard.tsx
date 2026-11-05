@@ -2,6 +2,7 @@ import {
   ArrowRightLeft,
   Cog,
   FileCog,
+  FilePen,
   Network,
   Power,
   Server,
@@ -29,6 +30,7 @@ const ICONS: Record<ImpactKind, IconNode> = {
   other: FileCog,
   service: Power,
   address: ArrowRightLeft,
+  drift: FilePen,
   warnings: TriangleAlert,
 };
 

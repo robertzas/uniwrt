@@ -1,4 +1,13 @@
-import { ArrowRight, Cable, CircleAlert, Power, RadioTower, Router, TriangleAlert } from "lucide";
+import {
+  ArrowRight,
+  Cable,
+  CircleAlert,
+  FilePen,
+  Power,
+  RadioTower,
+  Router,
+  TriangleAlert,
+} from "lucide";
 import { For, Show } from "solid-js";
 import type { NodePlan } from "../../api/gen/NodePlan";
 import type { NodeRole } from "../../api/gen/NodeRole";
@@ -10,6 +19,7 @@ import { Badge, type Tone } from "../../ui/Badge";
 import { Card } from "../../ui/Card";
 import { Icon, type IconNode } from "../../ui/Icon";
 import { PackageDiff } from "../../ui/PackageDiff";
+import { overwrites } from "./plan";
 import { RawOverrides } from "./RawOverrides";
 
 const t = strings.changes.node;
@@ -97,6 +107,12 @@ export function NodePlanCard(props: { plan: NodePlan }) {
           </Show>
           <Issues title={t.issues} issues={p().issues} tone="crit" />
           <Issues title={t.warnings} issues={p().warnings} tone="warn" />
+          <Show when={p().action === "change" && overwrites(p()).length > 0}>
+            <p class="flex items-start gap-2 text-fg-muted text-sm">
+              <Icon icon={FilePen} class="mt-0.5 size-4 shrink-0 text-warn" />
+              {t.drift(overwrites(p()))}
+            </p>
+          </Show>
           <Show when={p().address}>
             {(address) => (
               <p class="flex items-center gap-2 text-fg-muted text-sm">
@@ -128,7 +144,20 @@ export function NodePlanCard(props: { plan: NodePlan }) {
             >
               <div class="flex flex-col gap-2">
                 <p class="text-fg-subtle text-xs">{t.packages(p().packages.length)}</p>
-                <For each={p().packages}>{(diff) => <PackageDiff diff={diff} />}</For>
+                <For each={p().packages}>
+                  {(diff) => (
+                    <PackageDiff
+                      diff={diff}
+                      badge={
+                        <Show when={p().drift.includes(diff.package)}>
+                          <span title={t.driftHint}>
+                            <Badge tone="warn">{t.drifted}</Badge>
+                          </span>
+                        </Show>
+                      }
+                    />
+                  )}
+                </For>
               </div>
             </Show>
           </Show>

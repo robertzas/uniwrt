@@ -701,6 +701,42 @@ export const strings = {
           .filter(Boolean)
           .join("; "),
     },
+    drift: {
+      title: "Drift",
+      description:
+        "Changes made on the device after uniwrt confirmed it, by anyone but uniwrt (LuCI, uci, an editor).",
+      waiting: "Watched once an apply confirms what the device holds.",
+      none: "No drift: the managed packages are as uniwrt confirmed them.",
+      count: (n: number) => `${n} ${n === 1 ? "package drifted" : "packages drifted"}`,
+      drifted: "Drifted",
+      acknowledged: "Acknowledged",
+      removed: "File removed",
+      removedBody: "The file is gone from the device.",
+      unreadable: (error: string) => `The device's file doesn't read as UCI: ${error}`,
+      changed: (ago: string, revision: number) =>
+        `Changed ${ago} ago, after revision ${revision} confirmed it.`,
+      acknowledgedBy: (by: string | null, ago: string) =>
+        `Acknowledged by ${by ?? "a removed user"} ${ago} ago: accepted as it is until it changes again. The next apply still rewrites it.`,
+      import: "Import",
+      importHint: "Take the device's version into the site as the next revision",
+      overwrite: "Overwrite",
+      overwriteHint: "Review an apply that rewrites it as the site has it",
+      acknowledge: "Acknowledge",
+      acknowledgeHint: "Accept it as it is until the file changes again",
+      mute: "Mute",
+      muteHint: "Stop watching this package on this device",
+      muted: "Not watched",
+      mutedBy: (pkg: string, by: string | undefined, ago: string) =>
+        `${pkg}, muted by ${by ?? "a removed user"} ${ago} ago`,
+      watch: "Watch again",
+      done: {
+        acknowledged: (pkg: string) => `Acknowledged the drift of ${pkg}`,
+        muted: (pkg: string) => `No longer watching ${pkg}`,
+        watched: (pkg: string) => `Watching ${pkg} again`,
+      },
+      failed: "The drift didn't change",
+      label: (pkg: string) => `Drift of ${pkg}`,
+    },
   },
   chart: {
     range: "Range",
@@ -1583,6 +1619,16 @@ export const strings = {
   changes: {
     title: "Review changes",
     description: "What applying the latest revision does to each device, read from them just now.",
+    drift: {
+      label: (n: number) =>
+        `Drift: ${n} ${n === 1 ? "package changed" : "packages changed"} on the devices`,
+      text: "Drift",
+      title: "Drift",
+      hint: "Changed on the devices after uniwrt confirmed them.",
+      since: (ago: string) => `${ago} ago`,
+      removed: "removed",
+      review: "Review & overwrite",
+    },
     tray: {
       text: "Review changes",
       label: (count: number) =>
@@ -1654,6 +1700,8 @@ export const strings = {
         `${service} stops on ${names}, and no longer starts at boot.`,
       address: (name: string, from: string, to: string) =>
         `${name} moves from ${from} to ${to}; uniwrt follows it.`,
+      drift: (n: number, names: string) =>
+        `Overwrites ${n === 1 ? "a change" : `${n} changes`} made by hand on ${names}.`,
       warnings: (n: number) => `${n} ${n === 1 ? "warning" : "warnings"} below.`,
       rollback: (duration: string) =>
         `Safe to try: a device that isn't confirmed within ${duration} rolls back by itself.`,
@@ -1684,6 +1732,10 @@ export const strings = {
       address: (from: string, to: string) => `Reached at ${to} once applied (now ${from})`,
       packages: (n: number) => `${n} ${n === 1 ? "package changes" : "packages change"}`,
       noPackages: "Only services change.",
+      drift: (packages: readonly string[]) =>
+        `Overwrites the drift of ${list(packages)}: changed on the device after uniwrt confirmed ${packages.length === 1 ? "it" : "them"}.`,
+      drifted: "Drift",
+      driftHint: "Changed on the device after uniwrt confirmed it; this apply rewrites it.",
       raw: {
         toggle: "Raw overrides",
         count: (n: number) => `${n} ${n === 1 ? "section" : "sections"}`,
@@ -1741,6 +1793,18 @@ export const strings = {
     import: {
       title: "Import from the devices",
       crumb: "Import",
+      drift: {
+        title: (pkg: string, name: string) => `Import the drift of ${pkg} on ${name}`,
+        crumb: "Import a drift",
+        description: (pkg: string, name: string) =>
+          `Takes ${pkg} as ${name} holds it now into the site. Every other package of every device is read as the latest revision has it, so the changes below are the drift's alone.`,
+        loading: (name: string) => `Reading ${name}`,
+        ended:
+          "This drift has ended (reverted, overwritten, muted or no longer managed): the import may change nothing.",
+        all: "Import everything instead",
+        reviewHint:
+          "Applying it confirms the package as the device holds it, which ends the drift.",
+      },
       description:
         "Reads the configuration your adopted devices hold into the site, so applying it keeps your network as it is.",
       adminOnly: {

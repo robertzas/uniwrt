@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { drift } from "../test/drift";
 import { revisionMeta } from "../test/site";
-import { applyConfig, type ConfigState, holding, lastApplied, pendingNodes } from "./config";
+import {
+  applyConfig,
+  type ConfigState,
+  driftsOf,
+  holding,
+  lastApplied,
+  mutesOf,
+  pendingNodes,
+  unacknowledged,
+} from "./config";
 
 function state(): ConfigState {
-  return { head: null, applied: {}, ready: false };
+  return { head: null, applied: {}, drift: { drifts: [], muted: [] }, ready: false };
 }
 
 describe("config", () => {
@@ -25,6 +35,30 @@ describe("config", () => {
     expect(Object.keys(config.applied)).toEqual(["1", "2"]);
     applyConfig(config, { type: "config", topic: "config", head: revisionMeta(4), applied: [] });
     expect(config.applied).toEqual({});
+  });
+
+  it("keeps the drift state, empty where the server watches none", () => {
+    const config = state();
+    const acknowledged = drift(2, "wireless", { acknowledged: { at: 1, by: "ada" } });
+    applyConfig(config, {
+      type: "config",
+      topic: "config",
+      head: revisionMeta(3),
+      applied: [],
+      drift: {
+        drifts: [drift(1, "system"), drift(1, "firewall"), acknowledged],
+        muted: [{ node: 2, package: "dhcp", at: 1, by: "ada" }],
+      },
+    });
+    expect(driftsOf(config, 1).map((d) => d.package)).toEqual(["system", "firewall"]);
+    expect(mutesOf(config, 2).map((m) => m.package)).toEqual(["dhcp"]);
+    expect(mutesOf(config, 1)).toEqual([]);
+    expect(unacknowledged(config).map((d) => `${d.node}/${d.package}`)).toEqual([
+      "1/system",
+      "1/firewall",
+    ]);
+    applyConfig(config, { type: "config", topic: "config", head: revisionMeta(3), applied: [] });
+    expect(config.drift).toEqual({ drifts: [], muted: [] });
   });
 
   it("says where a node stands against the latest revision", () => {

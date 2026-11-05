@@ -1,15 +1,22 @@
 import { createStore } from "solid-js";
 import type { AppliedRevision } from "../api/gen/AppliedRevision";
+import type { Drift } from "../api/gen/Drift";
+import type { DriftMute } from "../api/gen/DriftMute";
+import type { DriftState } from "../api/gen/DriftState";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeMode } from "../api/gen/NodeMode";
 import type { RevisionMeta } from "../api/gen/RevisionMeta";
 import type { ServerMessage } from "../api/gen/ServerMessage";
 import type { LiveSocket } from "./ws";
 
-/** The `config` topic (D-071): the site's latest revision and the revision each node holds. */
+/**
+ * The `config` topic (D-071, D-074): the site's latest revision, the revision each node holds,
+ * and every drift and mute (empty where the server watches none).
+ */
 export interface ConfigState {
   head: RevisionMeta | null;
   applied: Record<NodeId, AppliedRevision>;
+  drift: DriftState;
   /** The first message arrived. */
   ready: boolean;
 }
@@ -19,12 +26,18 @@ export function applyConfig(state: ConfigState, message: ServerMessage) {
   if (message.type !== "config") return;
   state.head = message.head;
   state.applied = Object.fromEntries(message.applied.map((held) => [held.node, held]));
+  state.drift = message.drift ?? { drifts: [], muted: [] };
   state.ready = true;
 }
 
 /** The `config` topic as a store, subscribed for as long as `socket` is open. */
 export function createConfig(socket: LiveSocket): ConfigState {
-  const [config, setConfig] = createStore<ConfigState>({ head: null, applied: {}, ready: false });
+  const [config, setConfig] = createStore<ConfigState>({
+    head: null,
+    applied: {},
+    drift: { drifts: [], muted: [] },
+    ready: false,
+  });
   socket.subscribe("config", (message) => {
     setConfig((draft) => applyConfig(draft, message));
   });
@@ -86,4 +99,19 @@ export function lastApplied(state: ConfigState, nodes: readonly FleetNode[]): nu
   if (newest >= head.id) return undefined;
   if (head.kind === "restore" && head.restored_from === newest) return undefined;
   return newest;
+}
+
+/** The node's drifts, in the server's order (by package). */
+export function driftsOf(state: ConfigState, node: NodeId): Drift[] {
+  return state.drift.drifts.filter((drift) => drift.node === node);
+}
+
+/** The node's packages whose drift isn't watched. */
+export function mutesOf(state: ConfigState, node: NodeId): DriftMute[] {
+  return state.drift.muted.filter((mute) => mute.node === node);
+}
+
+/** The drifts that want attention: not acknowledged (the top bar counts them). */
+export function unacknowledged(state: ConfigState): Drift[] {
+  return state.drift.drifts.filter((drift) => !drift.acknowledged);
 }

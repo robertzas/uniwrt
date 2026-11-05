@@ -1,6 +1,7 @@
-import { useNavigate } from "@solidjs/router";
+import { useNavigate, useSearchParams } from "@solidjs/router";
 import { CircleCheck, Download, Lock, RotateCw } from "lucide";
 import { createEffect, createMemo, createSignal, For, onSettled, Show, useContext } from "solid-js";
+import type { DriftTarget } from "../../../api/gen/DriftTarget";
 import type { ImportPreview } from "../../../api/gen/ImportPreview";
 import { ApiError, api, errorText } from "../../../lib/api";
 import { LiveContext } from "../../../lib/live";
@@ -20,20 +21,37 @@ import { sortIssues, stateCounts } from "./preview";
 
 const t = strings.settings.import;
 
+/** The drift `?node=<id>&package=<name>` names, if both are there. */
+function scopeOf(params: { node?: string; package?: string }): DriftTarget | undefined {
+  const node = Number(params.node);
+  const pkg = params.package;
+  return Number.isInteger(node) && node > 0 && pkg ? { node, package: pkg } : undefined;
+}
+
 /**
  * `/settings/import`, Settings › Import (lifecycle.md, Brownfield import; D-073): reads every
  * adopted node into the latest revision as soon as it opens, shows what the site would become
  * and, per node, how much the model holds, its sections' fates and the residual; accepting saves
- * exactly the preview reviewed as the next revision. Admins only.
+ * exactly the preview reviewed as the next revision. With `?node=<id>&package=<name>` it imports
+ * only that drift (D-074): the package as the node holds it, everything else as the latest
+ * revision renders it. Admins only.
  */
 export function ImportPage() {
   const session = useContext(SessionContext);
-  createEffect(
-    () => t.title,
-    (title) => {
-      document.title = `${title} · ${strings.appName}`;
-    },
-  );
+  const live = useContext(LiveContext);
+  const [params] = useSearchParams<{ node?: string; package?: string }>();
+  const scope = createMemo(() => scopeOf(params));
+  const nodeName = () => {
+    const id = scope()?.node;
+    return live.fleet.nodes.find((n) => n.id === id)?.name ?? `#${id}`;
+  };
+  const title = () => {
+    const drift = scope();
+    return drift ? t.drift.title(drift.package, nodeName()) : t.title;
+  };
+  createEffect(title, (text) => {
+    document.title = `${text} · ${strings.appName}`;
+  });
   return (
     <div class="mx-auto flex max-w-5xl flex-col gap-4">
       <header>
@@ -42,10 +60,21 @@ export function ImportPage() {
             {strings.nav.settings.label}
           </a>
           <span aria-hidden="true">{" › "}</span>
-          <span aria-current="page">{t.crumb}</span>
+          <span aria-current="page">{scope() ? t.drift.crumb : t.crumb}</span>
         </nav>
-        <h1 class="mt-1 font-semibold text-2xl tracking-tight">{t.title}</h1>
-        <p class="mt-1 text-fg-muted text-sm">{t.description}</p>
+        <h1 class="mt-1 font-semibold text-2xl tracking-tight">{title()}</h1>
+        <p class="mt-1 text-fg-muted text-sm">
+          <Show when={scope()} fallback={t.description}>
+            {(drift) => (
+              <>
+                {t.drift.description(drift().package, nodeName())}{" "}
+                <a href="/settings/import" class="font-medium text-accent hover:underline">
+                  {t.drift.all}
+                </a>
+              </>
+            )}
+          </Show>
+        </p>
       </header>
       <Show
         when={session.user.role === "admin"}
@@ -55,13 +84,13 @@ export function ImportPage() {
           </Card>
         }
       >
-        <Flow />
+        <Flow scope={scope()} name={nodeName()} />
       </Show>
     </div>
   );
 }
 
-function Flow() {
+function Flow(props: { scope: DriftTarget | undefined; name: string }) {
   const live = useContext(LiveContext);
   const navigate = useNavigate();
   const [preview, setPreview] = createSignal<ImportPreview>();
@@ -81,7 +110,7 @@ function Flow() {
     setLoading(true);
     setError(undefined);
     api.import
-      .preview(own.signal)
+      .preview(own.signal, props.scope)
       .then((next) => {
         if (!Array.isArray(next?.nodes)) throw new Error("not an import preview");
         if (!own.signal.aborted) {
@@ -96,10 +125,15 @@ function Flow() {
         if (controller === own) setLoading(false);
       });
   };
-  onSettled(() => {
-    load();
-    return () => controller?.abort();
-  });
+  // Read on opening, and again for another drift.
+  createEffect(
+    () => (props.scope ? `${props.scope.node}/${props.scope.package}` : ""),
+    () => {
+      setPreview(undefined);
+      load();
+    },
+  );
+  onSettled(() => () => controller?.abort());
 
   const sorted = createMemo(() => sortIssues(preview()?.issues ?? []));
   const tally = createMemo(() => {
@@ -110,6 +144,16 @@ function Flow() {
     const base = preview()?.base;
     const head = live.config.head?.id;
     return base !== undefined && head !== undefined && head !== base && saved() === undefined;
+  };
+  /** The drift imported here is no longer in the live state. */
+  const ended = () => {
+    const drift = props.scope;
+    return (
+      drift !== undefined &&
+      live.config.ready &&
+      saved() === undefined &&
+      !live.config.drift.drifts.some((d) => d.node === drift.node && d.package === drift.package)
+    );
   };
   const changes = () => preview()?.changes.length ?? 0;
   const canAccept = () =>
@@ -143,7 +187,9 @@ function Flow() {
             fallback={
               <div role="status" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
                 <Icon icon={RotateCw} class="size-5 animate-spin text-accent" />
-                <p class="font-medium text-sm">{t.loading}…</p>
+                <p class="font-medium text-sm">
+                  {props.scope ? t.drift.loading(props.name) : t.loading}…
+                </p>
                 <p class="max-w-md text-fg-muted text-sm">{t.loadingHint}</p>
               </div>
             }
@@ -212,6 +258,14 @@ function Flow() {
                     </p>
                   )}
                 </Show>
+                <Show when={ended()}>
+                  <p
+                    role="status"
+                    class="border-warn/40 border-t bg-warn/10 px-4 py-2.5 text-fg text-sm"
+                  >
+                    {t.drift.ended}
+                  </p>
+                </Show>
                 <Show when={error()}>
                   <div class="px-4 pb-4">
                     <RequestError text={`${t.failed}: ${error()}`} />
@@ -257,7 +311,9 @@ function Flow() {
                       {done().id === done().base ? t.done.none : t.done.title(done().id)}
                     </p>
                     <Show when={done().id !== done().base}>
-                      <p class="mt-1 text-fg-muted text-sm">{t.done.body}</p>
+                      <p class="mt-1 text-fg-muted text-sm">
+                        {props.scope ? t.drift.reviewHint : t.done.body}
+                      </p>
                     </Show>
                   </div>
                   <div class="flex shrink-0 flex-wrap gap-2">

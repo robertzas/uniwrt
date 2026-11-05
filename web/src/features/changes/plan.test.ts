@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyPlan } from "../../test/plan";
-import { counts, impacts, longestTimer, split } from "./plan";
+import { counts, impacts, longestTimer, overwrites, split } from "./plan";
 
 describe("the apply plan in words", () => {
   it("counts, splits and times the nodes", () => {
@@ -42,5 +42,19 @@ describe("the apply plan in words", () => {
     expect(impacts(plan)[0]?.text).toBe("System settings change on 4 devices.");
     plan.nodes.splice(3);
     expect(impacts(plan)[0]?.text).toBe("System settings change on Attic AP, Gateway and Hall AP.");
+  });
+
+  it("names the drift an apply overwrites: drifted packages that change", () => {
+    const plan = applyPlan();
+    const gateway = plan.nodes[1];
+    const hall = plan.nodes[2];
+    if (!gateway || !hall) throw new Error("the plan's nodes");
+    gateway.drift = ["network", "firewall"];
+    hall.drift = ["system"];
+    expect(overwrites(gateway)).toEqual(["network"]);
+    expect(overwrites(hall)).toEqual([]);
+    const drift = impacts(plan).find((i) => i.kind === "drift");
+    expect(drift?.text).toBe("Overwrites a change made by hand on Gateway.");
+    expect(impacts(plan).at(-1)?.kind).toBe("warnings");
   });
 });

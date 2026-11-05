@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplyPlan } from "../../api/gen/ApplyPlan";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
+import { drift } from "../../test/drift";
 import { summary } from "../../test/fixtures";
 import { applyJob, applyPlan, nodePlan } from "../../test/plan";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
@@ -126,6 +127,58 @@ describe("Review & apply", () => {
     expect(alone).toHaveTextContent("Hall AP");
     expect(alone).toHaveTextContent("Shed AP");
     expect(alone).toHaveTextContent("Observe mode");
+  });
+
+  it("marks the drift an apply overwrites, counted in the top bar", async () => {
+    const user = userEvent.setup();
+    const gatewayPlan = plan.nodes[1];
+    if (!gatewayPlan) throw new Error("the plan's gateway");
+    gatewayPlan.drift = ["network", "firewall"];
+    const { ws, history } = await renderAt("/wifi");
+    ws.receive({
+      type: "config",
+      topic: "config",
+      head: revisionMeta(5, { message: "Guest Wi-Fi" }),
+      applied: [
+        { node: 1, revision: 4, job: 3, at: 0 },
+        { node: 2, revision: 4, job: 3, at: 0 },
+      ],
+      drift: {
+        drifts: [
+          drift(1, "network"),
+          drift(1, "firewall", { removed: true, diff: { package: "firewall", sections: [] } }),
+          drift(2, "system", { acknowledged: { at: 0, by: "ada" } }),
+        ],
+        muted: [],
+      },
+    });
+    const chip = await screen.findByRole("button", {
+      name: "Drift: 2 packages changed on the devices",
+    });
+    await user.click(chip);
+    const popover = await screen.findByRole("dialog", { name: "Drift" });
+    const rows = within(popover).getAllByRole("link");
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual([
+      "/devices/1?tab=config",
+      "/devices/1?tab=config",
+      "/changes",
+    ]);
+    expect(rows[0]).toHaveTextContent("Gateway · network");
+    expect(rows[1]).toHaveTextContent("removed");
+    await user.click(within(popover).getByRole("link", { name: "Review & overwrite" }));
+    await waitFor(() => expect(history.get()).toBe("/changes"));
+
+    const gateway = await screen.findByRole("region", { name: "Gateway" });
+    expect(gateway).toHaveTextContent(
+      "Overwrites the drift of network: changed on the device after uniwrt confirmed it.",
+    );
+    const network = within(gateway).getByRole("button", { name: "The network package" });
+    expect(network).toHaveTextContent("Drift");
+    const dhcp = within(gateway).getByRole("button", { name: "The dhcp package" });
+    expect(dhcp).not.toHaveTextContent("Drift");
+    expect(screen.getByRole("region", { name: "Impact" })).toHaveTextContent(
+      "Overwrites a change made by hand on Gateway.",
+    );
   });
 
   it("applies the reviewed revision and follows each node live", async () => {

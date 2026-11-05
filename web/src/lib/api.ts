@@ -12,12 +12,16 @@ import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
+import type { DriftMuteBody } from "../api/gen/DriftMuteBody";
+import type { DriftState } from "../api/gen/DriftState";
+import type { DriftTarget } from "../api/gen/DriftTarget";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
 import type { Health } from "../api/gen/Health";
 import type { ImportAccept } from "../api/gen/ImportAccept";
 import type { ImportPreview } from "../api/gen/ImportPreview";
+import type { ImportRequest } from "../api/gen/ImportRequest";
 import type { Job } from "../api/gen/Job";
 import type { LogContext } from "../api/gen/LogContext";
 import type { LogFilter } from "../api/gen/LogFilter";
@@ -254,15 +258,35 @@ export const api = {
       return request<Job>("/apply", { method: "POST", body });
     },
   },
-  /** Brownfield import (lifecycle.md, Brownfield import; D-073); admins only. */
+  /** Drift (lifecycle.md, Drift; D-074); acknowledging and muting are admins'. */
+  drift: {
+    get: (signal?: AbortSignal) => request<DriftState>("/drift", { signal }),
+    /** Accepts the drift as it is until the file changes again; 404 without such a drift. */
+    acknowledge: (node: NodeId, pkg: string) =>
+      request<void>(`/nodes/${node}/drift/${encodeURIComponent(pkg)}/acknowledge`, {
+        method: "POST",
+      }),
+    /** Stops watching the package (`true`) or watches it again. */
+    mute: (node: NodeId, pkg: string, muted: boolean) => {
+      const body: DriftMuteBody = { muted };
+      return request<void>(`/nodes/${node}/drift/${encodeURIComponent(pkg)}/mute`, {
+        method: "PUT",
+        body,
+      });
+    },
+  },
+  /** Brownfield import (lifecycle.md, Brownfield import; D-073); admins only. A drift's import
+   * reads only that package as its node holds it (D-074). */
   import: {
     /**
      * Reads every adopted node (it logs in to each, so it takes seconds; nothing changes on
      * them) and what importing them into the latest revision would change; the controller holds
      * it for 15 minutes.
      */
-    preview: (signal?: AbortSignal) =>
-      request<ImportPreview>("/import/preview", { method: "POST", signal }),
+    preview: (signal?: AbortSignal, drift?: DriftTarget) => {
+      const body: ImportRequest | undefined = drift ? { drift } : undefined;
+      return request<ImportPreview>("/import/preview", { method: "POST", body, signal });
+    },
     /** Saves the held preview `id` as the next revision: 404 once expired, 409 when stale. */
     accept: (id: string, message: string | null) => {
       const body: ImportAccept = { id, message };

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImportPreview } from "../../../api/gen/ImportPreview";
 import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
+import { drift } from "../../../test/drift";
 import { summary } from "../../../test/fixtures";
 import { importPreview } from "../../../test/import";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../../test/providers";
@@ -26,6 +27,7 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/v1/import/preview") {
+        posts.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
         previews += 1;
         return Response.json({ ...preview, id: `p-${previews}` });
       }
@@ -47,9 +49,13 @@ function sendHead(ws: FakeWebSocket, head: number) {
   });
 }
 
-async function renderImport(role: "admin" | "viewer" = "admin") {
+async function renderImport(
+  role: "admin" | "viewer" = "admin",
+  path = "/settings/import",
+  heading = "Import from the devices",
+) {
   const { socket, ws } = openTestSocket();
-  const history = memoryHistory("/settings/import");
+  const history = memoryHistory(path);
   const Router = createAppRouter(history);
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
@@ -64,11 +70,7 @@ async function renderImport(role: "admin" | "viewer" = "admin") {
     summary(4, "Shed AP"),
   ]);
   sendHead(ws, 1);
-  await screen.findByRole(
-    "heading",
-    { name: "Import from the devices", level: 1 },
-    { timeout: 3000 },
-  );
+  await screen.findByRole("heading", { name: heading, level: 1 }, { timeout: 3000 });
   return { ws, history };
 }
 
@@ -123,7 +125,7 @@ describe("Settings › Import", () => {
     const summaryCard = await screen.findByRole("region", { name: "Import" });
     await user.type(within(summaryCard).getByLabelText("Revision message"), "From the fleet");
     await user.click(within(summaryCard).getByRole("button", { name: "Accept as revision 2" }));
-    expect(posts).toEqual([
+    expect(posts.filter((p) => p.url.endsWith("/accept"))).toEqual([
       { url: "/api/v1/import/accept", body: { id: "p-1", message: "From the fleet" } },
     ]);
     const done = await screen.findByRole("region", { name: "Import" });
@@ -171,6 +173,44 @@ describe("Settings › Import", () => {
     await waitFor(() => expect(summaryCard).toHaveTextContent("Nothing new"));
     expect(summaryCard).toHaveTextContent("there is nothing to import");
     expect(within(summaryCard).queryByRole("button", { name: /Accept/ })).toBeNull();
+  });
+
+  it("imports one drift: only its package, and says when it has ended", async () => {
+    const user = userEvent.setup();
+    const { ws } = await renderImport(
+      "admin",
+      "/settings/import?node=2&package=wireless",
+      "Import the drift of wireless on Attic AP",
+    );
+    expect(screen.getByRole("navigation", { name: "Settings" })).toHaveTextContent(
+      "Import a drift",
+    );
+    expect(screen.getByRole("link", { name: "Import everything instead" })).toHaveAttribute(
+      "href",
+      "/settings/import",
+    );
+    await waitFor(() =>
+      expect(posts).toContainEqual({
+        url: "/api/v1/import/preview",
+        body: { drift: { node: 2, package: "wireless" } },
+      }),
+    );
+    await screen.findByRole("region", { name: "Import" });
+    expect(screen.getByText(/^This drift has ended/)).toBeVisible();
+    ws.receive({
+      type: "config",
+      topic: "config",
+      head: revisionMeta(1),
+      applied: [],
+      drift: { drifts: [drift(2, "wireless")], muted: [] },
+    });
+    await waitFor(() => expect(screen.queryByText(/^This drift has ended/)).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Accept as revision 2" }));
+    expect(
+      await screen.findByText(
+        "Applying it confirms the package as the device holds it, which ends the drift.",
+      ),
+    ).toBeVisible();
   });
 
   it("is for admins only", async () => {

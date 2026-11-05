@@ -5,6 +5,7 @@ import { strings } from "../lib/strings";
 import { Icon } from "../ui/Icon";
 import { Kbd } from "../ui/Kbd";
 import { AlertsBell } from "./AlertsBell";
+import { DriftChip } from "./DriftChip";
 import { HealthBadge } from "./HealthBadge";
 import { pageTitle } from "./nav";
 import { PendingChanges } from "./PendingChanges";
@@ -38,6 +39,7 @@ export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => voi
             <Kbd>{paletteShortcut}</Kbd>
           </span>
         </button>
+        <DriftChip />
         <PendingChanges />
         <AlertsBell />
         <HealthBadge />

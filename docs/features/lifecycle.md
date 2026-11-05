@@ -48,7 +48,7 @@ The apply job (`crates/jobs/src/apply/`) applies the site's latest revision to e
 
 ## Drift [M3.5c] (D-072, D-074)
 
-A managed package that changed on its node after the controller confirmed it, by anyone but the controller (LuCI, `uci set`, an editor), is **drift**. The backend is M3.5c1; the UI (the device page, the review's marks, the scoped import page) is M3.5c2.
+A managed package that changed on its node after the controller confirmed it, by anyone but the controller (LuCI, `uci set`, an editor), is **drift**. The backend is M3.5c1; the UI is M3.5c2: the device page's Config tab shows a managed node's drift with its actions, the top bar counts the drifts not acknowledged (admins; a popover links each to its device), the review marks the packages an apply overwrites, and `/settings/import?node=<id>&package=<name>` is the scoped import (ui.md).
 
 - **Hashes:** the agent's `config` set (`node-agent/collect/config.uc`, every 60 s) reports each `/etc/config` file's SHA-256 as `sha256sum` prints it (`NodeFacts.config`). A file is hashed again only once its inode, size, mtime or ctime moved, so a tick costs a stat per file.
 - **Baseline:** what the node holds once an apply confirms it: its managed packages as installed or kept (`node_config`; the nodes an apply finds unchanged too), replaced at every apply and forgotten when the node goes back to observe mode. Nothing is watched before a node's first apply, on observe-mode nodes, or in packages it doesn't manage.
@@ -60,6 +60,7 @@ A managed package that changed on its node after the controller confirmed it, by
   - **Acknowledge** it (`POST /api/v1/nodes/{id}/drift/{package}/acknowledge`): accepted as it is until the file changes again; its condition ends. The next apply still rewrites it.
   - **Mute** the package (`PUT /api/v1/nodes/{id}/drift/{package}/mute`, `{"muted": true}`): not watched until `false`; its drift ends.
 - **API:** `GET /api/v1/drift` (`DriftState`: every drift and mute), live over the WS topic `config`.
+- **Demo:** a minute after a simulated node's first confirmed apply, the sim edits one package that apply wrote by hand, once per node (`crates/sim/src/hand_edit.rs`): the hostname gets a `-1`, else the first radio's channel is pinned or set back to auto. Both are options render writes and the import reads, so the drift can be imported and overwritten alike.
 
 ## Brownfield import [M3.5] (D-072)
 

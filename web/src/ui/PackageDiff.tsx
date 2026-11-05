@@ -1,3 +1,4 @@
+import type { JSX } from "@solidjs/web";
 import { ChevronRight, Lock } from "lucide";
 import { createSignal, For, Show } from "solid-js";
 import { strings } from "../lib/strings";
@@ -120,7 +121,7 @@ function Section(props: { section: UciSectionDiff }) {
  * One package's semantic diff, as the node holds it → as rendered, opening and closing; it
  * starts open when small, unless `open` says otherwise.
  */
-export function PackageDiff(props: { diff: UciDiff; open?: boolean }) {
+export function PackageDiff(props: { diff: UciDiff; open?: boolean; badge?: JSX.Element }) {
   const [open, setOpen] = createSignal(props.open ?? props.diff.sections.length <= OPEN_UP_TO);
   const c = () => diffCounts(props.diff);
   return (
@@ -137,6 +138,7 @@ export function PackageDiff(props: { diff: UciDiff; open?: boolean }) {
           class={["size-3.5 shrink-0 text-fg-subtle transition-transform", { "rotate-90": open() }]}
         />
         <span class="font-medium font-mono text-fg text-xs">/etc/config/{props.diff.package}</span>
+        {props.badge}
         <span class="ml-auto text-fg-subtle text-xs tabular-nums">
           {t.count(c().added, c().removed, c().changed)}
         </span>

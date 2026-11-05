@@ -179,6 +179,12 @@ impl Shared {
         let happenings = world.step();
         self.dispatch(&world, &happenings);
         for node in 0..self.nodes.len() {
+            let mut disk = lock(&self.nodes[node].disk);
+            let Disk {
+                tool, hand_edit, ..
+            } = &mut *disk;
+            hand_edit.step(tool, world.now_ms() / 1000);
+            drop(disk);
             self.connect(&world, node);
             if *lock(&self.nodes[node].connection) == Connection::Up {
                 self.push_due(&world, node);

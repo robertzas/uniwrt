@@ -435,6 +435,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 
 - `src/brownfield.rs`: The simulated fleet as a brownfield (features/lifecycle.md, Brownfield import): each node's facts, as its agent reports them, and its `/etc/config` before uniwrt manages it (`render::config`), for import's round-trip tests and the demo.
 - `src/fleet.rs`: [`SimFleet`]: the world, a link per node, and the driver task that advances the world one second per second of tokio's clock.
+- `src/hand_edit.rs`: Drift in the demo (features/lifecycle.md, Drift; D-074): a minute after a node's first confirmed apply, someone changes one option of a package that apply wrote, as `LuCI` saves it (the file parsed and written back as `uci commit` does), once per node.
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
@@ -611,7 +612,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 
 - top level: index.css, main.tsx
 - `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (289 files); never edit
-- `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
+- `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
 - `features/auth/`: SignIn.tsx
@@ -620,7 +621,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
-- `features/devices/config/`: ConfigTab.tsx, ManagementCard.tsx, PackagesCard.tsx, packages.ts
+- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, packages.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts

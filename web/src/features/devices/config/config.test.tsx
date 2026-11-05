@@ -7,6 +7,7 @@ import type { Job } from "../../../api/gen/Job";
 import type { SiteSave } from "../../../api/gen/SiteSave";
 import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
+import { drift } from "../../../test/drift";
 import { detail, facts } from "../../../test/fixtures";
 import { openTestSocket, SignedInProviders } from "../../../test/providers";
 import { revisionMeta, siteView } from "../../../test/site";
@@ -144,5 +145,91 @@ describe("Device › Config", () => {
     expect(screen.queryByRole("button", { name: "Turn management on" })).toBeNull();
     expect(await screen.findByRole("checkbox", { name: "network" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("shows a managed device's drift, and acknowledges, mutes, watches and imports", async () => {
+    const user = userEvent.setup();
+    const ws = await renderConfig();
+    const managed = detail(facts(1));
+    managed.node.mode = "managed";
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: managed });
+    expect(
+      await screen.findByText("No drift: the managed packages are as uniwrt confirmed them."),
+    ).toBeVisible();
+    ws.receive({
+      type: "config",
+      topic: "config",
+      head: revisionMeta(head),
+      applied: [{ node: 1, revision: 2, job: 3, at: 0 }],
+      drift: {
+        drifts: [drift(1, "system")],
+        muted: [{ node: 1, package: "dhcp", at: Date.now() - 120_000, by: "ada" }],
+      },
+    });
+    const item = await screen.findByRole("region", { name: "Drift of system" });
+    expect(item).toHaveTextContent("Drifted");
+    expect(item).toHaveTextContent("after revision 2 confirmed it");
+    expect(within(item).getByRole("button", { name: "The system package" })).toBeVisible();
+    expect(item).toHaveTextContent("log_size");
+    expect(screen.getByText(/^dhcp, muted by ada/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Drift: 1 package changed/ })).toBeVisible();
+
+    await user.click(within(item).getByRole("button", { name: "Acknowledge" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "POST",
+        url: "/api/v1/nodes/1/drift/system/acknowledge",
+        body: undefined,
+      }),
+    );
+    await user.click(within(item).getByRole("button", { name: "Mute" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "PUT",
+        url: "/api/v1/nodes/1/drift/system/mute",
+        body: { muted: true },
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Watch again: dhcp" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "PUT",
+        url: "/api/v1/nodes/1/drift/dhcp/mute",
+        body: { muted: false },
+      }),
+    );
+
+    await user.click(within(item).getByRole("button", { name: "Import" }));
+    expect(
+      await screen.findByRole("heading", { name: /^Import the drift of system on / }),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "POST",
+        url: "/api/v1/import/preview",
+        body: { drift: { node: 1, package: "system" } },
+      }),
+    );
+  });
+
+  it("shows viewers the drift without its actions", async () => {
+    const ws = await renderConfig("viewer");
+    const managed = detail(facts(1));
+    managed.node.mode = "managed";
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: managed });
+    ws.receive({
+      type: "config",
+      topic: "config",
+      head: revisionMeta(head),
+      applied: [{ node: 1, revision: 2, job: 3, at: 0 }],
+      drift: {
+        drifts: [drift(1, "system", { acknowledged: { at: Date.now(), by: null } })],
+        muted: [],
+      },
+    });
+    const item = await screen.findByRole("region", { name: "Drift of system" });
+    expect(item).toHaveTextContent("Acknowledged by a removed user");
+    expect(within(item).queryByRole("button", { name: "Import" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Drift:/ })).toBeNull();
   });
 });

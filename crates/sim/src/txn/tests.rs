@@ -7,7 +7,8 @@ use uniwrt_node::{
     txn::{self, Footprint, Outcome, Reason, TxnId, code, current},
 };
 
-use super::{Now, Tool};
+use super::{Confirmed, Now, Tool};
+use crate::hand_edit::{AFTER_S, HandEdit};
 
 const T0: Now = Now {
     uptime_s: 100,
@@ -75,6 +76,39 @@ fn a_confirmed_transaction_keeps_its_files_and_services() {
     assert_eq!(status.open, None);
     assert_eq!(status.last.unwrap().outcome, Outcome::Confirmed);
     assert_eq!(tool.files["wireless"], "new wireless\n");
+    let confirmed = Confirmed {
+        unix_s: T0.unix_s,
+        packages: vec!["network".into(), "wireless".into()],
+    };
+    assert_eq!(tool.confirmed(), Some(&confirmed));
+}
+
+#[test]
+fn the_hand_edit_comes_a_minute_after_the_first_confirmed_apply_once() {
+    let mut tool = managed();
+    let mut edit = HandEdit::default();
+    assert_eq!(
+        edit.step(&mut tool, T0.unix_s + 600),
+        None,
+        "nothing confirmed yet"
+    );
+    let id = TxnId::new("j1").unwrap();
+    let system = "\nconfig system\n\toption hostname 'ap'\n\toption log_size '128'\n";
+    run(&mut tool, &txn::stage(&id, []).unwrap(), T0).unwrap();
+    run(&mut tool, &txn::put(&id, "system", system).unwrap(), T0).unwrap();
+    run(&mut tool, &txn::check(&id), T0).unwrap();
+    run(&mut tool, &txn::apply(&id, Duration::from_secs(120)), T0).unwrap();
+    assert_eq!(edit.step(&mut tool, T0.unix_s + 600), None, "still open");
+    run(&mut tool, &txn::confirm(&id), T0).unwrap();
+    assert_eq!(edit.step(&mut tool, T0.unix_s + AFTER_S - 1), None);
+    assert_eq!(
+        edit.step(&mut tool, T0.unix_s + AFTER_S).as_deref(),
+        Some("system")
+    );
+    assert!(tool.files["system"].contains("option hostname 'ap-1'"));
+    let edited = tool.files["system"].clone();
+    assert_eq!(edit.step(&mut tool, T0.unix_s + 3600), None, "once");
+    assert_eq!(tool.files["system"], edited);
 }
 
 #[test]
