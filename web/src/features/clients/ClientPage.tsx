@@ -1,5 +1,5 @@
 import { useParams } from "@solidjs/router";
-import { ArrowLeft, Ban, BellRing, Info, Pencil, Users, UserX } from "lucide";
+import { ArrowLeft, Ban, BellRing, Info, Pencil, Pin, Users, UserX } from "lucide";
 import { createEffect, createSignal, Match, Show, Switch, useContext } from "solid-js";
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import { clientName, kindIcons } from "../../lib/clients";
@@ -14,6 +14,7 @@ import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { Tooltip } from "../../ui/Tooltip";
 import { ClientOverview } from "./ClientOverview";
 import { ClientTimeline } from "./ClientTimeline";
+import { FixIpDialog, ipv4Of } from "./FixIpDialog";
 import { RenameDialog } from "./RenameDialog";
 import { SignalTab } from "./SignalTab";
 import { createClientView } from "./store";
@@ -72,6 +73,7 @@ function LiveClient(props: { mac: string }) {
 function Client(props: { detail: ClientDetail }) {
   const session = useContext(SessionContext);
   const [renaming, setRenaming] = createSignal(false);
+  const [fixing, setFixing] = createSignal(false);
   const client = () => props.detail.client;
   const subtitle = () =>
     [
@@ -114,6 +116,11 @@ function Client(props: { detail: ClientDetail }) {
             <Button size="sm" icon={Pencil} onClick={() => setRenaming(true)}>
               {d.rename}
             </Button>
+            <Show when={ipv4Of(client())}>
+              <Button size="sm" icon={Pin} onClick={() => setFixing(true)}>
+                {d.fixIp.action}
+              </Button>
+            </Show>
           </Show>
           <Button size="sm" variant="ghost" icon={UserX} disabled>
             {d.kick}
@@ -150,6 +157,9 @@ function Client(props: { detail: ClientDetail }) {
           <TrafficTab mac={client().mac} samples={props.detail.samples} />
         </TabPanel>
       </Tabs>
+      <Show when={fixing()}>
+        <FixIpDialog client={client()} onClose={() => setFixing(false)} />
+      </Show>
       <RenameDialog
         open={renaming()}
         onOpenChange={setRenaming}

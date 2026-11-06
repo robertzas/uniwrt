@@ -10,8 +10,8 @@ import { Card, CardHeader } from "../../ui/Card";
 import { Checkbox } from "../../ui/Checkbox";
 import { FormField, INPUT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
+import { SavedRevision } from "../../ui/SavedRevision";
 import { TextField } from "../../ui/TextField";
-import { Saved } from "./Saved";
 import { OVERHEADS, type OverheadKey, type SqmDraft, saveWan, sqmDraft, sqmOf } from "./uplink";
 
 const t = strings.internet;
@@ -179,7 +179,12 @@ export function SqmCard(props: {
         </Show>
         <RequestError text={failure()} />
         <Show when={saved()}>
-          {(done) => <Saved revision={done().revision} installs={done().installs} />}
+          {(done) => (
+            <SavedRevision
+              revision={done().revision}
+              note={done().installs ? t.installs : undefined}
+            />
+          )}
         </Show>
       </div>
     </Card>

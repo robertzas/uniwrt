@@ -18,6 +18,7 @@ import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { ClientsCard, clientRows } from "./ClientsCard";
 import { ConfigTab } from "./config/ConfigTab";
 import { DeviceCharts } from "./DeviceCharts";
+import { PortsTab } from "./ports/PortsTab";
 import { RadiosCard } from "./RadiosCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
 
@@ -99,7 +100,7 @@ function Overview(props: {
   const node = () => props.detail.node;
   const status = () => props.detail.status;
   const [params, setParams] = useSearchParams<{ tab?: string }>();
-  const tab = () => (params.tab === "config" ? "config" : "overview");
+  const tab = () => (params.tab === "config" || params.tab === "ports" ? params.tab : "overview");
   return (
     <div class="flex flex-col gap-4">
       <header class="flex flex-wrap items-start gap-x-4 gap-y-2">
@@ -157,6 +158,7 @@ function Overview(props: {
       >
         <TabList>
           <Tab value="overview">{d.tabs.overview}</Tab>
+          <Tab value="ports">{d.tabs.ports}</Tab>
           <Tab value="config">{d.tabs.config}</Tab>
         </TabList>
         <TabPanel value="overview" class="flex flex-col gap-4">
@@ -178,6 +180,9 @@ function Overview(props: {
               </>
             )}
           </Show>
+        </TabPanel>
+        <TabPanel value="ports">
+          <PortsTab node={node()} facts={props.detail.facts} />
         </TabPanel>
         <TabPanel value="config">
           <ConfigTab node={node()} />

@@ -33,6 +33,7 @@ import type { LogSourceList } from "../api/gen/LogSourceList";
 import type { MaintenanceWindow } from "../api/gen/MaintenanceWindow";
 import type { Metric } from "../api/gen/Metric";
 import type { MetricsResponse } from "../api/gen/MetricsResponse";
+import type { Network } from "../api/gen/Network";
 import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
@@ -46,6 +47,8 @@ import type { PinRequest } from "../api/gen/PinRequest";
 import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
+import type { Purpose } from "../api/gen/Purpose";
+import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
 import type { RevisionPage } from "../api/gen/RevisionPage";
@@ -256,6 +259,25 @@ export const api = {
     get: (signal?: AbortSignal) => request<SiteView>("/site", { signal }),
     /** Saves the next revision (admins); 409 when `base` is no longer the latest. */
     save: (save: SiteSave) => request<SiteView>("/site", { method: "PUT", body: save }),
+  },
+  /** The address plan's suggestions (network.md, Address plan; D-077); nothing is saved. */
+  ipam: {
+    /**
+     * A new network of `purpose` on `vlan` or its usual VLAN, with its /24 and pool; 409 when
+     * the VLAN is taken or no VLAN or /24 is free.
+     */
+    network: (purpose: Exclude<Purpose, "default">, vlan?: number) =>
+      request<Network>(
+        `/ipam/network?purpose=${purpose}${vlan === undefined ? "" : `&vlan=${vlan}`}`,
+      ),
+    /**
+     * The address to reserve for a client ("Fix IP"): the reservation `mac` has already, else
+     * on the network holding `ip`; 404 when no network serves `ip`, 409 when it is full.
+     */
+    reservation: (ip: string, mac?: string) =>
+      request<ReservationSuggestion>(
+        `/ipam/reservation?ip=${encodeURIComponent(ip)}${mac ? `&mac=${encodeURIComponent(mac)}` : ""}`,
+      ),
   },
   /** The WAN wizard (wan.md; D-075). */
   wan: {

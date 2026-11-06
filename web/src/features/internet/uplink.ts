@@ -4,7 +4,7 @@ import type { Grade } from "../../api/gen/Grade";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
 import type { Sqm } from "../../api/gen/Sqm";
 import type { WanConfig } from "../../api/gen/WanConfig";
-import { ApiError, api } from "../../lib/api";
+import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import type { Tone } from "../../ui/Badge";
 
@@ -180,15 +180,10 @@ export async function saveWan(
   message: string,
   gateway: number | undefined,
 ): Promise<number> {
-  const once = async () => {
-    const latest = await api.site.get();
-    const config = withManaged({ ...latest.config, wan: edit(latest.config.wan) }, gateway);
-    return api.site.save({ base: latest.revision.id, message, config });
-  };
-  const view = await once().catch((err) => {
-    if (err instanceof ApiError && err.status === 409) return once();
-    throw err;
-  });
+  const view = await saveSite(
+    (config) => withManaged({ ...config, wan: edit(config.wan) }, gateway),
+    message,
+  );
   return view.revision.id;
 }
 

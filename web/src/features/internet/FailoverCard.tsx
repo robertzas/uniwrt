@@ -8,9 +8,9 @@ import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { Checkbox } from "../../ui/Checkbox";
 import { RequestError } from "../../ui/JobOutcome";
+import { SavedRevision } from "../../ui/SavedRevision";
 import { Segmented } from "../../ui/Segmented";
 import { TextField } from "../../ui/TextField";
-import { Saved } from "./Saved";
 import {
   type FailoverDraft,
   type FailoverField,
@@ -211,7 +211,12 @@ export function FailoverCard(props: {
         </Show>
         <RequestError text={failure()} />
         <Show when={saved()}>
-          {(done) => <Saved revision={done().revision} installs={done().installs} />}
+          {(done) => (
+            <SavedRevision
+              revision={done().revision}
+              note={done().installs ? t.installs : undefined}
+            />
+          )}
         </Show>
       </div>
     </Card>

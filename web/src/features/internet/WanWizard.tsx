@@ -9,6 +9,7 @@ import type { WanConfig } from "../../api/gen/WanConfig";
 import { ApiError, api, errorText } from "../../lib/api";
 import { createJobsView } from "../../lib/jobs";
 import { LiveContext } from "../../lib/live";
+import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
@@ -150,19 +151,7 @@ export function WanWizard(props: {
     try {
       const what = preset() ? `${preset()?.name} · ${preset()?.variant}` : strings.internet.custom;
       const secrets = draft().password === "" ? undefined : { "wan/password": draft().password };
-      const once = async () => {
-        const latest = await api.site.get();
-        return api.site.save({
-          base: latest.revision.id,
-          message: w.message(what),
-          config: { ...latest.config, wan },
-          secrets,
-        });
-      };
-      const view = await once().catch((err) => {
-        if (err instanceof ApiError && err.status === 409) return once();
-        throw err;
-      });
+      const view = await saveSite((config) => ({ ...config, wan }), w.message(what), secrets);
       setSaved(view.revision.id);
       setStep("saved");
     } catch (err) {
