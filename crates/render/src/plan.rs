@@ -154,6 +154,14 @@ impl<'a> Plan<'a> {
         } else {
             None
         };
+        if site.wan.pcp.is_some_and(|pcp| pcp > 0)
+            && wan.as_ref().is_some_and(|w| w.vlan_device.is_none())
+        {
+            warnings.push(Issue::new(
+                "wan/pcp",
+                "The gateway's switch tags the ISP's VLAN, so the priority isn't set",
+            ));
+        }
         let wan_password = match &site.wan.proto {
             WanProto::Pppoe { password, .. } if target.role == NodeRole::Gateway => {
                 let value = password

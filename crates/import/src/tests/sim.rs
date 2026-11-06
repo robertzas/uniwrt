@@ -8,7 +8,7 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         SiteConfig,
-        gateway::WanProto,
+        gateway::{DhcpClient, WanIpv6, WanProto},
         network::Purpose,
         wireless::{NodeScope, WlanSecurity},
     },
@@ -56,8 +56,12 @@ fn the_simulated_fleet_imports_as_it_is() {
     );
     assert_eq!(site.addressing.ipv4.to_string(), "192.168.0.0/16");
     assert_eq!(
-        (site.wan.proto.clone(), site.wan.vlan, site.wan.ipv6),
-        (WanProto::Dhcp, Some(201), true)
+        (site.wan.proto.clone(), site.wan.vlan, site.wan.ipv6.clone()),
+        (
+            WanProto::Dhcp(DhcpClient::default()),
+            Some(201),
+            WanIpv6::Dhcpv6 { reqprefix: None }
+        )
     );
     let [wlan] = site.wlans.as_slice() else {
         panic!("one WLAN: {:?}", site.wlans)

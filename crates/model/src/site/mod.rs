@@ -37,7 +37,7 @@ use self::{
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -177,12 +177,7 @@ impl SiteConfig {
             wlans: Vec::new(),
             mesh: MeshConfig::default(),
             radio: RadioPolicy::default(),
-            wan: WanConfig {
-                proto: WanProto::Dhcp,
-                vlan: None,
-                mac: None,
-                ipv6: true,
-            },
+            wan: WanConfig::default(),
             firewall: FirewallConfig::default(),
             services: Services::default(),
             nodes: Vec::new(),

@@ -1,0 +1,12 @@
+id = "generic-static"
+name = "Business lines"
+variant = "Static address"
+status = "verified"
+notes = "The ISP assigns the address, its gateway and DNS servers."
+prompts = ["address", "gateway", "dns"]
+
+[ipv4]
+proto = "static"
+
+[ipv6]
+mode = "off"

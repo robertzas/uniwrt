@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use super::{Issues, names};
 use crate::site::{
     SiteConfig,
-    gateway::{DnsRecord, WanProto},
+    gateway::{DhcpClient, DnsRecord, WanConfig, WanIpv6, WanProto},
 };
 
 pub(super) fn wan(config: &SiteConfig, issues: &mut Issues) {
@@ -15,8 +15,27 @@ pub(super) fn wan(config: &SiteConfig, issues: &mut Issues) {
     {
         issues.error("wan/vlan", "A VLAN ID is 1 to 4094");
     }
+    if let Some(pcp) = wan.pcp {
+        if pcp > 7 {
+            issues.error("wan/pcp", "An 802.1p priority is 0 to 7");
+        } else if wan.vlan.is_none() {
+            issues.error("wan/pcp", "A priority needs the ISP's VLAN to carry it");
+        }
+    }
+    if let Some(mtu) = wan.mtu {
+        let least = if wan.ipv6.is_on() { 1280 } else { 576 };
+        if !(least..=9000).contains(&mtu) {
+            issues.error("wan/mtu", format!("The MTU is {least} to 9000"));
+        }
+    }
+    proto(wan, issues);
+    ipv6(wan, issues);
+}
+
+/// How IPv4 arrives.
+fn proto(wan: &WanConfig, issues: &mut Issues) {
     match &wan.proto {
-        WanProto::Dhcp => {}
+        WanProto::Dhcp(client) => dhcp(client, issues),
         WanProto::Static {
             address,
             gateway,
@@ -39,13 +58,119 @@ pub(super) fn wan(config: &SiteConfig, issues: &mut Issues) {
                 issues.warn("wan/proto/dns", "Without DNS servers, names do not resolve");
             }
         }
-        WanProto::Pppoe { username, password } => {
+        WanProto::Pppoe {
+            username,
+            password,
+            service,
+        } => {
             if username.is_empty() {
                 issues.error("wan/proto/username", "PPPoE needs the ISP's username");
+            } else if !text(username) {
+                issues.error("wan/proto/username", PRINTABLE);
             }
             if password.is_none() {
                 issues.error("wan/password", "PPPoE needs the ISP's password");
             }
+            if service.as_deref().is_some_and(|s| !text(s)) {
+                issues.error("wan/proto/service", PRINTABLE);
+            }
+        }
+        WanProto::DsLite { aftr } => {
+            if !matches!(wan.ipv6, WanIpv6::Dhcpv6 { .. }) {
+                issues.error(
+                    "wan/ipv6",
+                    "DS-Lite runs over DHCPv6, which also announces the AFTR",
+                );
+            }
+            if aftr
+                .as_deref()
+                .is_some_and(|a| a.is_empty() || !a.bytes().all(|b| b.is_ascii_graphic()))
+            {
+                issues.error("wan/proto/aftr", "The AFTR is a host name or an address");
+            }
+        }
+        WanProto::None => {
+            if !matches!(wan.ipv6, WanIpv6::Dhcpv6 { .. }) {
+                issues.error("wan/ipv6", "Without IPv4, the WAN gets IPv6 by DHCPv6");
+            }
+        }
+    }
+}
+
+/// How IPv6 arrives.
+fn ipv6(wan: &WanConfig, issues: &mut Issues) {
+    match &wan.ipv6 {
+        WanIpv6::Off => {}
+        WanIpv6::Dhcpv6 { reqprefix } => {
+            if reqprefix.is_some_and(|len| !(48..=64).contains(&len)) {
+                issues.error("wan/ipv6/reqprefix", "A requested prefix is /48 to /64");
+            }
+        }
+        WanIpv6::SixRd {
+            prefix,
+            border_relay,
+            ipv4_mask_len,
+        } => {
+            if matches!(wan.proto, WanProto::DsLite { .. } | WanProto::None) {
+                issues.error("wan/ipv6", "6rd runs over the WAN's IPv4");
+            }
+            if *ipv4_mask_len > 32 {
+                issues.error("wan/ipv6/ipv4_mask_len", "The IPv4 mask is 0 to 32 bits");
+            } else if u32::from(prefix.prefix_len()) + 32 - u32::from(*ipv4_mask_len) > 64 {
+                issues.error(
+                    "wan/ipv6/prefix",
+                    "The 6rd prefix and the IPv4 bits it embeds exceed 64 bits",
+                );
+            }
+            if border_relay.is_unspecified()
+                || border_relay.is_broadcast()
+                || border_relay.is_multicast()
+                || border_relay.is_loopback()
+            {
+                issues.error(
+                    "wan/ipv6/border_relay",
+                    "The border relay is a unicast address",
+                );
+            }
+        }
+    }
+}
+
+const PRINTABLE: &str = "Use printable characters only";
+
+/// A non-empty value without control characters.
+fn text(value: &str) -> bool {
+    !value.is_empty() && !value.chars().any(char::is_control)
+}
+
+fn dhcp(client: &DhcpClient, issues: &mut Issues) {
+    for (field, value) in [
+        ("vendor_class", &client.vendor_class),
+        ("hostname", &client.hostname),
+    ] {
+        if value.as_deref().is_some_and(|v| !text(v)) {
+            issues.error(format!("wan/proto/{field}"), PRINTABLE);
+        }
+    }
+    if let Some(id) = &client.client_id
+        && (id.is_empty() || id.len() % 2 != 0 || !id.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        issues.error(
+            "wan/proto/client_id",
+            "The client ID is hexadecimal, two digits a byte",
+        );
+    }
+    for (i, option) in client.send_options.iter().enumerate() {
+        let valid = option.split_once(':').is_some_and(|(code, value)| {
+            code.parse::<u8>().is_ok_and(|c| (1..=254).contains(&c))
+                && !value.is_empty()
+                && value.bytes().all(|b| b.is_ascii_graphic())
+        });
+        if !valid {
+            issues.error(
+                format!("wan/proto/send_options/{i}"),
+                "An option is <code>:<value>, its code 1 to 254, without spaces",
+            );
         }
     }
 }

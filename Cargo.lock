@@ -3276,6 +3276,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-isp"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "toml",
+ "ts-rs",
+ "uniwrt-core",
+ "uniwrt-model",
+]
+
+[[package]]
 name = "uniwrt-jobs"
 version = "0.0.0"
 dependencies = [

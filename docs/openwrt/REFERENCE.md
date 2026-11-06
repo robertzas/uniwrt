@@ -137,7 +137,7 @@ config interface 'wan'
 	option proto 'dhcp'
 ```
 
-6rd (Lumen/CenturyLink values, community-sourced):
+6rd (Lumen/CenturyLink values, community-sourced; render names it `wan6`, with `tunlink 'wan'` and `mtu '1480'`):
 
 ```
 config interface 'wan6rd'
@@ -147,6 +147,12 @@ config interface 'wan6rd'
 	option ip6prefixlen '24'
 	option ip4prefixlen '0'
 ```
+
+PPPoE with DHCPv6-PD over the PPP link (render's shape, so `reqprefix` applies; `ipv6 'auto'` would add a dynamic `wan_6` instead): `interface wan` with `option ipv6 '1'`, and `interface wan6` with `option device '@wan'`, `option proto 'dhcpv6'`.
+
+DS-Lite ⚠️ (not yet checked against an AFTR): with a known AFTR, `interface wan` with `proto 'dslite'`, `peeraddr`, `tunlink 'wan6'`, `encaplimit 'ignore'`; with the AFTR from DHCPv6 (odhcp6c's `dhcpv6.script` adds the dynamic interface), `interface wan6` (`proto 'dhcpv6'`) with `iface_dslite 'wan'`, `zone_dslite 'wan'`, `encaplimit_dslite 'ignore'`.
+
+802.1p on a VLAN device ⚠️: `list egress_qos_mapping '<skb prio>:<pcp>'` on the `8021q` device (netifd's vlandev attribute).
 
 Remote syslog, on `system.@system[0]`: `log_ip`, `log_port`, `log_proto 'tcp'`, `log_hostname`.
 

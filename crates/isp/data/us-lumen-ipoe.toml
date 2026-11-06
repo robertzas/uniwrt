@@ -1,0 +1,27 @@
+id = "us-lumen-ipoe"
+name = "Lumen / Quantum Fiber / CenturyLink Fiber"
+variant = "IPoE"
+country = "US"
+status = "community"
+sources = [
+  "https://minus273.org/project/openwrt-centurylink/",
+  "https://apexgear.blog/own-router-quantum-fiber",
+  "https://bidetly.io/2020/03/20/centurylink-fiber-on-pfsense/",
+]
+notes = "Replaces the ISP router. Put the ONT or SmartNID in transparent bridge mode, or connect the fiber jack directly. IPv6 is 6rd in most markets, native in some: the test tries native first."
+
+[ipv4]
+proto = "dhcp"
+vlan = 201
+
+[ipv6]
+mode = "auto"
+
+[ipv6.sixrd]
+prefix = "2602::/24"
+border_relay = "205.171.2.64"
+ipv4_mask_len = 0
+
+[hints]
+link = "The WAN port has no link. Is the cable from the ONT or fiber jack in the WAN port?"
+address = "No DHCP offer on VLAN 201. Is the ONT in transparent bridge mode? Older CenturyLink lines need PPPoE instead."

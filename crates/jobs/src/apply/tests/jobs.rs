@@ -291,6 +291,7 @@ async fn unreachable_or_refused_nodes_stop_it_and_observed_ones_are_skipped() {
     site.wan.proto = uniwrt_model::site::gateway::WanProto::Pppoe {
         username: "user@isp".to_owned(),
         password: None,
+        service: None,
     };
     commit(&fleet.store, Some(head.meta.id), site).await;
     let plan = fleet.jobs.plan().await.unwrap();

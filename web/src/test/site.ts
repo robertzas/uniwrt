@@ -5,7 +5,7 @@ import type { SiteView } from "../api/gen/SiteView";
 /** Demo mode's first revision (the simulated network), as `GET /api/v1/site` answers it. */
 export function siteConfig(): SiteConfig {
   return {
-    schema: 1,
+    schema: 2,
     site: {
       name: "Demo home",
       country: "US",
@@ -91,10 +91,17 @@ export function siteConfig(): SiteConfig {
     wan: {
       proto: {
         kind: "dhcp",
+        vendor_class: null,
+        client_id: null,
+        send_options: [],
+        hostname: null,
       },
       vlan: null,
+      pcp: null,
+      mtu: null,
       mac: null,
-      ipv6: true,
+      ipv6: { mode: "dhcpv6", reqprefix: null },
+      preset: null,
     },
     firewall: {
       policies: [],
@@ -116,7 +123,7 @@ export function revisionMeta(id: number, extra: Partial<RevisionMeta> = {}): Rev
     author: id > 1 ? "admin" : null,
     message: `Revision ${id}`,
     created_at: 1_700_000_000_000 + id * 60_000,
-    schema: 1,
+    schema: 2,
     changes: 1,
     ...extra,
   };

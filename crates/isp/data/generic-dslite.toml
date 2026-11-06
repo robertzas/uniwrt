@@ -1,0 +1,11 @@
+id = "generic-dslite"
+name = "IPv6 lines with shared IPv4"
+variant = "DS-Lite"
+status = "verified"
+notes = "IPv4 travels in a tunnel to the ISP's AFTR, which DHCPv6 announces. Ports can't be forwarded over DS-Lite."
+
+[ipv4]
+proto = "dslite"
+
+[ipv6]
+mode = "dhcpv6"

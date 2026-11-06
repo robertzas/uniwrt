@@ -27,6 +27,7 @@ uniwrt-syslog = { path = "crates/syslog" }
 uniwrt-import = { path = "crates/import" }
 uniwrt-render = { path = "crates/render" }
 uniwrt-rf = { path = "crates/rf" }
+uniwrt-isp = { path = "crates/isp" }
 uniwrt-topo = { path = "crates/topo" }
 uniwrt-uci = { path = "crates/uci" }
 

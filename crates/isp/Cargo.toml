@@ -1,0 +1,23 @@
+[package]
+name = "uniwrt-isp"
+description = "uniwrt ISP presets: the preset format, the embedded presets (crates/isp/data) and the connectivity test's steps and hints"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true
+uniwrt-core.workspace = true
+uniwrt-model.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# TypeScript types (ts-rs) for the API's DTOs.
+ts = ["dep:ts-rs", "uniwrt-core/ts", "uniwrt-model/ts"]
+
+[lints]
+workspace = true

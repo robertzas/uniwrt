@@ -348,6 +348,7 @@ pub(crate) fn pppoe_site() -> SiteConfig {
     site.wan.proto = WanProto::Pppoe {
         username: "user@isp".to_owned(),
         password: Some(secret(4)),
+        service: None,
     };
     site
 }

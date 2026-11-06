@@ -1,0 +1,12 @@
+id = "generic-dhcp-vlan"
+name = "Fiber with a VLAN"
+variant = "DHCP on a VLAN"
+status = "verified"
+notes = "Many fiber ISPs tag the line with a VLAN; their documentation or router names it."
+prompts = ["vlan"]
+
+[ipv4]
+proto = "dhcp"
+
+[ipv6]
+mode = "dhcpv6"

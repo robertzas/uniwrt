@@ -3,10 +3,7 @@
 
 use uniwrt_model::{
     node::NodeRole,
-    site::{
-        gateway::WanProto,
-        network::{Ipv4Config, Ipv6Mode},
-    },
+    site::network::{Ipv4Config, Ipv6Mode},
 };
 use uniwrt_uci::{Package, Section};
 
@@ -85,14 +82,9 @@ fn interface(plan: &Plan<'_>, net: &Net<'_>) -> Section {
     if network.ipv4.is_none() && !ipv6 {
         return section.with("proto", "none");
     }
-    // The delegated prefix arrives on `wan6`, or with PPPoE on the `wan_6` netifd adds.
-    let delegated = match plan.site.wan.proto {
-        WanProto::Pppoe { .. } => "wan_6",
-        _ => "wan6",
-    };
     let classes: &[&str] = match network.ipv6 {
         Ipv6Mode::Ula => &["local"],
-        Ipv6Mode::Delegated => &[delegated],
+        Ipv6Mode::Delegated => &[wan::WAN6],
         Ipv6Mode::Off | Ipv6Mode::Both => &[],
     };
     section

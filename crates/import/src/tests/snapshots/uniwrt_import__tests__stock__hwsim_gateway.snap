@@ -2,16 +2,15 @@
 source: crates/import/src/tests/stock.rs
 expression: summary(&import)
 ---
-# 1 — confidence 81%
+# 1 — confidence 84%
 kept [packet_steering] network.globals (globals)
 kept [peerdns, dns] network.wan (interface)
-raw network.wan6rd (interface)
+network.wan6rd (interface) → wan6
 network.mesh (interface) → uw_mesh
 kept [cell_density] wireless.radio0 (wifi-device)
 kept [ieee80211r, mobility_domain, ft_over_ds, ft_psk_generate_local, ieee80211k, bss_transition] wireless.uw_home_2g (wifi-iface)
 kept [ieee80211r, mobility_domain] wireless.uw_home_5g (wifi-iface)
 kept [server] dhcp.@ (dnsmasq)
-kept [network] firewall.@ (zone)
 raw firewall.@ (rule)
 raw firewall.iot_dns (rule)
 raw firewall.@ (redirect)
@@ -31,6 +30,9 @@ raw firewall.uniwrt (include)
 ~ network.guest
     ipaddr: '10.0.20.1' → '10.0.20.1/24'
     netmask: '255.255.255.0' → ∅
+~ network.wan6
+    tunlink: ∅ → 'wan'
+    mtu: ∅ → '1480'
 ~ network.bat0
     distributed_arp_table: ∅ → '1'
     multicast_mode: ∅ → '1'
@@ -39,7 +41,6 @@ raw firewall.uniwrt (include)
     fragmentation: ∅ → '1'
 ~ network.uw_mesh
     mtu: '1536' → '1532'
-~ network.wan6rd (moved)
 ~ wireless.uw_home_2g
     ieee80211w: ∅ → '1'
 ~ wireless.uw_guest_2g (moved)
@@ -62,7 +63,6 @@ raw firewall.uniwrt (include)
     dhcpv4: ∅ → 'server'
 + dhcp.iot interface='iot' ignore='1'
 ~ firewall.@zone[3]
-    network: 'wan' 'wan6rd' → 'wan' 'wan6' 'wan6rd'
     forward: 'REJECT' → 'DROP'
 ~ firewall.@forwarding[0] (moved)
 + firewall.@rule[2] name='Allow-IGMP' src='wan' proto='igmp' family='ipv4' target='ACCEPT'

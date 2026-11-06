@@ -1,0 +1,11 @@
+id = "generic-dhcp"
+name = "Cable and most fiber"
+variant = "DHCP"
+status = "verified"
+notes = "The modem or ONT in bridge mode hands the gateway its address."
+
+[ipv4]
+proto = "dhcp"
+
+[ipv6]
+mode = "dhcpv6"

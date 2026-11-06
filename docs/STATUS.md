@@ -1,7 +1,7 @@
 # Status
 
 **Milestone:** M4 — Gateway: WAN, LAN and firewall (M3 is done; the owner's acceptance of M1.7b/M1.8b waits for their hardware)
-**Next WP:** M4.1 — WAN, SQM & failover (L; D-054). Split: presets, WAN & wizard | SQM & failover: propose the split's parts first (ROADMAP `Split:`). Read ROADMAP M4; docs/features/wan.md; `crates/render/src/wan.rs` (the `isp` crate starts with this WP); the WAN parts of `crates/import` (`wan.rs`).
+**Next WP:** M4.1a — presets, WAN & wizard (in progress; D-075). Done: schema v2 WAN (model, validation, migration), render and import of every WAN shape, the `isp` crate with nine seed presets, steps and hints. Next: the connectivity-test job (a trial on the gateway, always rolled back; IPv6 `auto` decided there), its API with the presets, the sim's ISP, the WAN wizard UI. Then M4.1b — SQM & failover. Read ROADMAP M4; docs/features/wan.md; `crates/isp/src/lib.rs`.
 **Last done:** M3.5c2 — drift UI (2026-11-05; D-074): the device page's `DriftCard` (each drifted package's diff, Import → `/settings/import?node=&package=`, Overwrite → `/changes`, Acknowledge, Mute, Watch again; first while there is drift), the top bar's `DriftChip` (admins: drifts not acknowledged, a popover linking each device), the review's marks (`NodePlan.drift` among changing packages: a Drift badge on the diff, a line on the node, an impact line), the scoped import page, `ConfigState.drift` from the `config` topic, `api.drift`; the demo's drift: the sim's hand edit a minute after a node's first confirmed apply (`crates/sim/src/hand_edit.rs`: hostname `-1`, else the first radio's channel).
 
 ## Open questions for the owner

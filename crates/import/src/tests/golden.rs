@@ -5,7 +5,11 @@ use uniwrt_core::NodeId;
 use uniwrt_model::{
     facts::NodeFacts,
     node::NodeRole,
-    site::{SiteConfig, wireless::Channel},
+    site::{
+        SiteConfig,
+        gateway::{DhcpClient, WanIpv6, WanProto},
+        wireless::Channel,
+    },
     wifi::Band,
 };
 use uniwrt_render::Target;
@@ -19,7 +23,7 @@ use super::{
 };
 use crate::Fate;
 
-fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) {
+fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) -> crate::Import {
     let current = stock();
     let found: Vec<Found> = nodes
         .iter()
@@ -58,6 +62,7 @@ fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) {
         assert!(exact, "imports exactly:\n{}", summary(&import));
         assert_eq!(node.confidence, 100);
     }
+    import
 }
 
 #[test]
@@ -116,4 +121,72 @@ fn a_pc_router_imports_exactly() {
         &defaults_site(),
         &[(GATEWAY, NodeRole::Gateway, x86_facts())],
     );
+}
+
+#[test]
+fn every_wan_imports_exactly() {
+    let sixrd = WanIpv6::SixRd {
+        prefix: "2602::/24".parse().unwrap(),
+        border_relay: "205.171.2.64".parse().unwrap(),
+        ipv4_mask_len: 0,
+    };
+    let dhcpv6 = WanIpv6::Dhcpv6 {
+        reqprefix: Some(56),
+    };
+    let dhcp = WanProto::Dhcp(DhcpClient {
+        vendor_class: Some("uniwrt".to_owned()),
+        client_id: Some("0102".to_owned()),
+        send_options: vec!["77:4d4f44454d".to_owned(), "90:00ff".to_owned()],
+        hostname: Some("*".to_owned()),
+    });
+    let pppoe = pppoe_site().wan.proto;
+    let pppoe = match pppoe {
+        WanProto::Pppoe {
+            username, password, ..
+        } => WanProto::Pppoe {
+            username,
+            password,
+            service: Some("fiber".to_owned()),
+        },
+        other => other,
+    };
+    let cases = [
+        (dhcp, Some(201), Some(5), Some(1500), sixrd.clone()),
+        (pppoe.clone(), Some(7), None, Some(1480), dhcpv6.clone()),
+        (pppoe.clone(), None, None, None, sixrd),
+        (pppoe, None, None, None, WanIpv6::Off),
+        (
+            WanProto::DsLite { aftr: None },
+            None,
+            None,
+            Some(1460),
+            dhcpv6.clone(),
+        ),
+        (
+            WanProto::DsLite {
+                aftr: Some("aftr.example.net".to_owned()),
+            },
+            Some(201),
+            None,
+            None,
+            WanIpv6::Dhcpv6 { reqprefix: None },
+        ),
+        (WanProto::None, None, None, Some(1400), dhcpv6),
+    ];
+    for (proto, vlan, pcp, mtu, ipv6) in cases {
+        let mut site = defaults_site();
+        site.wan.proto = proto;
+        site.wan.vlan = vlan;
+        site.wan.pcp = pcp;
+        site.wan.mtu = mtu;
+        site.wan.ipv6 = ipv6;
+        let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+        let mut wan = import.site.wan;
+        if let (WanProto::Pppoe { password: a, .. }, WanProto::Pppoe { password: b, .. }) =
+            (&mut wan.proto, &site.wan.proto)
+        {
+            a.clone_from(b);
+        }
+        assert_eq!(wan, site.wan);
+    }
 }

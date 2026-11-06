@@ -178,8 +178,18 @@ Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configu
 - `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
 - `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
 - `src/tests/stock.rs`: OpenWrt's stock configs (`crates/uci/fixtures/openwrt/`): 24.10's and 25.12's on a PC router, and the hwsim lab's gateway with its radios.
-- `src/wan.rs`: The WAN, from the gateway (features/wan.md): `interface wan` by DHCP, static or PPPoE, the ISP's VLAN (an 802.1Q device, `<port>.<vid>`, or a tagged switch VLAN), a cloned MAC, and IPv6 (`wan6` by DHCPv6, or PPPoE's `ipv6`).
+- `src/wan.rs`: The WAN, from the gateway (features/wan.md): `interface wan` by DHCP (with its client options), static, PPPoE or DS-Lite, else a `wan6` alone (IPv6-only, or DS-Lite whose AFTR DHCPv6 announces); the ISP's VLAN (an 802.1Q device, `<port>.<vid>`, or a tagged switch VLAN) and its priority, a cloned MAC, the MTU; and IPv6 by 6rd, by DHCPv6 on the WAN's device or over PPP (`@wan`, or PPPoE's own `ipv6 auto`).
 - `src/wireless.rs`: Wi-Fi, from every node (features/wifi.md, features/mesh.md): the access points of the same SSID, network and security become one WLAN on the bands and nodes that carry it; a mesh point with batman-adv over it becomes the mesh; each band's most common channel, width and power become its policy, and the radios that differ get overrides; the radios' country becomes the site's.
+
+### `uniwrt-isp` (crates/isp)
+
+ISP presets (features/wan.md, Preset format; D-075): what the WAN wizard offers after the country, and what the connectivity test says when a step fails.
+
+- `build.rs`: Embeds every preset under `data/`: adding one needs no code change (features/wan.md).
+- `src/lib.rs`: ISP presets (features/wan.md, Preset format; D-075): what the WAN wizard offers after the country, and what the connectivity test says when a step fails.
+- `src/preset.rs`: The preset format (features/wan.md, Preset format) and how a preset and the user's answers become the site's WAN.
+- `src/step.rs`: The connectivity test's steps (features/wan.md, Connectivity test) and what to say when one fails.
+- `src/tests.rs`: Every embedded preset: it parses, its id is its file name, its prompts are what it needs, and filled in it is a valid site WAN.
 
 ### `uniwrt-jobs` (crates/jobs)
 
@@ -379,7 +389,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name; a merge (D-072) sets its options on a rendered section instead, found by name or, for an anonymous one, by the key options of its type ([`key`]).
 - `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (its user ports untagged for the untagged network, tagged for the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
 - `src/system.rs`: The `system` package: the node's hostname, time zone and NTP.
-- `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN, a cloned or the board's MAC), `wan` by DHCP, static or PPPoE, and `wan6` by DHCPv6 with prefix delegation.
+- `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
 - `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the band's policy and the node's overrides, within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
 - `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
@@ -611,7 +621,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (289 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (291 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

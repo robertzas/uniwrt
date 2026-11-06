@@ -234,7 +234,7 @@ fn ipv6(config: &SiteConfig, network: &Network, at: &str, issues: &mut Issues) {
             "The site has no ULA prefix to hand out",
         );
     }
-    if delegated && !config.wan.ipv6 {
+    if delegated && !config.wan.ipv6.is_on() {
         issues.warn(
             format!("{at}/ipv6"),
             "IPv6 is off on the WAN, so no prefix is delegated",

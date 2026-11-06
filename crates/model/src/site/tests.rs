@@ -8,7 +8,7 @@ use uniwrt_core::{Ipv4Net, Ipv6Net, NodeId};
 use super::{
     SCHEMA_VERSION, SecretRef, SiteConfig,
     diff::{ChangeOp, diff},
-    gateway::WanProto,
+    gateway::{DhcpClient, WanIpv6, WanProto},
     migrate::{SchemaError, upgrade},
     network::Purpose,
     validate::{Severity, has_errors, validate},
@@ -17,7 +17,10 @@ use super::{
 use crate::wifi::{Band, ChannelWidth};
 
 /// The fixture of every schema, `FIXTURES[n - 1]` for version n.
-const FIXTURES: [&str; SCHEMA_VERSION as usize] = [include_str!("../../fixtures/site/v1.json")];
+const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
+    include_str!("../../fixtures/site/v1.json"),
+    include_str!("../../fixtures/site/v2.json"),
+];
 
 fn fixture(version: u32) -> Value {
     serde_json::from_str(FIXTURES[version as usize - 1]).unwrap()
@@ -85,6 +88,129 @@ fn documents_without_a_known_schema_are_refused() {
 }
 
 #[test]
+fn v1_wans_upgrade_to_an_ipv6_mode() {
+    let config = upgrade(fixture(1)).unwrap();
+    assert_eq!(config.wan.ipv6, WanIpv6::Dhcpv6 { reqprefix: None });
+    assert_eq!(
+        (config.wan.pcp, config.wan.mtu, config.wan.preset),
+        (None, None, None)
+    );
+    assert!(matches!(
+        config.wan.proto,
+        WanProto::Pppoe { service: None, .. }
+    ));
+    let mut value = fixture(1);
+    value["wan"]["ipv6"] = json!(false);
+    value["wan"]["proto"] = json!({ "kind": "dhcp" });
+    let config = upgrade(value).unwrap();
+    assert_eq!(config.wan.ipv6, WanIpv6::Off);
+    assert_eq!(config.wan.proto, WanProto::Dhcp(DhcpClient::default()));
+}
+
+type Edit = Box<dyn Fn(&mut SiteConfig)>;
+
+#[test]
+fn wan_rules() {
+    let sixrd = WanIpv6::SixRd {
+        prefix: "2602::/24".parse().unwrap(),
+        border_relay: Ipv4Addr::new(205, 171, 2, 64),
+        ipv4_mask_len: 0,
+    };
+    let cases: Vec<(Edit, &str)> = vec![
+        (Box::new(|c| c.wan.pcp = Some(8)), "wan/pcp"),
+        (
+            Box::new(|c| {
+                c.wan.vlan = None;
+                c.wan.pcp = Some(3);
+            }),
+            "wan/pcp",
+        ),
+        (Box::new(|c| c.wan.mtu = Some(1200)), "wan/mtu"),
+        (
+            Box::new(|c| {
+                c.wan.proto = WanProto::Dhcp(DhcpClient {
+                    client_id: Some("abc".to_owned()),
+                    ..DhcpClient::default()
+                });
+            }),
+            "wan/proto/client_id",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.proto = WanProto::Dhcp(DhcpClient {
+                    send_options: vec!["0:x".to_owned()],
+                    ..DhcpClient::default()
+                });
+            }),
+            "wan/proto/send_options/0",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.proto = WanProto::DsLite { aftr: None };
+                c.wan.ipv6 = WanIpv6::Off;
+            }),
+            "wan/ipv6",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.proto = WanProto::None;
+                c.wan.ipv6 = WanIpv6::Off;
+            }),
+            "wan/ipv6",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.ipv6 = WanIpv6::Dhcpv6 {
+                    reqprefix: Some(40),
+                }
+            }),
+            "wan/ipv6/reqprefix",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.ipv6 = WanIpv6::SixRd {
+                    prefix: "2602::/48".parse().unwrap(),
+                    border_relay: Ipv4Addr::new(205, 171, 2, 64),
+                    ipv4_mask_len: 0,
+                };
+            }),
+            "wan/ipv6/prefix",
+        ),
+        (
+            Box::new(|c| {
+                c.wan.ipv6 = WanIpv6::SixRd {
+                    prefix: "2602::/24".parse().unwrap(),
+                    border_relay: Ipv4Addr::BROADCAST,
+                    ipv4_mask_len: 0,
+                };
+            }),
+            "wan/ipv6/border_relay",
+        ),
+    ];
+    for (edit, path) in cases {
+        let issues = issues_after(edit);
+        assert!(has(&issues, path, Severity::Error), "{path}: {issues:?}");
+    }
+    let issues = issues_after(|c| {
+        c.wan.proto = WanProto::DsLite {
+            aftr: Some("aftr.example.net".to_owned()),
+        };
+        c.wan.ipv6 = WanIpv6::Dhcpv6 {
+            reqprefix: Some(56),
+        };
+    });
+    assert!(
+        !issues.iter().any(|(p, _)| p.starts_with("wan")),
+        "{issues:?}"
+    );
+    let issues = issues_after(move |c| {
+        c.wan.proto = WanProto::None;
+        c.wan.ipv6 = sixrd.clone();
+    });
+    assert!(has(&issues, "wan/ipv6", Severity::Error));
+}
+
+#[test]
 fn defaults_are_valid_with_or_without_a_ula() {
     for ula in [Some(ula()), None] {
         let config = SiteConfig::defaults(ula);
@@ -126,7 +252,7 @@ fn secrets_are_listed_and_set_by_path() {
     assert_eq!(config.secret("wan/password"), Some(&new));
     assert!(config.secret_mut("wlans/nope/passphrase").is_none());
     assert!(config.secret_mut("site/name").is_none());
-    config.wan.proto = WanProto::Dhcp;
+    config.wan.proto = WanProto::Dhcp(DhcpClient::default());
     assert!(config.secret_mut("wan/password").is_none());
     assert_eq!(config.secrets().len(), 4);
 }
@@ -296,6 +422,7 @@ fn gateway_and_node_rules() {
         c.wan.proto = WanProto::Pppoe {
             username: String::new(),
             password: None,
+            service: Some(String::new()),
         };
         c.firewall.policies.push(c.firewall.policies[0].clone());
         c.firewall.policies.push(super::gateway::ZonePolicy {
@@ -314,6 +441,7 @@ fn gateway_and_node_rules() {
     for (path, severity) in [
         ("wan/proto/username", Severity::Error),
         ("wan/password", Severity::Error),
+        ("wan/proto/service", Severity::Error),
         ("firewall/policies/1", Severity::Error),
         ("firewall/policies/2/from", Severity::Error),
         ("firewall/policies/2", Severity::Error),

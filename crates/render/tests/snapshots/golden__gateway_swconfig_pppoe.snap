@@ -104,7 +104,7 @@ config interface 'iot'
 	list ipaddr '10.0.30.1/24'
 	option ip6assign '64'
 	option ip6hint '1e'
-	list ip6class 'wan_6'
+	list ip6class 'wan6'
 
 config interface 'guest'
 	option device 'br-lan.40'
@@ -116,7 +116,11 @@ config interface 'wan'
 	option proto 'pppoe'
 	option username 'user@isp'
 	option password 'pppoe-pass'
-	option ipv6 'auto'
+	option ipv6 '1'
+
+config interface 'wan6'
+	option device '@wan'
+	option proto 'dhcpv6'
 
 
 # wireless

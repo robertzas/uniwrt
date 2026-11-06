@@ -1,0 +1,46 @@
+---
+source: crates/render/tests/golden.rs
+expression: wans
+---
+
+config device
+	option name 'eth1'
+	option mtu '1460'
+
+config interface 'wan6'
+	option device 'eth1'
+	option proto 'dhcpv6'
+	option reqprefix '56'
+	option iface_dslite 'wan'
+	option zone_dslite 'wan'
+	option encaplimit_dslite 'ignore'
+
+---
+
+config device
+	option name 'eth1'
+	option mtu '1460'
+
+config interface 'wan'
+	option proto 'dslite'
+	option peeraddr 'aftr.example.net'
+	option tunlink 'wan6'
+	option encaplimit 'ignore'
+
+config interface 'wan6'
+	option device 'eth1'
+	option proto 'dhcpv6'
+	option reqprefix '56'
+
+---
+
+config device
+	option name 'eth1'
+	option mtu '1460'
+
+config interface 'wan6'
+	option device 'eth1'
+	option proto 'dhcpv6'
+	option reqprefix '56'
+
+---

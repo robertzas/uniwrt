@@ -1,0 +1,13 @@
+id = "generic-pppoe"
+name = "DSL and PPPoE fiber"
+variant = "PPPoE"
+status = "verified"
+notes = "The ISP's username and password are on its letter or in its router. The firewall clamps the MSS to the PPPoE MTU."
+prompts = ["username", "password"]
+
+[ipv4]
+proto = "pppoe"
+mtu = 1492
+
+[ipv6]
+mode = "dhcpv6"

@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, net::Ipv4Addr};
 use uniwrt_core::{Ipv4Net, Ipv6Net, NodeId};
 use uniwrt_model::site::{
     SecretRef, SiteConfig,
-    gateway::WanProto,
+    gateway::{WanIpv6, WanProto},
     network::{Dhcp, Ipv4Config, Ipv6Mode, Network, Purpose, Reservation},
     node::{ManagedPackage, NodeConfig},
     wireless::{Channel, NodeScope, Wlan, WlanSecurity},
@@ -66,7 +66,7 @@ pub fn defaults(uplink: Uplink) -> SiteConfig {
     let ula: Option<Ipv6Net> = "fd12:3456:789a::/48".parse().ok();
     let mut site = SiteConfig::defaults(ula);
     site.nodes = vec![managed(GATEWAY), managed(AP)];
-    site.wan.ipv6 = false; // the ISP serves no DHCPv6
+    site.wan.ipv6 = WanIpv6::Off; // the ISP serves no DHCPv6
     match uplink {
         Uplink::Dhcp => {}
         Uplink::DhcpVlan => site.wan.vlan = Some(201),
@@ -81,6 +81,7 @@ pub fn defaults(uplink: Uplink) -> SiteConfig {
             site.wan.proto = WanProto::Pppoe {
                 username: "user@isp".to_owned(),
                 password: Some(secret(4)),
+                service: None,
             };
         }
     }

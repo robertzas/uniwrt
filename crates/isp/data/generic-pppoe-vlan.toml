@@ -1,0 +1,13 @@
+id = "generic-pppoe-vlan"
+name = "DSL and PPPoE fiber with a VLAN"
+variant = "PPPoE on a VLAN"
+status = "verified"
+notes = "The ISP's username and password are on its letter or in its router; its documentation names the VLAN (often 7 on DSL)."
+prompts = ["vlan", "username", "password"]
+
+[ipv4]
+proto = "pppoe"
+mtu = 1492
+
+[ipv6]
+mode = "dhcpv6"

@@ -11,7 +11,7 @@ use uniwrt_model::{
     facts::{Software, WifiFeature},
     node::NodeRole,
     site::{
-        gateway::WanProto,
+        gateway::{DhcpClient, WanIpv6, WanProto},
         node::{ManagedPackage, RawSection, RawValue},
         wireless::{Channel, WlanSecurity},
     },
@@ -97,9 +97,66 @@ fn gateway_x86_static() {
         gateway: "203.0.113.9".parse().unwrap(),
         dns: vec!["9.9.9.9".parse().unwrap(), "2620:fe::fe".parse().unwrap()],
     };
-    site.wan.ipv6 = false;
+    site.wan.ipv6 = WanIpv6::Off;
     let result = run(&site, GATEWAY, NodeRole::Gateway, &x86_facts());
     assert_snapshot!("gateway_x86_static", show(&result));
+}
+
+#[test]
+fn gateway_isp_vlan_6rd() {
+    let mut site = defaults_site();
+    site.wan.vlan = Some(201);
+    site.wan.pcp = Some(1);
+    site.wan.mtu = Some(1500);
+    site.wan.proto = WanProto::Dhcp(DhcpClient {
+        vendor_class: Some("uniwrt".to_owned()),
+        client_id: Some("01020304".to_owned()),
+        send_options: vec!["77:4d4f44454d".to_owned(), "90:00ff".to_owned()],
+        hostname: Some("router".to_owned()),
+    });
+    site.wan.ipv6 = WanIpv6::SixRd {
+        prefix: "2602::/24".parse().unwrap(),
+        border_relay: "205.171.2.64".parse().unwrap(),
+        ipv4_mask_len: 0,
+    };
+    let result = run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts());
+    assert_snapshot!("gateway_isp_vlan_6rd", show(&result));
+}
+
+#[test]
+fn gateway_dslite_and_ipv6_only_wans() {
+    let mut site = defaults_site();
+    site.wan.ipv6 = WanIpv6::Dhcpv6 {
+        reqprefix: Some(56),
+    };
+    let port = gateway_facts().board.layout.wan.unwrap();
+    let mut wans = String::new();
+    for proto in [
+        WanProto::DsLite { aftr: None },
+        WanProto::DsLite {
+            aftr: Some("aftr.example.net".to_owned()),
+        },
+        WanProto::None,
+    ] {
+        site.wan.proto = proto;
+        site.wan.mtu = Some(1460);
+        let packages = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts())).packages;
+        let wan = uniwrt_uci::Package {
+            name: "network".to_owned(),
+            sections: packages[&ManagedPackage::Network]
+                .sections
+                .iter()
+                .filter(|s| {
+                    s.name.as_deref().is_some_and(|n| n.starts_with("wan"))
+                        || (s.kind == "device" && s.option("name") == Some(port.as_str()))
+                })
+                .cloned()
+                .collect(),
+        };
+        wans.push_str(&wan.to_file());
+        wans.push_str("---\n");
+    }
+    assert_snapshot!("gateway_dslite_and_ipv6_only_wans", wans);
 }
 
 #[test]

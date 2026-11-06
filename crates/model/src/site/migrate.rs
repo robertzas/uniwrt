@@ -5,14 +5,50 @@
 //! JSON of the previous version, and add `fixtures/site/v<new>.json` to the tests' `FIXTURES`,
 //! which upgrade the fixture of every version.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::{SCHEMA_VERSION, SiteConfig};
 
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[];
+const STEPS: &[Step] = &[v1_to_v2];
+
+/// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
+/// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
+/// service name.
+fn v1_to_v2(value: &mut Value) -> Result<(), String> {
+    let wan = value
+        .get_mut("wan")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no WAN")?;
+    let ipv6 = match wan.get("ipv6") {
+        Some(Value::Bool(true)) => json!({ "mode": "dhcpv6", "reqprefix": null }),
+        Some(Value::Bool(false)) => json!({ "mode": "off" }),
+        _ => return Err("the WAN's ipv6 is not a boolean".to_owned()),
+    };
+    wan.insert("ipv6".to_owned(), ipv6);
+    for field in ["pcp", "mtu", "preset"] {
+        wan.insert(field.to_owned(), Value::Null);
+    }
+    let proto = wan
+        .get_mut("proto")
+        .and_then(Value::as_object_mut)
+        .ok_or("the WAN has no proto")?;
+    match proto.get("kind").and_then(Value::as_str) {
+        Some("dhcp") => {
+            for field in ["vendor_class", "client_id", "hostname"] {
+                proto.insert(field.to_owned(), Value::Null);
+            }
+            proto.insert("send_options".to_owned(), json!([]));
+        }
+        Some("pppoe") => {
+            proto.insert("service".to_owned(), Value::Null);
+        }
+        _ => {}
+    }
+    Ok(())
+}
 
 const _: () = assert!(STEPS.len() + 1 == SCHEMA_VERSION as usize);
 
