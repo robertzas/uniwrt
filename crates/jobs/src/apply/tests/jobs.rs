@@ -106,6 +106,12 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
     assert!(ap.file("network").unwrap().contains("proto 'dhcp'"));
     assert!(!ap.tool.lock().unwrap().services["dnsmasq"]);
     assert!(fleet.fake(0).tool.lock().unwrap().services["dnsmasq"]);
+    // The gateway resolves uniwrt.lan to where the controller logged in from.
+    let dhcp = fleet.fake(0).file("dhcp").unwrap();
+    assert!(
+        dhcp.contains("option name 'uniwrt'\n\toption ip '192.168.1.50'"),
+        "{dhcp}"
+    );
     assert_eq!(last(&fleet, 0), (Outcome::Confirmed, None));
     let records = fleet.store.applied_revisions().await.unwrap();
     assert_eq!(records.len(), 3);

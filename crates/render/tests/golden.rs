@@ -438,3 +438,110 @@ fn a_backup_needs_a_port_of_its_own() {
         "{issues:?}"
     );
 }
+
+/// [`run`] with the controller at `controller`, as an apply sees it.
+fn run_from(
+    site: &uniwrt_model::site::SiteConfig,
+    facts: &uniwrt_model::facts::NodeFacts,
+    controller: &str,
+) -> Result<Rendered, Vec<uniwrt_render::Issue>> {
+    uniwrt_render::render(
+        site,
+        &secrets(),
+        uniwrt_render::Target {
+            node: GATEWAY,
+            role: NodeRole::Gateway,
+            facts,
+            current: &stock(),
+            controller: Some(controller.parse().unwrap()),
+        },
+    )
+}
+
+#[test]
+fn gateway_lan_services_and_port_profiles() {
+    let result = run_from(&lan_site(false), &gateway_facts(), "10.0.0.2");
+    assert_snapshot!("gateway_lan_services", show(&result));
+}
+
+#[test]
+fn ap_swconfig_port_profiles() {
+    let mut site = lan_site(true);
+    site.mesh.enabled = false;
+    let result = run(&site, AP, NodeRole::Ap, &swconfig_facts());
+    assert_snapshot!("ap_swconfig_port_profiles", show(&result));
+}
+
+#[test]
+fn the_controller_gets_a_record_only_inside_a_network() {
+    let record = |controller: &str| {
+        let rendered = ok(run_from(&defaults_site(), &gateway_facts(), controller));
+        rendered.packages[&ManagedPackage::Dhcp]
+            .sections_of("domain")
+            .find(|d| d.option("name") == Some("uniwrt"))
+            .and_then(|d| d.option("ip").map(str::to_owned))
+    };
+    assert_eq!(record("10.0.0.2").as_deref(), Some("10.0.0.2"));
+    assert_eq!(record("192.0.2.5"), None);
+    assert_eq!(record("fd00::2"), None);
+}
+
+#[test]
+fn port_profiles_warn_about_ports_they_cant_shape() {
+    use uniwrt_model::site::node::{PortConfig, TaggedNetworks};
+    let mut site = home_site();
+    let profile = |port: &str| PortConfig {
+        port: port.to_owned(),
+        native: Some("iot".to_owned()),
+        tagged: TaggedNetworks::None,
+    };
+    for config in &mut site.nodes {
+        config.ports = vec![profile("eth1"), profile("lan9"), profile("lan1")];
+    }
+    let warnings = |role| {
+        let rendered = ok(run(
+            &site,
+            if role == NodeRole::Gateway {
+                GATEWAY
+            } else {
+                AP
+            },
+            role,
+            &gateway_facts(),
+        ));
+        rendered
+            .warnings
+            .into_iter()
+            .map(|w| w.path)
+            .filter(|p| p.contains("/ports/"))
+            .collect::<Vec<_>>()
+    };
+    // The gateway's WAN port and a port it lacks; the gateway routes, so lan1 is fine.
+    assert_eq!(
+        warnings(NodeRole::Gateway),
+        ["nodes/1/ports/eth1", "nodes/1/ports/lan9"]
+    );
+    // An AP bridges eth1 too: it and lan1 are linked and would drop its own network.
+    assert_eq!(
+        warnings(NodeRole::Ap),
+        [
+            "nodes/2/ports/eth1",
+            "nodes/2/ports/lan9",
+            "nodes/2/ports/lan1"
+        ]
+    );
+}
+
+#[test]
+fn a_network_on_the_modems_subnet_is_refused() {
+    let mut facts = gateway_facts();
+    let wan = facts
+        .interfaces
+        .iter_mut()
+        .find(|i| i.name == "wan")
+        .unwrap();
+    wan.ipv4 = vec!["10.0.0.77/24".parse().unwrap()];
+    let issues = run(&defaults_site(), GATEWAY, NodeRole::Gateway, &facts).unwrap_err();
+    assert_eq!(issues.len(), 1, "{issues:?}");
+    assert_eq!(issues[0].path, "networks/lan/ipv4/address");
+}

@@ -1,4 +1,4 @@
-//! Per-node overrides: hostnames, radios and raw UCI sections.
+//! Per-node overrides: hostnames, radios, port profiles and raw UCI sections.
 
 use std::collections::BTreeSet;
 
@@ -29,6 +29,7 @@ pub(super) fn nodes(config: &SiteConfig, adopted: &BTreeSet<NodeId>, issues: &mu
             );
         }
         radios(node, &at, issues);
+        super::ports::ports(config, node, &at, issues);
         raw(node, &at, issues);
     }
 }

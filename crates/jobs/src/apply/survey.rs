@@ -2,7 +2,10 @@
 //! the pinned host key), read what it holds (packages, services, facts, and on the gateway its
 //! DNS), and plan its part. Nodes are reached concurrently; nothing changes on them.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::IpAddr,
+};
 
 use futures_util::future::join_all;
 use uniwrt_model::{
@@ -124,6 +127,8 @@ struct Reading {
     /// The packages installed from the feeds, or why they can't be read.
     installed: Result<BTreeSet<String>, String>,
     dns: [bool; 2],
+    /// The controller's address as the gateway sees it.
+    controller: Option<IpAddr>,
 }
 
 async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
@@ -146,12 +151,18 @@ async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
     let facts = collect(shared, remote, &Set::ALL, &RENDER_SETS).await?;
     let installed = installed(remote, &facts).await;
     let dns = dns(remote, login.node.role).await;
+    let controller = if login.node.role == NodeRole::Gateway {
+        super::controller::read(remote).await
+    } else {
+        None
+    };
     Ok(Reading {
         files,
         services,
         facts,
         installed,
         dns,
+        controller,
     })
 }
 
@@ -309,6 +320,7 @@ pub(crate) async fn plan_all(
                 files: &reading.files,
                 services: &reading.services,
                 installed: reading.installed.as_ref(),
+                controller: reading.controller,
             },
             &shared.timing,
         );

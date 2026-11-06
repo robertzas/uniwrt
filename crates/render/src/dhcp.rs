@@ -1,11 +1,17 @@
 //! The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves
 //! each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6
-//! (SLAAC, with stateless DHCPv6); on APs every network is ignored, as their DHCP services are
-//! off.
+//! as each network's clients mode says; on APs every network is ignored, as their DHCP services
+//! are off. The gateway's dnsmasq resolves `uniwrt.<domain>` to the controller when it sits on
+//! one of the networks.
+
+use std::net::IpAddr;
 
 use uniwrt_model::{
     node::NodeRole,
-    site::{gateway::DnsRecord, network::Ipv6Mode},
+    site::{
+        gateway::{CONTROLLER_HOST, DnsRecord},
+        network::{DhcpOptions, Ipv6Clients},
+    },
 };
 use uniwrt_uci::{Package, Section};
 
@@ -24,6 +30,9 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         } else {
             ignored(net.id())
         });
+    }
+    if gateway {
+        sections.extend(plan.nets.iter().filter_map(boot));
     }
     if gateway {
         sections.push(ignored("wan"));
@@ -48,6 +57,13 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
                     .with("mac", r.mac.to_string())
                     .with("ip", r.ip.to_string())
             }));
+        }
+        if let Some(ip) = controller(plan) {
+            sections.push(
+                Section::anonymous("domain")
+                    .with("name", CONTROLLER_HOST)
+                    .with("ip", ip.to_string()),
+            );
         }
         sections.extend(plan.site.services.dns_records.iter().map(|record| {
             match record {
@@ -115,17 +131,68 @@ fn pool(net: &Net<'_>) -> Section {
                 // still runs its stock one (found by the system harness, D-068).
                 .with("force", "1")
                 .with("dhcpv4", "server")
+                .list("dhcp_option", options(&dhcp.options))
         }
         None => section.with("ignore", "1"),
     };
-    if network.ipv6 == Ipv6Mode::Off {
+    if !network.ipv6.is_on() {
         return section;
     }
+    // odhcpd: SLAAC's A flag is `ra_slaac`; the M and O flags are `managed-config` (addresses
+    // from DHCPv6) and `other-config` (DNS and the rest from DHCPv6).
+    let (dhcpv6, slaac, flags): (_, _, &[&str]) = match network.ipv6_clients {
+        Ipv6Clients::Slaac => ("disabled", "1", &["none"]),
+        Ipv6Clients::SlaacStateless => ("server", "1", &["other-config"]),
+        Ipv6Clients::SlaacStateful => ("server", "1", &["managed-config", "other-config"]),
+        Ipv6Clients::Stateful => ("server", "0", &["managed-config", "other-config"]),
+    };
     section
-        .with("dhcpv6", "server")
+        .with("dhcpv6", dhcpv6)
         .with("ra", "server")
-        .with("ra_slaac", "1")
-        .list("ra_flags", ["other-config"])
+        .with("ra_slaac", slaac)
+        .list("ra_flags", flags.iter().copied())
+}
+
+/// A pool's `dhcp_option`s: DNS (6), NTP (42), the domain (15), then the custom ones.
+pub(crate) fn options(options: &DhcpOptions) -> Vec<String> {
+    let servers = |code: u8, list: &[std::net::Ipv4Addr]| {
+        (!list.is_empty()).then(|| {
+            let ips: Vec<String> = list.iter().map(ToString::to_string).collect();
+            format!("{code},{}", ips.join(","))
+        })
+    };
+    servers(6, &options.dns)
+        .into_iter()
+        .chain(servers(42, &options.ntp))
+        .chain(options.domain.as_ref().map(|d| format!("15,{d}")))
+        .chain(options.custom.iter().cloned())
+        .collect()
+}
+
+/// A network's PXE boot: dnsmasq's `dhcp-boot` for the clients of its pool (tagged by the
+/// network's id).
+fn boot(net: &Net<'_>) -> Option<Section> {
+    let ipv4 = net.network.ipv4.as_ref()?;
+    let boot = ipv4.dhcp.as_ref()?.options.boot.as_ref()?;
+    Some(
+        Section::anonymous("boot")
+            .with("filename", boot.filename.as_str())
+            .maybe("servername", boot.server_name.as_deref())
+            .maybe("serveraddress", boot.server.map(|ip| ip.to_string()))
+            .with("networkid", net.id()),
+    )
+}
+
+/// The controller's address, when it sits in one of the networks the gateway serves.
+fn controller(plan: &Plan<'_>) -> Option<IpAddr> {
+    let ip = plan.controller?;
+    let inside = plan.nets.iter().any(|net| {
+        net.network.ipv4.as_ref().is_some_and(|v4| match ip {
+            IpAddr::V4(ip) => v4.address.trunc().contains(&ip),
+            IpAddr::V6(_) => false,
+        })
+    });
+    inside.then_some(ip)
 }
 
 /// A lease time as dnsmasq reads it: `12h`, `30m`, or seconds.

@@ -10,7 +10,8 @@ use uniwrt_uci::{Package, Section};
 use crate::{
     ext::SectionExt,
     failover, mesh,
-    plan::{BRIDGE, Net, Plan, Port},
+    plan::{BRIDGE, Net, Plan},
+    ports::Port,
     switch, wan,
 };
 
@@ -53,14 +54,18 @@ fn bridge(plan: &Plan<'_>) -> Section {
         )
 }
 
-/// A network's VLAN on the bridge: trunks carry the untagged network untagged (its VLAN is
-/// their PVID) and the others tagged; access ports carry their own VLAN untagged.
+/// A network's VLAN on the bridge: the ports whose native VLAN it is carry it untagged (as
+/// their PVID), the ones that tag it tagged; trunks carry the untagged network untagged and the
+/// others tagged.
 fn bridge_vlan(plan: &Plan<'_>, net: &Net<'_>) -> Section {
-    let ports = plan.ports.iter().filter_map(|port| match port {
-        Port::Trunk(device) if net.tagged() => Some(format!("{device}:t")),
-        Port::Trunk(device) => Some(format!("{device}:u*")),
-        Port::Access { device, vid } if *vid == net.vid => Some(format!("{device}:u*")),
-        Port::Access { .. } => None,
+    let ports = plan.ports.iter().filter_map(|port: &Port| {
+        if port.native == Some(net.vid) {
+            Some(format!("{}:u*", port.device))
+        } else if port.tagged.contains(&net.vid) {
+            Some(format!("{}:t", port.device))
+        } else {
+            None
+        }
     });
     Section::anonymous("bridge-vlan")
         .with("device", BRIDGE)

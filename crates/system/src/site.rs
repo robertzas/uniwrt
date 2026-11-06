@@ -8,7 +8,9 @@ use uniwrt_core::{Ipv4Net, Ipv6Net, NodeId};
 use uniwrt_model::site::{
     SecretRef, SiteConfig,
     gateway::{WanIpv6, WanProto},
-    network::{Dhcp, Ipv4Config, Ipv6Mode, Network, Purpose, Reservation},
+    network::{
+        Boot, Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose, Reservation,
+    },
     node::{ManagedPackage, NodeConfig},
     wireless::{Channel, NodeScope, Wlan, WlanSecurity},
 };
@@ -103,9 +105,11 @@ fn network(id: &str, purpose: Purpose, vlan: u8, ipv6: Ipv6Mode) -> Network {
                 end: Ipv4Addr::new(10, 0, vlan, 249),
                 lease_time_s: 3600,
                 reservations: Vec::new(),
+                options: DhcpOptions::default(),
             }),
         }),
         ipv6,
+        ipv6_clients: Ipv6Clients::default(),
         isolation: false,
         mdns: false,
         igmp_snooping: false,
@@ -122,15 +126,29 @@ pub fn home(uplink: Uplink) -> SiteConfig {
     let lan = &mut site.networks[0];
     lan.ipv6 = Ipv6Mode::Both;
     lan.igmp_snooping = true;
+    lan.ipv6_clients = Ipv6Clients::SlaacStateful;
     if let Some(dhcp) = lan.ipv4.as_mut().and_then(|ipv4| ipv4.dhcp.as_mut()) {
         dhcp.reservations.push(Reservation {
             mac: "a4:cf:12:ab:cd:ef".parse().expect("a MAC"),
             ip: Ipv4Addr::new(10, 0, 0, 40),
             name: Some("nas".to_owned()),
         });
+        // The pool's options and network boot, which dnsmasq's init script must take.
+        dhcp.options = DhcpOptions {
+            dns: vec![Ipv4Addr::new(10, 0, 0, 1)],
+            ntp: vec![Ipv4Addr::new(10, 0, 0, 1)],
+            domain: Some("home.arpa".to_owned()),
+            boot: Some(Boot {
+                filename: "netboot.xyz.efi".to_owned(),
+                server_name: Some("nas".to_owned()),
+                server: Some(Ipv4Addr::new(10, 0, 0, 40)),
+            }),
+            custom: vec!["26,1400".to_owned()],
+        };
     }
-    site.networks
-        .push(network("iot", Purpose::Iot, 30, Ipv6Mode::Delegated));
+    let mut iot = network("iot", Purpose::Iot, 30, Ipv6Mode::Delegated);
+    iot.ipv6_clients = Ipv6Clients::Slaac;
+    site.networks.push(iot);
     let mut guest = network("guest", Purpose::Guest, 40, Ipv6Mode::Off);
     guest.isolation = true;
     site.networks.push(guest);

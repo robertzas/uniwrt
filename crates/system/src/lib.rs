@@ -52,6 +52,7 @@ pub fn render_with(
             role,
             facts,
             current: &current,
+            controller: None,
         },
     )
     .unwrap_or_else(|issues| panic!("{}: render refused: {issues:#?}", node.container))

@@ -19,14 +19,8 @@ raw firewall.uniwrt (include)
     timezone: 'GMT0' → 'UTC0'
 ~ system.ntp
     enable_server: '0' → '1'
-~ network.@device[0]
-    ports: 'lan1' 'lan2' 'lan3' 'bat0' → 'lan1' 'lan2' 'lan3' 'lan4' 'lan5' 'bat0'
-~ network.@bridge-vlan[0]
-    ports: 'lan1:u*' 'lan2:u*' 'lan3:t' 'bat0:t' → 'lan1:u*' 'lan2:u*' 'lan3:u*' 'lan4:u*' 'lan5:u*' 'bat0:u*'
-~ network.@bridge-vlan[1]
-    ports: 'lan3:t' 'bat0:t' → 'lan1:t' 'lan2:t' 'lan3:t' 'lan4:t' 'lan5:t' 'bat0:t'
-~ network.@bridge-vlan[2]
-    ports: 'lan3:t' 'bat0:t' → 'lan1:t' 'lan2:t' 'lan3:t' 'lan4:t' 'lan5:t' 'bat0:t'
+~ network.lan
+    ip6hint: ∅ → '1'
 ~ network.guest
     ipaddr: '10.0.20.1' → '10.0.20.1/24'
     netmask: '255.255.255.0' → ∅
@@ -57,7 +51,6 @@ raw firewall.uniwrt (include)
 ~ dhcp.lan
     force: ∅ → '1'
     ra_slaac: ∅ → '1'
-    ra_flags: 'managed-config' 'other-config' → 'other-config'
 ~ dhcp.guest
     force: ∅ → '1'
     dhcpv4: ∅ → 'server'

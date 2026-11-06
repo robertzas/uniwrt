@@ -90,6 +90,7 @@ impl<'a> Gateway<'a> {
             role: self.node.role,
             facts: &self.facts,
             current: &self.current,
+            controller: None,
         };
         let rendered = uniwrt_render::render(site, secrets, target).map_err(|issues| {
             let issues: Vec<String> = issues.into_iter().map(|i| i.message).collect();

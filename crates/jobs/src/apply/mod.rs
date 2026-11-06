@@ -10,6 +10,7 @@
 //! rolls every applied node back, and one it can't reach rolls back by itself at its deadline.
 
 mod address;
+mod controller;
 pub(crate) mod health;
 mod install;
 mod order;

@@ -37,7 +37,6 @@ kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
     mesh_rssi_threshold: ∅ → '-80'
 ~ dhcp.lan
     force: ∅ → '1'
-    ra_flags: 'managed-config' 'other-config' → 'other-config'
 # 2 — confidence 92%
 network.batmesh (interface) → uw_mesh
 raw network.batwired (interface)

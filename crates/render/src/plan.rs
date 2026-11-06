@@ -3,7 +3,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{Issue, Secrets, Target};
+use crate::{
+    Issue, Secrets, Target,
+    ports::{self, Port},
+};
 use uniwrt_model::{
     facts::{NodeFacts, RadioFacts, Software, SwitchKind, SwitchLayout, WifiFeature},
     node::NodeRole,
@@ -42,6 +45,8 @@ pub(crate) struct Plan<'a> {
     /// The gateway's backup line, with failover on.
     pub backup: Option<crate::failover::Backup>,
     pub mesh: Option<Mesh<'a>>,
+    /// The controller's address as the gateway sees it ([`Target::controller`]).
+    pub controller: Option<std::net::IpAddr>,
     /// The network that carries an AP's own address: the management network, else the
     /// default one.
     pub mgmt: &'a str,
@@ -63,23 +68,6 @@ impl Net<'_> {
 
     pub(crate) fn tagged(&self) -> bool {
         self.network.vlan.is_some()
-    }
-}
-
-/// A port of the bridge.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Port {
-    /// Carries the untagged network untagged and the others tagged: Ethernet ports, `bat0`.
-    Trunk(String),
-    /// Carries one VLAN untagged: a swconfig CPU port's `<cpu>.<vid>` device.
-    Access { device: String, vid: u16 },
-}
-
-impl Port {
-    pub(crate) fn device(&self) -> &str {
-        match self {
-            Self::Trunk(device) | Self::Access { device, .. } => device,
-        }
     }
 }
 
@@ -146,7 +134,16 @@ impl<'a> Plan<'a> {
             _ => None,
         };
         let claimed = claimed(site, config, backup.is_some());
-        let ports = ports(target.role, facts, switch, &nets, mesh.is_some(), &claimed);
+        let node = (target.role, facts, config);
+        let ports = ports::ports(node, switch, &nets, mesh.is_some(), &claimed);
+        let mgmt = crate::management_network(site).map_or("lan", |n| n.id.as_str());
+        warnings.extend(ports::check(
+            node,
+            switch,
+            &claimed,
+            nets.iter().find(|net| net.id() == mgmt),
+            &nets,
+        ));
         if ports.is_empty() && mesh.is_none() {
             errors.push(Issue::new(
                 "node",
@@ -168,21 +165,13 @@ impl<'a> Plan<'a> {
         }
         let wan_password = match &site.wan.proto {
             WanProto::Pppoe { password, .. } if target.role == NodeRole::Gateway => {
-                let value = password
-                    .as_ref()
-                    .and_then(|p| secrets.get(p))
-                    .map(str::to_owned);
-                if value.is_none() {
-                    errors.push(Issue::new(
-                        "wan/password",
-                        "The PPPoE password isn't set or isn't in the vault",
-                    ));
-                }
-                value
+                pppoe_password(password.as_ref(), secrets, &mut errors)
             }
             _ => None,
         };
-        let mgmt = crate::management_network(site).map_or("lan", |n| n.id.as_str());
+        if target.role == NodeRole::Gateway {
+            errors.extend(upstream_overlaps(site, facts));
+        }
         if !errors.is_empty() {
             return Err(errors);
         }
@@ -200,6 +189,7 @@ impl<'a> Plan<'a> {
             wan_password,
             backup,
             mesh,
+            controller: target.controller,
             mgmt,
             errors,
             warnings,
@@ -236,52 +226,47 @@ impl<'a> Plan<'a> {
     }
 }
 
-/// The bridge's ports: the Ethernet ports (on an AP the WAN port too, as dumb APs bridge
-/// every port) but those `claimed` by a raw interface, a swconfig CPU port's device per VLAN,
-/// and `bat0`.
-fn ports(
-    role: NodeRole,
-    facts: &NodeFacts,
-    switch: Option<&SwitchLayout>,
-    nets: &[Net<'_>],
-    mesh: bool,
-    claimed: &BTreeSet<&str>,
-) -> Vec<Port> {
-    let layout = &facts.board.layout;
-    let on_switch = |name: &str| {
-        switch.is_some_and(|switch| {
-            switch.cpu_ports().iter().any(|cpu| {
-                name == cpu.device
-                    || name
-                        .strip_prefix(cpu.device.as_str())
-                        .and_then(|rest| rest.strip_prefix('.'))
-                        .is_some_and(|vid| vid.bytes().all(|b| b.is_ascii_digit()))
-            })
+/// The PPPoE password from the vault, or an error.
+fn pppoe_password(
+    password: Option<&uniwrt_model::site::SecretRef>,
+    secrets: &dyn Secrets,
+    errors: &mut Vec<Issue>,
+) -> Option<String> {
+    let value = password.and_then(|p| secrets.get(p)).map(str::to_owned);
+    if value.is_none() {
+        errors.push(Issue::new(
+            "wan/password",
+            "The PPPoE password isn't set or isn't in the vault",
+        ));
+    }
+    value
+}
+
+/// The networks whose subnet overlaps the one the gateway's uplinks hold now (`wan`, `wanb`),
+/// such as an ISP modem's 192.168.0.0/24: the gateway couldn't route between them.
+fn upstream_overlaps(site: &SiteConfig, facts: &NodeFacts) -> Vec<Issue> {
+    let upstream: Vec<_> = facts
+        .interfaces
+        .iter()
+        .filter(|i| matches!(i.name.as_str(), "wan" | "wanb"))
+        .flat_map(|i| i.ipv4.iter().map(uniwrt_core::Ipv4Net::trunc))
+        .collect();
+    site.networks
+        .iter()
+        .filter_map(|network| {
+            let subnet = network.ipv4.as_ref()?.address.trunc();
+            let wan = upstream
+                .iter()
+                .find(|up| up.contains(&subnet.network()) || subnet.contains(&up.network()))?;
+            Some(Issue::new(
+                format!("networks/{}/ipv4/address", network.id),
+                format!(
+                    "Its subnet {subnet} overlaps {wan}, which the gateway's uplink holds now \
+                     (the modem's network): choose another, or the gateway can't route"
+                ),
+            ))
         })
-    };
-    let mut names: Vec<&String> = layout.lan.iter().collect();
-    if role != NodeRole::Gateway {
-        names.extend(&layout.wan);
-    }
-    let mut ports: Vec<Port> = Vec::new();
-    for name in names {
-        if !on_switch(name)
-            && !claimed.contains(name.as_str())
-            && !ports.iter().any(|p| p.device() == name)
-        {
-            ports.push(Port::Trunk(name.clone()));
-        }
-    }
-    if let Some(cpu) = switch.and_then(|s| s.lan_cpu.as_ref()) {
-        ports.extend(nets.iter().map(|net| Port::Access {
-            device: format!("{}.{}", cpu.device, net.vid),
-            vid: net.vid,
-        }));
-    }
-    if mesh {
-        ports.push(Port::Trunk(BAT.to_owned()));
-    }
-    ports
+        .collect()
 }
 
 fn wan(

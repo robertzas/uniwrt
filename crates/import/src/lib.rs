@@ -8,8 +8,9 @@
 //!   the values of the secrets it found (for the caller to seal), and per node a
 //!   [`NodeImport`]: each section's [`Fate`], the residual (what applying the import would
 //!   still change), render's issues and a confidence score.
-//! - **Method:** the gateway gives the site-wide parts (site settings, networks, WAN, firewall,
-//!   DNS), every node its WLANs, radios and mesh. Each node is then rendered with the result
+//! - **Method:** the gateway gives the site-wide parts (site settings, networks with their DHCP
+//!   options and IPv6 modes, WAN, firewall, DNS), every node its WLANs, radios, mesh and port
+//!   profiles. Each node is then rendered with the result
 //!   and its sections are paired with the rendered ones, by name or by their type's key
 //!   ([`uniwrt_render::raw::key`]), after the renames render's naming needs (`uw_<wlan>_<band>`,
 //!   `uw_mesh`, network ids, zones named by their network). A paired section is the model's:
@@ -36,9 +37,11 @@ use uniwrt_model::{
 use uniwrt_render::Issue;
 use uniwrt_uci::{Diff, Package};
 
+mod dhcp;
 mod firewall;
 mod fit;
 mod networks;
+mod ports;
 mod read;
 mod settings;
 #[cfg(test)]
@@ -133,7 +136,9 @@ pub fn import(
     }
     wireless::import(&mut site, sources, &renames, &mut seal);
     for source in sources {
+        let ports = ports::import(&site, source);
         let config = node_config(&mut site, source.node);
+        config.ports = ports;
         config.hostname = read::first(source.packages, "system", "system")
             .and_then(|s| s.option("hostname"))
             .filter(|name| *name != source.facts.board.hostname)

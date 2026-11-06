@@ -174,6 +174,7 @@ fn scoped(
         role: node.role,
         facts: &reading.facts,
         current: &reading.packages,
+        controller: uniwrt_render::held_controller(&reading.packages),
     };
     let rendered = render(&trial, secrets, target).map_err(|issues| {
         let why: Vec<String> = issues.into_iter().map(|issue| issue.message).collect();

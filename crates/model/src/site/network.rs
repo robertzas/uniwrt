@@ -21,6 +21,8 @@ pub struct Network {
     /// The gateway's address and DHCP; `None` leaves the network without IPv4 on the gateway.
     pub ipv4: Option<Ipv4Config>,
     pub ipv6: Ipv6Mode,
+    /// How clients get their IPv6 addresses, when the network has IPv6.
+    pub ipv6_clients: Ipv6Clients,
     /// Clients on it cannot reach each other.
     pub isolation: bool,
     /// mDNS is reflected between this network and the others that have it on.
@@ -67,6 +69,39 @@ pub struct Dhcp {
     pub end: Ipv4Addr,
     pub lease_time_s: u32,
     pub reservations: Vec<Reservation>,
+    /// What the pool hands out besides addresses.
+    pub options: DhcpOptions,
+}
+
+/// The DHCP options a pool hands out (features/network.md, DHCP & local DNS).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct DhcpOptions {
+    /// DNS servers (option 6); empty hands out the gateway, which resolves local names.
+    #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
+    pub dns: Vec<Ipv4Addr>,
+    /// NTP servers (option 42); empty hands out none.
+    #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
+    pub ntp: Vec<Ipv4Addr>,
+    /// The domain (option 15); `None` hands out the site's.
+    pub domain: Option<String>,
+    /// Network boot (PXE).
+    pub boot: Option<Boot>,
+    /// Other options as dnsmasq reads them: `<code>,<value>` or `option:<name>,<value>`.
+    pub custom: Vec<String>,
+}
+
+/// Where a network-booting client finds its boot file (dnsmasq's `dhcp-boot`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Boot {
+    /// The boot file, such as `pxelinux.0` or `netboot.xyz.efi`.
+    pub filename: String,
+    /// The TFTP server's name.
+    pub server_name: Option<String>,
+    /// The TFTP server's address; `None` is the gateway.
+    #[cfg_attr(feature = "ts", ts(as = "Option<String>"))]
+    pub server: Option<Ipv4Addr>,
 }
 
 /// A fixed address for a client ("Fix IP").
@@ -92,4 +127,27 @@ pub enum Ipv6Mode {
     Delegated,
     /// Both.
     Both,
+}
+
+impl Ipv6Mode {
+    /// Whether the network has IPv6.
+    pub fn is_on(self) -> bool {
+        self != Self::Off
+    }
+}
+
+/// How clients get IPv6 addresses (odhcpd's router advertisements and DHCPv6).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum Ipv6Clients {
+    /// SLAAC only: router advertisements, no DHCPv6.
+    Slaac,
+    /// SLAAC, with stateless DHCPv6 for DNS and other options.
+    #[default]
+    SlaacStateless,
+    /// SLAAC and stateful DHCPv6 addresses side by side, as OpenWrt ships.
+    SlaacStateful,
+    /// Stateful DHCPv6 only: Android, which has no DHCPv6 client, gets no IPv6 address.
+    Stateful,
 }

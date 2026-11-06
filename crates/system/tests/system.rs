@@ -107,6 +107,19 @@ fn home_behind_vlan_201() {
         );
     }
 
+    // dnsmasq's init script takes the LAN's options and network boot (the AP's lease below shows
+    // it serves with them).
+    let conf = gw.sh("cat /var/etc/dnsmasq.conf.*", &[]);
+    for line in [
+        "dhcp-option=lan,6,10.0.0.1",
+        "dhcp-option=lan,42,10.0.0.1",
+        "dhcp-option=lan,15,home.arpa",
+        "dhcp-option=lan,26,1400",
+        "dhcp-boot=tag:lan,netboot.xyz.efi,nas,10.0.0.40",
+    ] {
+        assert!(conf.lines().any(|l| l == line), "{line} in:\n{conf}");
+    }
+
     let ap = access_point(&site);
     assert_eq!(ap.bridge_vlans().get("eth0"), Some(&trunk));
     for network in ["iot", "guest", "securitycams"] {

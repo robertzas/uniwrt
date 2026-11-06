@@ -3,20 +3,16 @@
 //! IPv6, DHCP pool and reservations; the ULA; the local DNS records; and an address space
 //! that holds them all.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    net::Ipv4Addr,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
-use uniwrt_core::{Ipv4Net, Ipv6Net, MacAddr};
+use uniwrt_core::{Ipv4Net, Ipv6Net};
 use uniwrt_model::site::{
     SiteConfig,
-    gateway::DnsRecord,
-    network::{Dhcp, Ipv4Config, Ipv6Mode, Network, Purpose, Reservation},
+    network::{Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
 };
 use uniwrt_uci::{Package, Section};
 
-use crate::{Source, read};
+use crate::{Source, dhcp, read};
 
 /// Ids render keeps for its own interfaces.
 const RESERVED: [&str; 6] = ["loopback", "wan", "wan6", "wan_6", "wanb", "bat0"];
@@ -51,7 +47,7 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
             .flatten()
             .map(|address| Ipv4Config {
                 address,
-                dhcp: pool(gateway.packages.get("dhcp"), name, address),
+                dhcp: dhcp::pool(gateway.packages.get("dhcp"), name, address),
             });
         found.push((
             name.to_owned(),
@@ -62,6 +58,11 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
                 vlan,
                 ipv4,
                 ipv6: ipv6(section),
+                ipv6_clients: if ipv6(section).is_on() {
+                    dhcp::clients(gateway.packages.get("dhcp"), name)
+                } else {
+                    Ipv6Clients::default()
+                },
                 isolation: false,
                 mdns: true,
                 igmp_snooping: false,
@@ -105,8 +106,8 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
             };
         }
     }
-    reservations(site, gateway.packages.get("dhcp"));
-    site.services.dns_records = dns_records(gateway.packages.get("dhcp"));
+    dhcp::reservations(site, gateway.packages.get("dhcp"));
+    site.services.dns_records = dhcp::dns_records(gateway.packages.get("dhcp"));
     address_space(site);
 }
 
@@ -161,16 +162,14 @@ impl Vlans {
                                     .any(|n| p.trim_end_matches('t') == n.to_string())
                             })
                             .collect();
-                        Some((
-                            vid,
-                            !user.is_empty() && user.iter().all(|p| p.ends_with('t')),
-                        ))
+                        Some((vid, user.iter().any(|p| p.ends_with('t'))))
                     })
                     .collect();
-                Some((cpu.device.clone(), vlans))
+                Some((cpu.device.clone(), one_untagged(vlans)))
             });
         // A swconfig CPU port's VLAN devices are the bridge's access ports: the switch says
-        // whether a VLAN is tagged; the other ports (Ethernet, bat0) are trunks that tag it.
+        // whether a VLAN is tagged; on the other ports (Ethernet, bat0) a VLAN is tagged when
+        // any of them tags it.
         let tagged = network
             .sections_of("bridge-vlan")
             .filter(|v| v.option("device").is_some_and(|d| bridges.contains(d)))
@@ -193,11 +192,12 @@ impl Vlans {
                         .and_then(|(_, vlans)| vlans.get(&vid).copied())
                         .unwrap_or(true)
                 } else {
-                    trunks.iter().filter(|p| p.ends_with(":t")).count() * 2 > trunks.len()
+                    trunks.iter().any(|p| p.ends_with(":t"))
                 };
                 Some((vid, tagged))
             })
             .collect();
+        let tagged = one_untagged(tagged);
         Self {
             bridges,
             tagged,
@@ -227,6 +227,20 @@ impl Vlans {
             tagged.then_some(vid)
         })
     }
+}
+
+/// Marks every VLAN tagged but the lowest one no port tags. A port profile may carry a tagged
+/// network untagged, but none tags the untagged network; a network no port tags at all is told
+/// apart by render's choice of the lowest free VLAN for the untagged one.
+fn one_untagged(mut vlans: BTreeMap<u16, bool>) -> BTreeMap<u16, bool> {
+    let mut first = true;
+    for tagged in vlans.values_mut() {
+        if !*tagged {
+            *tagged = !first;
+            first = false;
+        }
+    }
+    vlans
 }
 
 /// A network's purpose from its interface's name; the default one is chosen apart.
@@ -284,97 +298,6 @@ fn ipv6(interface: &Section) -> Ipv6Mode {
     }
 }
 
-/// The DHCP pool dnsmasq serves on `interface` (OpenWrt's defaults: start 100, limit 150,
-/// 12 h).
-fn pool(dhcp: Option<&Package>, interface: &str, address: Ipv4Net) -> Option<Dhcp> {
-    let section = dhcp?.sections_of("dhcp").find(|s| {
-        s.option("interface")
-            .or(s.name.as_deref())
-            .is_some_and(|i| i == interface)
-    })?;
-    if read::flag(section, "ignore") == Some(true) || section.option("dhcpv4") == Some("disabled") {
-        return None;
-    }
-    let number = |name: &str, default: u32| {
-        section
-            .option(name)
-            .map_or(Some(default), |v| v.parse().ok())
-    };
-    let base = u32::from(address.network());
-    let start = base.checked_add(number("start", 100)?)?;
-    let end = start.checked_add(number("limit", 150)?.checked_sub(1)?)?;
-    let last = u32::from(address.broadcast()).saturating_sub(1);
-    Some(Dhcp {
-        start: Ipv4Addr::from(start),
-        end: Ipv4Addr::from(end.min(last)),
-        lease_time_s: lease_time(section.option("leasetime").unwrap_or("12h")).unwrap_or(12 * 3600),
-        reservations: Vec::new(),
-    })
-}
-
-/// dnsmasq's lease time: seconds, or with a unit (`m`, `h`, `d`, `w`).
-fn lease_time(text: &str) -> Option<u32> {
-    let (digits, unit) = match text.char_indices().last()? {
-        (i, c) if c.is_ascii_alphabetic() => (&text[..i], c.to_ascii_lowercase()),
-        _ => (text, 's'),
-    };
-    let n: u32 = digits.parse().ok()?;
-    let scale = match unit {
-        's' => 1,
-        'm' => 60,
-        'h' => 3600,
-        'd' => 86_400,
-        'w' => 604_800,
-        _ => return None,
-    };
-    n.checked_mul(scale)
-}
-
-/// `host` sections with one MAC address and an IPv4 address, in the pool's network.
-fn reservations(site: &mut SiteConfig, dhcp: Option<&Package>) {
-    let Some(dhcp) = dhcp else { return };
-    for host in dhcp.sections_of("host") {
-        let (Some(mac), Some(ip)) = (
-            host.option("mac").and_then(|m| m.parse::<MacAddr>().ok()),
-            host.option("ip").and_then(|ip| ip.parse::<Ipv4Addr>().ok()),
-        ) else {
-            continue;
-        };
-        let pool = site
-            .networks
-            .iter_mut()
-            .filter_map(|n| n.ipv4.as_mut())
-            .find(|v4| v4.address.contains(&ip))
-            .and_then(|v4| v4.dhcp.as_mut());
-        if let Some(pool) = pool {
-            pool.reservations.push(Reservation {
-                mac,
-                ip,
-                name: host.option("name").map(str::to_owned),
-            });
-        }
-    }
-}
-
-fn dns_records(dhcp: Option<&Package>) -> Vec<DnsRecord> {
-    let Some(dhcp) = dhcp else {
-        return Vec::new();
-    };
-    let hosts = dhcp.sections_of("domain").filter_map(|d| {
-        Some(DnsRecord::Host {
-            name: d.option("name")?.to_owned(),
-            ip: d.option("ip")?.parse().ok()?,
-        })
-    });
-    let cnames = dhcp.sections_of("cname").filter_map(|c| {
-        Some(DnsRecord::Cname {
-            name: c.option("cname")?.to_owned(),
-            target: c.option("target")?.to_owned(),
-        })
-    });
-    hosts.chain(cnames).collect()
-}
-
 /// Widens the address space to hold every network: their common prefix, at least a /16, if
 /// that is private.
 fn address_space(site: &mut SiteConfig) {
@@ -404,19 +327,5 @@ fn address_space(site: &mut SiteConfig) {
     };
     if space.addr().is_private() {
         site.addressing.ipv4 = space;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::lease_time;
-
-    #[test]
-    fn lease_times_read_as_dnsmasq_reads_them() {
-        assert_eq!(lease_time("12h"), Some(43_200));
-        assert_eq!(lease_time("30m"), Some(1_800));
-        assert_eq!(lease_time("90"), Some(90));
-        assert_eq!(lease_time("1d"), Some(86_400));
-        assert_eq!(lease_time("infinite"), None);
     }
 }

@@ -12,7 +12,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[v1_to_v2, v2_to_v3];
+const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
 /// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
@@ -75,6 +75,41 @@ fn v2_to_v3(value: &mut Value) -> Result<(), String> {
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// v4 (M4.2a, D-077): networks gain how clients get IPv6 (SLAAC with stateless DHCPv6, as
+/// rendered before) and their pools DHCP options (none); nodes gain port profiles (none: every
+/// port a trunk).
+fn v3_to_v4(value: &mut Value) -> Result<(), String> {
+    let networks = value
+        .get_mut("networks")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no networks")?;
+    for network in networks {
+        let network = network
+            .as_object_mut()
+            .ok_or("a network is not an object")?;
+        network.insert("ipv6_clients".to_owned(), json!("slaac_stateless"));
+        if let Some(dhcp) = network
+            .get_mut("ipv4")
+            .and_then(|ipv4| ipv4.get_mut("dhcp"))
+            .and_then(Value::as_object_mut)
+        {
+            dhcp.insert(
+                "options".to_owned(),
+                json!({ "dns": [], "ntp": [], "domain": null, "boot": null, "custom": [] }),
+            );
+        }
+    }
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let node = node.as_object_mut().ok_or("a node is not an object")?;
+        node.insert("ports".to_owned(), json!([]));
     }
     Ok(())
 }

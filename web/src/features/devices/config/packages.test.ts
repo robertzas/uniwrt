@@ -10,7 +10,7 @@ describe("managed packages", () => {
     const chosen = withManaged(config, 2, ["firewall", "network"]);
     expect(config.nodes).toEqual([]);
     expect(chosen.nodes).toEqual([
-      { node: 2, hostname: null, managed: ["network", "firewall"], radios: [], raw: [] },
+      { node: 2, hostname: null, managed: ["network", "firewall"], radios: [], ports: [], raw: [] },
     ]);
     const named = {
       ...chosen,
@@ -18,7 +18,7 @@ describe("managed packages", () => {
     } as typeof chosen;
     const again = withManaged(named, 2, ["system"]);
     expect(again.nodes).toEqual([
-      { node: 2, hostname: "attic", managed: ["system"], radios: [], raw: [] },
+      { node: 2, hostname: "attic", managed: ["system"], radios: [], ports: [], raw: [] },
     ]);
     expect(managedOf(again, 2)).toEqual(["system"]);
   });

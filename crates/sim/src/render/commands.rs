@@ -129,6 +129,15 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
     let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
+        // The controller logs in from host .50 of the LAN.
+        ["env"] => {
+            let [a, b, c, _] = node.ip.octets();
+            ok(format!(
+                "USER=root\nSSH_CONNECTION={a}.{b}.{c}.50 50022 {} 22\nHOME=/root\n",
+                node.ip
+            )
+            .into_bytes())
+        }
         ["sh", "-c", script, "sh", key] if script.contains("/etc/dropbear/authorized_keys") => {
             let answer = if keys.iter().any(|line| line == key) {
                 "present"

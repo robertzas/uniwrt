@@ -23,6 +23,7 @@ pub fn key(package: &str, kind: &str) -> Option<&'static [&'static str]> {
         ("dhcp", "dnsmasq") | ("firewall", "defaults") | ("system", "system") => &[],
         ("dhcp", "host") => &["mac"],
         ("dhcp", "cname") => &["cname"],
+        ("dhcp", "boot") => &["networkid"],
         ("dhcp", "dhcp") => &["interface"],
         ("firewall", "forwarding") => &["src", "dest"],
         ("firewall", "include") => &["path"],

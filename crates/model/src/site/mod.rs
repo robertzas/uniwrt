@@ -12,10 +12,12 @@
 //!   finds the value it had. [`SiteConfig::secrets`] lists the slots by path, such as
 //!   `wlans/home/passphrase`.
 //! - **Checks:** [`validate`] finds errors (a save is refused) and warnings; [`diff`] compares two
-//!   documents by structure, matching list items by key.
+//!   documents by structure, matching list items by key. [`ipam`] suggests new networks and
+//!   reserved addresses under the address plan (D-077).
 
 pub mod diff;
 pub mod gateway;
+pub mod ipam;
 pub mod migrate;
 pub mod network;
 pub mod node;
@@ -31,13 +33,13 @@ use uniwrt_core::{Ipv4Net, Ipv6Net};
 
 use self::{
     gateway::{FirewallConfig, Services, WanConfig, WanProto},
-    network::{Dhcp, Ipv4Config, Ipv6Mode, Network, Purpose},
+    network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
     node::NodeConfig,
     wireless::{MeshConfig, RadioPolicy, Wlan},
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,6 +164,7 @@ impl SiteConfig {
                         end: Ipv4Addr::new(10, 0, 0, 249),
                         lease_time_s: 12 * 3600,
                         reservations: Vec::new(),
+                        options: DhcpOptions::default(),
                     }),
                 }),
                 // As OpenWrt ships: the stable ULA beside the ISP's delegated prefix.
@@ -170,6 +173,7 @@ impl SiteConfig {
                 } else {
                     Ipv6Mode::Delegated
                 },
+                ipv6_clients: Ipv6Clients::default(),
                 isolation: false,
                 mdns: true,
                 igmp_snooping: false,
@@ -301,5 +305,7 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     }
 }
 
+#[cfg(test)]
+mod lan_tests;
 #[cfg(test)]
 mod tests;

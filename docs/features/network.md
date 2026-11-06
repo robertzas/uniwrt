@@ -6,7 +6,7 @@ Milestones: M4.2 (IPAM, networks, firewall), M8.1 (services), M8.2 (VPN).
 ## Address plan (IPAM)
 
 The site address space defaults to **10.0.0.0/16** and is configurable at first run (any RFC 1918 range, plus a ULA for IPv6).
-How the space is carved is open decision O-1. The default gives each network a /24 whose third octet is the VLAN ID:
+Each network gets a /24 whose third octet is its VLAN ID (D-077); a VLAN with no third octet in the space takes the first free /24. The suggestions (`uniwrt_model::site::ipam`, `GET v1/ipam/network`, `GET v1/ipam/reservation`) only propose: any subnet that validates may be typed.
 
 | Network | VLAN | Subnet | Gateway | Notes |
 |---|---|---|---|---|
@@ -15,31 +15,34 @@ How the space is carved is open decision O-1. The default gives each network a /
 | Guest | 40 | 10.0.40.0/24 | 10.0.40.1 | Internet only; client isolation |
 | Management (optional) | 99 | 10.0.99.0/24 | 10.0.99.1 | Moves nodes off the user LAN |
 
+Usual VLANs: IoT 30, Guest 40, Management 99, others 50, 60, … (the next free one when taken). "Fix IP" keeps the client's current address when no reservation has it, else takes the first free one of .32–.99.
+
 IPAM guarantees:
-- No overlapping subnets; gateways and pools sit inside their subnet; reservations are unique.
-- No collision with the WAN side, including CGNAT 100.64.0.0/10 and ISP modem subnets.
-- 192.168.1.0/24 stays free for adopting factory-default devices.
+- No overlapping subnets; gateways and pools sit inside their subnet; reservations are unique (validation).
+- No collision with the WAN side: CGNAT 100.64.0.0/10 and a static WAN's subnet (validation), and the subnet the gateway's uplinks hold now, such as an ISP modem's (render refuses the plan).
+- 192.168.1.0/24 stays free for adopting factory-default devices (a warning).
 
 ## Networks
 
 Fields:
 - name; purpose (default | iot | guest | mgmt | custom); VLAN
-- IPv4: subnet, DHCP pool, lease time, options, reservations
-- IPv6: off | ULA | delegated (with a hint) | both; RA and DHCPv6 modes
+- IPv4: subnet, DHCP pool, lease time, reservations, options (DNS and NTP servers, domain, PXE boot, custom `<code>,<value>`)
+- IPv6: off | ULA | delegated | both (the hint is the VLAN ID); how clients get addresses: SLAAC only, SLAAC with stateless DHCPv6 (default), SLAAC and stateful DHCPv6 (as OpenWrt ships), stateful DHCPv6 only (Android gets no address)
 - inter-network policy (see Firewall) and client isolation
 - mDNS reflection membership and IGMP snooping
-- which nodes and ports carry the network
+
+Port profiles (per node, D-077): an Ethernet port carries one network untagged (its native network, or none) and tagged ones (all with a VLAN, none, or a list). A port without a profile is a trunk: the untagged network untagged, every VLAN tagged. Ports are named by device (`lan2`, `eth1`) or, on a swconfig switch, by number (`switch0:3`). The untagged network is never tagged.
 
 Rendering:
-- **Every node [M3.3]:** one bridge, `br-lan`, carries every network (D-067). With VLAN networks it filters VLANs: a `bridge-vlan` per network (the untagged network gets the lowest free VLAN ID inside the bridge), each network's interface on `br-lan.<vid>`, Ethernet ports and `bat0` as trunks, Wi-Fi joining through its interface. A swconfig switch gets a `switch_vlan` per network, tagged on the CPU port, and the CPU port's `<cpu>.<vid>` devices join the bridge as access ports.
-- **Gateway:** one static `interface` per network (`list ipaddr`, `ip6assign 64`, `ip6hint` = VLAN ID in hex, `ip6class` `local` for ULA-only or the delegating interface for delegated-only); dnsmasq `dhcp` sections with the pool as `start`/`limit`; odhcpd for IPv6 (RA with SLAAC and stateless DHCPv6); reservations as `host`, records as `domain` and `cname`.
+- **Every node [M3.3]:** one bridge, `br-lan`, carries every network (D-067). With VLAN networks it filters VLANs: a `bridge-vlan` per network (the untagged network gets the lowest free VLAN ID inside the bridge), each network's interface on `br-lan.<vid>`, Ethernet ports as their profiles say (trunks by default), `bat0` always a trunk, Wi-Fi joining through its interface. A swconfig switch gets a `switch_vlan` per network, tagged on the CPU port, its user ports as their profiles say, and the CPU port's `<cpu>.<vid>` devices join the bridge as access ports. A port that carries nothing leaves the bridge (on a switch, every VLAN). Profiles naming a port the node lacks, its WAN port or one the backup line or a raw interface takes are left out with a warning; on an AP, a linked port that would drop the node's own network warns (the apply's rollback catches a lost uplink).
+- **Gateway:** one static `interface` per network (`list ipaddr`, `ip6assign 64`, `ip6hint` = VLAN ID in hex, `ip6class` `local` for ULA-only or the delegating interface for delegated-only); dnsmasq `dhcp` sections with the pool as `start`/`limit` and the options as `list dhcp_option` (6, 42, 15, then custom), PXE as a `boot` section keyed by `networkid`; odhcpd per the clients mode (`dhcpv6`, `ra_slaac`, `ra_flags`); reservations as `host`, records as `domain` and `cname`.
 - **APs:** layer 2 only. Every port is bridged, the WAN port too. Management uses a DHCP client on the management network, else the default one; the other networks are `proto none`.
 - Bridge-wide in v1: IGMP snooping is on when any network asks for it. Client isolation renders on the network's WLANs (`isolate`) and, for the untagged network, as batman's `ap_isolation`; wired isolation and per-VLAN batman isolation come later. mDNS reflection needs M8.1's services.
 
 ## DHCP & local DNS
 
 - dnsmasq on the gateway: pools, reservations (created with "Fix IP" on the Clients page) and options (NTP, DNS, domain, PXE). Lease events stream to the controller and feed the client inventory.
-- Local DNS: `<hostname>.lan` is automatic, plus custom A/AAAA/CNAME records. `uniwrt.lan` always points at the controller.
+- Local DNS: `<hostname>.lan` is automatic, plus custom A/AAAA/CNAME records. `uniwrt.<domain>` points at the controller: an apply reads the controller's address from the gateway's `SSH_CONNECTION` and renders a `domain` record `uniwrt` when that address sits in one of the networks; a custom record can't take the name.
 - Upstream DNS [M8.1]: the ISP's, custom servers, or DoH/DoT (https-dns-proxy or stubby). Per-network DNS overrides. Blocklists (ads, trackers, malware) compiled into dnsmasq, with per-client bypass and query statistics.
 
 ## IPv6

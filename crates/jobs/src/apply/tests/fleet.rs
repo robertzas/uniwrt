@@ -118,6 +118,13 @@ impl FakeNode {
         {
             return Ok(output);
         }
+        if argv[0] == "env" {
+            // The controller logs in from 192.168.1.50.
+            return Ok(output(
+                0,
+                "USER=root\nSSH_CONNECTION=192.168.1.50 50022 192.168.1.1 22\n",
+            ));
+        }
         if argv[0] == "nslookup" {
             let up = self.role == NodeRole::Gateway && self.broken() != Some(Fault::DnsDown);
             return Ok(output(

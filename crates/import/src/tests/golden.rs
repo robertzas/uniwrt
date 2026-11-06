@@ -17,13 +17,22 @@ use uniwrt_render::Target;
 use super::{
     Found, assert_lossless, run, summary,
     support::{
-        AP, GATEWAY, defaults_site, gateway_facts, home_site, pppoe_site, secrets, stock,
+        AP, GATEWAY, defaults_site, gateway_facts, home_site, lan_site, pppoe_site, secrets, stock,
         swconfig_facts, triband_facts, x86_facts,
     },
 };
 use crate::Fate;
 
 fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) -> crate::Import {
+    round_trip_from(site, nodes, None)
+}
+
+/// [`round_trip`] of an apply made from `controller`.
+fn round_trip_from(
+    site: &SiteConfig,
+    nodes: &[(NodeId, NodeRole, NodeFacts)],
+    controller: Option<std::net::IpAddr>,
+) -> crate::Import {
     let current = stock();
     let found: Vec<Found> = nodes
         .iter()
@@ -36,6 +45,7 @@ fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) -> cra
                     role: *role,
                     facts,
                     current: &current,
+                    controller,
                 },
             )
             .expect("the golden site renders");
@@ -113,6 +123,59 @@ fn swconfig_and_pppoe_import_exactly() {
             (AP, NodeRole::Ap, swconfig_facts()),
         ],
     );
+}
+
+#[test]
+fn lan_services_and_port_profiles_import_exactly() {
+    let site = lan_site(false);
+    let import = round_trip_from(
+        &site,
+        &[
+            (GATEWAY, NodeRole::Gateway, gateway_facts()),
+            (AP, NodeRole::Ap, gateway_facts()),
+        ],
+        Some("10.0.0.2".parse().unwrap()),
+    );
+    let pools = |site: &SiteConfig| -> Vec<_> {
+        site.networks
+            .iter()
+            .map(|n| (n.ipv6_clients, n.ipv4.clone().and_then(|v4| v4.dhcp)))
+            .collect()
+    };
+    assert_eq!(pools(&import.site), pools(&site));
+    // The controller's record is render's, not a custom one.
+    assert_eq!(import.site.services.dns_records, site.services.dns_records);
+    for node in [GATEWAY, AP] {
+        let ports = |site: &SiteConfig| {
+            site.nodes
+                .iter()
+                .find(|n| n.node == node)
+                .map(|n| n.ports.clone())
+        };
+        assert_eq!(ports(&import.site), ports(&site), "node {node}");
+    }
+}
+
+#[test]
+fn swconfig_port_profiles_import_exactly() {
+    let mut site = lan_site(true);
+    site.mesh.enabled = false;
+    let import = round_trip(
+        &site,
+        &[
+            (GATEWAY, NodeRole::Gateway, swconfig_facts()),
+            (AP, NodeRole::Ap, swconfig_facts()),
+        ],
+    );
+    for node in &site.nodes {
+        let imported = import
+            .site
+            .nodes
+            .iter()
+            .find(|n| n.node == node.node)
+            .unwrap();
+        assert_eq!(imported.ports, node.ports, "node {}", node.node);
+    }
 }
 
 #[test]
@@ -253,6 +316,7 @@ fn a_queue_set_up_by_hand_is_renamed() {
             role: NodeRole::Gateway,
             facts: &facts,
             current: &current,
+            controller: None,
         },
     )
     .unwrap();

@@ -159,8 +159,14 @@ Remote syslog, on `system.@system[0]`: `log_ip`, `log_port`, `log_proto 'tcp'`, 
 Roaming options on a `wifi-iface`: `ieee80211r '1'`, `mobility_domain 'a1b2'`, `ft_over_ds '0'`, `ft_psk_generate_local '1'`, `ieee80211k '1'`, `bss_transition '1'`, `ieee80211w '0|1|2'`.
 
 VLANs:
-- DSA: `config bridge-vlan` with `device`, `vlan`, and `list ports 'lan1:u*'` / `'lan2:t'`.
-- swconfig: `config switch_vlan` with `device 'switch0'`, `vlan`, and `ports '0t 1 2'`.
+- DSA: `config bridge-vlan` with `device`, `vlan`, and `list ports 'lan1:u*'` / `'lan2:t'` (`u` untagged, `*` the port's PVID, `t` tagged). A port in no `bridge-vlan` of a filtering bridge passes nothing; render leaves such a port out of the bridge instead.
+- swconfig: `config switch_vlan` with `device 'switch0'`, `vlan`, and `ports '0t 1 2'` (a port untagged in one VLAN takes it as its PVID).
+
+DHCP options and network boot ✅ (25.12's `/etc/init.d/dnsmasq`): a pool's `list dhcp_option '6,10.0.0.1'` becomes `dhcp-option=<networkid>,6,10.0.0.1`, and a pool's `networkid` defaults to its `interface`; `config boot` with `filename`, `servername`, `serveraddress`, `networkid` becomes `dhcp-boot=tag:<networkid>,<file>,<name>,<address>`, and is skipped when it has an address but no name.
+
+odhcpd ✅: `dhcpv6 'server|disabled'`, `ra 'server'`, `ra_slaac '0|1'` (the A flag), `list ra_flags` of `managed-config` (M), `other-config` (O), or `none`; without `ra_flags` it sets O. Stock 23.05+ LANs have `managed-config` and `other-config` (SLAAC and stateful DHCPv6).
+
+Dropbear sets `SSH_CONNECTION` (`<client> <port> <server> <port>`) for every session, commands included: the controller's address as the node sees it.
 
 Dumb AP: disable the `dnsmasq`, `odhcpd` and `firewall` services, set `lan` to `proto dhcp`, and bridge all ports.
 

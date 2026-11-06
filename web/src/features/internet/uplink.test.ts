@@ -55,7 +55,9 @@ describe("SQM and failover forms", () => {
 
   it("manages SQM's and mwan3's packages on a gateway that manages network", () => {
     const config = siteView(1).config;
-    config.nodes = [{ node: 1, hostname: null, managed: ["network"], radios: [], raw: [] }];
+    config.nodes = [
+      { node: 1, hostname: null, managed: ["network"], radios: [], ports: [], raw: [] },
+    ];
     config.wan.sqm = { download_kbps: 1000, upload_kbps: 1000, overhead: null, autotune: false };
     expect(withManaged(config, 1).nodes[0]?.managed).toEqual(["network", "sqm"]);
     expect(withManaged(config, 2).nodes[0]?.managed).toEqual(["network"]);

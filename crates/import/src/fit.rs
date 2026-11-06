@@ -229,6 +229,7 @@ fn trial(
             role: source.role,
             facts: source.facts,
             current: source.packages,
+            controller: uniwrt_render::held_controller(source.packages),
         },
     )
 }
@@ -424,6 +425,9 @@ fn rename_interfaces(
                 (ManagedPackage::Dhcp, "dhcp") => {
                     rename(&mut section.name);
                     replace_items(section, "interface", |i| map.get(i).cloned());
+                }
+                (ManagedPackage::Dhcp, "boot") => {
+                    replace_items(section, "networkid", |i| map.get(i).cloned());
                 }
                 (ManagedPackage::Wireless, "wifi-iface") | (ManagedPackage::Firewall, "zone") => {
                     replace_items(section, "network", |i| map.get(i).cloned());

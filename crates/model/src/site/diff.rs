@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use super::SiteConfig;
 
 /// The fields that key list items, in the order they are tried.
-const KEYS: [&str; 4] = ["id", "node", "radio", "mac"];
+const KEYS: [&str; 5] = ["id", "node", "radio", "mac", "port"];
 
 /// One difference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

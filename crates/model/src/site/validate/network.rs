@@ -11,7 +11,7 @@ use super::{Issues, names};
 use crate::site::{
     SiteConfig,
     gateway::WanProto,
-    network::{Ipv4Config, Ipv6Mode, Network, Purpose},
+    network::{Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
 };
 
 const CGNAT: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(100, 64, 0, 0), 10);
@@ -193,6 +193,7 @@ fn ipv4_config(config: &SiteConfig, at: &str, ipv4: &Ipv4Config, issues: &mut Is
             "Leases last 2 minutes at least",
         );
     }
+    super::dhcp::options(at, &dhcp.options, issues);
     let (mut macs, mut ips) = (BTreeSet::new(), BTreeSet::new());
     for reservation in &dhcp.reservations {
         let path = format!("{at}/ipv4/dhcp/reservations/{}", reservation.mac);
@@ -232,6 +233,12 @@ fn ipv6(config: &SiteConfig, network: &Network, at: &str, issues: &mut Issues) {
         issues.error(
             format!("{at}/ipv6"),
             "The site has no ULA prefix to hand out",
+        );
+    }
+    if (ula || delegated) && network.ipv6_clients == Ipv6Clients::Stateful {
+        issues.warn(
+            format!("{at}/ipv6_clients"),
+            "Android has no DHCPv6 client: without SLAAC its devices get no IPv6 address",
         );
     }
     if delegated && !config.wan.ipv6.is_on() {

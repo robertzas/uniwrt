@@ -218,6 +218,10 @@ pub struct Services {
     pub dns_records: Vec<DnsRecord>,
 }
 
+/// The host name that always resolves to the controller on the LAN (`uniwrt.<domain>`): the
+/// gateway's dnsmasq holds it, and a custom record can't take it.
+pub const CONTROLLER_HOST: &str = "uniwrt";
+
 /// A local DNS record.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

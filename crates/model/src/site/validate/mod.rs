@@ -5,10 +5,12 @@
 //! and pools sit inside their subnet, reservations are unique, nothing collides with CGNAT
 //! (100.64.0.0/10) or the WAN, and 192.168.1.0/24 stays free for factory-default devices.
 
+mod dhcp;
 mod gateway;
 mod names;
 mod network;
 mod nodes;
+mod ports;
 mod wireless;
 
 use std::collections::BTreeSet;
@@ -18,6 +20,7 @@ use uniwrt_core::NodeId;
 
 use super::{SCHEMA_VERSION, SiteConfig};
 
+pub use dhcp::is_dhcp_option;
 pub use names::{is_hostname, is_id};
 pub use uniwrt_uci::{
     is_name as is_uci_name, is_package as is_uci_package, is_type as is_uci_type,

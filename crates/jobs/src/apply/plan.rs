@@ -31,6 +31,8 @@ pub(crate) struct Report<'a> {
     /// The packages installed from the feeds, by name, or why they can't be read: only a
     /// configuration that needs one fails on that.
     pub(crate) installed: Result<&'a BTreeSet<String>, &'a String>,
+    /// The controller's address as the gateway sees it, for the `uniwrt` record.
+    pub(crate) controller: Option<std::net::IpAddr>,
 }
 
 /// One node's part, as the job carries it out.
@@ -78,6 +80,27 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
     }
 }
 
+/// The node's packages that parse; an issue for each that doesn't.
+fn parsed(
+    files: &BTreeMap<String, Option<String>>,
+    issues: &mut Vec<PlanIssue>,
+) -> BTreeMap<String, uniwrt_uci::Package> {
+    let mut current = BTreeMap::new();
+    for (name, file) in files {
+        let Some(text) = file else { continue };
+        match uniwrt_uci::parse(name, text) {
+            Ok(package) => {
+                current.insert(name.clone(), package);
+            }
+            Err(err) => issues.push(issue(
+                "node",
+                format!("The node's /etc/config/{name} doesn't parse: {err}"),
+            )),
+        }
+    }
+    current
+}
+
 pub(crate) fn plan(
     site: &SiteConfig,
     secrets: &dyn Secrets,
@@ -97,19 +120,7 @@ pub(crate) fn plan(
     };
     part.plan.reason = None;
     part.plan.raw = raw_overrides(site, node);
-    let mut current = BTreeMap::new();
-    for (name, file) in report.files {
-        let Some(text) = file else { continue };
-        match uniwrt_uci::parse(name, text) {
-            Ok(package) => {
-                current.insert(name.clone(), package);
-            }
-            Err(err) => part.plan.issues.push(issue(
-                "node",
-                format!("The node's /etc/config/{name} doesn't parse: {err}"),
-            )),
-        }
-    }
+    let current = parsed(report.files, &mut part.plan.issues);
     if !part.plan.issues.is_empty() {
         part.plan.action = PlanAction::Refused;
         return part;
@@ -119,6 +130,7 @@ pub(crate) fn plan(
         role: node.role,
         facts: report.facts,
         current: &current,
+        controller: report.controller,
     };
     let rendered = match render(site, secrets, target) {
         Ok(rendered) => rendered,

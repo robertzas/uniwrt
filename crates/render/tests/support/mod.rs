@@ -14,8 +14,11 @@ use uniwrt_model::{
     site::{
         SecretRef, SiteConfig,
         gateway::{DnsRecord, WanProto, ZoneAction, ZonePolicy},
-        network::{Dhcp, Ipv4Config, Ipv6Mode, Network, Purpose, Reservation},
-        node::{ManagedPackage, NodeConfig, RadioOverride},
+        network::{
+            Boot, Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose,
+            Reservation,
+        },
+        node::{ManagedPackage, NodeConfig, PortConfig, RadioOverride, TaggedNetworks},
         wireless::{NodeScope, TxPower, Wlan, WlanSecurity},
     },
     wifi::{Band, ChannelWidth, WifiStandard},
@@ -232,9 +235,11 @@ fn net(id: &str, name: &str, purpose: Purpose, vlan: u16, ipv6: Ipv6Mode) -> Net
                 end: Ipv4Addr::new(10, 0, u8::try_from(vlan).unwrap(), 249),
                 lease_time_s: 3600,
                 reservations: Vec::new(),
+                options: DhcpOptions::default(),
             }),
         }),
         ipv6,
+        ipv6_clients: Ipv6Clients::default(),
         isolation: false,
         mdns: false,
         igmp_snooping: false,
@@ -342,6 +347,54 @@ pub(crate) fn home_site() -> SiteConfig {
 }
 
 /// The home site behind PPPoE, without the mesh.
+/// The home site with the LAN's services and port profiles (M4.2a): DHCP options and network
+/// boot, two IPv6 clients modes, and on each node a port that carries one network untagged, one
+/// that carries only a tagged one, and one that carries nothing (by name on DSA boards, by
+/// number on a swconfig switch).
+pub(crate) fn lan_site(swconfig: bool) -> SiteConfig {
+    let mut site = home_site();
+    let lan = &mut site.networks[0];
+    lan.ipv6_clients = Ipv6Clients::SlaacStateful;
+    if let Some(dhcp) = lan.ipv4.as_mut().and_then(|ipv4| ipv4.dhcp.as_mut()) {
+        dhcp.options = DhcpOptions {
+            dns: vec![Ipv4Addr::new(10, 0, 0, 53)],
+            ntp: vec![Ipv4Addr::new(10, 0, 0, 1)],
+            domain: Some("home.arpa".to_owned()),
+            boot: Some(Boot {
+                filename: "netboot.xyz.efi".to_owned(),
+                server_name: Some("nas".to_owned()),
+                server: Some(Ipv4Addr::new(10, 0, 0, 40)),
+            }),
+            custom: vec!["26,1400".to_owned()],
+        };
+    }
+    site.networks[1].ipv6_clients = Ipv6Clients::Slaac;
+    let [untagged, tagged, none] = if swconfig {
+        ["switch0:3", "switch0:4", "switch0:5"]
+    } else {
+        ["lan3", "lan4", "lan5"]
+    };
+    let profile = |port: &str, native: Option<&str>, tagged: TaggedNetworks| PortConfig {
+        port: port.to_owned(),
+        native: native.map(str::to_owned),
+        tagged,
+    };
+    for config in &mut site.nodes {
+        config.ports = vec![
+            profile(untagged, Some("iot"), TaggedNetworks::None),
+            profile(
+                tagged,
+                None,
+                TaggedNetworks::Only {
+                    networks: vec!["guest".to_owned()],
+                },
+            ),
+            profile(none, None, TaggedNetworks::None),
+        ];
+    }
+    site
+}
+
 pub(crate) fn pppoe_site() -> SiteConfig {
     let mut site = home_site();
     site.mesh.enabled = false;
@@ -405,6 +458,7 @@ pub(crate) fn run_on(
             role,
             facts,
             current,
+            controller: None,
         },
     )
 }

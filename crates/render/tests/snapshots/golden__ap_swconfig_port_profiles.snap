@@ -1,0 +1,211 @@
+---
+source: crates/render/tests/golden.rs
+expression: show(&result)
+---
+services: dnsmasq off, firewall off, odhcpd off
+warning: node/radios/radio0: The node can't choose 5 GHz channels itself (its hostapd has no ACS): the radio stays on channel 36
+warning: node/radios/radio1: The node can't choose 2.4 GHz channels itself (its hostapd has no ACS): the radio stays on channel 6
+
+# system
+
+config system
+	option hostname 'ap-garden'
+	option timezone 'MST7MDT,M3.2.0,M11.1.0'
+	option zonename 'America/Denver'
+	option ttylogin '0'
+	option log_size '128'
+	option urandom_seed '0'
+
+config timeserver 'ntp'
+	option enabled '1'
+	option enable_server '0'
+	list server '0.openwrt.pool.ntp.org'
+	list server '1.openwrt.pool.ntp.org'
+	list server '2.openwrt.pool.ntp.org'
+	list server '3.openwrt.pool.ntp.org'
+
+
+# network
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	list ipaddr '127.0.0.1/8'
+
+config globals 'globals'
+	option ula_prefix 'fd12:3456:789a::/48'
+	option dhcp_default_duid '0004b1bdbfa2e391406aa5c928b467d1710b'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'eth0.1'
+	list ports 'eth0.30'
+	list ports 'eth0.40'
+	option igmp_snooping '1'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '1'
+	list ports 'eth0.1:u*'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '30'
+	list ports 'eth0.30:u*'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '40'
+	list ports 'eth0.40:u*'
+
+config switch
+	option name 'switch0'
+	option reset '1'
+	option enable_vlan '1'
+
+config switch_vlan
+	option device 'switch0'
+	option vlan '1'
+	option vid '1'
+	option ports '2 1 0t'
+
+config switch_vlan
+	option device 'switch0'
+	option vlan '2'
+	option vid '30'
+	option ports '2t 3 1t 0t'
+
+config switch_vlan
+	option device 'switch0'
+	option vlan '3'
+	option vid '40'
+	option ports '2t 4t 1t 0t'
+
+config interface 'lan'
+	option device 'br-lan.1'
+	option proto 'dhcp'
+
+config interface 'iot'
+	option device 'br-lan.30'
+	option proto 'none'
+
+config interface 'guest'
+	option device 'br-lan.40'
+	option proto 'none'
+
+
+# wireless
+
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option path 'pci0000:00/0000:00:00.0'
+	option band '5g'
+	option channel '36'
+	option htmode 'VHT80'
+	option country 'US'
+	option txpower '14'
+
+config wifi-device 'radio1'
+	option type 'mac80211'
+	option path 'platform/ahb/18100000.wmac'
+	option band '2g'
+	option channel '6'
+	option htmode 'HT20'
+	option country 'US'
+
+config wifi-iface 'uw_home_5g'
+	option device 'radio0'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'Home'
+	option encryption 'sae-mixed'
+	option key 'correct horse battery'
+	option ieee80211w '1'
+
+config wifi-iface 'uw_guest_5g'
+	option device 'radio0'
+	option network 'guest'
+	option mode 'ap'
+	option ssid 'Guest'
+	option encryption 'owe'
+	option ieee80211w '2'
+	option isolate '1'
+
+config wifi-iface 'uw_home_2g'
+	option device 'radio1'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'Home'
+	option encryption 'sae-mixed'
+	option key 'correct horse battery'
+	option ieee80211w '1'
+
+config wifi-iface 'uw_things_2g'
+	option device 'radio1'
+	option network 'iot'
+	option mode 'ap'
+	option ssid 'Things'
+	option encryption 'psk2'
+	option key 'things-only-2024'
+
+config wifi-iface 'uw_guest_2g'
+	option device 'radio1'
+	option network 'guest'
+	option mode 'ap'
+	option ssid 'Guest'
+	option encryption 'owe'
+	option ieee80211w '2'
+	option isolate '1'
+
+
+# dhcp
+
+config dnsmasq
+	option domainneeded '1'
+	option boguspriv '1'
+	option filterwin2k '0'
+	option localise_queries '1'
+	option rebind_protection '1'
+	option rebind_localhost '1'
+	option local '/lan/'
+	option domain 'lan'
+	option expandhosts '1'
+	option nonegcache '0'
+	option cachesize '1000'
+	option authoritative '1'
+	option readethers '1'
+	option leasefile '/tmp/dhcp.leases'
+	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+	option nonwildcard '1'
+	option localservice '1'
+	option ednspacket_max '1232'
+
+config dhcp 'lan'
+	option interface 'lan'
+	option ignore '1'
+
+config dhcp 'iot'
+	option interface 'iot'
+	option ignore '1'
+
+config dhcp 'guest'
+	option interface 'guest'
+	option ignore '1'
+
+config odhcpd 'odhcpd'
+	option maindhcp '0'
+	option leasetrigger '/usr/sbin/odhcpd-update'
+	option loglevel '4'
+	option leasefile '/tmp/odhcpd.leases'
+	option piodir '/tmp/odhcpd-piodir'
+	option hostsdir '/tmp/hosts'
+
+
+# firewall
+
+config defaults
+	option syn_flood '1'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'REJECT'

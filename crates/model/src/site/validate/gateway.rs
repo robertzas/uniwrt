@@ -11,7 +11,8 @@ use super::{Issues, names};
 use crate::site::{
     SiteConfig,
     gateway::{
-        BackupLink, BackupProto, DhcpClient, DnsRecord, Failover, Sqm, WanConfig, WanIpv6, WanProto,
+        BackupLink, BackupProto, CONTROLLER_HOST, DhcpClient, DnsRecord, Failover, Sqm, WanConfig,
+        WanIpv6, WanProto,
     },
 };
 
@@ -293,6 +294,14 @@ pub(super) fn services(config: &SiteConfig, issues: &mut Issues) {
         };
         if !names::is_dns_name(name) {
             issues.error(format!("{at}/name"), format!("{name:?} is not a DNS name"));
+        } else if is_controller_name(name, &config.site.domain) {
+            issues.error(
+                format!("{at}/name"),
+                format!(
+                    "uniwrt.{} always points at the controller",
+                    config.site.domain
+                ),
+            );
         }
         if let Some(target) = target
             && !names::is_dns_name(target)
@@ -303,4 +312,15 @@ pub(super) fn services(config: &SiteConfig, issues: &mut Issues) {
             );
         }
     }
+}
+
+/// Whether `name` is the controller's own record, `uniwrt` (dnsmasq adds the domain).
+fn is_controller_name(name: &str, domain: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    let name = name.strip_suffix('.').unwrap_or(&name);
+    name == CONTROLLER_HOST
+        || name
+            .strip_prefix(CONTROLLER_HOST)
+            .and_then(|rest| rest.strip_prefix('.'))
+            .is_some_and(|rest| rest.eq_ignore_ascii_case(domain))
 }

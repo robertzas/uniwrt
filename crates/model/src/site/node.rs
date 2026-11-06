@@ -23,6 +23,8 @@ pub struct NodeConfig {
     /// The packages the controller renders and owns whole; the others it never touches.
     pub managed: BTreeSet<ManagedPackage>,
     pub radios: Vec<RadioOverride>,
+    /// The Ethernet ports that don't carry every network; the others are trunks.
+    pub ports: Vec<PortConfig>,
     pub raw: Vec<RawSection>,
 }
 
@@ -34,6 +36,7 @@ impl NodeConfig {
             hostname: None,
             managed: BTreeSet::new(),
             radios: Vec::new(),
+            ports: Vec::new(),
             raw: Vec::new(),
         }
     }
@@ -72,6 +75,40 @@ impl ManagedPackage {
             Self::Wireguard => "wireguard",
         }
     }
+}
+
+/// Which networks an Ethernet port carries (features/network.md, Networks). A port without
+/// one is a trunk: the untagged network untagged, every network with a VLAN tagged.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct PortConfig {
+    /// The port: a network device such as `lan2` or `eth1`, or a swconfig switch's port by
+    /// number, such as `switch0:3`.
+    pub port: String,
+    /// The network it carries untagged, which untagged frames join; `None` carries none.
+    pub native: Option<String>,
+    pub tagged: TaggedNetworks,
+}
+
+impl PortConfig {
+    /// The swconfig switch port's name.
+    pub fn switch_port(switch: &str, number: u8) -> String {
+        format!("{switch}:{number}")
+    }
+}
+
+/// The networks a port carries tagged: only networks with a VLAN, never its native one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TaggedNetworks {
+    /// Every network with a VLAN, including ones added later.
+    All,
+    None,
+    /// These networks, by id.
+    Only {
+        networks: Vec<String>,
+    },
 }
 
 /// How one radio differs from the site's band policy.

@@ -19,7 +19,9 @@
 //!   ([`DriftState`](uniwrt_model::drift::DriftState)), admins: `POST
 //!   v1/nodes/{id}/drift/{package}/acknowledge`, `PUT v1/nodes/{id}/drift/{package}/mute`
 //!   ([`DriftMuteBody`]), and a drift's import (`{"drift": …}`, [`ImportRequest`]); see
-//!   `drift`), the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
+//!   `drift`), the address plan's suggestions (`GET v1/ipam/network`, `GET
+//!   v1/ipam/reservation` ([`ReservationSuggestion`]); see `ipam`),
+//!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
@@ -80,6 +82,9 @@ mod drift;
 mod events;
 mod health;
 mod import;
+mod ipam;
+#[cfg(test)]
+mod ipam_tests;
 mod jobs;
 mod logs;
 mod management;
@@ -125,6 +130,7 @@ pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use health::BuildInfo;
 pub use import::{DriftTarget, ImportAccept, ImportRequest};
+pub use ipam::ReservationSuggestion;
 pub use logs::{
     LogContext, LogHistogram, LogPage, LogPatterns, LogSourceList, NewSearch, SavedSearches,
 };
@@ -240,6 +246,8 @@ fn config_routes() -> Router<Api> {
     Router::new()
         .route("/v1/site", get(site::get).put(site::put))
         .route("/v1/isp/presets", get(wan::presets))
+        .route("/v1/ipam/network", get(ipam::network))
+        .route("/v1/ipam/reservation", get(ipam::reservation))
         .route("/v1/wan/test", post(wan::test))
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))

@@ -11,12 +11,17 @@
 //!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
-//!   network's interface sits on `br-lan.<vid>`, Ethernet ports and `bat0` are trunks (the
-//!   untagged network untagged, the others tagged), and Wi-Fi joins through its interface. A
-//!   swconfig switch maps each VLAN to the CPU port, whose `<cpu>.<vid>` devices join the
-//!   bridge as access ports. The gateway routes: a static interface per network, the WAN,
-//!   dnsmasq and odhcpd, and a firewall zone per network seeded by its purpose. APs bridge
-//!   only: a DHCP client on the management network, and dnsmasq, odhcpd and the firewall off.
+//!   network's interface sits on `br-lan.<vid>`, `bat0` is a trunk (the untagged network
+//!   untagged, the others tagged), Ethernet ports are trunks unless the node's port profiles
+//!   say otherwise (a port that carries nothing leaves the bridge), and Wi-Fi joins through its
+//!   interface. A swconfig switch maps each VLAN to the CPU port, whose `<cpu>.<vid>` devices
+//!   join the bridge as access ports, and its user ports per their profiles. The gateway
+//!   routes: a static interface per network, the WAN, dnsmasq (pools with their options and
+//!   network boot, and `uniwrt.<domain>` for the controller when [`Target::controller`] sits in
+//!   a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
+//!   seeded by its purpose; a network overlapping the subnet its uplink holds now is an issue.
+//!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
+//!   firewall off.
 //! - **Invariants:** pure: no IO, no clock; the same input gives the same packages. Rendering
 //!   reads capabilities (switch kind, hostapd features, batman-adv), never release versions.
 //!   Values the node generated for itself (its DHCP DUID, LED sections, odhcpd's paths) are
@@ -26,7 +31,7 @@
 //! - **Tests:** unit tests beside each part; `tests/golden.rs` renders each role × feature ×
 //!   capability set into `tests/snapshots/` (insta; review changes, never accept them blindly).
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, net::IpAddr};
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
@@ -47,6 +52,7 @@ mod firewall;
 mod mesh;
 mod network;
 mod plan;
+mod ports;
 mod preserve;
 pub mod raw;
 mod sqm;
@@ -75,6 +81,22 @@ pub struct Target<'a> {
     /// The packages the node holds now, read right before rendering, by name; the source of
     /// the values it generated for itself. Empty when unknown.
     pub current: &'a BTreeMap<String, Package>,
+    /// The controller's address as the gateway sees it: inside a network's subnet, the
+    /// gateway's dnsmasq resolves `uniwrt.<domain>` to it.
+    pub controller: Option<IpAddr>,
+}
+
+/// The controller's address that the node's `uniwrt` record holds (in `current`'s `dhcp`):
+/// where the controller was when it last applied. A render compared with what the node holds,
+/// rather than applied, passes it as [`Target::controller`].
+pub fn held_controller(current: &BTreeMap<String, Package>) -> Option<IpAddr> {
+    current
+        .get("dhcp")?
+        .sections_of("domain")
+        .find(|d| d.option("name") == Some(uniwrt_model::site::gateway::CONTROLLER_HOST))?
+        .option("ip")?
+        .parse()
+        .ok()
 }
 
 /// What a node is given.

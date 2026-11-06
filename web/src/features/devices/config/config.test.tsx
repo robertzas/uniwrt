@@ -135,7 +135,7 @@ describe("Device › Config", () => {
     expect(sent.base).toBe(2);
     expect(sent.message).toBe("Manage network and dhcp on gw");
     expect(sent.config.nodes).toEqual([
-      { node: 1, hostname: null, managed: ["network", "dhcp"], radios: [], raw: [] },
+      { node: 1, hostname: null, managed: ["network", "dhcp"], radios: [], ports: [], raw: [] },
     ]);
   });
 
