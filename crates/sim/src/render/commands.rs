@@ -95,8 +95,13 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
     if let Some(output) = disk.tool.exec(&request.argv, request.stdin.as_deref(), now) {
         return output;
     }
-    let keys = &mut disk.authorized_keys;
     let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
+    if node.gateway
+        && let Some(output) = wan_check(node, &argv, &disk.tool.files)
+    {
+        return output;
+    }
+    let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
         ["sh", "-c", script, "sh", key] if script.contains("/etc/dropbear/authorized_keys") => {
@@ -130,6 +135,46 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         [command, ..] => failed(127, format!("sh: {command}: not found\n")),
         [] => failed(127, "sh: : not found\n".to_owned()),
     }
+}
+
+/// The WAN test's commands on the gateway (`ping`, `nslookup` through a resolver, `wget`): they
+/// answer once the ISP gave the WAN what they need.
+fn wan_check(
+    node: &Node,
+    argv: &[&str],
+    files: &std::collections::BTreeMap<String, String>,
+) -> Option<ExecOutput> {
+    let uplink = crate::isp::uplink(
+        files.get("network").map(String::as_str),
+        node.model.wan_port,
+    );
+    let ipv6 = uplink.wan6.as_ref().is_some_and(|(_, up)| *up);
+    let reached = match argv {
+        ["ping", "-6", ..] => ipv6,
+        ["ping" | "wget", ..] => uplink.ipv4(),
+        ["nslookup", _, server] if *server != "127.0.0.1" => uplink.ipv4(),
+        _ => return None,
+    };
+    Some(match (argv[0], reached) {
+        ("ping", true) => ok(
+            b"3 packets transmitted, 3 packets received, 0% packet loss\n\
+                              round-trip min/avg/max = 3.912/4.410/5.208 ms\n"
+                .to_vec(),
+        ),
+        ("ping", false) => failed(1, "ping: sendto: Network unreachable\n".to_owned()),
+        ("nslookup", true) => ok(format!(
+            "Server:\t\t{server}\nAddress:\t{server}:53\n\nName:\t{name}\nAddress: 192.0.2.53\n",
+            server = argv[2],
+            name = argv[1],
+        )
+        .into_bytes()),
+        ("nslookup", false) => failed(
+            1,
+            ";; connection timed out; no servers could be reached\n".to_owned(),
+        ),
+        (_, true) => ok(Vec::new()),
+        (_, false) => failed(4, "wget: download timed out\n".to_owned()),
+    })
 }
 
 fn release(node: &Node) -> String {

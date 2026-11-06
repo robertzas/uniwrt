@@ -208,6 +208,13 @@ pub(crate) async fn dns(remote: &dyn Remote, role: NodeRole) -> [bool; 2] {
 /// The vault's values of the site's secrets, wiped when dropped.
 pub(crate) struct VaultSecrets(BTreeMap<SecretRef, Zeroizing<String>>);
 
+impl VaultSecrets {
+    /// Adds a value not in the vault yet, such as a password a WAN test tries.
+    pub(crate) fn insert(&mut self, secret: SecretRef, value: Zeroizing<String>) {
+        self.0.insert(secret, value);
+    }
+}
+
 impl Secrets for VaultSecrets {
     fn get(&self, secret: &SecretRef) -> Option<&str> {
         self.0.get(secret).map(|value| value.as_str())

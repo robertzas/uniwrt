@@ -80,17 +80,19 @@ Import reads all of these back, and a 6rd interface under another name (`wan6rd`
 
 Snippets: [openwrt/REFERENCE.md](../openwrt/REFERENCE.md).
 
-## Connectivity test (runs before confirm)
+## Connectivity test (runs before saving)
 
-Each step reports live:
-1. Link up, then VLAN carrier.
-2. DHCP lease or PPP session.
-3. Default route; ping the upstream gateway.
-4. DNS resolution through 2 resolvers.
-5. HTTPS connectivity check.
-6. IPv6: prefix delegated or 6rd tunnel up, then ping6.
+The wizard's **Test** runs the `wan_test` job (`crates/jobs/src/wan_test/`, D-075): it tries the WAN on the gateway (which must be managed) and **always rolls it back**, so nothing is saved until the user chooses to. Only the WAN's sections of the gateway's own `network` change during the trial: interfaces named `wan…`, the devices on the WAN port and, on swconfig, the WAN's switch VLAN. The dead-man timer for uplink changes (300 s) covers it if the controller loses the gateway. `POST /api/v1/wan/test` starts it (admins, audited; 422 with the WAN's issues, 409 while the gateway is in observe mode), and the job's steps report live over the `jobs` topic:
 
-A failure produces a precise hint, for example "No DHCP offer on VLAN 201. Is the ONT in bridge mode?"
+1. Link on the WAN port (or its VLAN device).
+2. Address: a DHCP lease, a PPP session, the static address or the DS-Lite tunnel. netifd's `AUTH_FAILED` ends the wait at once.
+3. Gateway: a default route, then a ping of the next hop (a gateway that ignores pings doesn't fail it).
+4. DNS: `openwrt.org` through the ISP's resolver and 9.9.9.9; one is enough.
+5. HTTPS: `wget --spider https://openwrt.org/` (skipped where wget is missing).
+6. IPv6: a delegated prefix (DHCPv6) or the tunnel's prefix (6rd), then a ping of 2620:fe::fe.
+7. 6rd (with a preset's `auto` only): when DHCPv6 delegated no prefix, a second trial with the preset's 6rd. The wizard saves whichever worked.
+
+The test fails (`no_internet`) when IPv4 doesn't reach the internet (steps 1–5); the failed step's hint is the message, a preset's own (`[hints]`) before the generic one, for example "No DHCP offer on VLAN 201. Is the ONT in transparent bridge mode?". IPv6 failing fails only its step. In demo mode the simulated ISP behaves like Lumen (DHCP on VLAN 201, a /56 by DHCPv6, a 6rd relay at 205.171.2.64; PPPoE finds no server), so a wrong preset fails there too.
 
 ## SQM (bufferbloat) [M4.1]
 

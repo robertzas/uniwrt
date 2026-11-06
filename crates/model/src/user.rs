@@ -74,6 +74,8 @@ pub enum AuditAction {
     /// A user acknowledged a node's drift, or muted or watched a package's (the detail says
     /// which).
     Drift,
+    /// A user tried a WAN on the gateway (the detail names the job).
+    WanTest,
 }
 
 /// One audit log entry.

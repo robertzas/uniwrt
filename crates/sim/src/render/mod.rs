@@ -70,6 +70,7 @@ pub(crate) fn collect(
         .map(|&set| {
             let value = match set {
                 Set::Config => config::hashes(files),
+                Set::Interfaces => net::interfaces(world, node, files),
                 _ => set_of(world, node, set),
             };
             (set.as_str().to_owned(), value)
@@ -86,7 +87,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Capabilities => system::capabilities(node),
         Set::Config => json!({"files": {}}),
         Set::Devices => devices::devices(world, n),
-        Set::Interfaces => net::interfaces(world, n),
+        Set::Interfaces => net::interfaces(world, n, &BTreeMap::new()),
         Set::Leases => l2::leases(world, n),
         Set::Neighbors => l2::neighbors(world, n),
         Set::Phys => wifi::phys(),

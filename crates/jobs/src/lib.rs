@@ -7,6 +7,7 @@
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
 //!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
+//!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
@@ -27,6 +28,11 @@
 //!   node holds; renumbered nodes moved and watched again). A failure before a confirm rolls
 //!   every applied node back; a later lost confirm is a partial apply. It holds every managed
 //!   node's key.
+//! - **WAN test** (`wan_test/`): connect (the gateway) → plan (the latest revision with the WAN
+//!   tried, rendered; only the WAN's sections of its own `network` change) → stage → apply →
+//!   the connectivity checks live (link, address, gateway, DNS, HTTPS, IPv6; a second trial
+//!   with a 6rd fallback when DHCPv6 delegates no prefix) → rollback, always. It fails
+//!   (`no_internet`, with the hint) when IPv4 doesn't reach the internet.
 //! - **Import** (`import.rs`, no job: the caller waits): log in to every adopted node (observe
 //!   mode too) → read the packages render writes and the facts → `uniwrt_import` on the latest
 //!   revision → seal the secrets found (keeping a reference whose vault value is the same) → the
@@ -65,12 +71,14 @@ mod remote;
 mod runner;
 #[cfg(test)]
 mod testing;
+mod wan_test;
 
 pub use adopt::AdoptRequest;
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
+pub use wan_test::WanTest;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -86,6 +94,11 @@ pub enum Error {
     NoNode(uniwrt_core::NodeId),
     #[error("the site has no revision yet")]
     NoRevision,
+    #[error("no gateway is adopted")]
+    NoGateway,
+    /// The node is in observe mode: nothing may change on it.
+    #[error("node {0} is in observe mode")]
+    Observed(uniwrt_core::NodeId),
     /// The revision to apply is no longer the latest.
     #[error("revision {revision} is not the latest: {head} is")]
     Stale {

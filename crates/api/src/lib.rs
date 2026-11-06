@@ -19,7 +19,8 @@
 //!   ([`DriftState`](uniwrt_model::drift::DriftState)), admins: `POST
 //!   v1/nodes/{id}/drift/{package}/acknowledge`, `PUT v1/nodes/{id}/drift/{package}/mute`
 //!   ([`DriftMuteBody`]), and a drift's import (`{"drift": …}`, [`ImportRequest`]); see
-//!   `drift`), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   `drift`), the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
+//!   ([`WanTestBody`], a job); see `wan`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -95,6 +96,9 @@ mod state;
 mod testing;
 mod tls;
 mod topology;
+mod wan;
+#[cfg(test)]
+mod wan_tests;
 mod ws;
 
 use axum::{
@@ -137,6 +141,7 @@ pub use site::{
 };
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
+pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 
 /// The API's routes, to nest under `/api`.
@@ -217,6 +222,8 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
         .route("/v1/site", get(site::get).put(site::put))
+        .route("/v1/isp/presets", get(wan::presets))
+        .route("/v1/wan/test", post(wan::test))
         .route("/v1/site/secrets/reveal", post(site::reveal))
         .route("/v1/revisions", get(site::revisions::list))
         .route("/v1/revisions/{id}", get(site::revisions::get))

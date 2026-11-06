@@ -268,6 +268,38 @@ impl Jobs {
         .await
     }
 
+    /// Starts trying `test`'s WAN on the gateway, which must be managed, and returns the job as
+    /// it starts (D-075). It holds the configuration, as an apply does: one at a time, never
+    /// while one runs.
+    pub async fn test_wan(&self, test: crate::WanTest, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let head = self
+            .shared
+            .store
+            .head_revision()
+            .await?
+            .ok_or(Error::NoRevision)?;
+        let gateway = self
+            .shared
+            .store
+            .nodes()
+            .await?
+            .into_iter()
+            .find(|node| node.role == uniwrt_model::node::NodeRole::Gateway)
+            .ok_or(Error::NoGateway)?;
+        if gateway.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(gateway.id));
+        }
+        let job = crate::wan_test::job(&gateway, &test, by);
+        let keys = vec![apply::TARGET.to_owned(), manage::target(gateway.id)];
+        self.spawn(keys, job, move |shared, progress| {
+            crate::wan_test::run(shared, head, gateway, test, progress)
+        })
+        .await
+    }
+
     /// Records a new job and runs it in its own task, holding `keys` (its targets) meanwhile.
     async fn spawn<F, Fut>(&self, keys: Vec<String>, new: NewJob, run: F) -> Result<Job>
     where

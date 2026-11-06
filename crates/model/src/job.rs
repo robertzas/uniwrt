@@ -90,6 +90,9 @@ pub enum JobKind {
     Unmanage,
     /// Applying a revision of the site's configuration to the managed nodes (D-012, D-069).
     Apply,
+    /// Trying a WAN configuration on the gateway, then rolling it back (features/wan.md,
+    /// Connectivity test; D-075).
+    WanTest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -160,6 +163,22 @@ pub enum StepName {
     Verify,
     /// Confirm every transaction.
     Confirm,
+    /// The WAN port has a link (the connectivity test's steps follow, `uniwrt_isp::Step`).
+    Link,
+    /// A DHCP lease, a PPP session, the static address or the DS-Lite tunnel.
+    Address,
+    /// A default route, and the ISP's gateway answers.
+    Gateway,
+    /// Names resolve.
+    Dns,
+    /// An HTTPS site answers.
+    Https,
+    /// IPv6: a delegated prefix or the 6rd tunnel, and an IPv6 host answers.
+    Ipv6,
+    /// IPv6 by the preset's 6rd, after DHCPv6 delegated no prefix.
+    SixRd,
+    /// Roll the gateway back to what it held.
+    Rollback,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -207,6 +226,8 @@ pub enum JobErrorCode {
     RolledBack,
     /// Some nodes confirmed and others rolled back: the network is split between revisions.
     PartialApply,
+    /// The connectivity test found no internet over the WAN tried (its steps say where).
+    NoInternet,
     /// Something failed in the controller; its log has the cause.
     Internal,
 }

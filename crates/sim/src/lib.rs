@@ -50,6 +50,7 @@
 mod brownfield;
 mod fleet;
 mod hand_edit;
+mod isp;
 mod link;
 mod render;
 mod rng;

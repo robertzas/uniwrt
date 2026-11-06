@@ -9,7 +9,7 @@
 //! rolls every applied node back, and one it can't reach rolls back by itself at its deadline.
 
 mod address;
-mod health;
+pub(crate) mod health;
 mod order;
 pub(crate) mod plan;
 mod run;
@@ -64,6 +64,9 @@ pub struct ApplyTiming {
     pub timer: Duration,
     /// The same for one that changes the WAN or the mesh, which take longer to settle.
     pub timer_uplink: Duration,
+    /// How long a WAN test waits for an address (a third of it for the link, three quarters
+    /// for IPv6).
+    pub wan_wait: Duration,
 }
 
 impl Default for ApplyTiming {
@@ -74,6 +77,7 @@ impl Default for ApplyTiming {
             verify_uplink: Duration::from_secs(150),
             timer: Duration::from_secs(120),
             timer_uplink: Duration::from_secs(300),
+            wan_wait: Duration::from_secs(60),
         }
     }
 }

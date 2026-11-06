@@ -45,6 +45,9 @@ pub(crate) enum Fault {
     Late,
 }
 
+pub(crate) type CollectHook = Box<dyn Fn(&Tool, &mut serde_json::Value) + Send>;
+pub(crate) type ExecHook = Box<dyn Fn(&Tool, &[String]) -> Option<ExecOutput> + Send>;
+
 pub(crate) struct FakeNode {
     pub(crate) host_key: HostKey,
     pub(crate) role: NodeRole,
@@ -56,6 +59,10 @@ pub(crate) struct FakeNode {
     /// The tool refuses this command (`check`, `apply`, …) with `invalid`.
     pub(crate) refuse: Mutex<Option<&'static str>>,
     pub(crate) down: AtomicBool,
+    /// Rewrites what it collects from its `/etc/config` (the WAN test's ISP).
+    pub(crate) collect_hook: Mutex<Option<CollectHook>>,
+    /// Answers commands before the rest (the WAN test's `ping` and `wget`).
+    pub(crate) exec_hook: Mutex<Option<ExecHook>>,
     /// The tool's commands run on every node, as `<node's first address> <command>`.
     journal: Arc<Mutex<Vec<String>>>,
 }
@@ -74,6 +81,8 @@ impl FakeNode {
             fault: Mutex::default(),
             refuse: Mutex::default(),
             down: AtomicBool::new(false),
+            collect_hook: Mutex::default(),
+            exec_hook: Mutex::default(),
             journal,
         })
     }
@@ -104,6 +113,11 @@ impl FakeNode {
             });
         }
         let argv = &request.argv;
+        if let Some(hook) = &*self.exec_hook.lock().unwrap()
+            && let Some(output) = hook(&self.tool.lock().unwrap(), argv)
+        {
+            return Ok(output);
+        }
         if argv[0] == "nslookup" {
             let up = self.role == NodeRole::Gateway && self.broken() != Some(Fault::DnsDown);
             return Ok(output(
@@ -140,7 +154,7 @@ impl FakeNode {
     }
 }
 
-fn output(code: u32, stdout: &str) -> ExecOutput {
+pub(crate) fn output(code: u32, stdout: &str) -> ExecOutput {
     ExecOutput {
         status: ExitStatus::Code(code),
         stdout: stdout.as_bytes().to_vec(),
@@ -207,7 +221,11 @@ impl Remote for FakeRemote {
                     what: "collect".to_owned(),
                 });
             }
-            Ok(serde_json::from_value(collected(self.0.role)).unwrap())
+            let mut collected = collected(self.0.role);
+            if let Some(hook) = &*self.0.collect_hook.lock().unwrap() {
+                hook(&self.0.tool.lock().unwrap(), &mut collected);
+            }
+            Ok(serde_json::from_value(collected).unwrap())
         })
     }
 
@@ -287,6 +305,7 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
             poll: Duration::from_millis(5),
             verify: Duration::from_millis(300),
             verify_uplink: Duration::from_millis(300),
+            wan_wait: Duration::from_millis(300),
             ..ApplyTiming::default()
         },
     )

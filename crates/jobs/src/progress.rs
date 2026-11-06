@@ -35,6 +35,12 @@ impl Progress {
         self.save().await;
     }
 
+    /// Fails the running step with what went wrong, and goes on: the job may still succeed.
+    pub(crate) async fn fail(&mut self, detail: impl Into<String>) {
+        self.finish_running(StepState::Failed, Some(detail.into()));
+        self.save().await;
+    }
+
     /// Skips a step: the running one, or a pending one.
     pub(crate) async fn skip(&mut self, name: StepName, detail: impl Into<String>) {
         let now = self.shared.clock.now();

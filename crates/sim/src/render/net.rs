@@ -1,15 +1,15 @@
 //! The `interfaces` set: netifd's `network.interface dump`.
 
+use std::collections::BTreeMap;
+
 use serde_json::{Value, json};
 
-use crate::world::{
-    World,
-    catalog::{GATEWAY_BACKHAUL_PORT, WAN_VLAN},
+use crate::{
+    isp,
+    world::{World, catalog::GATEWAY_BACKHAUL_PORT},
 };
 
-/// The gateway's public addresses (documentation ranges).
-const WAN_IP: &str = "203.0.113.57";
-const WAN_ROUTER: &str = "203.0.113.1";
+/// The ISP's resolvers (documentation ranges).
 const WAN_DNS: [&str; 2] = ["203.0.113.53", "203.0.113.54"];
 pub(super) const LAN_PREFIX6: &str = "2001:db8:4a:100::";
 
@@ -22,7 +22,8 @@ pub(super) fn lan_mask(world: &World) -> u8 {
     }
 }
 
-pub(super) fn interfaces(world: &World, n: usize) -> Value {
+/// The interfaces; the gateway's WAN as the ISP answers its `/etc/config/network` (`files`).
+pub(super) fn interfaces(world: &World, n: usize, files: &BTreeMap<String, String>) -> Value {
     let node = &world.nodes[n];
     let uptime = ((world.now_ms() - node.booted_ms) / 1000 - 20).max(1);
     let mask = lan_mask(world);
@@ -39,19 +40,11 @@ pub(super) fn interfaces(world: &World, n: usize) -> Value {
             "ipv4-address": [{"address": node.ip.to_string(), "mask": mask}],
             "ipv6-prefix-assignment": [{"address": LAN_PREFIX6, "mask": 64, "local-address": {"address": format!("{LAN_PREFIX6}1"), "mask": 64}}],
         })));
-        let vlan = format!("{}.{WAN_VLAN}", node.model.wan_port);
-        list.push(iface("wan", "dhcp", &vlan, uptime, json!({
-            "ipv4-address": [{"address": WAN_IP, "mask": 24}],
-            "route": [{"target": "0.0.0.0", "mask": 0, "nexthop": WAN_ROUTER, "source": format!("{WAN_IP}/32")}],
-            "dns-server": WAN_DNS,
-            "data": {"leasetime": 86_400},
-        })));
-        list.push(iface("wan6", "dhcpv6", &vlan, uptime, json!({
-            "ipv6-address": [{"address": "2001:db8:4a:ff::57", "mask": 128}],
-            "ipv6-prefix": [{"address": "2001:db8:4a:100::", "mask": 56}],
-            "route": [{"target": "::", "mask": 0, "nexthop": "fe80::1", "source": "2001:db8:4a:100::/56"}],
-            "dns-server": ["2001:db8:4a::53"],
-        })));
+        let uplink = isp::uplink(
+            files.get("network").map(String::as_str),
+            node.model.wan_port,
+        );
+        list.extend(wan(&uplink, uptime));
     } else {
         list.push(iface("lan", "dhcp", "br-lan", uptime, json!({
             "ipv4-address": [{"address": node.ip.to_string(), "mask": mask}],
@@ -76,6 +69,54 @@ pub(super) fn interfaces(world: &World, n: usize) -> Value {
         list.push(iface("batwired", "batadv_hardif", port, uptime, json!({})));
     }
     json!({"dump": {"interface": list}})
+}
+
+/// The gateway's `wan` and `wan6`, up or waiting as the ISP answered.
+fn wan(uplink: &isp::Uplink, uptime: i64) -> Vec<Value> {
+    let mut list = Vec::new();
+    let mut device = String::new();
+    if let Some((proto, dev, up)) = &uplink.wan {
+        device.clone_from(dev);
+        let mut wan = iface(
+            "wan",
+            proto,
+            dev,
+            uptime,
+            if *up {
+                json!({
+                    "ipv4-address": [{"address": isp::LEASE, "mask": 24}],
+                    "route": [{"target": "0.0.0.0", "mask": 0, "nexthop": isp::ROUTER, "source": format!("{}/32", isp::LEASE)}],
+                    "dns-server": WAN_DNS,
+                    "data": {"leasetime": 86_400},
+                })
+            } else {
+                json!({"up": false, "uptime": 0, "pending": true})
+            },
+        );
+        if !*up && proto == "pppoe" {
+            wan["errors"] = json!([{"subsystem": "pppoe", "code": "NO_PADO"}]);
+        }
+        list.push(wan);
+    }
+    if let Some((proto, up)) = &uplink.wan6 {
+        let extra = match (proto.as_str(), *up) {
+            ("dhcpv6", true) => json!({
+                "ipv6-address": [{"address": "2001:db8:4a:ff::57", "mask": 128}],
+                "ipv6-prefix": [{"address": LAN_PREFIX6, "mask": 56}],
+                "route": [{"target": "::", "mask": 0, "nexthop": "fe80::1", "source": "2001:db8:4a:100::/56"}],
+                "dns-server": ["2001:db8:4a::53"],
+            }),
+            ("6rd", true) => json!({
+                "l3_device": "6rd-wan6",
+                "ipv6-address": [{"address": "2602:cb00:7139::1", "mask": 64}],
+                "ipv6-prefix": [{"address": "2602:cb00:7139::", "mask": 56}],
+                "route": [{"target": "::", "mask": 0, "nexthop": "::", "source": "2602:cb00:7139::/56"}],
+            }),
+            _ => json!({"up": false, "uptime": 0, "pending": true}),
+        };
+        list.push(iface("wan6", proto, &device, uptime, extra));
+    }
+    list
 }
 
 fn iface(name: &str, proto: &str, device: &str, uptime: i64, extra: Value) -> Value {

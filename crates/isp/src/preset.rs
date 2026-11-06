@@ -47,6 +47,7 @@ pub struct Preset {
 /// How sure the values are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[cfg_attr(feature = "ts", ts(rename = "PresetStatus"))]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     /// Confirmed by the ISP's own documentation or on a uniwrt installation.

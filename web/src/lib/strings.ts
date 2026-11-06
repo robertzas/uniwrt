@@ -253,6 +253,7 @@ export const strings = {
       manage: (target: string) => `Turning management on for ${target}`,
       unmanage: (target: string) => `Turning management off for ${target}`,
       apply: (target: string) => `Applying ${target}`,
+      wan_test: (target: string) => `Testing the internet connection on ${target}`,
     },
     step: {
       connect: "Log in",
@@ -270,10 +271,24 @@ export const strings = {
       apply: "Apply",
       verify: "Check every device",
       confirm: "Confirm",
+      link: "Link on the WAN port",
+      address: "Get an address",
+      gateway: "Reach the ISP's gateway",
+      dns: "Resolve names",
+      https: "Reach an HTTPS site",
+      ipv6: "IPv6",
+      six_rd: "IPv6 over 6rd",
+      rollback: "Roll back",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
       apply: { record: "Record the revision" },
+      wan_test: {
+        connect: "Log in to the gateway",
+        plan: "Prepare the WAN",
+        stage: "Stage on the gateway",
+        apply: "Try the WAN",
+      },
     } as Partial<Record<JobKind, Partial<Record<StepName, string>>>>,
     stepState: {
       pending: "Waiting",
@@ -332,6 +347,11 @@ export const strings = {
         title: "The changes were rolled back",
         hint: "A device failed its checks, so every device went back to what it had.",
         action: "Try again",
+      },
+      no_internet: {
+        title: "No internet over this WAN",
+        hint: "The gateway went back to its own WAN. Check the step that failed, change the settings, and test again.",
+        action: "Change the settings",
       },
       partial_apply: {
         title: "The changes applied only in part",
@@ -1029,6 +1049,7 @@ export const strings = {
         manage: "enabling management",
         unmanage: "disabling management",
         apply: "applying the configuration",
+        wan_test: "testing the internet connection",
       },
       radar: "Radar on its DFS channel made it move",
       busy: (percent: number) => `${percent}% busy`,

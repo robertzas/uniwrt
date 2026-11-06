@@ -57,6 +57,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
 - `src/topology/layout.rs`: The topology view's layout: where users pinned its vertices, one layout for every user and browser.
 - `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
+- `src/wan.rs`: The WAN wizard's API (features/wan.md; D-075):
+- `src/wan_tests.rs`: The WAN wizard's routes against the simulated fleet, whose ISP serves DHCP on VLAN 201.
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
@@ -224,6 +226,12 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `src/testing.rs`: A scripted node for the jobs' tests: a [`Dial`] that plays dropbear, the agent (from a capture of OpenWrt 24.10 in a container) and the transaction tool, and a temporary store.
+- `src/wan_test/checks.rs`: What the connectivity test reads (features/wan.md, Connectivity test): the agent's facts for the link, the address, the route and IPv6, and commands on the gateway for the rest (`ping`, `nslookup`, `wget`, BusyBox's or uclient-fetch's).
+- `src/wan_test/gateway.rs`: The gateway as a WAN test holds it: what render needs, the trial's transaction, the facts the checks read and the commands they run.
+- `src/wan_test/mod.rs`: The WAN test (features/wan.md, Connectivity test; D-075): tries a WAN configuration on the gateway and always rolls it back, so the wizard knows before it saves.
+- `src/wan_test/patch.rs`: The WAN a trial tries: the gateway's own `network` package with only its WAN swapped for the rendered one, so nothing else changes while the test runs (D-075).
+- `src/wan_test/run.rs`: The WAN test's run: one trial on the gateway (two with a 6rd fallback), its live checks, and the rollback every path after an apply ends with.
+- `src/wan_test/tests.rs`: WAN tests over the scripted fleet, against a fake ISP that serves DHCP on VLAN 201 and, when asked, delegates a prefix or answers 6rd.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
 ### `uniwrt-metrics` (crates/metrics)
@@ -446,6 +454,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/brownfield.rs`: The simulated fleet as a brownfield (features/lifecycle.md, Brownfield import): each node's facts, as its agent reports them, and its `/etc/config` before uniwrt manages it (`render::config`), for import's round-trip tests and the demo.
 - `src/fleet.rs`: [`SimFleet`]: the world, a link per node, and the driver task that advances the world one second per second of tokio's clock.
 - `src/hand_edit.rs`: Drift in the demo (features/lifecycle.md, Drift; D-074): a minute after a node's first confirmed apply, someone changes one option of a package that apply wrote, as `LuCI` saves it (the file parsed and written back as `uci commit` does), once per node.
+- `src/isp.rs`: The simulated ISP behind the gateway's WAN port (features/wan.md; D-075): like Lumen's fiber, it serves DHCP on VLAN 201, delegates a /56 over DHCPv6 on it, and runs a 6rd border relay.
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
@@ -621,7 +630,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (291 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (302 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

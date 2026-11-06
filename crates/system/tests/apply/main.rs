@@ -48,6 +48,7 @@ fn timing() -> ApplyTiming {
         verify_uplink: Duration::from_secs(45),
         timer: Duration::from_secs(40),
         timer_uplink: Duration::from_secs(60),
+        wan_wait: Duration::from_secs(30),
     }
 }
 
