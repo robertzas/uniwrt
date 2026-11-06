@@ -35,11 +35,18 @@ host_root() {
 # a host whose running kernel lost its module tree to an upgrade can't load modules. In CI the
 # run fails instead.
 LACKS=()
+OPTIONAL=()
 modules() {
   local module
   LACKS=()
+  OPTIONAL=()
   for module in 8021q pppoe; do
     [[ -d /sys/module/$module ]] || host_root "modprobe $module" 2>/dev/null || LACKS+=("$module")
+  done
+  # cake and ifb (SQM's ingress) may be missing from a CI kernel's modules: their test skips
+  # there too.
+  for module in sch_cake ifb; do
+    [[ -d /sys/module/$module ]] || host_root "modprobe $module" 2>/dev/null || OPTIONAL+=("$module")
   done
 }
 
@@ -51,7 +58,8 @@ nftables() {
     [[ -z ${CI:-} ]] || { echo "the host's kernel lacks ${LACKS[*]}" >&2 && exit 1; }
     echo "warning: the host's kernel lacks ${LACKS[*]} (reboot into the installed kernel?): their tests skip" >&2
   fi
-  printf 'UNIWRT_SYSTEM_LACKS="%s"\n' "${LACKS[*]}" >"$ENV_FILE"
+  ((${#OPTIONAL[@]})) && echo "note: the host's kernel lacks ${OPTIONAL[*]}: the SQM test skips" >&2
+  printf 'UNIWRT_SYSTEM_LACKS="%s"\n' "${LACKS[*]} ${OPTIONAL[*]}" >"$ENV_FILE"
 }
 
 image() {

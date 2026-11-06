@@ -63,6 +63,8 @@ import type { ScansQueued } from "../api/gen/ScansQueued";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
 import type { SiteSave } from "../api/gen/SiteSave";
 import type { SiteView } from "../api/gen/SiteView";
+import type { SpeedTestBody } from "../api/gen/SpeedTestBody";
+import type { SpeedTests } from "../api/gen/SpeedTests";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
@@ -264,6 +266,14 @@ export const api = {
      * the job. 422 with the WAN's issues, 409 while the gateway is in observe mode.
      */
     test: (body: WanTestBody) => request<Job>("/wan/test", { method: "POST", body }),
+    /**
+     * Measures the line from the gateway (admins; D-076); `bypass_sqm` stops SQM for it (a
+     * managed gateway, else 409). The `jobs` topic follows the job.
+     */
+    speedTest: (body: SpeedTestBody) => request<Job>("/wan/speed-test", { method: "POST", body }),
+    /** The speed tests, newest first, with what the newest test of the line suggests. */
+    speedTests: (signal?: AbortSignal, limit = 20) =>
+      request<SpeedTests>(`/wan/speed-tests?limit=${limit}`, { signal }),
   },
   /** Applying the site's latest revision (lifecycle.md, Render → diff → apply); admins only. */
   apply: {

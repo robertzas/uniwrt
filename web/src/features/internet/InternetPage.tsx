@@ -11,7 +11,11 @@ import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
+import { FailoverCard } from "./FailoverCard";
+import { SpeedCard } from "./SpeedCard";
+import { SqmCard } from "./SqmCard";
 import { rowsOf } from "./summary";
+import { TimelineCard } from "./TimelineCard";
 import { WanWizard } from "./WanWizard";
 
 const t = strings.internet;
@@ -34,8 +38,18 @@ export function InternetPage() {
     queryFn: ({ signal }) => api.wan.presets(signal),
     staleTime: Number.POSITIVE_INFINITY,
   }));
+  const speed = useQuery(() => ({
+    queryKey: ["speed-tests"],
+    queryFn: ({ signal }) => api.wan.speedTests(signal),
+  }));
   const gateway = () => live.fleet.nodes.find((node) => node.role === "gateway");
   const [wizard, setWizard] = createSignal(false);
+  const [take, setTake] = createSignal(0);
+  const [suggested, setSuggested] = createSignal<[number, number]>();
+  const wan = () => site.data?.config.wan;
+  const nodeName = (id: number) =>
+    live.fleet.nodes.find((node) => node.id === id)?.name ?? `#${id}`;
+  const now = Date.now();
   /** The gateway, when its `network` package isn't managed: applies leave its WAN alone. */
   const unmanaged = () => {
     const node = gateway();
@@ -124,6 +138,37 @@ export function InternetPage() {
           </Show>
         </div>
       </Card>
+      <Show when={gateway() && wan()}>
+        {(current) => (
+          <>
+            <SpeedCard
+              tests={speed.data}
+              admin={admin()}
+              managed={gateway()?.mode === "managed"}
+              sqmOn={current().sqm !== null}
+              onTake={(suggestion) => {
+                setSuggested([suggestion.download_kbps, suggestion.upload_kbps]);
+                setTake((n) => n + 1);
+              }}
+              onDone={() => void speed.refetch()}
+            />
+            <SqmCard
+              sqm={current().sqm}
+              admin={admin()}
+              gateway={gateway()?.id}
+              suggested={suggested()}
+              take={take()}
+            />
+            <FailoverCard
+              failover={current().failover}
+              admin={admin()}
+              gateway={gateway()?.id}
+              ipv4={current().proto.kind !== "none"}
+            />
+            <TimelineCard nodeName={nodeName} now={now} />
+          </>
+        )}
+      </Show>
       <Show
         when={
           wizard() && site.data && presets.data

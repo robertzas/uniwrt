@@ -3,6 +3,7 @@ import {
   Cable,
   CircleAlert,
   FilePen,
+  Package,
   Power,
   RadioTower,
   Router,
@@ -120,6 +121,21 @@ export function NodePlanCard(props: { plan: NodePlan }) {
                 {t.address(address().from, address().to)}
               </p>
             )}
+          </Show>
+          <Show when={(p().installs ?? []).length > 0}>
+            <div class="flex flex-wrap items-center gap-1.5 text-sm" title={t.installsHint}>
+              <span class="mr-1 flex items-center gap-1.5 text-fg-muted">
+                <Icon icon={Package} class="size-4 text-fg-subtle" />
+                {t.installs}
+              </span>
+              <For each={p().installs}>
+                {(name) => (
+                  <Badge tone="info">
+                    <span class="font-mono">{name}</span>
+                  </Badge>
+                )}
+              </For>
+            </div>
           </Show>
           <Show when={p().services.length > 0}>
             <div class="flex flex-wrap items-center gap-1.5 text-sm">

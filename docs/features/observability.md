@@ -202,7 +202,7 @@ Events in M2.5b1, alerts and notifiers in M2.5b2 (D-061).
 Everything runs from any node and streams live:
 - ping, traceroute, DNS lookup (per resolver), HTTP check
 - iperf3 node ↔ node (backhaul capacity) and node ↔ controller
-- WAN speed test (from the gateway)
+- WAN speed test (from the gateway; done in M4.1b as the `speed_test` job, wan.md SQM)
 - Wi-Fi scan and channel survey
 - **packet capture:** tcpdump on the node with a BPF filter, streamed to the browser as a `.pcap` download, with size and time caps
 - cable diagnostics (ethtool, where supported)

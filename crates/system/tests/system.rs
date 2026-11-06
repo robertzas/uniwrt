@@ -135,3 +135,45 @@ fn pppoe_uplink() {
     });
     gw.sh("ping -c 3 -W 2 203.0.113.1 >/dev/null", &[]);
 }
+
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn sqm_shapes_the_wan_and_mwan3_reads_its_config() {
+    use uniwrt_model::site::gateway::{BackupLink, BackupProto, Failover, Sqm};
+    let mut site = site::defaults(Uplink::Static);
+    site.wan.sqm = Some(Sqm {
+        download_kbps: 50_000,
+        upload_kbps: 10_000,
+        overhead: Some(38),
+        autotune: false,
+    });
+    // A backup that isn't plugged in: mwan3 must still read the config and track the WAN.
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Usb {
+            device: "usb0".to_owned(),
+        },
+        proto: BackupProto::Dhcp,
+    });
+    let gw = gateway(&site);
+    gw.wait_interface("wan", UP, |s| ipv4(s) == ["192.0.2.2/24"]);
+    let tracked = gw.sh("mwan3 interfaces 2>&1 || true", &[]);
+    assert!(tracked.contains("interface wan is"), "{tracked}");
+    assert!(tracked.contains("interface wanb is"), "{tracked}");
+    if !needs("sch_cake") || !needs("ifb") {
+        return;
+    }
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let qdisc = gw.sh("tc qdisc show dev eth1", &[]);
+        if qdisc.contains("cake") && qdisc.contains("bandwidth 10Mbit") {
+            let ingress = gw.sh("tc qdisc show dev ifb4eth1", &[]);
+            assert!(ingress.contains("bandwidth 50Mbit"), "{ingress}");
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "no cake on eth1: {qdisc}"
+        );
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}

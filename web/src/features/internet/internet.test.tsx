@@ -3,9 +3,12 @@ import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EventRecord } from "../../api/gen/EventRecord";
 import type { Job } from "../../api/gen/Job";
 import type { SiteSave } from "../../api/gen/SiteSave";
+import type { SpeedTest } from "../../api/gen/SpeedTest";
 import type { StepName } from "../../api/gen/StepName";
+import type { Suggestion } from "../../api/gen/Suggestion";
 import type { WanTestBody } from "../../api/gen/WanTestBody";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
@@ -16,6 +19,9 @@ import { revisionMeta, siteView } from "../../test/site";
 import type { FakeWebSocket } from "../../test/socket";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
+let speedTests: SpeedTest[] = [];
+let suggestion: Suggestion | null = null;
+let wanEvents: EventRecord[] = [];
 let head = 2;
 
 const STEPS: StepName[] = [
@@ -59,8 +65,26 @@ function wanJob(
   };
 }
 
+function speedJob(state: Job["state"]): Job {
+  return {
+    ...wanJob(state, {}),
+    id: 31,
+    kind: "speed_test",
+    steps: (["connect", "idle", "download", "upload", "record"] as StepName[]).map((name) => ({
+      name,
+      state: state === "running" ? "pending" : "done",
+      detail: null,
+      started_at: null,
+      finished_at: null,
+    })),
+  };
+}
+
 beforeEach(() => {
   calls = [];
+  speedTests = [];
+  suggestion = null;
+  wanEvents = [];
   head = 2;
   vi.stubGlobal(
     "fetch",
@@ -74,6 +98,14 @@ beforeEach(() => {
         return Response.json(siteView(head, (body as SiteSave).config));
       }
       if (url === "/api/v1/isp/presets") return Response.json([PPPOE, LUMEN]);
+      if (url.startsWith("/api/v1/wan/speed-tests")) {
+        return Response.json({ tests: speedTests, suggestion });
+      }
+      if (url === "/api/v1/wan/speed-test") {
+        return Response.json(speedJob("running"), { status: 202 });
+      }
+      if (url.startsWith("/api/v1/events?"))
+        return Response.json({ events: wanEvents, next: null });
       if (url === "/api/v1/wan/test") {
         return Response.json(wanJob("running", { connect: "running" }), { status: 202 });
       }
@@ -171,5 +203,117 @@ describe("Internet", () => {
     });
     expect(put.secrets).toEqual({ "wan/password": "secret" });
     expect(put.config.wan.mtu).toBe(1492);
+  });
+});
+
+function speedTest(extra: Partial<SpeedTest> = {}): SpeedTest {
+  return {
+    job: 30,
+    node: 1,
+    at: 1_800_000_000_000,
+    bypassed: true,
+    download_kbps: 500_000,
+    upload_kbps: 100_000,
+    idle_us: 9_000,
+    download_us: 104_000,
+    upload_us: 249_000,
+    grade: "D",
+    ...extra,
+  };
+}
+
+describe("SQM, speed tests, failover and the timeline", () => {
+  it("runs a test of the line, takes its suggestion and saves SQM", async () => {
+    const user = userEvent.setup();
+    speedTests = [speedTest()];
+    suggestion = { job: 30, download_kbps: 450_000, upload_kbps: 95_000, drifted: false };
+    const ws = await renderInternet();
+    const card = await screen.findByLabelText("Speed and bufferbloat");
+    expect(
+      await within(card).findByText("A busy line makes everything sluggish."),
+    ).toBeInTheDocument();
+    expect(within(card).getByText(/shaping at 450 Mb\/s down and 95 Mb\/s up/)).toBeInTheDocument();
+
+    await user.click(within(card).getByRole("button", { name: "Measure the line" }));
+    await waitFor(() => expect(calls.some((c) => c.url === "/api/v1/wan/speed-test")).toBe(true));
+    expect(calls.find((c) => c.url === "/api/v1/wan/speed-test")?.body).toEqual({
+      bypass_sqm: true,
+    });
+    expect(await within(card).findByText("Latency, idle")).toBeInTheDocument();
+    const reads = () => calls.filter((c) => c.url.startsWith("/api/v1/wan/speed-tests")).length;
+    const before = reads();
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [speedJob("succeeded")] });
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+
+    await user.click(within(card).getByRole("button", { name: "Use these rates" }));
+    const sqm = screen.getByLabelText("Smart queueing");
+    expect(within(sqm).getByLabelText("Download (Mbit/s)")).toHaveValue("450");
+    expect(within(sqm).getByLabelText("Upload (Mbit/s)")).toHaveValue("95");
+    await user.selectOptions(within(sqm).getByLabelText("Link layer"), "fiber");
+    await user.click(within(sqm).getByRole("button", { name: "Save" }));
+    expect(await within(sqm).findByText(/Saved as revision 3/)).toBeInTheDocument();
+    expect(within(sqm).getByText(/installs the packages/)).toBeInTheDocument();
+    const put = calls.find((c) => c.method === "PUT" && c.url === "/api/v1/site")?.body as SiteSave;
+    expect(put.message).toBe("SQM");
+    expect(put.config.wan.sqm).toEqual({
+      download_kbps: 450_000,
+      upload_kbps: 95_000,
+      overhead: 38,
+      autotune: true,
+    });
+  });
+
+  it("checks a rate before saving", async () => {
+    const user = userEvent.setup();
+    await renderInternet();
+    const sqm = await screen.findByLabelText("Smart queueing");
+    expect(within(sqm).getByText(/the ISP's buffers fill/)).toBeInTheDocument();
+    await user.click(within(sqm).getByRole("button", { name: "Edit" }));
+    await user.click(within(sqm).getByLabelText("Shape the line with cake"));
+    await user.type(within(sqm).getByLabelText("Download (Mbit/s)"), "lots");
+    await user.click(within(sqm).getByRole("button", { name: "Save" }));
+    expect(within(sqm).getAllByText("A rate is 0.064 to 10000 Mbit/s")).toHaveLength(2);
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+  });
+
+  it("saves a USB backup line", async () => {
+    const user = userEvent.setup();
+    await renderInternet();
+    const card = await screen.findByLabelText("Failover");
+    await user.click(within(card).getByRole("button", { name: "Edit" }));
+    await user.click(within(card).getByLabelText("Fail over to a backup line"));
+    await user.click(within(card).getByRole("button", { name: "USB tethering" }));
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    expect(await within(card).findByText(/Saved as revision 3/)).toBeInTheDocument();
+    const put = calls.find((c) => c.method === "PUT" && c.url === "/api/v1/site")?.body as SiteSave;
+    expect(put.config.wan.failover).toEqual({
+      link: { kind: "usb", device: "usb0" },
+      proto: { kind: "dhcp" },
+    });
+  });
+
+  it("charts the WAN's outages", async () => {
+    const at = Date.now() - 3600_000;
+    const event = (id: number, when: number, what: EventRecord["what"]): EventRecord => ({
+      id,
+      at: when,
+      last_at: when,
+      count: 1,
+      level: "notice",
+      category: "wan",
+      node: 1,
+      client: null,
+      condition: null,
+      what,
+    });
+    wanEvents = [
+      event(2, at + 120_000, { kind: "wan_up", device: "eth1", down_ms: 120_000 }),
+      event(1, at, { kind: "wan_down", device: "eth1" }),
+    ];
+    await renderInternet();
+    const card = await screen.findByLabelText("Connection history");
+    expect(await within(card).findByText("Internet down on gw (eth1)")).toBeInTheDocument();
+    expect(within(card).getByText("Internet back on gw (eth1)")).toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: /^Up 5\dm/ })).toBeInTheDocument();
   });
 });

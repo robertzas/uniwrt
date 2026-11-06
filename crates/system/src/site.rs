@@ -56,6 +56,8 @@ fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Wireless,
         ManagedPackage::Dhcp,
         ManagedPackage::Firewall,
+        ManagedPackage::Sqm,
+        ManagedPackage::Mwan3,
     ]
     .into();
     config

@@ -16,9 +16,6 @@ use uniwrt_node::{facts, proto::ops::Collected};
 use uniwrt_render::Rendered;
 use uniwrt_uci::Package;
 
-/// The packages render manages, which [`Node::packages`] reads.
-const PACKAGES: [&str; 5] = ["system", "network", "wireless", "dhcp", "firewall"];
-
 /// What a command printed, and whether it succeeded.
 #[derive(Debug)]
 pub struct Run {
@@ -91,9 +88,10 @@ impl Node {
 
     /// The managed packages the node holds now, by name.
     pub fn packages(&self) -> BTreeMap<String, Package> {
-        PACKAGES
+        uniwrt_render::RENDERABLE
             .iter()
-            .filter_map(|&name| {
+            .map(|package| package.name())
+            .filter_map(|name| {
                 let run = self.run(r#"cat "/etc/config/$1""#, &[name], &[]);
                 run.ok.then(|| {
                     let package = uniwrt_uci::parse(name, &run.stdout)

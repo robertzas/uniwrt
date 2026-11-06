@@ -38,6 +38,25 @@ function stubApi() {
       ];
       return Response.json(detail(withWan));
     }
+    if (key === "GET /api/v1/wan/speed-tests?limit=1") {
+      return Response.json({
+        tests: [
+          {
+            job: 9,
+            node: 1,
+            at: 1_000,
+            bypassed: false,
+            download_kbps: 450_000,
+            upload_kbps: 90_000,
+            idle_us: 9_000,
+            download_us: 11_000,
+            upload_us: 12_000,
+            grade: "A+",
+          },
+        ],
+        suggestion: null,
+      });
+    }
     if (key === "GET /api/v1/topology/layout") return Response.json([]);
     if (key === "GET /api/v1/logs/patterns") return Response.json({ patterns: [] });
     if (key === "GET /api/v1/topology/timeline") return Response.json({ start: 0, changes: [] });
@@ -131,6 +150,7 @@ describe("the dashboard", () => {
     await waitFor(() => expect(calls).toContain("GET /api/v1/nodes/1"));
     expect(await screen.findByText("203.0.113.7/24")).toBeInTheDocument();
     expect(screen.getByText("2001:db8:1::/56")).toBeInTheDocument();
+    expect(await screen.findByText("A+ · 450 Mb/s ↓ 90 Mb/s ↑")).toBeInTheDocument();
     expect(screen.getByText("203.0.113.1")).toBeInTheDocument();
     expect(screen.getByText("2h")).toBeInTheDocument();
     expect(calls.some((call) => call.includes("/api/v1/metrics?entity=site"))).toBe(true);

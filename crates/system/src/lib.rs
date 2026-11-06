@@ -57,7 +57,7 @@ pub fn render_with(
     .unwrap_or_else(|issues| panic!("{}: render refused: {issues:#?}", node.container))
 }
 
-/// Whether the host's kernel can do `feature` (`8021q`, `pppoe`, `nftables`), as
+/// Whether the host's kernel can do `feature` (`8021q`, `pppoe`, `nftables`, `sch_cake`), as
 /// scripts/test-system.sh found (`UNIWRT_SYSTEM_LACKS`; the script fails in CI if it can't).
 /// Without it a test skips, with a note.
 pub fn needs(feature: &str) -> bool {

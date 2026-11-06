@@ -1,8 +1,9 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { NodeDetail } from "../../api/gen/NodeDetail";
 import type { NodeId } from "../../api/gen/NodeId";
+import type { SpeedTest } from "../../api/gen/SpeedTest";
 import { api } from "../../lib/api";
-import { formatBitrate, formatDuration, NONE } from "../../lib/format";
+import { formatBitrate, formatDuration, formatRate, NONE } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Card, CardHeader } from "../../ui/Card";
@@ -45,6 +46,22 @@ function createGatewayDetail(id: () => NodeId | undefined) {
   return detail;
 }
 
+/** The newest speed test's grade and rates, read once per gateway (wan.md, SQM; D-076). */
+function createLatestSpeed(id: () => NodeId | undefined) {
+  const [latest, setLatest] = createSignal<SpeedTest>();
+  createEffect(id, (nodeId) => {
+    setLatest(undefined);
+    if (nodeId === undefined) return;
+    const controller = new AbortController();
+    api.wan.speedTests(controller.signal, 1).then(
+      (view) => setLatest(view.tests?.[0]),
+      () => {},
+    );
+    return () => controller.abort();
+  });
+  return latest;
+}
+
 /**
  * The internet connection: its state and what it carries now (from the live topology), the
  * site's throughput over a range (stored series), and the gateway's WAN addresses.
@@ -52,6 +69,7 @@ function createGatewayDetail(id: () => NodeId | undefined) {
 export function WanCard(props: { gateway: NodeId | undefined; internet: InternetHealth }) {
   const [range, setRange] = createSignal<Preset>("24h");
   const detail = createGatewayDetail(() => props.gateway);
+  const speed = createLatestSpeed(() => props.gateway);
   const feed = createMetricsFeed(() =>
     props.gateway === undefined
       ? undefined
@@ -88,6 +106,17 @@ export function WanCard(props: { gateway: NodeId | undefined; internet: Internet
       ],
       [t.dns, join(all((iface) => iface.dns_servers))],
       [t.uptime, formatDuration(first.uptime_s)],
+      ...((): [string, string][] => {
+        const test = speed();
+        return test
+          ? [
+              [
+                t.bufferbloat,
+                t.speed(test.grade, formatRate(test.download_kbps), formatRate(test.upload_kbps)),
+              ],
+            ]
+          : [];
+      })(),
     ];
   });
   const tone = () => props.internet.tone;
