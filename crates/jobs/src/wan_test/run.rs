@@ -11,6 +11,7 @@ use uniwrt_model::{
     site::{
         SecretRef, SiteConfig,
         gateway::{WanConfig, WanProto},
+        node::{ManagedPackage, NodeConfig},
         revision::Revision,
     },
 };
@@ -81,6 +82,18 @@ async fn trial(
         *slot = SecretRef::new(TRIAL_SECRET.to_owned());
     }
     site.wan = test.wan.clone();
+    // Render writes only the packages a node manages: the trial needs `network`, whatever the
+    // gateway manages (only its WAN sections are patched in).
+    if !site.nodes.iter().any(|config| config.node == node.id) {
+        site.nodes.push(NodeConfig::new(node.id));
+    }
+    for config in site
+        .nodes
+        .iter_mut()
+        .filter(|config| config.node == node.id)
+    {
+        config.managed.insert(ManagedPackage::Network);
+    }
     let mut secrets = survey::secrets(shared, &site).await?;
     if let (Some(value), Some(secret)) = (password, SecretRef::new(TRIAL_SECRET.to_owned())) {
         secrets.insert(secret, value);

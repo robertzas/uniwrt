@@ -30,7 +30,7 @@ export function Dialog(props: DialogProps) {
     <KDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <KDialog.Portal>
         <KDialog.Overlay class={overlay} />
-        <div class="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]">
+        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pt-[12vh] pb-[6vh]">
           <KDialog.Content
             onOpenAutoFocus={(event) => focus.open(event, props.initialFocus)}
             onCloseAutoFocus={focus.close}

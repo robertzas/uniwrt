@@ -15,7 +15,7 @@ use uniwrt_store::NodeRepo as _;
 use super::WanTest;
 use crate::{
     Error,
-    apply::tests::fleet::{Fleet, fleet, output},
+    apply::tests::fleet::{Fleet, commit, fleet, output},
 };
 
 const GW: (NodeRole, &str) = (NodeRole::Gateway, "192.168.1.1");
@@ -244,4 +244,20 @@ async fn an_observed_gateway_is_not_tested() {
         fleet.jobs.test_wan(test, None).await,
         Err(Error::Observed(node)) if node == id
     ));
+}
+
+#[tokio::test]
+async fn a_gateway_that_manages_no_package_is_tested_all_the_same() {
+    let fleet = fleet(&[GW]).await;
+    Isp {
+        pd: true,
+        sixrd: false,
+    }
+    .serve(&fleet);
+    let head = fleet.head().await;
+    let mut site = head.config.clone();
+    site.nodes.clear();
+    commit(&fleet.store, Some(head.meta.id), site).await;
+    let job = test(&fleet, lumen(), None).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
 }

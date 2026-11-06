@@ -125,6 +125,8 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 ## M4 — Gateway: WAN, LAN and firewall ("own the primary router")
 
 - [ ] **M4.1 WAN, SQM & failover** (L; merged M4.1 and M4.5, D-054): ISP preset format and seed set; WAN types including VLAN, 6rd and DHCPv6-PD; wizard; live connectivity test; cake with speed-test autotuning; optional mwan3 failover whose health checks reuse the connectivity test. Split: presets, WAN & wizard | SQM & failover.
+  - [x] **M4.1a Presets, WAN & wizard** (D-075): schema v2 WAN (DHCP options, PPPoE service, DS-Lite, IPv6-only, PCP, MTU; IPv6 off, DHCPv6 with `reqprefix`, or 6rd) rendered and imported back exactly; `uniwrt-isp` with nine seed presets, the connectivity steps and hints; the `wan_test` job (a trial of only the WAN on the managed gateway, live checks, a 6rd fallback for `auto`, always rolled back); `GET v1/isp/presets`, `POST v1/wan/test`; the sim's ISP; `/internet` with the wizard (ISP → prompted fields and Advanced → Test → save, then review and apply).
+  - [ ] **M4.1b SQM & failover:** cake with speed-test autotuning and a bufferbloat grade; optional mwan3 failover whose health checks reuse the connectivity test; a WAN status timeline.
 - [ ] **M4.2 Networks & firewall** (L; merged M4.2 and M4.3, D-054): carving the 10.0.0.0/16 space (O-1), networks/VLANs, DHCP pools and reservations, local DNS; a zone per network, the inter-network matrix seeded by purpose, port forwards, UPnP. Split: IPAM & networks | firewall.
 - [ ] **M4.3 Factory gateway bootstrap** (M): first-run wizard with make-before-break renumbering.
 

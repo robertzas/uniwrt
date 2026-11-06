@@ -158,17 +158,6 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
         .route("/v1/nodes/{id}/management", put(management::put))
-        .route("/v1/apply", post(apply::start))
-        .route("/v1/apply/plan", get(apply::plan))
-        .route("/v1/apply/applied", get(apply::applied))
-        .route("/v1/import/preview", post(import::preview))
-        .route("/v1/drift", get(drift::get))
-        .route(
-            "/v1/nodes/{id}/drift/{package}/acknowledge",
-            post(drift::acknowledge),
-        )
-        .route("/v1/nodes/{id}/drift/{package}/mute", put(drift::mute))
-        .route("/v1/import/accept", post(import::accept))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))
@@ -221,14 +210,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans", get(rf::scans).post(rf::scan))
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
-        .route("/v1/site", get(site::get).put(site::put))
-        .route("/v1/isp/presets", get(wan::presets))
-        .route("/v1/wan/test", post(wan::test))
-        .route("/v1/site/secrets/reveal", post(site::reveal))
-        .route("/v1/revisions", get(site::revisions::list))
-        .route("/v1/revisions/{id}", get(site::revisions::get))
-        .route("/v1/revisions/{id}/diff", get(site::revisions::changes))
-        .route("/v1/revisions/{id}/restore", post(site::revisions::restore))
+        .merge(config_routes())
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))
@@ -247,4 +229,29 @@ pub fn router(api: Api) -> Router {
         .layer(middleware::from_fn(security::csrf))
         .layer(middleware::map_response(security::no_store))
         .with_state(api)
+}
+
+/// The site's configuration: its document and history, applies, import, drift, and the WAN
+/// wizard.
+fn config_routes() -> Router<Api> {
+    Router::new()
+        .route("/v1/site", get(site::get).put(site::put))
+        .route("/v1/isp/presets", get(wan::presets))
+        .route("/v1/wan/test", post(wan::test))
+        .route("/v1/site/secrets/reveal", post(site::reveal))
+        .route("/v1/revisions", get(site::revisions::list))
+        .route("/v1/revisions/{id}", get(site::revisions::get))
+        .route("/v1/revisions/{id}/diff", get(site::revisions::changes))
+        .route("/v1/revisions/{id}/restore", post(site::revisions::restore))
+        .route("/v1/apply", post(apply::start))
+        .route("/v1/apply/plan", get(apply::plan))
+        .route("/v1/apply/applied", get(apply::applied))
+        .route("/v1/import/preview", post(import::preview))
+        .route("/v1/drift", get(drift::get))
+        .route(
+            "/v1/nodes/{id}/drift/{package}/acknowledge",
+            post(drift::acknowledge),
+        )
+        .route("/v1/nodes/{id}/drift/{package}/mute", put(drift::mute))
+        .route("/v1/import/accept", post(import::accept))
 }

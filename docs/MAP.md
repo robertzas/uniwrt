@@ -642,6 +642,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
 - `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, packages.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
+- `features/internet/`: InternetPage.tsx, IspPicker.tsx, TestPanel.tsx, WanFields.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts

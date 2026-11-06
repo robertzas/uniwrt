@@ -22,6 +22,7 @@ import type { Health } from "../api/gen/Health";
 import type { ImportAccept } from "../api/gen/ImportAccept";
 import type { ImportPreview } from "../api/gen/ImportPreview";
 import type { ImportRequest } from "../api/gen/ImportRequest";
+import type { Issue } from "../api/gen/Issue";
 import type { Job } from "../api/gen/Job";
 import type { LogContext } from "../api/gen/LogContext";
 import type { LogFilter } from "../api/gen/LogFilter";
@@ -42,6 +43,7 @@ import type { NotifierList } from "../api/gen/NotifierList";
 import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
+import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { RestoreBody } from "../api/gen/RestoreBody";
@@ -65,6 +67,7 @@ import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { WanTestBody } from "../api/gen/WanTestBody";
 import type { WindowList } from "../api/gen/WindowList";
 
 /** A failed API call. Problem details (RFC 9457) from the server fill `title` and `message`. */
@@ -77,6 +80,8 @@ export class ApiError extends Error {
     detail?: string,
     /** Seconds to wait before trying again, from `Retry-After` (429). */
     readonly retryAfter?: number,
+    /** A refused document's issues by field (422). */
+    readonly issues: readonly Issue[] = [],
   ) {
     super(detail ?? title);
   }
@@ -132,12 +137,17 @@ async function toError(response: Response): Promise<ApiError> {
   const retry = Number(response.headers.get("retry-after"));
   const retryAfter = Number.isFinite(retry) && retry > 0 ? retry : undefined;
   if (response.headers.get("content-type")?.startsWith("application/problem+json")) {
-    const problem = (await response.json()) as { title?: string; detail?: string };
+    const problem = (await response.json()) as {
+      title?: string;
+      detail?: string;
+      issues?: Issue[];
+    };
     return new ApiError(
       response.status,
       problem.title ?? response.statusText,
       problem.detail,
       retryAfter,
+      problem.issues ?? [],
     );
   }
   const title = response.statusText || `HTTP ${response.status}`;
@@ -244,6 +254,16 @@ export const api = {
     get: (signal?: AbortSignal) => request<SiteView>("/site", { signal }),
     /** Saves the next revision (admins); 409 when `base` is no longer the latest. */
     save: (save: SiteSave) => request<SiteView>("/site", { method: "PUT", body: save }),
+  },
+  /** The WAN wizard (wan.md; D-075). */
+  wan: {
+    /** Every ISP preset, generic ones first, then by country and name. */
+    presets: (signal?: AbortSignal) => request<Preset[]>("/isp/presets", { signal }),
+    /**
+     * Tries a WAN on the managed gateway and rolls it back (admins); the `jobs` topic follows
+     * the job. 422 with the WAN's issues, 409 while the gateway is in observe mode.
+     */
+    test: (body: WanTestBody) => request<Job>("/wan/test", { method: "POST", body }),
   },
   /** Applying the site's latest revision (lifecycle.md, Render → diff → apply); admins only. */
   apply: {

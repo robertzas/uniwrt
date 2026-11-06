@@ -5,8 +5,8 @@ Milestones: M4.1 (presets, WAN, wizard, SQM, failover), M4.3 (first-run).
 
 ## Wizard flow
 
-Country → ISP (searchable; "Other / generic" is always available) → connection variant (for example, IPoE vs PPPoE) → only the fields that preset needs (credentials, static IPs) → **Test** → **Apply**. Apply is a transaction that rolls back automatically if the internet health check fails.
-An advanced drawer exposes every field (VLAN, priority, MTU, MAC clone, DHCP options, IPv6 mode); presets only pre-fill them.
+On `/internet` (ui.md, Internet): Country (the site's to start) → ISP (searchable; the generic presets are always listed, under the country's ISPs) → only the fields that preset needs (credentials, static IPs, a VLAN) → **Test** (the connectivity test below; nothing is saved) → **Save** as the site's next revision → **Review and apply**, a transaction that rolls back automatically if the gateway's WAN or DNS health check fails. "Save without testing" skips the test (a gateway in observe mode can't be tested).
+An Advanced section exposes every field (how IPv4 and IPv6 arrive, VLAN, priority, MTU, MAC clone, DHCP options, the PPPoE service, the AFTR, the requested prefix, 6rd's values); presets only pre-fill them. The page warns when the gateway doesn't manage `network`: applies would leave its WAN alone.
 
 ## Preset format
 
