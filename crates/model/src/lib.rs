@@ -27,6 +27,8 @@
 //!   and the scanning settings ([`rf::RfSettings`]).
 //!   [`site`] is the desired state: the site's document ([`site::SiteConfig`]), its validation,
 //!   structural diff and schema migrations, and its revisions.
+//!   [`speed`] is a speed test from the gateway ([`speed::SpeedTest`]: rates, latency idle and
+//!   under load, the bufferbloat [`speed::Grade`]) and what it suggests for SQM.
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
@@ -59,6 +61,7 @@ pub mod node;
 pub mod notify;
 pub mod rf;
 pub mod site;
+pub mod speed;
 pub mod status;
 pub mod user;
 pub mod wifi;

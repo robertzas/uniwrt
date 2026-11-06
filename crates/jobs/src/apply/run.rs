@@ -79,6 +79,30 @@ impl Live {
         command.parse(output)
     }
 
+    /// The feed packages to install before its transaction.
+    pub(crate) fn installs(
+        &self,
+    ) -> Option<&(
+        uniwrt_model::facts::PackageManager,
+        Vec<uniwrt_render::Requirement>,
+    )> {
+        self.part.installs.as_ref()
+    }
+
+    /// Runs a command over the current login.
+    pub(crate) async fn exec(
+        &self,
+        request: uniwrt_node::ExecRequest,
+    ) -> uniwrt_node::Result<uniwrt_node::ExecOutput> {
+        let remote = self
+            .remote
+            .as_ref()
+            .ok_or_else(|| uniwrt_node::Error::Disconnected {
+                what: "the apply's login".to_owned(),
+            })?;
+        remote.exec(request).await
+    }
+
     /// The addresses to try, the one it moves to first.
     fn candidates(&self) -> Vec<String> {
         let mut hosts: Vec<String> = self.part.address.iter().map(ToString::to_string).collect();
@@ -340,7 +364,7 @@ impl Run<'_> {
     }
 
     /// Marks the nodes that never applied.
-    async fn not_applied(&self, progress: &mut Progress) {
+    pub(crate) async fn not_applied(&self, progress: &mut Progress) {
         for live in self.lives.iter().filter(|live| live.deadline.is_none()) {
             if progress.node_state(live.node.id) != Some(JobNodeState::Failed) {
                 progress

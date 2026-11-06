@@ -190,3 +190,94 @@ fn every_wan_imports_exactly() {
         assert_eq!(wan, site.wan);
     }
 }
+
+#[test]
+fn sqm_and_failover_import_exactly() {
+    use uniwrt_model::site::gateway::{BackupLink, BackupProto, Failover, Sqm};
+    let port = Failover {
+        link: BackupLink::Port {
+            port: "lan4".to_owned(),
+            vlan: Some(300),
+        },
+        proto: BackupProto::Static {
+            address: "192.0.2.10/24".parse().unwrap(),
+            gateway: "192.0.2.1".parse().unwrap(),
+            dns: vec!["192.0.2.1".parse().unwrap()],
+        },
+    };
+    let usb = Failover {
+        link: BackupLink::Usb {
+            device: "usb0".to_owned(),
+        },
+        proto: BackupProto::Dhcp,
+    };
+    let plain = Failover {
+        link: BackupLink::Port {
+            port: "lan3".to_owned(),
+            vlan: None,
+        },
+        proto: BackupProto::Dhcp,
+    };
+    let sqm = |overhead| Sqm {
+        download_kbps: 850_000,
+        upload_kbps: 90_000,
+        overhead,
+        autotune: false,
+    };
+    let cases = [
+        (home_site(), Some(sqm(Some(44))), Some(port)),
+        (pppoe_site(), Some(sqm(None)), Some(usb)),
+        (home_site(), None, Some(plain)),
+        (home_site(), Some(sqm(Some(18))), None),
+    ];
+    for (mut site, sqm, failover) in cases {
+        site.wan.sqm = sqm;
+        site.wan.failover = failover;
+        let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+        assert_eq!(import.site.wan.sqm, site.wan.sqm);
+        assert_eq!(import.site.wan.failover, site.wan.failover);
+    }
+}
+
+#[test]
+fn a_queue_set_up_by_hand_is_renamed() {
+    let mut site = home_site();
+    site.wan.sqm = None;
+    let facts = gateway_facts();
+    let current = stock();
+    let rendered = uniwrt_render::render(
+        &site,
+        &secrets(),
+        Target {
+            node: GATEWAY,
+            role: NodeRole::Gateway,
+            facts: &facts,
+            current: &current,
+        },
+    )
+    .unwrap();
+    let mut packages: std::collections::BTreeMap<String, uniwrt_uci::Package> = rendered
+        .packages
+        .into_values()
+        .map(|p| (p.name.clone(), p))
+        .collect();
+    let sqm = "config queue 'eth1'\n\toption enabled '1'\n\toption interface 'eth1.201'\n\
+               \toption download '50000'\n\toption upload '10000'\n\toption qdisc 'cake'\n\
+               \toption script 'piece_of_cake.qos'\n\toption linklayer 'none'\n";
+    packages.insert("sqm".to_owned(), uniwrt_uci::parse("sqm", sqm).unwrap());
+    let found = [Found {
+        node: GATEWAY,
+        role: NodeRole::Gateway,
+        facts,
+        packages,
+    }];
+    let import = run(&SiteConfig::defaults(None), &found);
+    let sqm = import.site.wan.sqm.as_ref().expect("the queue imports");
+    assert_eq!((sqm.download_kbps, sqm.upload_kbps), (50_000, 10_000));
+    let node = &import.nodes[0];
+    assert!(
+        node.sections.iter().all(|s| !matches!(s.fate, Fate::Raw)),
+        "nothing kept whole:\n{}",
+        summary(&import)
+    );
+}

@@ -300,6 +300,40 @@ impl Jobs {
         .await
     }
 
+    /// Starts a speed test from the gateway (D-076) and returns the job as it starts. Observe
+    /// mode is fine, but stopping SQM (`bypass_sqm`) needs a managed gateway. None runs while
+    /// an apply or a WAN test does.
+    pub async fn speed_test(
+        &self,
+        request: crate::SpeedTestRequest,
+        by: Option<UserId>,
+    ) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let gateway = self
+            .shared
+            .store
+            .nodes()
+            .await?
+            .into_iter()
+            .find(|node| node.role == uniwrt_model::node::NodeRole::Gateway)
+            .ok_or(Error::NoGateway)?;
+        if request.bypass_sqm && gateway.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(gateway.id));
+        }
+        let job = crate::speed_test::job(&gateway, by);
+        let keys = vec![
+            crate::speed_test::TARGET.to_owned(),
+            apply::TARGET.to_owned(),
+            manage::target(gateway.id),
+        ];
+        self.spawn(keys, job, move |shared, progress| {
+            crate::speed_test::run(shared, gateway, request, progress)
+        })
+        .await
+    }
+
     /// Records a new job and runs it in its own task, holding `keys` (its targets) meanwhile.
     async fn spawn<F, Fut>(&self, keys: Vec<String>, new: NewJob, run: F) -> Result<Job>
     where

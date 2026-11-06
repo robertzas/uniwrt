@@ -24,6 +24,8 @@ describe("the WAN form", () => {
         mac: "02:00:00:00:00:01",
         ipv6: { mode: "6rd", prefix: "2602::/24", border_relay: "205.171.2.64", ipv4_mask_len: 0 },
         preset: "us-lumen-ipoe",
+        sqm: { download_kbps: 450000, upload_kbps: 95000, overhead: 44, autotune: true },
+        failover: { link: { kind: "usb", device: "usb0" }, proto: { kind: "dhcp" } },
       },
       {
         ...DEFAULT_WAN,

@@ -94,13 +94,25 @@ The wizard's **Test** runs the `wan_test` job (`crates/jobs/src/wan_test/`, D-07
 
 The test fails (`no_internet`) when IPv4 doesn't reach the internet (steps 1–5); the failed step's hint is the message, a preset's own (`[hints]`) before the generic one, for example "No DHCP offer on VLAN 201. Is the ONT in transparent bridge mode?". IPv6 failing fails only its step. In demo mode the simulated ISP behaves like Lumen (DHCP on VLAN 201, a /56 by DHCPv6, a 6rd relay at 205.171.2.64; PPPoE finds no server), so a wrong preset fails there too.
 
-## SQM (bufferbloat) [M4.1]
+## SQM (bufferbloat) [M4.1b] (D-076)
 
-cake on WAN through sqm-scripts. Autotune runs a speed test from the gateway and sets shaping to 90–95% of the measured rates, then re-checks periodically. The dashboard shows a bufferbloat grade (latency under load).
+`wan.sqm` turns on cake through sqm-scripts: one queue `wan` on the WAN's layer-3 device (`pppoe-wan` for PPPoE, `ds-wan` for DS-Lite), `piece_of_cake.qos`, per-host fairness behind NAT (`nat dual-dsthost ingress` / `nat dual-srchost`), ECN on ingress, and the link layer's overhead when set (Ethernet on fiber 38, with PPPoE 46, DOCSIS 18). Rates are in kbit/s, 64 kbit/s to 10 Gbit/s. A gateway that lacks sqm-scripts gets it at the next apply (the install step, below); with SQM off, a gateway that holds the package keeps it without a queue and the service off.
 
-## Failover and multi-WAN [M4.1, optional]
+**Speed test** (`POST /api/v1/wan/speed-test`, admins, audited; `{"bypass_sqm": true}` needs a managed gateway): the `speed_test` job runs `node-agent/speedtest.sh` on the gateway, sent on stdin once per phase, with stock tools only: idle (10 pings to 1.1.1.1, five a second) → download → upload (four uclient-fetch streams to Cloudflare's speed test for 12 s, pinging once a second) → record. The rate comes from the WAN device's byte counters, the first 2 s left out; latency under load is the 90th percentile, a lost reply counting as 1 s. With `bypass_sqm` SQM stops for each load phase and starts again however the phase ends. Results go to the history (`GET /api/v1/wan/speed-tests?limit=`, the newest 500 kept), with what the newest test of the line suggests. The other devices' traffic counts too: test when the line is quiet.
 
-mwan3 profiles: failover from the primary line to a backup (an LTE/5G modem or USB tethering) with health checks, and a WAN status timeline.
+**Bufferbloat grade** (Waveform's scale) on how much latency grows under load, the worse direction: A+ under 5 ms, A under 30, B under 60, C under 200, D under 400, F beyond.
+
+**Autotune:** "Measure the line" runs a bypassed test and offers 90 % of its download and 95 % of its upload as the rates, saved and applied through review like any change. With `autotune` on, the controller re-measures the line once a week between 03:00 and 06:00 the site's standard time; when the suggestion is more than 10 % away from the shaped rates it raises `sqm_rates_drifted` (category `wan`) and the page offers the new rates. Nothing changes without review.
+
+## Failover [M4.1b] (D-076)
+
+`wan.failover` adds a backup line: a port of the gateway taken out of the LAN (an LTE router, a second ISP; on a VLAN when tagged; not a port of a swconfig switch), or a phone or modem tethered over USB (RNDIS or CDC Ethernet, usually `usb0`; the install step adds the drivers), by DHCP or static. It renders `wanb` (metric 20; `wan` gets 10), adds it to the WAN zone, and mwan3: both lines tracked against the health targets the connectivity test also uses (9.9.9.9, 1.1.1.1) by ping every 5 s, offline after 3 lost and online after 3 answered, members in a `failover` policy for all IPv4 (`last_resort default`: both checks failing keeps the routing table). IPv6 stays on the primary line. An IPv6-only WAN has no failover.
+
+**WAN status timeline:** the Internet page charts the `wan` events (the default route lost and back, address changes) with mwan3track's `is offline` / `is online` lines, which the log patterns `mwan3-offline` and `mwan3-online` make events.
+
+## Install step (D-076)
+
+Render names the feed packages a configuration needs (`Rendered::requires`); the planner compares them with the node's package database and lists the missing ones as the node's `installs`. The apply installs them after planning and before staging (`opkg update` + `opkg install`, or `apk update` + `apk add`; 5 minutes each at most), then stops and disables the services they bring, so the node runs as before until its transaction switches them on. A failed install fails the apply with nothing else changed. A rollback leaves the packages installed with their services off.
 
 ## Monitoring hooks (observability.md)
 

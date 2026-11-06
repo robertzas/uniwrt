@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use uniwrt_model::{facts::PackageManager, inventory::Package};
 
 /// The commands whose outputs [`parse`] reads, in order.
-pub(super) fn commands(manager: PackageManager) -> Vec<Vec<&'static str>> {
+pub(crate) fn commands(manager: PackageManager) -> Vec<Vec<&'static str>> {
     match manager {
         PackageManager::Opkg => vec![vec![
             "grep",
@@ -23,7 +23,7 @@ pub(super) fn commands(manager: PackageManager) -> Vec<Vec<&'static str>> {
 }
 
 /// The packages in the outputs of [`commands`], sorted by name.
-pub(super) fn parse(manager: PackageManager, outputs: &[String]) -> Vec<Package> {
+pub(crate) fn parse(manager: PackageManager, outputs: &[String]) -> Vec<Package> {
     let mut packages = match manager {
         PackageManager::Opkg => opkg(outputs.first().map_or("", String::as_str)),
         PackageManager::Apk => apk(

@@ -42,4 +42,6 @@ export const DEFAULT_WAN: WanConfig = {
   mac: null,
   ipv6: { mode: "dhcpv6", reqprefix: null },
   preset: null,
+  sqm: null,
+  failover: null,
 };

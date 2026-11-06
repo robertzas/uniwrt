@@ -9,7 +9,7 @@ import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventRecord } from "../api/gen/EventRecord";
 import type { StatusReason } from "../api/gen/StatusReason";
 import type { EventFilter } from "./api";
-import { formatBytes, formatDuration } from "./format";
+import { formatBytes, formatDuration, formatRate } from "./format";
 import { strings } from "./strings";
 
 const t = strings.events;
@@ -208,6 +208,16 @@ export function describeEvent(event: EventRecord, names: Names): Described {
           ? titles.configDriftRemoved(node, what.package)
           : titles.configDrift(node, what.package),
         d.driftSince(what.revision),
+      );
+    case "sqm_rates_drifted":
+      return withDetail(
+        titles.sqmRatesDrifted,
+        d.sqmRates(
+          formatRate(what.download_kbps),
+          formatRate(what.upload_kbps),
+          formatRate(what.shaped_download_kbps),
+          formatRate(what.shaped_upload_kbps),
+        ),
       );
     case "config_drift_ended": {
       const how = d.driftEnd[what.how];

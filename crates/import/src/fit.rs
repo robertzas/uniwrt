@@ -50,6 +50,13 @@ pub(crate) fn node(
         })
         .collect();
     rename_interfaces(&mut original, &renames.interfaces);
+    if let Some(sqm) = original.get_mut(&ManagedPackage::Sqm) {
+        for section in &mut sqm.sections {
+            if let Some(new) = section.name.as_deref().and_then(|n| renames.queues.get(n)) {
+                section.name = Some(new.clone());
+            }
+        }
+    }
     if source.role == NodeRole::Gateway
         && let Some(firewall) = original.get_mut(&ManagedPackage::Firewall)
     {

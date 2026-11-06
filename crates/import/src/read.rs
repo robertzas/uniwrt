@@ -20,6 +20,8 @@ pub(crate) struct Renames {
     /// Sections the model can't hold although render writes one of that name, by package and
     /// name: they are kept whole (a WAN over a protocol the model lacks).
     pub whole: BTreeSet<(String, String)>,
+    /// The gateway's SQM queue → `wan`, as render names it.
+    pub queues: BTreeMap<String, String>,
 }
 
 impl Renames {

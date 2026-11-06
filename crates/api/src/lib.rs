@@ -20,7 +20,8 @@
 //!   v1/nodes/{id}/drift/{package}/acknowledge`, `PUT v1/nodes/{id}/drift/{package}/mute`
 //!   ([`DriftMuteBody`]), and a drift's import (`{"drift": …}`, [`ImportRequest`]); see
 //!   `drift`), the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
-//!   ([`WanTestBody`], a job); see `wan`), `POST v1/adopt/probe`, `POST v1/adopt`,
+//!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
+//!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -91,6 +92,7 @@ mod rf;
 mod rf_tests;
 pub mod security;
 mod site;
+mod speed;
 mod state;
 #[cfg(test)]
 mod testing;
@@ -139,6 +141,7 @@ pub use site::{
     FirstSite, RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
     revisions::{RestoreBody, RevisionDiff, RevisionPage},
 };
+pub use speed::SpeedTestBody;
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
 pub use wan::WanTestBody;
@@ -238,6 +241,8 @@ fn config_routes() -> Router<Api> {
         .route("/v1/site", get(site::get).put(site::put))
         .route("/v1/isp/presets", get(wan::presets))
         .route("/v1/wan/test", post(wan::test))
+        .route("/v1/wan/speed-test", post(speed::start))
+        .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))
         .route("/v1/revisions", get(site::revisions::list))
         .route("/v1/revisions/{id}", get(site::revisions::get))

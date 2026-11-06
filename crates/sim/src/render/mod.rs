@@ -7,6 +7,7 @@ mod batman;
 pub(crate) mod commands;
 pub(crate) mod config;
 mod devices;
+mod feeds;
 mod l2;
 mod logs;
 mod net;

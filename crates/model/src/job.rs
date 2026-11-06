@@ -93,6 +93,9 @@ pub enum JobKind {
     /// Trying a WAN configuration on the gateway, then rolling it back (features/wan.md,
     /// Connectivity test; D-075).
     WanTest,
+    /// Measuring the line from the gateway: its rates, and its latency idle and under load
+    /// (features/wan.md, SQM; D-076).
+    SpeedTest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -155,6 +158,8 @@ pub enum StepName {
     RemoveTool,
     /// Read each node's packages and facts, render the revision, and diff.
     Plan,
+    /// Install the feed packages the configuration needs where they are missing (D-076).
+    Install,
     /// Stage each node's transaction and check it there.
     Stage,
     /// Apply every transaction, each with its dead-man timer armed.
@@ -179,6 +184,12 @@ pub enum StepName {
     SixRd,
     /// Roll the gateway back to what it held.
     Rollback,
+    /// Round trips with the line quiet (the speed test's steps follow, D-076).
+    Idle,
+    /// The download rate, and round trips while downloading.
+    Download,
+    /// The upload rate, and round trips while uploading.
+    Upload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

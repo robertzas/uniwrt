@@ -254,6 +254,7 @@ export const strings = {
       unmanage: (target: string) => `Turning management off for ${target}`,
       apply: (target: string) => `Applying ${target}`,
       wan_test: (target: string) => `Testing the internet connection on ${target}`,
+      speed_test: (target: string) => `Measuring the internet speed from ${target}`,
     },
     step: {
       connect: "Log in",
@@ -267,6 +268,7 @@ export const strings = {
       install_tool: "Install the transaction tool",
       remove_tool: "Remove the transaction tool",
       plan: "Plan the changes",
+      install: "Install the packages it needs",
       stage: "Stage on every device",
       apply: "Apply",
       verify: "Check every device",
@@ -279,6 +281,9 @@ export const strings = {
       ipv6: "IPv6",
       six_rd: "IPv6 over 6rd",
       rollback: "Roll back",
+      idle: "Latency, idle",
+      download: "Download",
+      upload: "Upload",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -288,6 +293,10 @@ export const strings = {
         plan: "Prepare the WAN",
         stage: "Stage on the gateway",
         apply: "Try the WAN",
+      },
+      speed_test: {
+        connect: "Log in to the gateway",
+        record: "Grade the line",
       },
     } as Partial<Record<JobKind, Partial<Record<StepName, string>>>>,
     stepState: {
@@ -708,7 +717,8 @@ export const strings = {
         firewall: "Zones, forwarding and rules",
         dropbear: "The SSH server",
         usteer: "Band and client steering",
-        sqm: "Smart queue management",
+        sqm: "Smart queue management (cake)",
+        mwan3: "Failover to a backup line (mwan3)",
         wireguard: "WireGuard VPN",
       },
       message: (name: string, added: readonly string[], removed: readonly string[]) =>
@@ -1033,6 +1043,7 @@ export const strings = {
         `${node} ${radio} moved from channel ${from} to ${to}`,
       channelCongested: (node: string, radio: string) => `${node} ${radio}: channel congested`,
       channelClear: (node: string, radio: string) => `${node} ${radio}: channel clear again`,
+      sqmRatesDrifted: "The line's speed changed: new SQM rates suggested",
     },
     detail: {
       downFor: (d: string) => `Down for ${d}`,
@@ -1050,7 +1061,10 @@ export const strings = {
         unmanage: "disabling management",
         apply: "applying the configuration",
         wan_test: "testing the internet connection",
+        speed_test: "measuring the internet speed",
       },
+      sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
+        `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,
       radar: "Radar on its DFS channel made it move",
       busy: (percent: number) => `${percent}% busy`,
       busyFor: (percent: number, d: string) => `${percent}% busy, after ${d} congested`,
@@ -1226,6 +1240,7 @@ export const strings = {
       wan_down: "Internet down",
       wan_up: "Internet back",
       wan_address_changed: "WAN address changed",
+      sqm_rates_drifted: "SQM rates out of date",
       mesh_link_down: "Mesh link down",
       mesh_link_up: "Mesh link up",
       mesh_link_weak: "Mesh link weak",

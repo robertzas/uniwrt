@@ -54,6 +54,9 @@ pub enum Event {
     Logged { records: Arc<[LogRecord]> },
     /// The engine stopped watching a node.
     Removed { node: NodeId },
+    /// An event from outside the engine, to record as it is
+    /// ([`Engine::note`](crate::Engine::note)): autotune's drifted SQM rates.
+    Noted { event: uniwrt_events::NewEvent },
     /// The topology changed ([`Engine::topology`](crate::Engine::topology)).
     Topology { topology: Arc<Topology> },
     /// Clients changed ([`Engine::clients`](crate::Engine::clients)): their views, the records
@@ -97,7 +100,8 @@ impl Event {
             | Self::Sampled { .. }
             | Self::Alerts { .. }
             | Self::Rf { .. }
-            | Self::Drift { .. } => None,
+            | Self::Drift { .. }
+            | Self::Noted { .. } => None,
         }
     }
 }

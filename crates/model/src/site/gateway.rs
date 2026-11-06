@@ -27,6 +27,10 @@ pub struct WanConfig {
     pub ipv6: WanIpv6,
     /// The ISP preset the wizard last filled this from (crates/isp), shown beside the fields.
     pub preset: Option<String>,
+    /// Smart queueing on the WAN (cake through sqm-scripts); unset, off.
+    pub sqm: Option<Sqm>,
+    /// A backup line mwan3 fails over to while this one is down; unset, none.
+    pub failover: Option<Failover>,
 }
 
 impl Default for WanConfig {
@@ -40,6 +44,8 @@ impl Default for WanConfig {
             mac: None,
             ipv6: WanIpv6::Dhcpv6 { reqprefix: None },
             preset: None,
+            sqm: None,
+            failover: None,
         }
     }
 }
@@ -115,6 +121,63 @@ impl WanIpv6 {
     pub const fn is_on(&self) -> bool {
         !matches!(self, Self::Off)
     }
+}
+
+/// The hosts a line's health is checked against, by the connectivity test (DNS) and by mwan3
+/// (pings): Quad9 and Cloudflare, two independent anycast networks.
+pub const HEALTH_TARGETS: [Ipv4Addr; 2] = [Ipv4Addr::new(9, 9, 9, 9), Ipv4Addr::new(1, 1, 1, 1)];
+
+/// Smart queueing (features/wan.md, SQM): cake shapes the WAN a little below the line's rates,
+/// so the queue builds on the gateway, where cake keeps it short, instead of in the ISP's gear.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Sqm {
+    /// The shaped download rate, in kbit/s.
+    pub download_kbps: u32,
+    /// The shaped upload rate, in kbit/s.
+    pub upload_kbps: u32,
+    /// The link layer's overhead per packet, in bytes (Ethernet framing on fiber is 38, with
+    /// PPPoE 46; DOCSIS 18); unset, none is added.
+    pub overhead: Option<u8>,
+    /// Re-measure the line every week at night and suggest new rates when it changed.
+    pub autotune: bool,
+}
+
+/// The backup line (features/wan.md, Failover): mwan3 checks both lines against
+/// [`HEALTH_TARGETS`] and routes over the backup while the WAN fails.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Failover {
+    pub link: BackupLink,
+    pub proto: BackupProto,
+}
+
+/// Where the backup line plugs in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BackupLink {
+    /// One of the gateway's Ethernet ports, taken out of the LAN (an LTE router, a second
+    /// ISP), on a VLAN when the line is tagged.
+    Port { port: String, vlan: Option<u16> },
+    /// A phone or modem tethered over USB (RNDIS or CDC Ethernet), whose device is usually
+    /// `usb0`.
+    Usb { device: String },
+}
+
+/// How the backup line gets its address.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BackupProto {
+    Dhcp,
+    Static {
+        #[cfg_attr(feature = "ts", ts(as = "String"))]
+        address: Ipv4Net,
+        #[cfg_attr(feature = "ts", ts(as = "String"))]
+        gateway: Ipv4Addr,
+        dns: Vec<IpAddr>,
+    },
 }
 
 /// The firewall policy between networks. Each network's purpose seeds a matrix; these entries

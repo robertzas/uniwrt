@@ -9,7 +9,7 @@ use uniwrt_uci::{Package, Section};
 
 use crate::{
     ext::SectionExt,
-    mesh,
+    failover, mesh,
     plan::{BRIDGE, Net, Plan, Port},
     switch, wan,
 };
@@ -33,6 +33,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     sections.extend(switch::sections(plan));
     sections.extend(plan.nets.iter().map(|net| interface(plan, net)));
     sections.extend(wan::interfaces(plan));
+    sections.extend(failover::network(plan));
     sections.extend(mesh::interfaces(plan));
     let mut package = Package::new("network");
     package.sections = sections;

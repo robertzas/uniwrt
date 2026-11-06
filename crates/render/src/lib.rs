@@ -5,8 +5,9 @@
 //!   ([`Secrets`]) and a [`Target`]: the node, its role, its [`NodeFacts`] and the packages it
 //!   holds now. It gives a [`Rendered`]: one [`Package`] per managed package (D-011), the
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
-//!   being rendered. Packages render in the order `system`, `network`, `wireless`, `dhcp`,
-//!   `firewall`; the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
+//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `sqm`, `mwan3` (the last two
+//!   only on the gateway, only with SQM or failover on or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
@@ -41,12 +42,14 @@ use uniwrt_uci::Package;
 
 mod dhcp;
 mod ext;
+mod failover;
 mod firewall;
 mod mesh;
 mod network;
 mod plan;
 mod preserve;
 pub mod raw;
+mod sqm;
 mod switch;
 mod system;
 mod wan;
@@ -81,7 +84,19 @@ pub struct Rendered {
     pub packages: BTreeMap<ManagedPackage, Package>,
     /// Init scripts to enable (`true`) or disable, such as `dnsmasq` on an AP.
     pub services: BTreeMap<&'static str, bool>,
+    /// The packages from OpenWrt's feeds the configuration needs on the node (SQM's, mwan3),
+    /// which an apply installs where they are missing (D-076).
+    pub requires: Vec<Requirement>,
     pub warnings: Vec<Issue>,
+}
+
+/// A package from OpenWrt's feeds that a rendered configuration needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Requirement {
+    /// Its name for opkg and apk alike, such as `sqm-scripts`.
+    pub package: &'static str,
+    /// The init script it brings, which render may switch on: absent until it is installed.
+    pub service: Option<&'static str>,
 }
 
 /// Something about the node or the site that render reports, at the path of the document's
@@ -124,12 +139,14 @@ pub use self::{
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 5] = [
+pub const RENDERABLE: [ManagedPackage; 7] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
     ManagedPackage::Dhcp,
     ManagedPackage::Firewall,
+    ManagedPackage::Sqm,
+    ManagedPackage::Mwan3,
 ];
 
 /// Renders the node's managed packages, or says why it can't.
@@ -164,7 +181,9 @@ pub fn render(
     };
     let mut packages = BTreeMap::new();
     let mut services = BTreeMap::new();
+    let mut requires = Vec::new();
     for package in config.managed.iter().filter(|p| RENDERABLE.contains(p)) {
+        let held = target.current.contains_key(package.name());
         let rendered = match package {
             ManagedPackage::System => system::render(&plan),
             ManagedPackage::Network => network::render(&plan),
@@ -178,6 +197,34 @@ pub fn render(
             ManagedPackage::Firewall => {
                 services.insert("firewall", plan.role == NodeRole::Gateway);
                 firewall::render(&plan)
+            }
+            ManagedPackage::Sqm => {
+                let Some(rendered) = sqm::render(&plan, held) else {
+                    continue;
+                };
+                let on = plan.site.wan.sqm.is_some();
+                if on {
+                    requires.extend(sqm::REQUIRES);
+                }
+                services.insert("sqm", on);
+                rendered
+            }
+            ManagedPackage::Mwan3 => {
+                let Some(rendered) = failover::render(&plan, held) else {
+                    continue;
+                };
+                let on = plan.backup.is_some();
+                if on {
+                    requires.push(failover::REQUIRES);
+                    if matches!(
+                        plan.site.wan.failover.as_ref().map(|f| &f.link),
+                        Some(uniwrt_model::site::gateway::BackupLink::Usb { .. })
+                    ) {
+                        requires.extend(failover::USB_REQUIRES);
+                    }
+                }
+                services.insert("mwan3", on);
+                rendered
             }
             _ => continue,
         };
@@ -202,6 +249,7 @@ pub fn render(
         Ok(Rendered {
             packages,
             services,
+            requires,
             warnings: plan.warnings,
         })
     } else {

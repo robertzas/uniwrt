@@ -36,6 +36,12 @@ raw: Array<RawSection>,
  */
 services: Array<ServiceChange>, 
 /**
+ * Packages from OpenWrt's feeds the configuration needs and the node lacks (SQM's,
+ * mwan3), installed before its transaction; a rollback leaves them installed, their
+ * services off (D-076).
+ */
+installs: Array<string>, 
+/**
  * Where the controller reaches it once applied, when that moves.
  */
 address: AddressChange | null, 

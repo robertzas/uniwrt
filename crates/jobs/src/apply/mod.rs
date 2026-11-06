@@ -2,7 +2,8 @@
 //! site's latest revision to every managed node as one fleet-wide two-phase commit.
 //!
 //! Steps: connect (every managed node, or nothing changes) → plan ([`survey`]: read what each
-//! holds, render, diff; any refused node stops it) → stage (stage and check every transaction)
+//! holds, render, diff; any refused node stops it) → install (the feed packages a node's
+//! configuration needs, [`install`]) → stage (stage and check every transaction)
 //! → apply (leaves → gateway, each with its dead-man timer) → verify (all at once, each over a
 //! new login at the address it moves to, against its health before) → confirm (all) → record
 //! (the revision each node holds, and the addresses that moved). A failure before a confirm
@@ -10,6 +11,7 @@
 
 mod address;
 pub(crate) mod health;
+mod install;
 mod order;
 pub(crate) mod plan;
 mod run;
@@ -39,9 +41,10 @@ use crate::{errors::internal, progress::Progress, runner::Shared};
 /// The key that keeps one apply at a time.
 pub(crate) const TARGET: &str = "apply";
 
-const STEPS: [StepName; 7] = [
+const STEPS: [StepName; 8] = [
     StepName::Connect,
     StepName::Plan,
+    StepName::Install,
     StepName::Stage,
     StepName::Apply,
     StepName::Verify,
@@ -205,6 +208,7 @@ async fn apply(
 
     if lives.is_empty() {
         for step in [
+            StepName::Install,
             StepName::Stage,
             StepName::Apply,
             StepName::Verify,
@@ -218,6 +222,7 @@ async fn apply(
         .map_err(|err| internal("naming the transaction", &err))?;
     let mut run = Run { shared, txn, lives };
     let result = async {
+        run.install(progress).await?;
         run.stage(progress).await?;
         run.apply(progress).await?;
         run.verify(progress).await?;

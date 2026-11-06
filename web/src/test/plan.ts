@@ -15,6 +15,7 @@ export function nodePlan(node: number, name: string, extra: Partial<NodePlan> = 
     drift: [],
     raw: [],
     services: [],
+    installs: [],
     address: null,
     hops: 1,
     timeout_s: 120,

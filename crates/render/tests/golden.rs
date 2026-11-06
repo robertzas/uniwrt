@@ -11,7 +11,7 @@ use uniwrt_model::{
     facts::{Software, WifiFeature},
     node::NodeRole,
     site::{
-        gateway::{DhcpClient, WanIpv6, WanProto},
+        gateway::{BackupLink, BackupProto, DhcpClient, Failover, Sqm, WanIpv6, WanProto},
         node::{ManagedPackage, RawSection, RawValue},
         wireless::{Channel, WlanSecurity},
     },
@@ -305,4 +305,136 @@ fn transition_mode_falls_back_to_wpa2_without_sae() {
         Some("psk2")
     );
     assert!(rendered.warnings.iter().any(|w| w.path == "wlans/home"));
+}
+
+fn sqm(overhead: Option<u8>) -> Sqm {
+    Sqm {
+        download_kbps: 850_000,
+        upload_kbps: 90_000,
+        overhead,
+        autotune: false,
+    }
+}
+
+#[test]
+fn gateway_sqm_and_failover_on_a_lan_port() {
+    let facts = gateway_facts();
+    let port = "lan4".to_owned();
+    let mut site = home_site();
+    site.wan.sqm = Some(sqm(Some(44)));
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Port {
+            port: port.clone(),
+            vlan: Some(300),
+        },
+        proto: BackupProto::Static {
+            address: "192.0.2.10/24".parse().unwrap(),
+            gateway: "192.0.2.1".parse().unwrap(),
+            dns: vec!["192.0.2.1".parse().unwrap()],
+        },
+    });
+    let result = run(&site, GATEWAY, NodeRole::Gateway, &facts);
+    let rendered = ok(result.clone());
+    let network = &rendered.packages[&ManagedPackage::Network];
+    let bridge = network
+        .sections_of("device")
+        .find(|d| d.option("name") == Some("br-lan"))
+        .unwrap();
+    assert!(
+        !bridge.get("ports").unwrap().items().contains(&port),
+        "the backup's port leaves the bridge"
+    );
+    assert_snapshot!("gateway_sqm_and_failover_on_a_lan_port", show(&result));
+}
+
+#[test]
+fn gateway_pppoe_sqm_and_usb_failover() {
+    let mut site = pppoe_site();
+    site.wan.sqm = Some(sqm(None));
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Usb {
+            device: "usb0".to_owned(),
+        },
+        proto: BackupProto::Dhcp,
+    });
+    let result = run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts());
+    assert_snapshot!("gateway_pppoe_sqm_and_usb_failover", show(&result));
+}
+
+#[test]
+fn sqm_and_failover_off_leave_what_the_gateway_holds_inert() {
+    let site = home_site();
+    let mut current = stock();
+    for (name, text) in [
+        (
+            "sqm",
+            "config queue 'eth1'\n\toption enabled '1'\n\toption interface 'eth1'\n",
+        ),
+        (
+            "mwan3",
+            "config globals 'globals'\n\toption mmx_mask '0x3F00'\n\nconfig interface 'wan'\n\toption enabled '1'\n",
+        ),
+    ] {
+        current.insert(name.to_owned(), uniwrt_uci::parse(name, text).unwrap());
+    }
+    let rendered = ok(run_on(
+        &site,
+        GATEWAY,
+        NodeRole::Gateway,
+        &gateway_facts(),
+        &current,
+    ));
+    assert_eq!(rendered.packages[&ManagedPackage::Sqm].sections, []);
+    let mwan3 = &rendered.packages[&ManagedPackage::Mwan3];
+    assert_eq!(
+        mwan3
+            .sections
+            .iter()
+            .map(|s| s.kind.as_str())
+            .collect::<Vec<_>>(),
+        ["globals"]
+    );
+    assert_eq!(rendered.services.get("sqm"), Some(&false));
+    assert_eq!(rendered.services.get("mwan3"), Some(&false));
+    assert_eq!(rendered.requires, []);
+    // Off and not on the node: nothing to own.
+    let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
+    assert!(!rendered.packages.contains_key(&ManagedPackage::Sqm));
+    assert!(!rendered.services.contains_key("mwan3"));
+    // Never on an access point.
+    let mut site = home_site();
+    site.wan.sqm = Some(sqm(None));
+    let rendered = ok(run_on(&site, AP, NodeRole::Ap, &gateway_facts(), &current));
+    assert!(!rendered.packages.contains_key(&ManagedPackage::Sqm));
+}
+
+#[test]
+fn a_backup_needs_a_port_of_its_own() {
+    let mut site = home_site();
+    let facts = gateway_facts();
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Port {
+            port: facts.board.layout.wan.clone().unwrap(),
+            vlan: None,
+        },
+        proto: BackupProto::Dhcp,
+    });
+    let issues = run(&site, GATEWAY, NodeRole::Gateway, &facts).unwrap_err();
+    assert!(
+        issues.iter().any(|i| i.path == "wan/failover/link"),
+        "{issues:?}"
+    );
+    let facts = swconfig_facts();
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Port {
+            port: facts.board.layout.lan[0].clone(),
+            vlan: None,
+        },
+        proto: BackupProto::Dhcp,
+    });
+    let issues = run(&site, GATEWAY, NodeRole::Gateway, &facts).unwrap_err();
+    assert!(
+        issues.iter().any(|i| i.message.contains("swconfig")),
+        "{issues:?}"
+    );
 }

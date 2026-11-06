@@ -100,6 +100,8 @@ pub(crate) fn import(
         mac,
         ipv6,
         preset: None,
+        sqm: None,
+        failover: None,
     };
 }
 

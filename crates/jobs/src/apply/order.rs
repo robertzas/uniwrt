@@ -115,6 +115,7 @@ mod tests {
             drift: Vec::new(),
             raw: Vec::new(),
             services: Vec::new(),
+            installs: Vec::new(),
             address: None,
             hops,
             timeout_s: 120,

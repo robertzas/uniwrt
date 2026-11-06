@@ -200,6 +200,8 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Wireless,
         ManagedPackage::Dhcp,
         ManagedPackage::Firewall,
+        ManagedPackage::Sqm,
+        ManagedPackage::Mwan3,
     ]
     .into();
     config
@@ -384,7 +386,17 @@ pub(crate) fn run(
     role: NodeRole,
     facts: &NodeFacts,
 ) -> Result<Rendered, Vec<Issue>> {
-    let current = stock();
+    run_on(site, node, role, facts, &stock())
+}
+
+/// [`run`] on a node that holds `current`.
+pub(crate) fn run_on(
+    site: &SiteConfig,
+    node: NodeId,
+    role: NodeRole,
+    facts: &NodeFacts,
+    current: &BTreeMap<String, Package>,
+) -> Result<Rendered, Vec<Issue>> {
     render(
         site,
         &secrets(),
@@ -392,7 +404,7 @@ pub(crate) fn run(
             node,
             role,
             facts,
-            current: &current,
+            current,
         },
     )
 }
@@ -414,6 +426,10 @@ pub(crate) fn show(result: &Result<Rendered, Vec<Issue>>) -> String {
                 .map(|(name, on)| format!("{name} {}", if *on { "on" } else { "off" }))
                 .collect();
             let _ = writeln!(out, "services: {}", services.join(", "));
+            if !rendered.requires.is_empty() {
+                let requires: Vec<&str> = rendered.requires.iter().map(|r| r.package).collect();
+                let _ = writeln!(out, "requires: {}", requires.join(", "));
+            }
             for issue in &rendered.warnings {
                 let _ = writeln!(out, "warning: {}: {}", issue.path, issue.message);
             }

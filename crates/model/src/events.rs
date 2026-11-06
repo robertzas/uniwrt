@@ -268,6 +268,15 @@ pub enum EventKind {
         how: DriftEnd,
         drift_ms: Option<u64>,
     },
+    /// Autotune's weekly test of the line suggests SQM rates more than 10 % away from the
+    /// site's (features/wan.md, SQM; D-076): the line got faster or slower. All in kbit/s.
+    SqmRatesDrifted {
+        job: JobId,
+        download_kbps: u32,
+        upload_kbps: u32,
+        shaped_download_kbps: u32,
+        shaped_upload_kbps: u32,
+    },
 }
 
 impl EventKind {
@@ -293,7 +302,9 @@ impl EventKind {
             Self::MeshLinkWeak { .. } => (C::Mesh, L::Warning),
             Self::MeshLinkUp { .. } | Self::MeshLinkRecovered { .. } => (C::Mesh, L::Notice),
             Self::WanDown { .. } => (C::Wan, L::Critical),
-            Self::WanUp { .. } | Self::WanAddressChanged { .. } => (C::Wan, L::Notice),
+            Self::WanUp { .. } | Self::WanAddressChanged { .. } | Self::SqmRatesDrifted { .. } => {
+                (C::Wan, L::Notice)
+            }
             Self::ClientJoined { .. } | Self::ClientLeft { .. } | Self::ClientRoamed { .. } => {
                 (C::Client, L::Info)
             }
@@ -335,6 +346,7 @@ impl EventKind {
             Self::JobFailed { .. } => "job_failed",
             Self::ConfigDrift { .. } => "config_drift",
             Self::ConfigDriftEnded { .. } => "config_drift_ended",
+            Self::SqmRatesDrifted { .. } => "sqm_rates_drifted",
         }
     }
 }

@@ -1,11 +1,18 @@
 //! The WAN, the firewall policy and services.
 
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    net::{IpAddr, Ipv4Addr},
+};
+
+use uniwrt_core::Ipv4Net;
 
 use super::{Issues, names};
 use crate::site::{
     SiteConfig,
-    gateway::{DhcpClient, DnsRecord, WanConfig, WanIpv6, WanProto},
+    gateway::{
+        BackupLink, BackupProto, DhcpClient, DnsRecord, Failover, Sqm, WanConfig, WanIpv6, WanProto,
+    },
 };
 
 pub(super) fn wan(config: &SiteConfig, issues: &mut Issues) {
@@ -30,6 +37,12 @@ pub(super) fn wan(config: &SiteConfig, issues: &mut Issues) {
     }
     proto(wan, issues);
     ipv6(wan, issues);
+    if let Some(sqm) = &wan.sqm {
+        self::sqm(sqm, issues);
+    }
+    if let Some(failover) = &wan.failover {
+        self::failover(failover, wan, issues);
+    }
 }
 
 /// How IPv4 arrives.
@@ -40,24 +53,7 @@ fn proto(wan: &WanConfig, issues: &mut Issues) {
             address,
             gateway,
             dns,
-        } => {
-            let subnet = address.trunc();
-            if address.prefix_len() > 30
-                || address.addr() == subnet.network()
-                || address.addr() == subnet.broadcast()
-            {
-                issues.error("wan/proto/address", "The address is a host of its subnet");
-            }
-            if !subnet.contains(gateway) || gateway == &address.addr() {
-                issues.error(
-                    "wan/proto/gateway",
-                    format!("The ISP's gateway is another host of {subnet}"),
-                );
-            }
-            if dns.is_empty() {
-                issues.warn("wan/proto/dns", "Without DNS servers, names do not resolve");
-            }
-        }
+        } => static_ipv4("wan/proto", *address, *gateway, dns, issues),
         WanProto::Pppoe {
             username,
             password,
@@ -139,6 +135,92 @@ fn ipv6(wan: &WanConfig, issues: &mut Issues) {
 const PRINTABLE: &str = "Use printable characters only";
 
 /// A non-empty value without control characters.
+/// A static IPv4 address, its gateway and DNS servers, under `at`.
+fn static_ipv4(at: &str, address: Ipv4Net, gateway: Ipv4Addr, dns: &[IpAddr], issues: &mut Issues) {
+    let subnet = address.trunc();
+    if address.prefix_len() > 30
+        || address.addr() == subnet.network()
+        || address.addr() == subnet.broadcast()
+    {
+        issues.error(
+            format!("{at}/address"),
+            "The address is a host of its subnet",
+        );
+    }
+    if !subnet.contains(&gateway) || gateway == address.addr() {
+        issues.error(
+            format!("{at}/gateway"),
+            format!("The ISP's gateway is another host of {subnet}"),
+        );
+    }
+    if dns.is_empty() {
+        issues.warn(
+            format!("{at}/dns"),
+            "Without DNS servers, names do not resolve",
+        );
+    }
+}
+
+/// The fastest line SQM shapes: 10 Gbit/s, far past what a router's CPU shapes.
+const SQM_MAX_KBPS: u32 = 10_000_000;
+
+fn sqm(sqm: &Sqm, issues: &mut Issues) {
+    for (field, rate) in [
+        ("download_kbps", sqm.download_kbps),
+        ("upload_kbps", sqm.upload_kbps),
+    ] {
+        if !(64..=SQM_MAX_KBPS).contains(&rate) {
+            issues.error(
+                format!("wan/sqm/{field}"),
+                "A shaped rate is 64 kbit/s to 10 Gbit/s",
+            );
+        }
+    }
+    if sqm.overhead.is_some_and(|overhead| overhead > 128) {
+        issues.error("wan/sqm/overhead", "The overhead is 0 to 128 bytes");
+    }
+}
+
+fn failover(failover: &Failover, wan: &WanConfig, issues: &mut Issues) {
+    let device = match &failover.link {
+        BackupLink::Port { port, vlan } => {
+            if vlan.is_some_and(|vid| !(1..=4094).contains(&vid)) {
+                issues.error("wan/failover/link/vlan", "A VLAN ID is 1 to 4094");
+            }
+            port
+        }
+        BackupLink::Usb { device } => device,
+    };
+    if !device_name(device) {
+        issues.error(
+            "wan/failover/link",
+            "A device name is 1 to 15 letters, digits, '-', '_' or '.'",
+        );
+    }
+    if let BackupProto::Static {
+        address,
+        gateway,
+        dns,
+    } = &failover.proto
+    {
+        static_ipv4("wan/failover/proto", *address, *gateway, dns, issues);
+    }
+    if matches!(wan.proto, WanProto::None) {
+        issues.error(
+            "wan/failover",
+            "Failover backs up the WAN's IPv4, which an IPv6-only WAN lacks",
+        );
+    }
+}
+
+/// A Linux interface name netifd accepts.
+fn device_name(name: &str) -> bool {
+    (1..=15).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+}
+
 fn text(value: &str) -> bool {
     !value.is_empty() && !value.chars().any(char::is_control)
 }

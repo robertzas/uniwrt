@@ -8,6 +8,7 @@
 //!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
+//!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
@@ -22,7 +23,8 @@
 //!   transaction tool and the guard unless that version is there (or remove them) → record the
 //!   mode. An open transaction on the node fails the job before anything changes.
 //! - **Apply** steps (`apply/`): connect (every managed node) → plan (read each node's packages,
-//!   services, facts and DNS at once; render; diff; any refused node stops it) → stage → apply
+//!   services, facts and DNS at once; render; diff; any refused node stops it) → install (the
+//!   feed packages a configuration needs and a node lacks, D-076) → stage → apply
 //!   (leaves → gateway, dead-man timers armed) → verify (all at once, over new logins at the
 //!   address each moves to, health against the baseline) → confirm → record (the revision each
 //!   node holds; renumbered nodes moved and watched again). A failure before a confirm rolls
@@ -33,6 +35,10 @@
 //!   the connectivity checks live (link, address, gateway, DNS, HTTPS, IPv6; a second trial
 //!   with a 6rd fallback when DHCPv6 delegates no prefix) → rollback, always. It fails
 //!   (`no_internet`, with the hint) when IPv4 doesn't reach the internet.
+//! - **Speed test** (`speed_test/`): connect (the gateway) → idle (round trips) → download →
+//!   upload (four HTTPS streams for 12 s each, pinging; SQM stopped for them with
+//!   `bypass_sqm`) → record (the history). Rates leave the warm-up out; latency under load is
+//!   the 90th percentile, graded for bufferbloat.
 //! - **Import** (`import.rs`, no job: the caller waits): log in to every adopted node (observe
 //!   mode too) → read the packages render writes and the facts → `uniwrt_import` on the latest
 //!   revision → seal the secrets found (keeping a reference whose vault value is the same) → the
@@ -69,6 +75,7 @@ mod manage_tests;
 mod progress;
 mod remote;
 mod runner;
+mod speed_test;
 #[cfg(test)]
 mod testing;
 mod wan_test;
@@ -78,6 +85,7 @@ pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
+pub use speed_test::SpeedTestRequest;
 pub use wan_test::WanTest;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

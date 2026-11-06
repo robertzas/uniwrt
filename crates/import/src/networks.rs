@@ -19,7 +19,7 @@ use uniwrt_uci::{Package, Section};
 use crate::{Source, read};
 
 /// Ids render keeps for its own interfaces.
-const RESERVED: [&str; 5] = ["loopback", "wan", "wan6", "wan_6", "bat0"];
+const RESERVED: [&str; 6] = ["loopback", "wan", "wan6", "wan_6", "wanb", "bat0"];
 
 pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut read::Renames) {
     let Some(network) = gateway.packages.get("network") else {

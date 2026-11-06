@@ -13,6 +13,29 @@ pub fn posix(zone: &str) -> Option<&'static str> {
         .map(|(_, tz)| tz)
 }
 
+/// The standard time's offset from UTC of a POSIX TZ string, in seconds east (`CET-1CEST,…`
+/// is 3600, `EST5EDT,…` is -18000); `None` when it doesn't parse. Daylight saving time is left
+/// out: an hour off at most, for what only needs "at night".
+pub fn standard_offset_s(posix: &str) -> Option<i32> {
+    let rest = match posix.strip_prefix('<') {
+        Some(quoted) => &quoted[quoted.find('>')? + 1..],
+        None => posix.trim_start_matches(|c: char| c.is_ascii_alphabetic()),
+    };
+    let (sign, rest) = match rest.as_bytes().first()? {
+        b'-' => (1, &rest[1..]),
+        b'+' => (-1, &rest[1..]),
+        _ => (-1, rest),
+    };
+    let end = rest
+        .find(|c: char| !(c.is_ascii_digit() || c == ':'))
+        .unwrap_or(rest.len());
+    let mut parts = rest[..end].split(':').map(str::parse::<i32>);
+    let hours = parts.next()?.ok()?;
+    let minutes = parts.next().transpose().ok()?.unwrap_or(0);
+    let seconds = parts.next().transpose().ok()?.unwrap_or(0);
+    (hours <= 24).then_some(sign * (hours * 3600 + minutes * 60 + seconds))
+}
+
 /// The tzdata release the table was built from, such as `2026f`.
 pub fn version() -> &'static str {
     TABLE
@@ -24,7 +47,22 @@ pub fn version() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{TABLE, posix, version};
+    use super::{TABLE, posix, standard_offset_s, version};
+
+    #[test]
+    fn standard_offsets_read_posix_signs_backwards() {
+        assert_eq!(standard_offset_s("CET-1CEST,M3.5.0,M10.5.0/3"), Some(3600));
+        assert_eq!(standard_offset_s("EST5EDT,M3.2.0,M11.1.0"), Some(-18_000));
+        assert_eq!(standard_offset_s("UTC0"), Some(0));
+        assert_eq!(standard_offset_s("<+0545>-5:45"), Some(20_700));
+        assert_eq!(standard_offset_s("IST-5:30"), Some(19_800));
+        assert_eq!(standard_offset_s("<-03>3"), Some(-10_800));
+        assert_eq!(standard_offset_s("bad"), None);
+        for line in TABLE.lines().filter(|line| !line.starts_with('#')) {
+            let (zone, tz) = line.split_once('\t').unwrap();
+            assert!(standard_offset_s(tz).is_some(), "{zone}: {tz}");
+        }
+    }
 
     #[test]
     fn zones_and_links_have_posix_strings() {

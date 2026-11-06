@@ -2,7 +2,7 @@
 //! the pinned host key), read what it holds (packages, services, facts, and on the gateway its
 //! DNS), and plan its part. Nodes are reached concurrently; nothing changes on them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use futures_util::future::join_all;
 use uniwrt_model::{
@@ -13,7 +13,7 @@ use uniwrt_model::{
     site::{SecretRef, SiteConfig, revision::Revision},
 };
 use uniwrt_node::{
-    Credential, HostKey, Target,
+    Credential, ExecRequest, HostKey, Target,
     proto::ops::Set,
     txn::{self, current},
 };
@@ -28,6 +28,7 @@ use super::{
 };
 use crate::{
     Remote,
+    adopt::packages,
     errors::{chain, internal},
     runner::Shared,
 };
@@ -44,7 +45,7 @@ pub(crate) const RENDER_SETS: [Set; 6] = [
 ];
 
 /// The services render may switch, which the planner reads.
-const SERVICES: [&str; 3] = ["dnsmasq", "odhcpd", "firewall"];
+const SERVICES: [&str; 5] = ["dnsmasq", "odhcpd", "firewall", "sqm", "mwan3"];
 
 /// A login on a node.
 pub(crate) struct Login {
@@ -120,6 +121,8 @@ struct Reading {
     files: BTreeMap<String, Option<String>>,
     services: BTreeMap<String, current::ServiceState>,
     facts: NodeFacts,
+    /// The packages installed from the feeds, or why they can't be read.
+    installed: Result<BTreeSet<String>, String>,
     dns: [bool; 2],
 }
 
@@ -141,13 +144,36 @@ async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
         .and_then(|output| services.parse(output))
         .map_err(|err| format!("Cannot read its services: {}", chain(&err)))?;
     let facts = collect(shared, remote, &Set::ALL, &RENDER_SETS).await?;
+    let installed = installed(remote, &facts).await;
     let dns = dns(remote, login.node.role).await;
     Ok(Reading {
         files,
         services,
         facts,
+        installed,
         dns,
     })
+}
+
+/// The names of the packages installed, from the package manager's database (empty without
+/// one uniwrt knows).
+async fn installed(remote: &dyn Remote, facts: &NodeFacts) -> Result<BTreeSet<String>, String> {
+    let Some(manager) = facts.capabilities.package_manager else {
+        return Ok(BTreeSet::new());
+    };
+    let mut outputs = Vec::new();
+    for argv in packages::commands(manager) {
+        let output = remote
+            .exec(ExecRequest::new(argv.iter().copied()))
+            .await
+            .and_then(|output| output.check(argv[0]))
+            .map_err(|err| format!("Cannot read its packages: {}", chain(&err)))?;
+        outputs.push(String::from_utf8_lossy(&output.stdout).into_owned());
+    }
+    Ok(packages::parse(manager, &outputs)
+        .into_iter()
+        .map(|package| package.name)
+        .collect())
 }
 
 /// Whether the node has the transaction tool; an error when its status can't be read or a
@@ -282,6 +308,7 @@ pub(crate) async fn plan_all(
                 facts: &reading.facts,
                 files: &reading.files,
                 services: &reading.services,
+                installed: reading.installed.as_ref(),
             },
             &shared.timing,
         );

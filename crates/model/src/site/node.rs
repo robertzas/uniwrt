@@ -52,6 +52,7 @@ pub enum ManagedPackage {
     Dropbear,
     Usteer,
     Sqm,
+    Mwan3,
     Wireguard,
 }
 
@@ -67,6 +68,7 @@ impl ManagedPackage {
             Self::Dropbear => "dropbear",
             Self::Usteer => "usteer",
             Self::Sqm => "sqm",
+            Self::Mwan3 => "mwan3",
             Self::Wireguard => "wireguard",
         }
     }

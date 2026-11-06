@@ -20,6 +20,7 @@ mod revisions;
 mod revisions_tests;
 mod rf;
 mod sessions;
+mod speed;
 mod topology;
 mod users;
 
@@ -45,6 +46,7 @@ use uniwrt_model::{
     notify::{Notifier, NotifierConfig},
     rf::{NewScan, Scan, ScanSummary},
     site::revision::{NewRevision, Revision, RevisionMeta},
+    speed::SpeedTest,
     user::{AuditEntry, Role, Session, User},
 };
 use zeroize::Zeroizing;
@@ -287,6 +289,14 @@ pub trait SessionRepo: Send + Sync {
         &self,
         idle_since: Timestamp,
     ) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Speed tests from the gateway (features/wan.md, SQM; D-076), the newest 500.
+pub trait SpeedTestRepo: Send + Sync {
+    fn record_speed_test(&self, test: SpeedTest) -> impl Future<Output = Result<()>> + Send;
+
+    /// The latest `limit` tests, newest first.
+    fn speed_tests(&self, limit: usize) -> impl Future<Output = Result<Vec<SpeedTest>>> + Send;
 }
 
 /// The audit log.

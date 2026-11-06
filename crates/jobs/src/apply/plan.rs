@@ -3,16 +3,20 @@
 //! the services whose start at boot differs, find where the controller will reach it, and
 //! mask secrets for the review screen.
 
-use std::{collections::BTreeMap, net::Ipv4Addr, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::Ipv4Addr,
+    time::Duration,
+};
 
 use uniwrt_model::{
     apply::{AddressChange, NodePlan, PlanAction, PlanIssue, ServiceChange},
-    facts::NodeFacts,
+    facts::{NodeFacts, PackageManager},
     node::Node,
     site::{SiteConfig, node::RawSection},
 };
 use uniwrt_node::txn::current::ServiceState;
-use uniwrt_render::{Issue, RENDERABLE, Secrets, Target, render, uplink_section};
+use uniwrt_render::{Issue, RENDERABLE, Requirement, Secrets, Target, render, uplink_section};
 use uniwrt_uci::Package;
 
 use super::{ApplyTiming, address};
@@ -24,6 +28,9 @@ pub(crate) struct Report<'a> {
     /// `/etc/config`, by package; `None` for a package it lacks.
     pub(crate) files: &'a BTreeMap<String, Option<String>>,
     pub(crate) services: &'a BTreeMap<String, ServiceState>,
+    /// The packages installed from the feeds, by name, or why they can't be read: only a
+    /// configuration that needs one fails on that.
+    pub(crate) installed: Result<&'a BTreeSet<String>, &'a String>,
 }
 
 /// One node's part, as the job carries it out.
@@ -36,6 +43,8 @@ pub(crate) struct Part {
     /// baseline.
     pub(crate) held: BTreeMap<String, String>,
     pub(crate) services: Vec<(String, bool)>,
+    /// The feed packages to install before the transaction, with the package manager.
+    pub(crate) installs: Option<(PackageManager, Vec<Requirement>)>,
     /// Where the controller reaches it once applied, when that moves.
     pub(crate) address: Option<Ipv4Addr>,
     /// Its dead-man timer, longer when it changes the WAN or the mesh (`uplink`).
@@ -60,6 +69,7 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
         drift: Vec::new(),
         raw: Vec::new(),
         services: Vec::new(),
+        installs: Vec::new(),
         address: None,
         hops: None,
         timeout_s: 0,
@@ -80,6 +90,7 @@ pub(crate) fn plan(
         files: Vec::new(),
         held: BTreeMap::new(),
         services: Vec::new(),
+        installs: None,
         address: None,
         timeout: timing.timer,
         uplink: false,
@@ -145,7 +156,8 @@ pub(crate) fn plan(
         mask(&mut diff);
         part.plan.packages.push(diff);
     }
-    services(&rendered.services, report.services, &mut part);
+    let coming = installs(&rendered.requires, report, &mut part);
+    services(&rendered.services, report.services, &coming, &mut part);
     match address::expected(node, report.facts, site) {
         Ok(address) => {
             part.address = address;
@@ -167,12 +179,54 @@ pub(crate) fn plan(
     part.plan.timeout_s = u32::try_from(part.timeout.as_secs()).unwrap_or(u32::MAX);
     part.plan.action = if !part.plan.issues.is_empty() {
         PlanAction::Refused
-    } else if part.files.is_empty() && part.services.is_empty() {
+    } else if part.files.is_empty() && part.services.is_empty() && part.installs.is_none() {
         PlanAction::Unchanged
     } else {
         PlanAction::Change
     };
     part
+}
+
+/// Plans installing the feed packages the configuration `requires` and the node lacks; the
+/// services they bring, which the transaction may switch on although absent now.
+fn installs(
+    requires: &[Requirement],
+    report: &Report<'_>,
+    part: &mut Part,
+) -> BTreeSet<&'static str> {
+    let missing: Vec<Requirement> = match report.installed {
+        Ok(installed) => requires
+            .iter()
+            .filter(|r| !installed.contains(r.package))
+            .copied()
+            .collect(),
+        Err(why) => {
+            if !requires.is_empty() {
+                part.plan.issues.push(issue("node", why.clone()));
+            }
+            Vec::new()
+        }
+    };
+    if !missing.is_empty() {
+        match report.facts.capabilities.package_manager {
+            Some(manager) => {
+                part.plan.installs = missing.iter().map(|r| r.package.to_owned()).collect();
+                part.installs = Some((manager, missing.clone()));
+            }
+            None => part.plan.issues.push(issue(
+                "node",
+                format!(
+                    "The node lacks {} and has no package manager uniwrt knows to install it",
+                    missing
+                        .iter()
+                        .map(|r| r.package)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            )),
+        }
+    }
+    missing.iter().filter_map(|r| r.service).collect()
 }
 
 /// The node's raw sections that render writes: those of the packages it manages.
@@ -194,15 +248,24 @@ fn raw_overrides(site: &SiteConfig, node: &Node) -> Vec<RawSection> {
 }
 
 /// Switches the services whose start at boot differs from what render wants.
+/// `coming` are the services of the packages installed first: switched on once they are there.
 fn services(
     wanted: &BTreeMap<&'static str, bool>,
     current: &BTreeMap<String, ServiceState>,
+    coming: &BTreeSet<&str>,
     part: &mut Part,
 ) {
     for (&name, &on) in wanted {
         match (current.get(name), on) {
             (Some(ServiceState::On), true)
             | (Some(ServiceState::Off | ServiceState::Absent) | None, false) => {}
+            (Some(ServiceState::Absent) | None, true) if coming.contains(name) => {
+                part.services.push((name.to_owned(), true));
+                part.plan.services.push(ServiceChange {
+                    name: name.to_owned(),
+                    enable: true,
+                });
+            }
             (Some(ServiceState::Absent) | None, true) => part.plan.issues.push(issue(
                 "node",
                 format!("The {name} service isn't installed on the node"),

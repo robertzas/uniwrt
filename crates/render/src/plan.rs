@@ -7,7 +7,13 @@ use crate::{Issue, Secrets, Target};
 use uniwrt_model::{
     facts::{NodeFacts, RadioFacts, Software, SwitchKind, SwitchLayout, WifiFeature},
     node::NodeRole,
-    site::{SiteConfig, gateway::WanProto, network::Network, node::NodeConfig, wireless::Channel},
+    site::{
+        SiteConfig,
+        gateway::{BackupLink, Failover, WanProto},
+        network::Network,
+        node::NodeConfig,
+        wireless::Channel,
+    },
     wifi::Band,
 };
 
@@ -33,6 +39,8 @@ pub(crate) struct Plan<'a> {
     pub wan: Option<Wan>,
     /// The PPPoE password from the vault.
     pub wan_password: Option<String>,
+    /// The gateway's backup line, with failover on.
+    pub backup: Option<crate::failover::Backup>,
     pub mesh: Option<Mesh<'a>>,
     /// The network that carries an AP's own address: the management network, else the
     /// default one.
@@ -131,17 +139,13 @@ impl<'a> Plan<'a> {
             _ => None,
         };
         let mesh = mesh(site, secrets, config, facts, &mut errors, &mut warnings);
-        // A port a raw interface takes as its device (a wired batman-adv link, a VLAN of its
-        // own) has another job: bridging it too would take it from that interface.
-        let claimed: BTreeSet<&str> = config
-            .raw
-            .iter()
-            .filter(|r| r.package == "network" && r.kind == "interface" && !r.merge)
-            .filter_map(|r| match r.options.get("device") {
-                Some(uniwrt_model::site::node::RawValue::Option(device)) => Some(device.as_str()),
-                _ => None,
-            })
-            .collect();
+        let backup = match &site.wan.failover {
+            Some(failover) if target.role == NodeRole::Gateway => {
+                backup(failover, facts, switch, &mut errors, &mut warnings)
+            }
+            _ => None,
+        };
+        let claimed = claimed(site, config, backup.is_some());
         let ports = ports(target.role, facts, switch, &nets, mesh.is_some(), &claimed);
         if ports.is_empty() && mesh.is_none() {
             errors.push(Issue::new(
@@ -194,6 +198,7 @@ impl<'a> Plan<'a> {
             switch,
             wan,
             wan_password,
+            backup,
             mesh,
             mgmt,
             errors,
@@ -325,6 +330,66 @@ fn wan(
             switch_vlan: None,
         },
     })
+}
+
+/// The ports with another job than the bridge's: the device of a raw interface (a wired
+/// batman-adv link, a VLAN of its own), and the backup line's. Bridging them too would take
+/// them from that job.
+fn claimed<'a>(site: &'a SiteConfig, config: &'a NodeConfig, backup: bool) -> BTreeSet<&'a str> {
+    let mut claimed: BTreeSet<&str> = config
+        .raw
+        .iter()
+        .filter(|r| r.package == "network" && r.kind == "interface" && !r.merge)
+        .filter_map(|r| match r.options.get("device") {
+            Some(uniwrt_model::site::node::RawValue::Option(device)) => Some(device.as_str()),
+            _ => None,
+        })
+        .collect();
+    if let Some(BackupLink::Port { port, .. }) = site
+        .wan
+        .failover
+        .as_ref()
+        .map(|f| &f.link)
+        .filter(|_| backup)
+    {
+        claimed.insert(port.as_str());
+    }
+    claimed
+}
+
+/// The backup line on the gateway: a port that isn't the WAN's nor one of a swconfig switch
+/// (whose ports aren't devices of their own), or a USB tether.
+fn backup(
+    failover: &Failover,
+    facts: &NodeFacts,
+    switch: Option<&SwitchLayout>,
+    errors: &mut Vec<Issue>,
+    warnings: &mut Vec<Issue>,
+) -> Option<crate::failover::Backup> {
+    let layout = &facts.board.layout;
+    if let BackupLink::Port { port, .. } = &failover.link {
+        if layout.wan.as_deref() == Some(port.as_str()) {
+            errors.push(Issue::new(
+                "wan/failover/link",
+                "The backup needs a port of its own, not the WAN's",
+            ));
+            return None;
+        }
+        if switch.is_some() && layout.lan.iter().any(|lan| lan == port) {
+            errors.push(Issue::new(
+                "wan/failover/link",
+                format!("{port} is a port of the gateway's swconfig switch, which can't be taken out of the LAN on its own"),
+            ));
+            return None;
+        }
+        if !facts.devices.is_empty() && !facts.devices.iter().any(|device| &device.name == port) {
+            warnings.push(Issue::new(
+                "wan/failover/link",
+                format!("The gateway has no port {port} now"),
+            ));
+        }
+    }
+    Some(crate::failover::Backup::new(failover))
 }
 
 /// The channel a mesh takes when the band's policy leaves it to the node: every peer must

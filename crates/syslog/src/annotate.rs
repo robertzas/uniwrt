@@ -150,7 +150,7 @@ mod tests {
     }
 
     /// One real line per pattern, each annotated by that pattern and no earlier one.
-    const EXAMPLES: [(&str, &str, &str); 20] = [
+    const EXAMPLES: [(&str, &str, &str); 22] = [
         (
             "hostapd",
             "phy1-ap0: STA 02:00:00:00:04:00 IEEE 802.11: disassociated due to inactivity",
@@ -239,6 +239,16 @@ mod tests {
             "ssh-bad-password",
         ),
         ("pppd", "LCP terminated by peer", "ppp-down"),
+        (
+            "mwan3track",
+            "Interface wan (eth1.201) is offline",
+            "mwan3-offline",
+        ),
+        (
+            "mwan3track",
+            "Interface wanb (usb0) is online",
+            "mwan3-online",
+        ),
     ];
 
     #[test]

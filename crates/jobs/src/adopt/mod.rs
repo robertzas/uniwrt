@@ -4,7 +4,7 @@
 //! the node (directive 8); the agent runs from `/tmp`.
 
 pub(crate) mod check;
-mod packages;
+pub(crate) mod packages;
 #[cfg(test)]
 mod tests;
 

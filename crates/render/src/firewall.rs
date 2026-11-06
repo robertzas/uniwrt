@@ -46,7 +46,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         sections.push(
             Section::anonymous("zone")
                 .with("name", WAN)
-                .with("network", ["wan", "wan6"])
+                .list("network", crate::failover::zone_networks(plan))
                 .with("input", "REJECT")
                 .with("output", "ACCEPT")
                 .with("forward", "DROP")

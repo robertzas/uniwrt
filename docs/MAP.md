@@ -51,6 +51,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/site/mod.rs`: The site's desired state, with a session (features/lifecycle.md, Desired state & revisions; D-065):
 - `src/site/revisions.rs`: The site's history, with a session (features/lifecycle.md, Desired state & revisions):
 - `src/site/tests.rs`: The site and revisions routes over the demo: the defaults of a new site, saves with secrets sealed in the vault and never sent back, conflicts and invalid documents refused, the history paged and compared, restores, and revealing a secret.
+- `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076):
 - `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
@@ -180,6 +181,7 @@ Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configu
 - `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
 - `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
 - `src/tests/stock.rs`: OpenWrt's stock configs (`crates/uci/fixtures/openwrt/`): 24.10's and 25.12's on a PC router, and the hwsim lab's gateway with its radios.
+- `src/uplink.rs`: SQM and failover, from the gateway (features/wan.md, SQM and Failover; D-076): the first queue of `sqm` that is on and shapes with cake, and a backup line `wanb` in `network` that mwan3 checks.
 - `src/wan.rs`: The WAN, from the gateway (features/wan.md): `interface wan` by DHCP (with its client options), static, PPPoE or DS-Lite, else a `wan6` alone (IPv6-only, or DS-Lite whose AFTR DHCPv6 announces); the ISP's VLAN (an 802.1Q device, `<port>.<vid>`, or a tagged switch VLAN) and its priority, a cloned MAC, the MTU; and IPv6 by 6rd, by DHCPv6 on the WAN's device or over PPP (`@wan`, or PPPoE's own `ipv6 auto`).
 - `src/wireless.rs`: Wi-Fi, from every node (features/wifi.md, features/mesh.md): the access points of the same SSID, network and security become one WLAN on the bands and nodes that carry it; a mesh point with batman-adv over it becomes the mesh; each band's most common channel, width and power become its policy, and the radios that differ get overrides; the radios' country becomes the site's.
 
@@ -203,6 +205,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
 - `src/apply/address.rs`: Where the controller finds a node once an apply renumbers it (the owner's choice: follow the new address, features/lifecycle.md).
 - `src/apply/health.rs`: The health checks an apply verifies each node with (features/lifecycle.md, Render → diff → apply, step 4), relative to a baseline taken while planning (the owner's choice): a check that passed before must pass again, so a network that was already down doesn't block an apply, while what the change itself breaks rolls it back.
+- `src/apply/install.rs`: The apply's install step (D-076): the feed packages a node's configuration needs and it lacks (SQM's, mwan3), installed with its package manager before anything is staged.
 - `src/apply/mod.rs`: The apply job (features/lifecycle.md, Render → diff → apply; D-012, D-069): applies the site's latest revision to every managed node as one fleet-wide two-phase commit.
 - `src/apply/order.rs`: The order an apply goes through its nodes: leaves → gateway (features/lifecycle.md, Plan), by wired and mesh hops from the gateway in the topology the nodes' facts describe, so that no node's change cuts the controller off from one not applied yet.
 - `src/apply/plan.rs`: One node's part of an apply, planned from what it reported (pure): render the revision, diff each package against the node's file (D-066: only a semantic change rewrites one), switch the services whose start at boot differs, find where the controller will reach it, and mask secrets for the review screen.
@@ -211,6 +214,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/survey.rs`: Surveying the managed nodes for an apply: log in to each (with the controller's key, against the pinned host key), read what it holds (packages, services, facts, and on the gateway its DNS), and plan its part.
 - `src/apply/tests/facts.rs`: Facts for the apply's unit tests, built field by field.
 - `src/apply/tests/fleet.rs`: A scripted fleet for the apply job: each node answers at its addresses with the simulated transaction tool (`uniwrt_sim::txn`), the agent's collect from a 24.10 container, and its dnsmasq's answers; faults break it once a transaction is open.
+- `src/apply/tests/install.rs`: The apply's install step (D-076) over a scripted gateway: what SQM needs is installed before anything is staged, its service kept off until the transaction switches it on; a failed install changes nothing.
 - `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
 - `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
@@ -225,6 +229,10 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
+- `src/speed_test/measure.rs`: What the speed test's script prints, read (pure): the WAN device's byte counters each second while loading, and the ping replies; rates from the counters past the warm-up (TCP's slow start), the median round trip idle and the 90th percentile under load.
+- `src/speed_test/mod.rs`: The speed test (features/wan.md, SQM; D-076): measures the line from the gateway with its own tools (`node-agent/speedtest.sh`: uclient-fetch, ping, the WAN device's counters), so nothing needs installing and observe mode is fine.
+- `src/speed_test/run.rs`: The speed test's run: one login to the gateway, the script once per phase, and the result recorded.
+- `src/speed_test/tests.rs`: Speed tests over the scripted gateway, whose script answers as a 100/20 Mbit/s line would: 12 ms idle, more under load unless SQM shapes it.
 - `src/testing.rs`: A scripted node for the jobs' tests: a [`Dial`] that plays dropbear, the agent (from a capture of OpenWrt 24.10 in a container) and the transaction tool, and a temporary store.
 - `src/wan_test/checks.rs`: What the connectivity test reads (features/wan.md, Connectivity test): the agent's facts for the link, the address, the route and IPv6, and commands on the gateway for the rest (`ping`, `nslookup`, `wget`, BusyBox's or uclient-fetch's).
 - `src/wan_test/gateway.rs`: The gateway as a WAN test holds it: what render needs, the trial's transaction, the facts the checks read and the commands they run.
@@ -292,6 +300,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/validate/nodes.rs`: Per-node overrides: hostnames, radios and raw UCI sections.
 - `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
 - `src/site/wireless.rs`: Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
+- `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076): the line's rates and its latency idle and under load, graded for bufferbloat, and what they suggest for SQM.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
@@ -388,6 +397,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 
 - `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 (SLAAC, with stateless DHCPv6); on APs every network is ignored, as their DHCP services are off.
 - `src/ext.rs`: Builders for sections whose options are optional, lists that may be empty, and flags.
+- `src/failover.rs`: Failover to a backup line (features/wan.md, Failover; D-076): `wanb` in the `network` package (on a port taken out of the LAN, a VLAN of one, or a USB tether), and the `mwan3` package, which checks both lines against [`HEALTH_TARGETS`] and routes IPv4 over the backup while the WAN fails.
 - `src/firewall.rs`: The `firewall` package (fw4; features/network.md, Firewall policy): a zone per network and one for the WAN, a forwarding for each allowed cell of the policy matrix ([`matrix`](self::matrix)), OpenWrt's stock WAN rules, and on the zones that don't reach the gateway freely the rules that let their clients get addresses and names. fw4 accepts replies to allowed connections in every direction, so "block" and "established" both render as no forwarding.
 - `src/lib.rs`: Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
 - `src/mesh.rs`: The mesh backhaul (features/mesh.md, D-013): batman-adv's `bat0` in the `network` package, a bridge trunk like the Ethernet ports, and an 802.11s mesh point as its hard interface in `wireless`.
@@ -395,6 +405,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/plan.rs`: What every package's renderer shares, worked out once per node: the VLAN each network has on the bridge, the bridge's ports, the WAN's device, the mesh radio, and the issues found.
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
 - `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name; a merge (D-072) sets its options on a rendered section instead, found by name or, for an anonymous one, by the key options of its type ([`key`]).
+- `src/sqm.rs`: The `sqm` package (features/wan.md, SQM; D-076): one `queue` that shapes the WAN's layer-3 device with cake through sqm-scripts' `piece_of_cake.qos`, a little below the line's rates, with fairness per host behind NAT.
 - `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (its user ports untagged for the untagged network, tagged for the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
 - `src/system.rs`: The `system` package: the node's hostname, time zone and NTP.
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
@@ -421,6 +432,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `build/main.rs`: Build script: the build identity (`meta`) and the embedded web UI (`ui`), written to `$OUT_DIR`.
 - `build/meta.rs`: Build identity: `$OUT_DIR/build_info.rs` with the version, commit, build time and target.
 - `build/ui.rs`: Embeds the web UI: every file plus brotli and gzip variants, and a lookup table sorted by path (`$OUT_DIR/ui.rs`, included by `src/ui/assets.rs`).
+- `src/autotune.rs`: SQM's autotune (features/wan.md, SQM; D-076): with autotune on in the latest revision, a test of the line (SQM bypassed) once a week in the site's night, kept in the history.
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
@@ -456,11 +468,13 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/hand_edit.rs`: Drift in the demo (features/lifecycle.md, Drift; D-074): a minute after a node's first confirmed apply, someone changes one option of a package that apply wrote, as `LuCI` saves it (the file parsed and written back as `uci commit` does), once per node.
 - `src/isp.rs`: The simulated ISP behind the gateway's WAN port (features/wan.md; D-075): like Lumen's fiber, it serves DHCP on VLAN 201, delegates a /56 over DHCPv6 on it, and runs a 6rd border relay.
 - `src/lib.rs`: The simulated fleet: a gateway, mesh access points and their clients, each node behind a [`NodeLink`](uniwrt_node::NodeLink) that speaks the agent's protocol, for demo mode (`uniwrt serve --demo`) and tests.
+- `src/line.rs`: The ISP's line as the speed test meets it (features/wan.md, SQM; D-076): a 500/100 Mbit/s fiber tier whose buffers bloat under load unless the gateway shapes below its rates.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
 - `src/render/commands.rs`: The commands the jobs run on a node, answered as OpenWrt would: adoption's (features/adoption.md, Path A: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`), the transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and the gateway's DNS check (`nslookup`).
 - `src/render/config.rs`: A node's `/etc/config` before uniwrt manages it: OpenWrt 25.12's stock packages, configured by hand to run the simulated network (the gateway's LAN, WAN on VLAN 201 and DHCP; the access points as bridges taking their address over DHCP, dnsmasq, odhcpd and the firewall off; the sim's SSID on both bands and its batman-adv mesh on 5 GHz), so that the demo's review shows what managing such a fleet changes.
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
+- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM and failover need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
@@ -518,6 +532,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/rf.rs`: [`RfRepo`] on SQLite: the `rf_scans` table, what each scan heard as JSON.
 - `src/repo/rf_tests.rs`: Scans over a real database: stored, the latest per radio, listed, read, pruned, and gone with their node.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
+- `src/repo/speed.rs`: [`SpeedTestRepo`] on SQLite: the `speed_tests` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
@@ -630,7 +645,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (302 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (311 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx

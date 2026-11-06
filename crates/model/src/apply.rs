@@ -56,6 +56,11 @@ pub struct NodePlan {
     pub raw: Vec<RawSection>,
     /// Services whose start at boot changes.
     pub services: Vec<ServiceChange>,
+    /// Packages from OpenWrt's feeds the configuration needs and the node lacks (SQM's,
+    /// mwan3), installed before its transaction; a rollback leaves them installed, their
+    /// services off (D-076).
+    #[serde(default)]
+    pub installs: Vec<String>,
     /// Where the controller reaches it once applied, when that moves.
     pub address: Option<AddressChange>,
     /// Hops from the gateway, by wire or mesh, when known: the farthest apply first.

@@ -76,6 +76,8 @@ pub enum AuditAction {
     Drift,
     /// A user tried a WAN on the gateway (the detail names the job).
     WanTest,
+    /// A user ran a speed test from the gateway (the detail names the job).
+    SpeedTest,
 }
 
 /// One audit log entry.

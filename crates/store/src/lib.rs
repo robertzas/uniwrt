@@ -15,7 +15,8 @@
 //!   without their secrets, and how their deliveries went), [`RfRepo`] (radios' neighbor scans,
 //!   with what they heard as JSON), [`RevisionRepo`] (the site's revisions: one linear history,
 //!   each committed with its diff and the configuration secrets it introduces) and
-//!   [`SettingsRepo`] (settings by key, as JSON), [`DriftRepo`] (the managed packages as applies
+//!   [`SettingsRepo`] (settings by key, as JSON), [`SpeedTestRepo`] (the gateway's speed
+//!   tests, the newest 500), [`DriftRepo`] (the managed packages as applies
 //!   confirmed them, which [`ApplyRepo::record_applied`] writes; drifts and muted packages);
 //!   [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
@@ -62,7 +63,7 @@ pub use repo::{
     Adoption, AlertRepo, ApplyRepo, AuditRepo, ClientRepo, DriftRepo, EventRepo, EventsPrune,
     FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo, LogsPrune, MetricsPrune, MetricsRepo,
     NewSession, NodeRepo, NotifierRepo, Pin, RevisionRepo, RfRepo, Secret, SessionRepo,
-    SettingsRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
+    SettingsRepo, SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, SealedBackup, SealedSecret, Vault};

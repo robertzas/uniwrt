@@ -13,6 +13,7 @@
 //! - **Tests:** unit tests sit next to each module. Router tests drive `http::router` with
 //!   `tower::ServiceExt::oneshot`; serve and healthcheck tests use loopback sockets.
 
+mod autotune;
 mod build_info;
 mod cli;
 mod controller_key;

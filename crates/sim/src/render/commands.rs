@@ -6,7 +6,7 @@
 //! the gateway's DNS check (`nslookup`). Anything else exits 127, as `sh` does for a command it
 //! cannot find.
 
-use std::fmt::Write as _;
+use std::{collections::BTreeSet, fmt::Write as _};
 
 use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus};
 
@@ -28,6 +28,8 @@ pub(crate) struct Disk {
     pub(crate) tool: Tool,
     /// Demo mode's drift, still to come or done.
     pub(crate) hand_edit: HandEdit,
+    /// The packages installed from the feeds since the image ([`super::feeds`]).
+    pub(crate) installed: BTreeSet<String>,
 }
 
 impl Default for Disk {
@@ -37,6 +39,7 @@ impl Default for Disk {
             authorized_keys: Vec::new(),
             tool: Tool::stock(),
             hand_edit: HandEdit::default(),
+            installed: BTreeSet::new(),
         }
     }
 }
@@ -55,6 +58,7 @@ impl Disk {
             authorized_keys: Vec::new(),
             tool,
             hand_edit: HandEdit::default(),
+            installed: BTreeSet::new(),
         }
     }
 }
@@ -96,10 +100,31 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         return output;
     }
     let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
+    if let Some(output) = super::feeds::exec(
+        &argv,
+        node.release.package_manager,
+        &mut disk.installed,
+        &mut disk.tool,
+    ) {
+        return output;
+    }
     if node.gateway
         && let Some(output) = wan_check(node, &argv, &disk.tool.files)
     {
         return output;
+    }
+    if node.gateway
+        && let ["sh", "-s", "--", phase @ ..] = argv.as_slice()
+    {
+        let files = &disk.tool.files;
+        let up = crate::isp::uplink(
+            files.get("network").map(String::as_str),
+            node.model.wan_port,
+        )
+        .ipv4();
+        let running = disk.tool.services.get("sqm") == Some(&true);
+        let shaped = crate::line::shaped(files.get("sqm").map(String::as_str), running);
+        return ok(crate::line::speed_test(phase, up, shaped, now.uptime_s * 100).into_bytes());
     }
     let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
@@ -118,14 +143,16 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
             "-E",
             "^(Package|Version|Status):",
             "/usr/lib/opkg/status",
-        ] if node.release.package_manager == "opkg" => ok(opkg_status().into_bytes()),
+        ] if node.release.package_manager == "opkg" => {
+            ok(opkg_status(&disk.installed).into_bytes())
+        }
         ["grep", "-E", "^[PV]:", "/lib/apk/db/installed"]
             if node.release.package_manager == "apk" =>
         {
-            ok(apk_installed().into_bytes())
+            ok(apk_installed(&disk.installed).into_bytes())
         }
         ["cat", "/etc/apk/world"] if node.release.package_manager == "apk" => {
-            ok(apk_world().into_bytes())
+            ok(apk_world(&disk.installed).into_bytes())
         }
         ["sysupgrade", "-b", "-"] => ok(BACKUP.to_vec()),
         ["nslookup", name, "127.0.0.1"] if node.gateway => ok(format!(
@@ -190,9 +217,9 @@ fn release(node: &Node) -> String {
     )
 }
 
-fn opkg_status() -> String {
+fn opkg_status(installed: &BTreeSet<String>) -> String {
     let mut out = String::new();
-    for (name, version, wanted) in PACKAGES {
+    for (name, version, wanted) in all(installed) {
         let flag = if wanted { "user" } else { "ok" };
         let _ = writeln!(
             out,
@@ -202,17 +229,26 @@ fn opkg_status() -> String {
     out
 }
 
-fn apk_installed() -> String {
+/// The image's packages and those installed since, `(name, version, installed on purpose)`.
+fn all(installed: &BTreeSet<String>) -> impl Iterator<Item = (&str, &str, bool)> {
+    PACKAGES
+        .into_iter()
+        .chain(installed.iter().filter_map(|name| {
+            super::feeds::version(name).map(|version| (name.as_str(), version, true))
+        }))
+}
+
+fn apk_installed(installed: &BTreeSet<String>) -> String {
     let mut out = String::new();
-    for (name, version, _) in PACKAGES {
+    for (name, version, _) in all(installed) {
         let _ = writeln!(out, "P:{name}\nV:{version}");
     }
     out
 }
 
-fn apk_world() -> String {
+fn apk_world(installed: &BTreeSet<String>) -> String {
     let mut out = String::new();
-    for (name, _, wanted) in PACKAGES {
+    for (name, _, wanted) in all(installed) {
         if wanted {
             let _ = writeln!(out, "{name}");
         }
@@ -220,7 +256,7 @@ fn apk_world() -> String {
     out
 }
 
-fn ok(stdout: Vec<u8>) -> ExecOutput {
+pub(crate) fn ok(stdout: Vec<u8>) -> ExecOutput {
     ExecOutput {
         status: ExitStatus::Code(0),
         stdout,
@@ -228,7 +264,7 @@ fn ok(stdout: Vec<u8>) -> ExecOutput {
     }
 }
 
-fn failed(code: u32, stderr: String) -> ExecOutput {
+pub(crate) fn failed(code: u32, stderr: String) -> ExecOutput {
     ExecOutput {
         status: ExitStatus::Code(code),
         stdout: Vec::new(),

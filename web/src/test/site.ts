@@ -102,6 +102,8 @@ export function siteConfig(): SiteConfig {
       mac: null,
       ipv6: { mode: "dhcpv6", reqprefix: null },
       preset: null,
+      sqm: null,
+      failover: null,
     },
     firewall: {
       policies: [],

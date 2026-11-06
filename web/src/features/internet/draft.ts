@@ -225,5 +225,8 @@ export function wanOf(draft: Draft, current: WanConfig): WanConfig {
     mac: optional(draft.mac)?.toLowerCase() ?? null,
     ipv6,
     preset: draft.preset,
+    // The wizard sets the line; SQM and failover have their own cards.
+    sqm: current.sqm,
+    failover: current.failover,
   };
 }

@@ -12,7 +12,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[v1_to_v2];
+const STEPS: &[Step] = &[v1_to_v2, v2_to_v3];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
 /// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
@@ -46,6 +46,35 @@ fn v1_to_v2(value: &mut Value) -> Result<(), String> {
             proto.insert("service".to_owned(), Value::Null);
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// v3 (M4.1b, D-076): the WAN gains SQM and failover, both off, and every node that manages
+/// `network` manages `sqm` and `mwan3` too (render writes them only on the gateway, only where
+/// they are on or the node has them already).
+fn v2_to_v3(value: &mut Value) -> Result<(), String> {
+    let wan = value
+        .get_mut("wan")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no WAN")?;
+    wan.insert("sqm".to_owned(), Value::Null);
+    wan.insert("failover".to_owned(), Value::Null);
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let Some(managed) = node.get_mut("managed").and_then(Value::as_array_mut) else {
+            return Err("a node has no managed packages".to_owned());
+        };
+        if managed.iter().any(|package| package == "network") {
+            for package in ["sqm", "mwan3"] {
+                if !managed.iter().any(|p| p == package) {
+                    managed.push(json!(package));
+                }
+            }
+        }
     }
     Ok(())
 }

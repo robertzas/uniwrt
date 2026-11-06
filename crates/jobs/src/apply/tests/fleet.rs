@@ -46,7 +46,7 @@ pub(crate) enum Fault {
 }
 
 pub(crate) type CollectHook = Box<dyn Fn(&Tool, &mut serde_json::Value) + Send>;
-pub(crate) type ExecHook = Box<dyn Fn(&Tool, &[String]) -> Option<ExecOutput> + Send>;
+pub(crate) type ExecHook = Box<dyn Fn(&mut Tool, &[String]) -> Option<ExecOutput> + Send>;
 
 pub(crate) struct FakeNode {
     pub(crate) host_key: HostKey,
@@ -114,7 +114,7 @@ impl FakeNode {
         }
         let argv = &request.argv;
         if let Some(hook) = &*self.exec_hook.lock().unwrap()
-            && let Some(output) = hook(&self.tool.lock().unwrap(), argv)
+            && let Some(output) = hook(&mut self.tool.lock().unwrap(), argv)
         {
             return Ok(output);
         }

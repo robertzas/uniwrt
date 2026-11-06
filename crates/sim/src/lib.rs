@@ -22,7 +22,9 @@
 //!   hostapd's and dnsmasq's notifications, ticks, and logd batches polled or streamed. A
 //!   rebooting node's link goes down, is retried with backoff, and comes back with a new agent.
 //!   `exec` runs only what the jobs run (the release, the key, the packages, the backup, the
-//!   gateway's `nslookup`; `render/commands.rs`), and the transaction tool with the node's
+//!   gateway's `nslookup`; `render/commands.rs`; the feeds' packages SQM and failover need and
+//!   their init scripts, `render/feeds.rs`; the speed test's script against a 500/100 Mbit/s
+//!   line that bloats unless SQM shapes below it, `line.rs`), and the transaction tool with the node's
 //!   `/etc/config` (OpenWrt's stock packages configured by hand for the simulated network,
 //!   `render/config.rs`) and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
 //!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); the
@@ -51,6 +53,7 @@ mod brownfield;
 mod fleet;
 mod hand_edit;
 mod isp;
+mod line;
 mod link;
 mod render;
 mod rng;

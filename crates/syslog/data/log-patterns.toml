@@ -180,3 +180,23 @@ severity = "warning"
 event = "wan"
 meaning = "The PPP connection to the ISP ended."
 hint = "netifd redials. If it keeps happening, check the line and the credentials."
+
+# --- Failover (mwan3; features/wan.md, Failover) ---
+
+[[pattern]]
+id = "mwan3-offline"
+programs = ["mwan3track"]
+regex = 'Interface \S+ \(\S+\) is offline'
+severity = "warning"
+event = "wan"
+meaning = "Failover found a line offline: none of its health checks answered."
+hint = "Traffic uses the other line until this one answers again. A line that goes offline often may have a failing modem or a congested uplink."
+
+[[pattern]]
+id = "mwan3-online"
+programs = ["mwan3track"]
+regex = 'Interface \S+ \(\S+\) is online'
+severity = "notice"
+event = "wan"
+meaning = "Failover found a line answering its health checks again."
+hint = "Traffic moves back to the primary line while it stays online."

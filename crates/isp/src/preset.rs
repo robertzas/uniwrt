@@ -238,6 +238,8 @@ impl Preset {
             mac: answers.mac,
             ipv6,
             preset: Some(self.id.clone()),
+            sqm: None,
+            failover: None,
         })
     }
 

@@ -36,7 +36,7 @@ pub(super) fn addressing(config: &SiteConfig, issues: &mut Issues) {
 
 /// Network ids that render's own UCI interfaces and firewall zones use, besides the `uw_`
 /// prefix.
-pub(super) const RESERVED_IDS: [&str; 5] = ["loopback", "wan", "wan6", "wan_6", "bat0"];
+pub(super) const RESERVED_IDS: [&str; 6] = ["loopback", "wan", "wan6", "wan_6", "wanb", "bat0"];
 
 pub(super) fn networks(config: &SiteConfig, issues: &mut Issues) {
     let mut ids = BTreeSet::new();

@@ -94,6 +94,7 @@ fn part(site: &SiteConfig, node: &Node, files: &BTreeMap<String, Option<String>>
             facts: &facts,
             files,
             services: &stock_services(),
+            installed: Ok(&BTreeSet::new()),
         },
         &ApplyTiming::default(),
     )
@@ -146,6 +147,7 @@ fn a_new_node_gets_every_package_and_then_holds_them() {
             facts: &facts,
             files: &files,
             services: &off,
+            installed: Ok(&BTreeSet::new()),
         },
         &ApplyTiming::default(),
     );
@@ -237,4 +239,73 @@ fn the_plan_shows_the_raw_overrides_of_the_packages_it_writes() {
     assert_eq!(planned.plan.raw, vec![raw("network", "spare")]);
     site.nodes[0].managed.remove(&ManagedPackage::Network);
     assert_eq!(part(&site, &gw, &BTreeMap::new()).plan.raw, Vec::new());
+}
+
+#[test]
+fn a_gateway_with_sqm_installs_its_packages_first() {
+    use uniwrt_model::{
+        facts::PackageManager,
+        site::gateway::{BackupLink, BackupProto, Failover, Sqm},
+    };
+    let gw = node(1, NodeRole::Gateway, "192.168.1.1");
+    let mut site = site(&[gw.id]);
+    site.wan.sqm = Some(Sqm {
+        download_kbps: 100_000,
+        upload_kbps: 20_000,
+        overhead: None,
+        autotune: false,
+    });
+    site.wan.failover = Some(Failover {
+        link: BackupLink::Usb {
+            device: "usb0".to_owned(),
+        },
+        proto: BackupProto::Dhcp,
+    });
+    let mut facts = facts_of(NodeRole::Gateway);
+    facts.capabilities.package_manager = Some(PackageManager::Opkg);
+    let secrets: BTreeMap<SecretRef, String> = BTreeMap::new();
+    let planned = |installed: &BTreeSet<String>, facts: &uniwrt_model::facts::NodeFacts| {
+        plan(
+            &site,
+            &secrets,
+            &Report {
+                node: &gw,
+                facts,
+                files: &BTreeMap::new(),
+                services: &stock_services(),
+                installed: Ok(installed),
+            },
+            &ApplyTiming::default(),
+        )
+    };
+    let first = planned(&BTreeSet::new(), &facts);
+    assert_eq!(
+        first.plan.action,
+        PlanAction::Change,
+        "{:?}",
+        first.plan.issues
+    );
+    assert_eq!(
+        first.plan.installs,
+        [
+            "sqm-scripts",
+            "kmod-sched-cake",
+            "mwan3",
+            "kmod-usb-net-rndis",
+            "kmod-usb-net-cdc-ether"
+        ]
+    );
+    let (manager, _) = first.installs.as_ref().unwrap();
+    assert_eq!(*manager, PackageManager::Opkg);
+    // Their services come with them, and the transaction switches them on.
+    assert!(first.services.contains(&("sqm".to_owned(), true)));
+    assert!(first.services.contains(&("mwan3".to_owned(), true)));
+    // Installed already: nothing to install; the services, absent, are an issue no more.
+    let all: BTreeSet<String> = first.plan.installs.iter().cloned().collect();
+    let again = planned(&all, &facts);
+    assert!(again.installs.is_none() && again.plan.installs.is_empty());
+    // Without a package manager uniwrt knows, it can't apply.
+    facts.capabilities.package_manager = None;
+    let refused = planned(&BTreeSet::new(), &facts);
+    assert_eq!(refused.plan.action, PlanAction::Refused);
 }

@@ -43,6 +43,7 @@ mod read;
 mod settings;
 #[cfg(test)]
 mod tests;
+mod uplink;
 mod wan;
 mod wireless;
 
@@ -127,6 +128,7 @@ pub fn import(
         settings::import(&mut site, gateway);
         networks::import(&mut site, gateway, &mut renames);
         wan::import(&mut site, gateway, &mut renames, &mut seal);
+        uplink::import(&mut site, base, gateway, &mut renames);
         firewall::import(&mut site, gateway, &mut renames);
     }
     wireless::import(&mut site, sources, &renames, &mut seal);

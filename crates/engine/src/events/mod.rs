@@ -237,6 +237,7 @@ impl Intake {
                 deriver.clients(&changes.clients, now)
             }
             Event::Roam { at, roam } => vec![deriver.roam(roam, *at)],
+            Event::Noted { event } => vec![event.clone()],
             Event::Logged { records } => {
                 let patterns = &self.patterns;
                 deriver.logged(records, |id| patterns.get(id).copied())

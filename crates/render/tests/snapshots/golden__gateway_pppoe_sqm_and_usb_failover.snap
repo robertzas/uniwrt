@@ -1,0 +1,538 @@
+---
+source: crates/render/tests/golden.rs
+expression: show(&result)
+---
+services: dnsmasq on, firewall on, mwan3 on, odhcpd on, sqm on
+requires: sqm-scripts, kmod-sched-cake, mwan3, kmod-usb-net-rndis, kmod-usb-net-cdc-ether
+
+# system
+
+config system
+	option hostname 'gateway'
+	option timezone 'MST7MDT,M3.2.0,M11.1.0'
+	option zonename 'America/Denver'
+	option ttylogin '0'
+	option log_size '128'
+	option urandom_seed '0'
+
+config timeserver 'ntp'
+	option enabled '1'
+	option enable_server '1'
+	list server '0.openwrt.pool.ntp.org'
+	list server '1.openwrt.pool.ntp.org'
+	list server '2.openwrt.pool.ntp.org'
+	list server '3.openwrt.pool.ntp.org'
+
+
+# network
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	list ipaddr '127.0.0.1/8'
+
+config globals 'globals'
+	option ula_prefix 'fd12:3456:789a::/48'
+	option dhcp_default_duid '0004b1bdbfa2e391406aa5c928b467d1710b'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'lan1'
+	list ports 'lan2'
+	list ports 'lan3'
+	list ports 'lan4'
+	list ports 'lan5'
+	option igmp_snooping '1'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '1'
+	list ports 'lan1:u*'
+	list ports 'lan2:u*'
+	list ports 'lan3:u*'
+	list ports 'lan4:u*'
+	list ports 'lan5:u*'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '30'
+	list ports 'lan1:t'
+	list ports 'lan2:t'
+	list ports 'lan3:t'
+	list ports 'lan4:t'
+	list ports 'lan5:t'
+
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '40'
+	list ports 'lan1:t'
+	list ports 'lan2:t'
+	list ports 'lan3:t'
+	list ports 'lan4:t'
+	list ports 'lan5:t'
+
+config device
+	option name 'eth1'
+	option macaddr '50:c7:bf:aa:bb:cc'
+
+config interface 'lan'
+	option device 'br-lan.1'
+	option proto 'static'
+	list ipaddr '10.0.0.1/24'
+	option ip6assign '64'
+
+config interface 'iot'
+	option device 'br-lan.30'
+	option proto 'static'
+	list ipaddr '10.0.30.1/24'
+	option ip6assign '64'
+	option ip6hint '1e'
+	list ip6class 'wan6'
+
+config interface 'guest'
+	option device 'br-lan.40'
+	option proto 'static'
+	list ipaddr '10.0.40.1/24'
+
+config interface 'wan'
+	option device 'eth1'
+	option proto 'pppoe'
+	option username 'user@isp'
+	option password 'pppoe-pass'
+	option ipv6 '1'
+	option metric '10'
+
+config interface 'wan6'
+	option device '@wan'
+	option proto 'dhcpv6'
+
+config interface 'wanb'
+	option device 'usb0'
+	option proto 'dhcp'
+	option metric '20'
+
+
+# wireless
+
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option path 'platform/soc/18000000.wifi'
+	option band '2g'
+	option channel 'auto'
+	option htmode 'HE20'
+	option country 'US'
+
+config wifi-device 'radio1'
+	option type 'mac80211'
+	option path 'platform/soc/18000000.wifi+1'
+	option band '5g'
+	option channel 'auto'
+	option htmode 'HE80'
+	option country 'US'
+
+config wifi-iface 'uw_home_2g'
+	option device 'radio0'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'Home'
+	option encryption 'sae-mixed'
+	option key 'correct horse battery'
+	option ieee80211w '1'
+
+config wifi-iface 'uw_things_2g'
+	option device 'radio0'
+	option network 'iot'
+	option mode 'ap'
+	option ssid 'Things'
+	option encryption 'psk2'
+	option key 'things-only-2024'
+
+config wifi-iface 'uw_guest_2g'
+	option device 'radio0'
+	option network 'guest'
+	option mode 'ap'
+	option ssid 'Guest'
+	option encryption 'owe'
+	option ieee80211w '2'
+	option isolate '1'
+
+config wifi-iface 'uw_home_5g'
+	option device 'radio1'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'Home'
+	option encryption 'sae-mixed'
+	option key 'correct horse battery'
+	option ieee80211w '1'
+
+config wifi-iface 'uw_guest_5g'
+	option device 'radio1'
+	option network 'guest'
+	option mode 'ap'
+	option ssid 'Guest'
+	option encryption 'owe'
+	option ieee80211w '2'
+	option isolate '1'
+
+
+# dhcp
+
+config dnsmasq
+	option domainneeded '1'
+	option boguspriv '1'
+	option filterwin2k '0'
+	option localise_queries '1'
+	option rebind_protection '1'
+	option rebind_localhost '1'
+	option local '/lan/'
+	option domain 'lan'
+	option expandhosts '1'
+	option nonegcache '0'
+	option cachesize '1000'
+	option authoritative '1'
+	option readethers '1'
+	option leasefile '/tmp/dhcp.leases'
+	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+	option nonwildcard '1'
+	option localservice '1'
+	option ednspacket_max '1232'
+
+config dhcp 'lan'
+	option interface 'lan'
+	option start '100'
+	option limit '150'
+	option leasetime '12h'
+	option force '1'
+	option dhcpv4 'server'
+	option dhcpv6 'server'
+	option ra 'server'
+	option ra_slaac '1'
+	list ra_flags 'other-config'
+
+config dhcp 'iot'
+	option interface 'iot'
+	option start '100'
+	option limit '150'
+	option leasetime '1h'
+	option force '1'
+	option dhcpv4 'server'
+	option dhcpv6 'server'
+	option ra 'server'
+	option ra_slaac '1'
+	list ra_flags 'other-config'
+
+config dhcp 'guest'
+	option interface 'guest'
+	option start '100'
+	option limit '150'
+	option leasetime '1h'
+	option force '1'
+	option dhcpv4 'server'
+
+config dhcp 'wan'
+	option interface 'wan'
+	option ignore '1'
+
+config odhcpd 'odhcpd'
+	option maindhcp '0'
+	option leasetrigger '/usr/sbin/odhcpd-update'
+	option loglevel '4'
+	option leasefile '/tmp/odhcpd.leases'
+	option piodir '/tmp/odhcpd-piodir'
+	option hostsdir '/tmp/hosts'
+
+config host
+	option name 'nas'
+	option mac 'a4:cf:12:ab:cd:ef'
+	option ip '10.0.0.40'
+
+config domain
+	option name 'nas.lan'
+	option ip '10.0.0.40'
+
+config cname
+	option cname 'media.lan'
+	option target 'nas.lan'
+
+
+# firewall
+
+config defaults
+	option syn_flood '1'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'lan'
+	list network 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+
+config zone
+	option name 'iot'
+	list network 'iot'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'guest'
+	list network 'guest'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config zone
+	option name 'wan'
+	list network 'wan'
+	list network 'wan6'
+	list network 'wanb'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+	option masq '1'
+	option mtu_fix '1'
+
+config forwarding
+	option src 'lan'
+	option dest 'iot'
+
+config forwarding
+	option src 'lan'
+	option dest 'wan'
+
+config forwarding
+	option src 'iot'
+	option dest 'wan'
+
+config forwarding
+	option src 'guest'
+	option dest 'wan'
+
+config rule
+	option name 'Allow-DHCP-Renew'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '68'
+	option target 'ACCEPT'
+	option family 'ipv4'
+
+config rule
+	option name 'Allow-Ping'
+	option src 'wan'
+	option proto 'icmp'
+	option icmp_type 'echo-request'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-IGMP'
+	option src 'wan'
+	option proto 'igmp'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-DHCPv6'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '546'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-MLD'
+	option src 'wan'
+	option proto 'icmp'
+	option src_ip 'fe80::/10'
+	list icmp_type '130/0'
+	list icmp_type '131/0'
+	list icmp_type '132/0'
+	list icmp_type '143/0'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-ICMPv6-Input'
+	option src 'wan'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	list icmp_type 'echo-reply'
+	list icmp_type 'destination-unreachable'
+	list icmp_type 'packet-too-big'
+	list icmp_type 'time-exceeded'
+	list icmp_type 'bad-header'
+	list icmp_type 'unknown-header-type'
+	list icmp_type 'router-solicitation'
+	list icmp_type 'neighbour-solicitation'
+	list icmp_type 'router-advertisement'
+	list icmp_type 'neighbour-advertisement'
+	option limit '1000/sec'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-ICMPv6-Forward'
+	option src 'wan'
+	option dest '*'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	list icmp_type 'echo-reply'
+	list icmp_type 'destination-unreachable'
+	list icmp_type 'packet-too-big'
+	list icmp_type 'time-exceeded'
+	list icmp_type 'bad-header'
+	list icmp_type 'unknown-header-type'
+	option limit '1000/sec'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-IPSec-ESP'
+	option src 'wan'
+	option dest 'lan'
+	option proto 'esp'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-ISAKMP'
+	option src 'wan'
+	option dest 'lan'
+	option dest_port '500'
+	option proto 'udp'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-iot-DHCP'
+	option src 'iot'
+	option proto 'udp'
+	option dest_port '67'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-iot-DNS'
+	option src 'iot'
+	list proto 'tcp'
+	list proto 'udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-iot-DHCPv6'
+	option src 'iot'
+	option proto 'udp'
+	option dest_port '547'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-iot-ND'
+	option src 'iot'
+	option proto 'icmp'
+	list icmp_type 'router-solicitation'
+	list icmp_type 'neighbour-solicitation'
+	list icmp_type 'neighbour-advertisement'
+	option family 'ipv6'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-guest-DHCP'
+	option src 'guest'
+	option proto 'udp'
+	option dest_port '67'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-guest-DNS'
+	option src 'guest'
+	list proto 'tcp'
+	list proto 'udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+
+# sqm
+
+config queue 'wan'
+	option enabled '1'
+	option interface 'pppoe-wan'
+	option download '850000'
+	option upload '90000'
+	option qdisc 'cake'
+	option script 'piece_of_cake.qos'
+	option linklayer 'none'
+	option qdisc_advanced '1'
+	option squash_dscp '1'
+	option squash_ingress '1'
+	option ingress_ecn 'ECN'
+	option egress_ecn 'NOECN'
+	option qdisc_really_really_advanced '1'
+	option iqdisc_opts 'nat dual-dsthost ingress'
+	option eqdisc_opts 'nat dual-srchost'
+	option debug_logging '0'
+	option verbosity '5'
+
+
+# mwan3
+
+config globals 'globals'
+	option mmx_mask '0x3F00'
+	option logging '1'
+	option loglevel 'notice'
+
+config interface 'wan'
+	option enabled '1'
+	option family 'ipv4'
+	option initial_state 'online'
+	list track_ip '9.9.9.9'
+	list track_ip '1.1.1.1'
+	option track_method 'ping'
+	option reliability '1'
+	option count '1'
+	option timeout '2'
+	option interval '5'
+	option failure_interval '5'
+	option recovery_interval '5'
+	option down '3'
+	option up '3'
+
+config interface 'wanb'
+	option enabled '1'
+	option family 'ipv4'
+	option initial_state 'online'
+	list track_ip '9.9.9.9'
+	list track_ip '1.1.1.1'
+	option track_method 'ping'
+	option reliability '1'
+	option count '1'
+	option timeout '2'
+	option interval '5'
+	option failure_interval '5'
+	option recovery_interval '5'
+	option down '3'
+	option up '3'
+
+config member 'wan_m1'
+	option interface 'wan'
+	option metric '1'
+	option weight '1'
+
+config member 'wanb_m2'
+	option interface 'wanb'
+	option metric '2'
+	option weight '1'
+
+config policy 'failover'
+	list use_member 'wan_m1'
+	list use_member 'wanb_m2'
+	option last_resort 'default'
+
+config rule 'default_v4'
+	option dest_ip '0.0.0.0/0'
+	option family 'ipv4'
+	option use_policy 'failover'

@@ -99,6 +99,14 @@ pub(crate) fn interfaces(plan: &Plan<'_>) -> Vec<Section> {
         ),
         WanProto::DsLite { aftr: None } | WanProto::None => None,
     };
+    // mwan3 tells the lines apart by their metrics.
+    let ipv4 = ipv4.map(|section| {
+        if plan.backup.is_some() {
+            section.with("metric", crate::failover::WAN_METRIC)
+        } else {
+            section
+        }
+    });
     let ipv6 = match &config.ipv6 {
         WanIpv6::Off => None,
         WanIpv6::Dhcpv6 { reqprefix } => {

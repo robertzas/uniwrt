@@ -225,6 +225,12 @@ impl<L: NodeLink> Engine<L> {
         self.interest(node, Kind::Logs)
     }
 
+    /// Records `event` with the others, as it is: one the controller found outside the engine
+    /// (autotune's drifted SQM rates, D-076).
+    pub fn note(&self, event: uniwrt_events::NewEvent) {
+        self.inner.ctx.publish(Event::Noted { event });
+    }
+
     /// Events from now on. Read [`node`](Self::node) or [`all`](Self::all) after subscribing,
     /// so that nothing falls between.
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {

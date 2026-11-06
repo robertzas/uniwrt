@@ -62,11 +62,12 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
         (job.kind, job.revision),
         (JobKind::Apply, Some(fleet.head().await.meta.id))
     );
-    assert!(
-        states(&job)
-            .iter()
-            .all(|(_, state)| *state == StepState::Done)
-    );
+    assert!(states(&job).iter().all(|(name, state)| *state
+        == if *name == StepName::Install {
+            StepState::Skipped
+        } else {
+            StepState::Done
+        }));
     assert_eq!(node_states(&job), [JobNodeState::Confirmed; 3]);
 
     // Every node staged and checked before any applied; the gateway applied last.
@@ -136,6 +137,7 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
     assert_eq!(
         skipped,
         [
+            StepName::Install,
             StepName::Stage,
             StepName::Apply,
             StepName::Verify,
