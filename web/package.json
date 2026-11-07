@@ -19,7 +19,7 @@
     "@solidjs/router": "2.0.0-next.43",
     "@solidjs/web": "2.0.0-rc.20",
     "@tanstack/solid-query": "6.0.0-rc.5",
-    "@tanstack/virtual-core": "3.19.10",
+    "@tanstack/virtual-core": "3.19.11",
     "d3-force": "3.0.1",
     "lucide": "1.67.0",
     "solid-js": "2.0.0-rc.20",
