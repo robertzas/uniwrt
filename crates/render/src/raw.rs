@@ -27,6 +27,7 @@ pub fn key(package: &str, kind: &str) -> Option<&'static [&'static str]> {
         ("dhcp", "dhcp") => &["interface"],
         ("firewall", "forwarding") => &["src", "dest"],
         ("firewall", "include") => &["path"],
+        ("upnpd", "perm_rule") => &["comment"],
         _ => return None,
     })
 }

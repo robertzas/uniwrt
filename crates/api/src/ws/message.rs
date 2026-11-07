@@ -16,7 +16,7 @@ use uniwrt_model::{
     events::EventRecord,
     facts::{
         BatmanFacts, BoardFacts, Capabilities, DeviceFacts, FdbEntry, InterfaceFacts, LeaseFacts,
-        NeighborFacts, NodeFacts, PhyFacts, RadioFacts, StationFacts, SystemFacts,
+        NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, StationFacts, SystemFacts,
     },
     job::Job,
     log::LogRecord,
@@ -214,6 +214,9 @@ pub struct FactsPatch {
     pub leases: Option<Vec<LeaseFacts>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
+    pub port_mappings: Option<Vec<PortMapping>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub neighbors: Option<Vec<NeighborFacts>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -238,6 +241,7 @@ impl FactsPatch {
             radios: has(Set::Radios).then(|| facts.radios.clone()),
             stations: has(Set::Stations).then(|| facts.stations.clone()),
             leases: has(Set::Leases).then(|| facts.leases.clone()),
+            port_mappings: has(Set::Leases).then(|| facts.port_mappings.clone()),
             neighbors: has(Set::Neighbors).then(|| facts.neighbors.clone()),
             fdb: has(Set::Neighbors).then(|| facts.fdb.clone()),
             batman: has(Set::Batman).then(|| facts.batman.clone()),

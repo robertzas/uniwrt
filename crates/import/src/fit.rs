@@ -432,6 +432,9 @@ fn rename_interfaces(
                 (ManagedPackage::Wireless, "wifi-iface") | (ManagedPackage::Firewall, "zone") => {
                     replace_items(section, "network", |i| map.get(i).cloned());
                 }
+                (ManagedPackage::Upnpd, "upnpd") => {
+                    replace_items(section, "internal_iface", |i| map.get(i).cloned());
+                }
                 _ => {}
             }
         }

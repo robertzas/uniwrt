@@ -362,8 +362,9 @@ fn gateway_pppoe_sqm_and_usb_failover() {
 }
 
 #[test]
-fn sqm_and_failover_off_leave_what_the_gateway_holds_inert() {
-    let site = home_site();
+fn sqm_failover_and_upnp_off_leave_what_the_gateway_holds_inert() {
+    let mut site = home_site();
+    site.firewall.upnp.enabled = false;
     let mut current = stock();
     for (name, text) in [
         (
@@ -373,6 +374,10 @@ fn sqm_and_failover_off_leave_what_the_gateway_holds_inert() {
         (
             "mwan3",
             "config globals 'globals'\n\toption mmx_mask '0x3F00'\n\nconfig interface 'wan'\n\toption enabled '1'\n",
+        ),
+        (
+            "upnpd",
+            "config upnpd 'config'\n\toption enabled '1'\n\toption uuid '5e0c'\n",
         ),
     ] {
         current.insert(name.to_owned(), uniwrt_uci::parse(name, text).unwrap());
@@ -396,16 +401,25 @@ fn sqm_and_failover_off_leave_what_the_gateway_holds_inert() {
     );
     assert_eq!(rendered.services.get("sqm"), Some(&false));
     assert_eq!(rendered.services.get("mwan3"), Some(&false));
+    // miniupnpd off, keeping the uuid it generated.
+    let upnpd = rendered.packages[&ManagedPackage::Upnpd]
+        .section("config")
+        .unwrap();
+    assert_eq!(upnpd.option("enabled"), Some("0"));
+    assert_eq!(upnpd.option("uuid"), Some("5e0c"));
+    assert_eq!(rendered.services.get("miniupnpd"), Some(&false));
     assert_eq!(rendered.requires, []);
     // Off and not on the node: nothing to own.
     let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
     assert!(!rendered.packages.contains_key(&ManagedPackage::Sqm));
     assert!(!rendered.services.contains_key("mwan3"));
+    assert!(!rendered.packages.contains_key(&ManagedPackage::Upnpd));
     // Never on an access point.
     let mut site = home_site();
     site.wan.sqm = Some(sqm(None));
     let rendered = ok(run_on(&site, AP, NodeRole::Ap, &gateway_facts(), &current));
     assert!(!rendered.packages.contains_key(&ManagedPackage::Sqm));
+    assert!(!rendered.packages.contains_key(&ManagedPackage::Upnpd));
 }
 
 #[test]

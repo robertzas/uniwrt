@@ -12,6 +12,7 @@ use super::{
     support::{GATEWAY, gateway_facts, x86_facts},
 };
 
+#[macro_export]
 macro_rules! release {
     ($release:literal) => {
         parse(&[

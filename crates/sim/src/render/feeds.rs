@@ -1,5 +1,5 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM and failover need, which brings their init scripts
+//! update`, then installing what SQM, failover and UPnP need, which brings their init scripts
 //! (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts'
 //! `start`, `stop`, `enable` and `disable`.
 
@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 5] = [
+pub(crate) const FEED: [FeedPackage; 6] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -40,6 +40,24 @@ pub(crate) const FEED: [FeedPackage; 5] = [
         Some((
             "mwan3",
             "config globals 'globals'\n\toption mmx_mask '0x3F00'\n",
+        )),
+    ),
+    (
+        "miniupnpd-nftables",
+        "2.3.9-r1",
+        Some("miniupnpd"),
+        Some((
+            "upnpd",
+            "config upnpd 'config'\n\toption enabled '0'\n\toption enable_natpmp '1'\n\
+             \toption enable_upnp '1'\n\toption secure_mode '1'\n\toption log_output '0'\n\
+             \toption download '1024'\n\toption upload '512'\n\toption internal_iface 'lan'\n\
+             \toption port '5000'\n\toption upnp_lease_file '/var/run/miniupnpd.leases'\n\
+             \toption igdv1 '1'\n\nconfig perm_rule\n\toption action 'allow'\n\
+             \toption ext_ports '1024-65535'\n\toption int_addr '0.0.0.0/0'\n\
+             \toption int_ports '1024-65535'\n\toption comment 'Allow high ports'\n\n\
+             config perm_rule\n\toption action 'deny'\n\toption ext_ports '0-65535'\n\
+             \toption int_addr '0.0.0.0/0'\n\toption int_ports '0-65535'\n\
+             \toption comment 'Default deny'\n",
         )),
     ),
     ("kmod-usb-net-rndis", "6.12.58-r1", None, None),

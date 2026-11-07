@@ -2,8 +2,8 @@
 source: crates/render/tests/golden.rs
 expression: show(&result)
 ---
-services: dnsmasq on, firewall on, mwan3 on, odhcpd on, sqm on
-requires: sqm-scripts, kmod-sched-cake, mwan3
+services: dnsmasq on, firewall on, miniupnpd on, mwan3 on, odhcpd on, sqm on
+requires: sqm-scripts, kmod-sched-cake, mwan3, miniupnpd-nftables
 warning: mesh: The mesh needs one channel on every node: set the 5 GHz channel; it uses 36 until then
 warning: wan/failover/link: The gateway has no port lan4 now
 
@@ -476,6 +476,20 @@ config rule
 	option target 'ACCEPT'
 
 config rule
+	option name 'Allow-iot-UPnP'
+	option src 'iot'
+	option proto 'udp'
+	option dest_port '1900 5351'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-iot-UPnP-HTTP'
+	option src 'iot'
+	option proto 'tcp'
+	option dest_port '5000'
+	option target 'ACCEPT'
+
+config rule
 	option name 'Allow-guest-DHCP'
 	option src 'guest'
 	option proto 'udp'
@@ -490,6 +504,48 @@ config rule
 	list proto 'udp'
 	option dest_port '53'
 	option target 'ACCEPT'
+
+config redirect
+	option name 'NAS'
+	option target 'DNAT'
+	option src 'wan'
+	option src_ip '203.0.113.0/24'
+	option src_dport '8443'
+	option dest 'lan'
+	option dest_ip '10.0.0.40'
+	option dest_port '443'
+	list proto 'tcp'
+
+config redirect
+	option name 'Game server'
+	option target 'DNAT'
+	option src 'wan'
+	option src_dport '27015-27030'
+	option dest 'iot'
+	option dest_ip '10.0.30.20'
+	option dest_port '27015-27030'
+	list proto 'tcp'
+	list proto 'udp'
+	option reflection '0'
+
+config redirect
+	option name 'Old camera'
+	option target 'DNAT'
+	option src 'wan'
+	option src_dport '554'
+	option dest 'iot'
+	option dest_ip '10.0.30.21'
+	option dest_port '554'
+	list proto 'udp'
+	option enabled '0'
+
+config redirect
+	option name 'DMZ'
+	option target 'DNAT'
+	option src 'wan'
+	option proto 'all'
+	option dest 'lan'
+	option dest_ip '10.0.0.50'
 
 
 # sqm
@@ -573,3 +629,33 @@ config rule 'default_v4'
 	option dest_ip '0.0.0.0/0'
 	option family 'ipv4'
 	option use_policy 'failover'
+
+
+# upnpd
+
+config upnpd 'config'
+	option enabled '1'
+	option enable_natpmp '1'
+	option enable_upnp '1'
+	option secure_mode '1'
+	option log_output '0'
+	option download '1024'
+	option upload '512'
+	option internal_iface 'lan iot'
+	option port '5000'
+	option upnp_lease_file '/var/run/miniupnpd.leases'
+	option igdv1 '1'
+
+config perm_rule
+	option action 'allow'
+	option ext_ports '1024-65535'
+	option int_addr '0.0.0.0/0'
+	option int_ports '1024-65535'
+	option comment 'Allow high ports'
+
+config perm_rule
+	option action 'deny'
+	option ext_ports '0-65535'
+	option int_addr '0.0.0.0/0'
+	option int_ports '0-65535'
+	option comment 'Default deny'

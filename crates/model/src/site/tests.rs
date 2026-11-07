@@ -22,6 +22,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v2.json"),
     include_str!("../../fixtures/site/v3.json"),
     include_str!("../../fixtures/site/v4.json"),
+    include_str!("../../fixtures/site/v5.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -427,10 +428,10 @@ fn gateway_and_node_rules() {
             service: Some(String::new()),
         };
         c.firewall.policies.push(c.firewall.policies[0].clone());
-        c.firewall.policies.push(super::gateway::ZonePolicy {
+        c.firewall.policies.push(super::firewall::ZonePolicy {
             from: "lab".to_owned(),
             to: "lab".to_owned(),
-            action: super::gateway::ZoneAction::Block,
+            action: super::firewall::ZoneAction::Block,
         });
         c.nodes[0].hostname = Some("bad name".to_owned());
         c.nodes[0].raw[0].package = "wireless".to_owned();

@@ -4,12 +4,13 @@
 //! the gateway freely the rules that let their clients get addresses and names. fw4 accepts
 //! replies to allowed connections in every direction, so "block" and "established" both
 //! render as no forwarding. APs run no firewall: theirs has only its defaults, which accept
-//! input.
+//! input. Port forwards and the DMZ host are `redirect`s ([`redirect`](crate::redirect)), and
+//! the untrusted zones that UPnP serves may reach miniupnpd ([`upnp`](crate::upnp)).
 
 use uniwrt_model::{
     node::NodeRole,
     site::{
-        gateway::ZoneAction,
+        firewall::ZoneAction,
         network::{Ipv6Mode, Purpose},
     },
 };
@@ -66,9 +67,14 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
             .find(|n| n.network.purpose == Purpose::Default)
             .map_or("lan", |n| n.id());
         sections.extend(stock_rules(lan));
+        let upnp = &plan.site.firewall.upnp;
         for net in plan.nets.iter().filter(|n| !trusted(n.network.purpose)) {
             sections.extend(service_rules(net.id(), net.network.ipv6 != Ipv6Mode::Off));
+            if upnp.enabled && upnp.networks.iter().any(|id| id == net.id()) {
+                sections.extend(upnp_rules(net.id()));
+            }
         }
+        sections.extend(crate::redirect::sections(plan, WAN));
     }
     let mut package = Package::new("firewall");
     package.sections = sections;
@@ -249,4 +255,21 @@ fn service_rules(zone: &str, ipv6: bool) -> Vec<Section> {
         );
     }
     rules
+}
+
+/// What a zone that may not reach the gateway needs for UPnP: SSDP and NAT-PMP/PCP, and
+/// miniupnpd's HTTP port.
+fn upnp_rules(zone: &str) -> [Section; 2] {
+    [
+        rule(&format!("Allow-{zone}-UPnP"))
+            .with("src", zone)
+            .with("proto", "udp")
+            .with("dest_port", "1900 5351")
+            .with("target", "ACCEPT"),
+        rule(&format!("Allow-{zone}-UPnP-HTTP"))
+            .with("src", zone)
+            .with("proto", "tcp")
+            .with("dest_port", "5000")
+            .with("target", "ACCEPT"),
+    ]
 }

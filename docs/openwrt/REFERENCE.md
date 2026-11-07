@@ -29,6 +29,7 @@ Marks: ✅ verified (release notes, a test, or a real device) · ⚠️ from doc
 | `/etc/board.json` | Model, LAN/WAN port names, switch layout, LEDs (render reads its layout from the facts) |
 | `/etc/openwrt_release`, `/etc/os-release` | Version, target, architecture |
 | `/tmp/dhcp.leases` | dnsmasq leases (gateway) |
+| `/var/run/miniupnpd.leases` | miniupnpd's mappings (`upnpd.config.upnp_lease_file`): `<PROTO>:<ext port>:<client>:<int port>:<expiry>:<description>`, expiry 0 for none (before 2.0 without the expiry field); the description may hold colons ⚠️ |
 | `/etc/dropbear/authorized_keys` | SSH keys |
 | `/etc/sysupgrade.conf`, `/lib/upgrade/keep.d/*` | Extra files preserved across sysupgrade |
 | `/etc/uci-defaults/*` | First-boot scripts (deleted after they succeed) |
@@ -179,6 +180,7 @@ Render's assumptions, checked by the system harness (M3.3b, `crates/system`) on 
 - ✅ fw4 takes a 12-character zone name whole (`input_securitycams`), and `fw4 check` passes every rendered firewall.
 - ✅ An AP with dnsmasq, odhcpd and the firewall off leases its management address from the gateway, and reaches the ISP through the gateway's NAT.
 - ✅ In the hwsim lab (a on 25.12 the gateway, b on 24.10 the AP): a `wifi-iface` whose network sits on `br-lan.<vid>` joins `br-lan` untagged in that VLAN (`99 PVID Egress Untagged`); `bat0` is a trunk (`1 PU`, `99`) once batman-adv creates it, though the bridge names it before; the rendered 802.11s mesh and WLANs come up, and a client's lease crosses `bat0` tagged.
+- ✅ (M4.2b1, both releases) fw4 takes the rendered `redirect`s (a forward's `list proto`, the DMZ's `proto 'all'`) and rules with two ports in `dest_port` (`'1900 5351'`); `miniupnpd-nftables` (the same `upnpd` package on 23.05, 24.10 and 25.12: `config upnpd 'config'` and `perm_rule`s; init script `miniupnpd`, which writes a `uuid` into the package on its first start, finds the WAN as netifd's default route, writes `/var/etc/miniupnpd.conf` with `listening_ip=<device>` per `internal_iface` network, and puts its rules in fw4's `upnp_forward`, `upnp_prerouting` and `upnp_postrouting` chains) starts from render's package; `fw4 check` then notes miniupnpd's includes on stderr (`[!] Automatically including …`).
 - ⚠️ netifd creates `<cpu>.<vid>` devices named in a bridge's ports (swconfig): containers have no switch; it waits for a swconfig board.
 
 802.11s + batman: see [features/mesh.md](../features/mesh.md).

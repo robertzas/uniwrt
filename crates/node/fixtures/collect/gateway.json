@@ -604,6 +604,10 @@
   },
   "leases": {
    "now": 1792828799,
+   "upnp": {
+    "file": "/var/run/miniupnpd.leases",
+    "data": "TCP:32400:10.0.0.20:32400:1792832399:Plex Media Server\n"
+   },
    "dnsmasq": [
     {
      "file": "/tmp/dhcp.leases",

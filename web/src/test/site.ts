@@ -109,6 +109,9 @@ export function siteConfig(): SiteConfig {
     },
     firewall: {
       policies: [],
+      forwards: [],
+      dmz: null,
+      upnp: { enabled: true, networks: ["lan"] },
     },
     services: {
       dns_records: [],

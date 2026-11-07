@@ -1,6 +1,6 @@
-//! What only the gateway renders: the WAN (features/wan.md), the firewall policy between
-//! networks (features/network.md, Firewall policy) and services such as local DNS. Schema v1
-//! has their basics; M4 and M8 extend them.
+//! What only the gateway renders besides its firewall ([`firewall`](super::firewall)): the WAN
+//! (features/wan.md) and services such as local DNS. Schema v1 has their basics; M4 and M8
+//! extend them.
 
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -178,36 +178,6 @@ pub enum BackupProto {
         gateway: Ipv4Addr,
         dns: Vec<IpAddr>,
     },
-}
-
-/// The firewall policy between networks. Each network's purpose seeds a matrix; these entries
-/// override cells of it.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-pub struct FirewallConfig {
-    pub policies: Vec<ZonePolicy>,
-}
-
-/// One cell of the matrix: traffic from one network to another (or `wan`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-pub struct ZonePolicy {
-    /// A network id, or `wan`.
-    pub from: String,
-    /// A network id, or `wan`.
-    pub to: String,
-    pub action: ZoneAction,
-}
-
-/// What a [`ZonePolicy`] does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "snake_case")]
-pub enum ZoneAction {
-    Allow,
-    Block,
-    /// Only replies to connections from the other side.
-    Established,
 }
 
 /// Services on the gateway.

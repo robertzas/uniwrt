@@ -2,7 +2,7 @@
 //! controller owns, [`SiteConfig`], and its history of [`revision`]s.
 //!
 //! - **Shape:** site settings and the address plan, then [`network::Network`]s, WLANs and the
-//!   mesh ([`wireless`]), the WAN, firewall policy and services ([`gateway`]), and per node
+//!   mesh ([`wireless`]), the WAN and services ([`gateway`]), the firewall ([`firewall`]), and per node
 //!   its overrides ([`node::NodeConfig`]). Schema v1 has every section; the fields are the ones
 //!   M3.3 renders, and later WPs extend them through [`migrate`].
 //! - **Keys:** networks and WLANs have ids (`[a-z][a-z0-9_]{0,11}`), which name their UCI
@@ -16,6 +16,7 @@
 //!   reserved addresses under the address plan (D-077).
 
 pub mod diff;
+pub mod firewall;
 pub mod gateway;
 pub mod ipam;
 pub mod migrate;
@@ -32,14 +33,15 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::{Ipv4Net, Ipv6Net};
 
 use self::{
-    gateway::{FirewallConfig, Services, WanConfig, WanProto},
+    firewall::{FirewallConfig, Upnp},
+    gateway::{Services, WanConfig, WanProto},
     network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
     node::NodeConfig,
     wireless::{MeshConfig, RadioPolicy, Wlan},
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 4;
+pub const SCHEMA_VERSION: u32 = 5;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -182,7 +184,14 @@ impl SiteConfig {
             mesh: MeshConfig::default(),
             radio: RadioPolicy::default(),
             wan: WanConfig::default(),
-            firewall: FirewallConfig::default(),
+            // UPnP on for the main LAN, so consoles and games work from the start (D-079).
+            firewall: FirewallConfig {
+                upnp: Upnp {
+                    enabled: true,
+                    networks: vec!["lan".to_owned()],
+                },
+                ..FirewallConfig::default()
+            },
             services: Services::default(),
             nodes: Vec::new(),
         }
@@ -305,6 +314,8 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     }
 }
 
+#[cfg(test)]
+mod firewall_tests;
 #[cfg(test)]
 mod lan_tests;
 #[cfg(test)]

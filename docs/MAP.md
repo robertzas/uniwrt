@@ -181,6 +181,7 @@ Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configu
 - `src/ports.rs`: Port profiles, from every node (features/network.md, Networks): which networks each Ethernet port carries, read from the VLAN memberships of `br-lan` (`bridge-vlan`) or of a swconfig switch (`switch_vlan`).
 - `src/read.rs`: Reading a node's packages as OpenWrt does: booleans, lists written as options, addresses with or without a netmask; and the renames that render's naming needs.
 - `src/settings.rs`: The site's settings, from the gateway: its time zone and NTP servers (`system`) and the local domain (dnsmasq's `domain`).
+- `src/tests/firewall.rs`: Port forwards, the DMZ host and UPnP from a stock 25.12 gateway with redirects as LuCI writes them (with a DNAT target), some the model can't hold, and miniupnpd's package.
 - `src/tests/golden.rs`: Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly, with nothing raw and no residual, on every capability set.
 - `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
 - `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
@@ -280,6 +281,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/radio.rs`: Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they operate.
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
+- `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
 - `src/import.rs`: A brownfield import's preview (features/lifecycle.md, Brownfield import; D-072, D-073): what accepting the configuration the adopted nodes hold would change in the site, and per node how well the model holds it, for the review screen, before anything is saved.
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
@@ -290,7 +292,9 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
 - `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
-- `src/site/gateway.rs`: What only the gateway renders: the WAN (features/wan.md), the firewall policy between networks (features/network.md, Firewall policy) and services such as local DNS.
+- `src/site/firewall.rs`: The gateway's firewall (features/network.md, Firewall policy): the policy between networks, port forwards and the DMZ host, and UPnP.
+- `src/site/firewall_tests.rs`: Validating the firewall's parts that M4.2b added (port forwards, the DMZ, UPnP), and their migration.
+- `src/site/gateway.rs`: What only the gateway renders besides its firewall ([`firewall`](super::firewall)): the WAN (features/wan.md) and services such as local DNS.
 - `src/site/ipam.rs`: The address plan's suggestions (features/network.md, Address plan; D-077): each network a /24 whose third octet is its VLAN ID (10.0.30.0/24 for VLAN 30), its gateway the first host, its pool .100–.249, and reservations .32–.99 ("Fix IP").
 - `src/site/ipam/tests.rs`: (no header comment)
 - `src/site/lan_tests.rs`: Validating the LAN's parts that M4.2a added: port profiles, DHCP options, IPv6 clients and the controller's record.
@@ -302,7 +306,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
 - `src/site/tz.rs`: Time zones: the IANA names a site may use and the POSIX TZ string OpenWrt's `system.timezone` takes for each (`data/tz.tsv`, built from tzdata by `just tz`).
 - `src/site/validate/dhcp.rs`: A pool's DHCP options: servers, the domain, network boot and custom options, which dnsmasq's init script writes into its configuration line by line.
-- `src/site/validate/gateway.rs`: The WAN, the firewall policy and services.
+- `src/site/validate/firewall.rs`: The firewall: the policy between networks, port forwards, the DMZ host and UPnP.
+- `src/site/validate/gateway.rs`: The WAN and services.
 - `src/site/validate/mod.rs`: Validating a [`SiteConfig`]: errors refuse a save, warnings are shown with it.
 - `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names.
 - `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
@@ -352,6 +357,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
 - `src/facts/tests/hwsim.rs`: The parsers against captures from the hwsim lab (`scripts/wifi-lab.sh`, TESTING.md): real hostapd, `wpa_supplicant`, nl80211, netifd, dnsmasq, odhcpd and batman-adv output.
 - `src/facts/tests/scan.rs`: (no header comment)
+- `src/facts/upnp.rs`: miniupnpd's lease file, which the `leases` set carries: a line per mapping, `<proto>:<external port>:<client>:<internal port>:<expiry>:<description>`, the description possibly holding colons; releases before 2.0 write no expiry.
 - `src/facts/wifi.rs`: nl80211's vocabulary, shared by the Wi-Fi parsers: bands, channel numbers, widths and powers.
 - `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
 - `src/key.rs`: The controller's SSH identity: one ed25519 key that every adopted node trusts.
@@ -416,9 +422,11 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/ports.rs`: The bridge's ports and what each carries (features/network.md, Networks): an Ethernet port is a trunk (the untagged network untagged, every network with a VLAN tagged) unless the node's port profile says otherwise; a port that carries nothing leaves the bridge.
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
 - `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name; a merge (D-072) sets its options on a rendered section instead, found by name or, for an anonymous one, by the key options of its type ([`key`]).
+- `src/redirect.rs`: The gateway's port forwards and DMZ host as fw4 `redirect`s (features/network.md, Firewall policy): DNAT from the WAN to the zone of the network whose subnet holds the host. fw4 accepts what it forwards, and reflects it to the networks (NAT reflection) unless a forward says otherwise.
 - `src/sqm.rs`: The `sqm` package (features/wan.md, SQM; D-076): one `queue` that shapes the WAN's layer-3 device with cake through sqm-scripts' `piece_of_cake.qos`, a little below the line's rates, with fairness per host behind NAT.
 - `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (each user port as its profile says: by default untagged in the untagged network, tagged in the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
 - `src/system.rs`: The `system` package: the node's hostname, time zone and NTP.
+- `src/upnp.rs`: The `upnpd` package (miniupnpd; features/network.md, Firewall policy; D-079): UPnP IGD and NAT-PMP/PCP for the chosen networks, in secure mode (a client maps ports only to itself), with OpenWrt's stock permissions (ports from 1024 only) and lease file, which the agent's `leases` set reads for the live mappings.
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
 - `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the band's policy and the node's overrides, within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
@@ -485,8 +493,8 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/commands.rs`: The commands the jobs run on a node, answered as OpenWrt would: adoption's (features/adoption.md, Path A: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`), the transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and the gateway's DNS check (`nslookup`).
 - `src/render/config.rs`: A node's `/etc/config` before uniwrt manages it: OpenWrt 25.12's stock packages, configured by hand to run the simulated network (the gateway's LAN, WAN on VLAN 201 and DHCP; the access points as bridges taking their address over DHCP, dnsmasq, odhcpd and the firewall off; the sim's SSID on both bands and its batman-adv mesh on 5 GHz), so that the demo's review shows what managing such a fleet changes.
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
-- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM and failover need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
-- `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
+- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM, failover and UPnP need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
+- `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file, odhcpd's ubus leases and, where the gateway runs miniupnpd, its lease file) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
@@ -634,7 +642,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/config.uc`: The `config` set: the SHA-256 of each UCI package in /etc/config, for drift detection (features/lifecycle.md, Drift).
 - `collect/devices.uc`: The `devices` set: every kernel network device, from sysfs, with the counters of /proc/net/dev.
 - `collect/interfaces.uc`: The `interfaces` set: netifd's logical interfaces (`network.interface dump`).
-- `collect/leases.uc`: The `leases` set: DHCP leases from dnsmasq's lease files (each `dnsmasq` section's `leasefile`, /tmp/dhcp.leases by default) and from odhcpd over ubus (`dhcp ipv6leases`, and `ipv4leases` where odhcpd serves DHCPv4), with the node's clock, which dnsmasq's expiry times are on.
+- `collect/leases.uc`: The `leases` set: DHCP leases from dnsmasq's lease files (each `dnsmasq` section's `leasefile`, /tmp/dhcp.leases by default) and from odhcpd over ubus (`dhcp ipv6leases`, and `ipv4leases` where odhcpd serves DHCPv4), with the node's clock, which dnsmasq's expiry times are on; and miniupnpd's lease file (`upnpd.config.upnp_lease_file`), the ports clients opened, where miniupnpd is set up.
 - `collect/neighbors.uc`: The `neighbors` set: the IPv4 and IPv6 neighbor caches and the bridges' forwarding databases.
 - `collect/phys.uc`: The `phys` set: the radio hardware (nl80211 `GET_WIPHY`) per band: its channels with their regulatory flags and power limits, and its HT, VHT, HE and EHT capabilities.
 - `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
@@ -656,7 +664,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (317 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (322 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
@@ -699,7 +707,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
 - `scripts/oui.py`: (no header comment)
-- `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts and mwan3 (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM and failover (D-076).
+- `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts, mwan3 and miniupnpd (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM, failover (D-076) and UPnP (D-079).
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
 - `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.

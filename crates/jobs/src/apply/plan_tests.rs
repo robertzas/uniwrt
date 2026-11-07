@@ -52,8 +52,8 @@ pub(crate) fn node(id: i64, role: NodeRole, host: &str) -> Node {
     }
 }
 
-/// The defaults with the LAN on the stock 192.168.1.0/24, and `nodes` managing every package
-/// render writes.
+/// The defaults with the LAN on the stock 192.168.1.0/24, UPnP off (a new site's is on, which
+/// would install miniupnpd first), and `nodes` managing every package render writes.
 pub(crate) fn site(nodes: &[NodeId]) -> SiteConfig {
     let mut site = SiteConfig::defaults(None);
     site.networks[0].ipv4.as_mut().unwrap().address = "192.168.1.1/24".parse().unwrap();
@@ -66,6 +66,7 @@ pub(crate) fn site(nodes: &[NodeId]) -> SiteConfig {
         .unwrap();
     dhcp.start = "192.168.1.100".parse().unwrap();
     dhcp.end = "192.168.1.249".parse().unwrap();
+    site.firewall.upnp.enabled = false;
     site.nodes = nodes
         .iter()
         .map(|&id| NodeConfig {
@@ -263,6 +264,7 @@ fn a_gateway_with_sqm_installs_its_packages_first() {
         },
         proto: BackupProto::Dhcp,
     });
+    site.firewall.upnp.enabled = true;
     let mut facts = facts_of(NodeRole::Gateway);
     facts.capabilities.package_manager = Some(PackageManager::Opkg);
     let secrets: BTreeMap<SecretRef, String> = BTreeMap::new();
@@ -295,7 +297,8 @@ fn a_gateway_with_sqm_installs_its_packages_first() {
             "kmod-sched-cake",
             "mwan3",
             "kmod-usb-net-rndis",
-            "kmod-usb-net-cdc-ether"
+            "kmod-usb-net-cdc-ether",
+            "miniupnpd-nftables"
         ]
     );
     let (manager, _) = first.installs.as_ref().unwrap();
@@ -303,6 +306,7 @@ fn a_gateway_with_sqm_installs_its_packages_first() {
     // Their services come with them, and the transaction switches them on.
     assert!(first.services.contains(&("sqm".to_owned(), true)));
     assert!(first.services.contains(&("mwan3".to_owned(), true)));
+    assert!(first.services.contains(&("miniupnpd".to_owned(), true)));
     // Installed already: nothing to install; the services, absent, are an issue no more.
     let all: BTreeSet<String> = first.plan.installs.iter().cloned().collect();
     let again = planned(&all, &facts);

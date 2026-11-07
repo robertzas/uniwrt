@@ -60,6 +60,7 @@ fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Firewall,
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
+        ManagedPackage::Upnpd,
     ]
     .into();
     config

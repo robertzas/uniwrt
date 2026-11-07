@@ -56,6 +56,7 @@ pub enum ManagedPackage {
     Usteer,
     Sqm,
     Mwan3,
+    Upnpd,
     Wireguard,
 }
 
@@ -72,6 +73,7 @@ impl ManagedPackage {
             Self::Usteer => "usteer",
             Self::Sqm => "sqm",
             Self::Mwan3 => "mwan3",
+            Self::Upnpd => "upnpd",
             Self::Wireguard => "wireguard",
         }
     }

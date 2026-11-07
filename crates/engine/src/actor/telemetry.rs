@@ -169,7 +169,7 @@ fn differs(set: Set, a: &NodeFacts, b: &NodeFacts) -> bool {
         Set::Config => a.config != b.config,
         Set::Devices => a.devices != b.devices,
         Set::Interfaces => a.interfaces != b.interfaces,
-        Set::Leases => a.leases != b.leases,
+        Set::Leases => a.leases != b.leases || a.port_mappings != b.port_mappings,
         Set::Neighbors => a.neighbors != b.neighbors || a.fdb != b.fdb,
         Set::Phys => a.phys != b.phys,
         Set::Radios => a.radios != b.radios,

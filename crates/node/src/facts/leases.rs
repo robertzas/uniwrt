@@ -2,13 +2,14 @@
 //! `<expiry> <mac> <ip> <hostname> <client-id>` for IPv4 and `<expiry> <iaid> <ip> <hostname>
 //! <duid>` for DHCPv6, with `*` for an unknown field and expiry 0 for a lease that never ends;
 //! expiry times are on the node's clock, which the set includes. A DHCPv6 client's MAC address is
-//! known when its DUID is link-layer based (DUID-LLT or DUID-LL over Ethernet).
+//! known when its DUID is link-layer based (DUID-LLT or DUID-LL over Ethernet). The set also
+//! carries miniupnpd's lease file, the ports clients opened ([`upnp`](super::upnp)).
 
 use std::{collections::BTreeMap, net::IpAddr};
 
 use serde::Deserialize;
 use uniwrt_core::MacAddr;
-use uniwrt_model::facts::LeaseFacts;
+use uniwrt_model::facts::{LeaseFacts, PortMapping};
 
 #[derive(Deserialize)]
 pub(super) struct Raw {
@@ -17,6 +18,8 @@ pub(super) struct Raw {
     dnsmasq: Vec<LeaseFile>,
     #[serde(default)]
     odhcpd: Odhcpd,
+    /// miniupnpd's lease file, where it runs.
+    upnp: Option<LeaseFile>,
 }
 
 #[derive(Deserialize)]
@@ -63,12 +66,18 @@ struct Address {
     valid_lifetime: Option<i64>,
 }
 
-pub(super) fn parse(raw: Raw) -> Vec<LeaseFacts> {
+/// The DHCP leases, and the UPnP mappings.
+pub(super) fn parse(raw: Raw) -> (Vec<LeaseFacts>, Vec<PortMapping>) {
     let Raw {
         now,
         dnsmasq: files,
         odhcpd: servers,
+        upnp,
     } = raw;
+    let mappings = upnp
+        .and_then(|file| file.data)
+        .map(|data| super::upnp::parse(&data, now))
+        .unwrap_or_default();
     let mut leases: Vec<LeaseFacts> = files
         .iter()
         .filter_map(|file| file.data.as_deref())
@@ -81,7 +90,7 @@ pub(super) fn parse(raw: Raw) -> Vec<LeaseFacts> {
             odhcpd(device, lease, &mut leases);
         }
     }
-    leases
+    (leases, mappings)
 }
 
 fn dnsmasq(line: &str, now: u64) -> Option<LeaseFacts> {

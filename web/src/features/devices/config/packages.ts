@@ -17,6 +17,8 @@ export const PACKAGES: readonly ManagedPackage[] = [
   "dropbear",
   "usteer",
   "sqm",
+  "mwan3",
+  "upnpd",
   "wireguard",
 ];
 

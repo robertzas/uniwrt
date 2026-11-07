@@ -10,6 +10,7 @@ mod phy;
 mod radio;
 mod station;
 mod system;
+mod upnp;
 
 use std::collections::BTreeMap;
 
@@ -30,6 +31,7 @@ pub use self::{
     radio::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, Memory, Release, Storage, SystemFacts},
+    upnp::PortMapping,
 };
 
 /// The observed state of one node.
@@ -55,6 +57,10 @@ pub struct NodeFacts {
     /// DHCP leases the node handed out.
     #[serde(default)]
     pub leases: Vec<LeaseFacts>,
+    /// The ports clients opened through UPnP or NAT-PMP (miniupnpd's leases), collected with
+    /// the DHCP leases.
+    #[serde(default)]
+    pub port_mappings: Vec<PortMapping>,
     /// The IPv4 and IPv6 neighbor caches.
     #[serde(default)]
     pub neighbors: Vec<NeighborFacts>,

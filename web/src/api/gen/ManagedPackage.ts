@@ -3,4 +3,4 @@
 /**
  * A UCI package the controller can own (D-011); the set grows feature by feature.
  */
-export type ManagedPackage = "system" | "network" | "wireless" | "dhcp" | "firewall" | "dropbear" | "usteer" | "sqm" | "mwan3" | "wireguard";
+export type ManagedPackage = "system" | "network" | "wireless" | "dhcp" | "firewall" | "dropbear" | "usteer" | "sqm" | "mwan3" | "upnpd" | "wireguard";

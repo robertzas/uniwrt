@@ -135,6 +135,7 @@ function factsFrom(patch: FactsPatch): NodeFacts | undefined {
     radios: [],
     stations: [],
     leases: [],
+    port_mappings: [],
     neighbors: [],
     fdb: [],
     batman: [],

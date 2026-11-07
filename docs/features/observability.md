@@ -26,7 +26,7 @@ The node agent writes JSON lines over SSH → the `node` crate parses them into 
 - phys (nl80211, collected rarely): per band, the standards, widths, spatial streams, and channels with their DFS state and power limits
 - radios (netifd and nl80211): configuration, channel, width, center frequency, tx power, noise, and the busy share from the survey
 - stations per interface (nl80211 and hostapd): MAC, signal, rx/tx rate (MCS/NSS/width/GI), counters, retries, airtime, inactivity, expected throughput, capabilities (11k, 11v, 11w, WMM), and a mesh peer's link state; SNR is the signal over the radio's noise
-- DHCP leases (dnsmasq, odhcpd), ARP/NDP neighbors and the bridge FDB (rtnetlink, or /proc and `brforward`)
+- DHCP leases (dnsmasq, odhcpd) and, in the same set, the gateway's UPnP mappings (miniupnpd's lease file); ARP/NDP neighbors and the bridge FDB (rtnetlink, or /proc and `brforward`)
 - batman (batctl's JSON queries): the mesh, hard interfaces, originators, neighbors, gateways and both translation tables; the `batctl s` counters later
 - WAN: addresses, routes, delegated prefix
 - conntrack count

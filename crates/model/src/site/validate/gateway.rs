@@ -1,9 +1,6 @@
-//! The WAN, the firewall policy and services.
+//! The WAN and services.
 
-use std::{
-    collections::BTreeSet,
-    net::{IpAddr, Ipv4Addr},
-};
+use std::net::{IpAddr, Ipv4Addr};
 
 use uniwrt_core::Ipv4Net;
 
@@ -253,33 +250,6 @@ fn dhcp(client: &DhcpClient, issues: &mut Issues) {
             issues.error(
                 format!("wan/proto/send_options/{i}"),
                 "An option is <code>:<value>, its code 1 to 254, without spaces",
-            );
-        }
-    }
-}
-
-pub(super) fn firewall(config: &SiteConfig, issues: &mut Issues) {
-    let known = |zone: &str| zone == "wan" || config.networks.iter().any(|n| n.id == zone);
-    let mut cells = BTreeSet::new();
-    for (i, policy) in config.firewall.policies.iter().enumerate() {
-        let at = format!("firewall/policies/{i}");
-        for (field, zone) in [("from", &policy.from), ("to", &policy.to)] {
-            if !known(zone) {
-                issues.error(
-                    format!("{at}/{field}"),
-                    format!("There is no network {zone}"),
-                );
-            }
-        }
-        if policy.from == policy.to {
-            issues.error(&at, "A policy is between two different networks");
-        } else if !cells.insert((&policy.from, &policy.to)) {
-            issues.error(
-                &at,
-                format!(
-                    "Traffic from {} to {} has two policies",
-                    policy.from, policy.to
-                ),
             );
         }
     }

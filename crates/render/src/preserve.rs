@@ -50,6 +50,7 @@ pub(crate) fn carry_over(package: &mut Package, current: &BTreeMap<String, Packa
                 }
             }
         }
+        "upnpd" => copy_option(package, now, crate::upnp::CONFIG, "uuid"),
         _ => {}
     }
 }

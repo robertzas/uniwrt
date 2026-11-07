@@ -6,8 +6,9 @@
 //!   holds now. It gives a [`Rendered`]: one [`Package`] per managed package (D-011), the
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
-//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `sqm`, `mwan3` (the last two
-//!   only on the gateway, only with SQM or failover on or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `sqm`, `mwan3`, `upnpd` (the
+//!   last three only on the gateway, only with SQM, failover or UPnP on or the node holding
+//!   them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
@@ -19,7 +20,8 @@
 //!   routes: a static interface per network, the WAN, dnsmasq (pools with their options and
 //!   network boot, and `uniwrt.<domain>` for the controller when [`Target::controller`] sits in
 //!   a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
-//!   seeded by its purpose; a network overlapping the subnet its uplink holds now is an issue.
+//!   seeded by its purpose, port forwards and the DMZ host as `redirect`s, and miniupnpd for
+//!   the networks UPnP serves; a network overlapping the subnet its uplink holds now is an issue.
 //!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
 //!   firewall off.
 //! - **Invariants:** pure: no IO, no clock; the same input gives the same packages. Rendering
@@ -55,9 +57,11 @@ mod plan;
 mod ports;
 mod preserve;
 pub mod raw;
+mod redirect;
 mod sqm;
 mod switch;
 mod system;
+mod upnp;
 mod wan;
 mod wireless;
 
@@ -158,10 +162,11 @@ pub use self::{
     firewall::seeded,
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},
+    upnp::LEASE_FILE as UPNP_LEASE_FILE,
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 7] = [
+pub const RENDERABLE: [ManagedPackage; 8] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
@@ -169,7 +174,60 @@ pub const RENDERABLE: [ManagedPackage; 7] = [
     ManagedPackage::Firewall,
     ManagedPackage::Sqm,
     ManagedPackage::Mwan3,
+    ManagedPackage::Upnpd,
 ];
+
+/// A package of what the feeds bring, on the gateway: the package, its init script, whether
+/// that runs, and the feed packages it needs then.
+struct FeedRendered {
+    package: Package,
+    service: &'static str,
+    on: bool,
+    requires: Vec<Requirement>,
+}
+
+/// SQM's, mwan3's or miniupnpd's package; `None` where there is nothing to own (not the
+/// gateway, or the feature off and the package not on the node).
+fn feed_package(
+    package: ManagedPackage,
+    plan: &plan::Plan<'_>,
+    held: bool,
+) -> Option<FeedRendered> {
+    let (rendered, service, on, requires) = match package {
+        ManagedPackage::Sqm => {
+            let on = plan.site.wan.sqm.is_some();
+            (sqm::render(plan, held)?, "sqm", on, sqm::REQUIRES.to_vec())
+        }
+        ManagedPackage::Mwan3 => {
+            let usb = matches!(
+                plan.site.wan.failover.as_ref().map(|f| &f.link),
+                Some(uniwrt_model::site::gateway::BackupLink::Usb { .. })
+            );
+            let mut requires = vec![failover::REQUIRES];
+            if usb {
+                requires.extend(failover::USB_REQUIRES);
+            }
+            let on = plan.backup.is_some();
+            (failover::render(plan, held)?, "mwan3", on, requires)
+        }
+        ManagedPackage::Upnpd => {
+            let on = plan.site.firewall.upnp.enabled;
+            (
+                upnp::render(plan, held)?,
+                "miniupnpd",
+                on,
+                vec![upnp::REQUIRES],
+            )
+        }
+        _ => return None,
+    };
+    Some(FeedRendered {
+        package: rendered,
+        service,
+        on,
+        requires,
+    })
+}
 
 /// Renders the node's managed packages, or says why it can't.
 pub fn render(
@@ -220,33 +278,15 @@ pub fn render(
                 services.insert("firewall", plan.role == NodeRole::Gateway);
                 firewall::render(&plan)
             }
-            ManagedPackage::Sqm => {
-                let Some(rendered) = sqm::render(&plan, held) else {
+            ManagedPackage::Sqm | ManagedPackage::Mwan3 | ManagedPackage::Upnpd => {
+                let Some(rendered) = feed_package(*package, &plan, held) else {
                     continue;
                 };
-                let on = plan.site.wan.sqm.is_some();
-                if on {
-                    requires.extend(sqm::REQUIRES);
+                services.insert(rendered.service, rendered.on);
+                if rendered.on {
+                    requires.extend(rendered.requires);
                 }
-                services.insert("sqm", on);
-                rendered
-            }
-            ManagedPackage::Mwan3 => {
-                let Some(rendered) = failover::render(&plan, held) else {
-                    continue;
-                };
-                let on = plan.backup.is_some();
-                if on {
-                    requires.push(failover::REQUIRES);
-                    if matches!(
-                        plan.site.wan.failover.as_ref().map(|f| &f.link),
-                        Some(uniwrt_model::site::gateway::BackupLink::Usb { .. })
-                    ) {
-                        requires.extend(failover::USB_REQUIRES);
-                    }
-                }
-                services.insert("mwan3", on);
-                rendered
+                rendered.package
             }
             _ => continue,
         };

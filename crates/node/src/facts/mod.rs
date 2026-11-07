@@ -19,6 +19,7 @@ mod radios;
 pub mod scan;
 mod stations;
 mod system;
+mod upnp;
 mod wifi;
 
 use std::collections::BTreeMap;
@@ -27,7 +28,8 @@ use serde::de::DeserializeOwned;
 use serde_json::value::RawValue;
 use uniwrt_model::facts::{
     BatmanFacts, BoardFacts, Capabilities, DeviceFacts, DeviceKind, FdbEntry, InterfaceFacts,
-    LeaseFacts, NeighborFacts, NodeFacts, PhyFacts, RadioFacts, StationFacts, SystemFacts,
+    LeaseFacts, NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, StationFacts,
+    SystemFacts,
 };
 
 use crate::proto::ops::{Collected, Set};
@@ -41,7 +43,10 @@ pub enum SetFacts {
     Config(BTreeMap<String, String>),
     Devices(Vec<DeviceFacts>),
     Interfaces(Vec<InterfaceFacts>),
-    Leases(Vec<LeaseFacts>),
+    Leases {
+        leases: Vec<LeaseFacts>,
+        mappings: Vec<PortMapping>,
+    },
     Neighbors {
         neighbors: Vec<NeighborFacts>,
         fdb: Vec<FdbEntry>,
@@ -62,7 +67,10 @@ impl SetFacts {
             Set::Config => Self::Config(config::parse(decode(set, raw)?)),
             Set::Devices => Self::Devices(devices::parse(decode(set, raw)?)),
             Set::Interfaces => Self::Interfaces(interfaces::parse(decode(set, raw)?)),
-            Set::Leases => Self::Leases(leases::parse(decode(set, raw)?)),
+            Set::Leases => {
+                let (leases, mappings) = leases::parse(decode(set, raw)?);
+                Self::Leases { leases, mappings }
+            }
             Set::Neighbors => {
                 let (neighbors, fdb) = neighbors::parse(decode(set, raw)?);
                 Self::Neighbors { neighbors, fdb }
@@ -89,7 +97,10 @@ impl SetFacts {
                 mark_meshes(facts);
             }
             Self::Interfaces(interfaces) => facts.interfaces = interfaces,
-            Self::Leases(leases) => facts.leases = leases,
+            Self::Leases { leases, mappings } => {
+                facts.leases = leases;
+                facts.port_mappings = mappings;
+            }
             Self::Neighbors { neighbors, fdb } => {
                 facts.neighbors = neighbors;
                 facts.fdb = fdb;

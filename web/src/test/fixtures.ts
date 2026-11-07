@@ -79,6 +79,7 @@ export function facts(cpu: number): NodeFacts {
     radios: [],
     stations: [],
     leases: [],
+    port_mappings: [],
     neighbors: [],
     fdb: [],
     batman: [],

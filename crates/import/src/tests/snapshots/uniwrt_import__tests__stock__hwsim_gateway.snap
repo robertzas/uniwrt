@@ -2,7 +2,7 @@
 source: crates/import/src/tests/stock.rs
 expression: summary(&import)
 ---
-# 1 — confidence 84%
+# 1 — confidence 88%
 kept [packet_steering] network.globals (globals)
 kept [peerdns, dns] network.wan (interface)
 network.wan6rd (interface) → wan6
@@ -13,7 +13,6 @@ kept [ieee80211r, mobility_domain] wireless.uw_home_5g (wifi-iface)
 kept [server] dhcp.@ (dnsmasq)
 raw firewall.@ (rule)
 raw firewall.iot_dns (rule)
-raw firewall.@ (redirect)
 raw firewall.uniwrt (include)
 ~ system.@system[0]
     timezone: 'GMT0' → 'UTC0'

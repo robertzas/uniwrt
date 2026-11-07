@@ -6,6 +6,7 @@
 //! (100.64.0.0/10) or the WAN, and 192.168.1.0/24 stays free for factory-default devices.
 
 mod dhcp;
+mod firewall;
 mod gateway;
 mod names;
 mod network;
@@ -90,7 +91,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     wireless::mesh(config, &mut issues);
     wireless::radio(config, &mut issues);
     gateway::wan(config, &mut issues);
-    gateway::firewall(config, &mut issues);
+    firewall::firewall(config, &mut issues);
     gateway::services(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
     issues.0

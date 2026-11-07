@@ -52,16 +52,20 @@ Rendering:
 - RA/SLAAC by default; stateful DHCPv6 optional.
 - The IPv6 firewall mirrors the IPv4 policy.
 
-## Firewall policy [M4.2]
+## Firewall policy [M4.2] (D-079)
 
 - One zone per network, plus wan.
-- Inter-network policy is a matrix (from → to: allow | block | allow-established), seeded by purpose:
-  - LAN → everything: allow.
-  - IoT → LAN: block, except established. IoT → internet: allow.
-  - Guest → internet only; Guest → gateway: DHCP and DNS only.
-- Port forwards (DNAT) with NAT reflection, a DMZ host, and UPnP/NAT-PMP (miniupnpd) with a live list of mappings.
-- Custom traffic rules (protocols, ports, IP sets), time-based rules for parental schedules [M8.1], and IP/geo blocklists using nft sets (backlog).
-- Rendering: fw4 UCI (`zone`, `forwarding`, `rule`, `redirect`, `ipset`), validated with `fw4 check` in the system harness.
+- Inter-network policy is a matrix (from → to: allow | block), seeded by purpose; `firewall.policies` override cells. Replies to connections the other side opened always pass (fw4 accepts established traffic in every direction), so a blocked cell whose reverse is allowed is "replies only"; the model's `established` action renders as block.
+  - LAN and Management → everything: allow.
+  - IoT → LAN: block (replies pass). IoT → internet: allow.
+  - Guest → internet only; Guest → gateway: DHCP and DNS only (the zones that don't reach the gateway get `Allow-<zone>-DHCP`/`-DNS`, and with IPv6 `-DHCPv6`/`-ND`).
+- **Port forwards** (`firewall.forwards`, DNAT): a unique name (not `DMZ`), on or off, TCP, UDP or both, a WAN port or range, the host (an address in a network's subnet, not the gateway's, the subnet's or its broadcast) and its first port when it differs (a range keeps its length), an optional source subnet, and NAT reflection (on by default: hosts on the networks reach the forward through the WAN's address too). Enabled forwards may not share a port and protocol. Forwards behind DS-Lite or an IPv6-only WAN warn: the internet can't reach them over IPv4.
+- **DMZ host** (`firewall.dmz`): every connection from the internet that no forward claims goes to one host.
+- **UPnP IGD and NAT-PMP/PCP** (`firewall.upnp`, miniupnpd): on for the main LAN on new sites (off on migrated ones, as before), for the networks chosen. Secure mode (a client maps ports only to itself), ports from 1024 only (OpenWrt's stock permissions). The live list of mappings comes from miniupnpd's lease file with the gateway's DHCP leases (the `leases` set, every minute).
+- Custom traffic rules (protocols, ports, IP sets) and time-based rules for parental schedules [M8.1]; IP/geo blocklists using nft sets (backlog). IPv6 "forwards" (opening a host's port to the internet) come with custom rules.
+- Rendering: fw4 UCI (`zone`, `forwarding`, `rule`, `redirect`; `ipset` later), validated with `fw4 check` in the system harness. Each forward is a `redirect` from `wan` to the zone of the network whose subnet holds the host, with `target`, `dest_port` and `proto` always written; the DMZ is the last redirect (`name 'DMZ'`, `proto 'all'`, as LuCI writes it). UPnP is the `upnpd` package (miniupnpd's stock options and permission rules, `internal_iface` naming the networks), which needs `miniupnpd-nftables` (installed by the apply, D-076) and carries over the `uuid` miniupnpd writes on its first start; untrusted zones it serves get `Allow-<zone>-UPnP` (UDP 1900 and 5351) and `Allow-<zone>-UPnP-HTTP` (TCP 5000).
+- Import: named DNAT redirects from `wan` to a host on a network become forwards (`DMZ` without ports the DMZ host); unnamed ones, ranges that change length and the like stay raw sections. miniupnpd's package becomes `upnp` (on unless `enabled '0'`; off without the package).
+- UI [M4.2b2]: the `/security` page (the matrix, forwards and the DMZ, UPnP with its live mappings).
 
 ## VPN [M8.2]
 

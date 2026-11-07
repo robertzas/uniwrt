@@ -13,7 +13,8 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         SecretRef, SiteConfig,
-        gateway::{DnsRecord, WanProto, ZoneAction, ZonePolicy},
+        firewall::{ForwardProto, PortForward, PortRange, ZoneAction, ZonePolicy},
+        gateway::{DnsRecord, WanProto},
         network::{
             Boot, Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose,
             Reservation,
@@ -205,6 +206,7 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Firewall,
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
+        ManagedPackage::Upnpd,
     ]
     .into();
     config
@@ -266,6 +268,46 @@ fn wlan(
         hidden: false,
         isolation: false,
     }
+}
+
+/// The home's port forwards: a NAS from one network only, a game server's range and a disabled
+/// camera.
+fn home_forwards() -> Vec<PortForward> {
+    vec![
+        PortForward {
+            name: "NAS".to_owned(),
+            enabled: true,
+            proto: ForwardProto::Tcp,
+            ports: PortRange::one(8443),
+            to: Ipv4Addr::new(10, 0, 0, 40),
+            to_port: Some(443),
+            source: Some("203.0.113.0/24".parse().unwrap()),
+            reflection: true,
+        },
+        PortForward {
+            name: "Game server".to_owned(),
+            enabled: true,
+            proto: ForwardProto::TcpUdp,
+            ports: PortRange {
+                first: 27015,
+                last: 27030,
+            },
+            to: Ipv4Addr::new(10, 0, 30, 20),
+            to_port: None,
+            source: None,
+            reflection: false,
+        },
+        PortForward {
+            name: "Old camera".to_owned(),
+            enabled: false,
+            proto: ForwardProto::Udp,
+            ports: PortRange::one(554),
+            to: Ipv4Addr::new(10, 0, 30, 21),
+            to_port: None,
+            source: None,
+            reflection: true,
+        },
+    ]
 }
 
 /// The owner's kind of home: a LAN, smart-home devices on VLAN 30 and guests on VLAN 40, three WLANs, the
@@ -334,6 +376,9 @@ pub(crate) fn home_site() -> SiteConfig {
         to: "guest".to_owned(),
         action: ZoneAction::Block,
     }];
+    site.firewall.forwards = home_forwards();
+    site.firewall.dmz = Some(Ipv4Addr::new(10, 0, 0, 50));
+    site.firewall.upnp.networks = vec!["lan".to_owned(), "iot".to_owned()];
     let ap = site.nodes.iter_mut().find(|n| n.node == AP).unwrap();
     ap.hostname = Some("ap-garden".to_owned());
     ap.radios.push(RadioOverride {

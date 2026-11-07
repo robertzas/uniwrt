@@ -12,7 +12,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4];
+const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
 /// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
@@ -110,6 +110,45 @@ fn v3_to_v4(value: &mut Value) -> Result<(), String> {
     for node in nodes {
         let node = node.as_object_mut().ok_or("a node is not an object")?;
         node.insert("ports".to_owned(), json!([]));
+    }
+    Ok(())
+}
+
+/// v5 (M4.2b, D-079): the firewall gains port forwards and a DMZ host (none) and UPnP, off as
+/// rendered before, for the default network when turned on; nodes that manage the firewall
+/// manage `upnpd` too (render writes it only while UPnP is on or the node has it already).
+fn v4_to_v5(value: &mut Value) -> Result<(), String> {
+    let lan = value
+        .get("networks")
+        .and_then(Value::as_array)
+        .and_then(|networks| {
+            networks
+                .iter()
+                .find(|n| n.get("purpose").and_then(Value::as_str) == Some("default"))
+        })
+        .and_then(|n| n.get("id").cloned())
+        .unwrap_or_else(|| json!("lan"));
+    let firewall = value
+        .get_mut("firewall")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no firewall")?;
+    firewall.insert("forwards".to_owned(), json!([]));
+    firewall.insert("dmz".to_owned(), Value::Null);
+    firewall.insert(
+        "upnp".to_owned(),
+        json!({ "enabled": false, "networks": [lan] }),
+    );
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let Some(managed) = node.get_mut("managed").and_then(Value::as_array_mut) else {
+            return Err("a node has no managed packages".to_owned());
+        };
+        if managed.iter().any(|p| p == "firewall") && !managed.iter().any(|p| p == "upnpd") {
+            managed.push(json!("upnpd"));
+        }
     }
     Ok(())
 }

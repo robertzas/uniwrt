@@ -1,18 +1,24 @@
-//! The sets `leases` (dnsmasq's lease file and odhcpd's ubus leases) and `neighbors` (the
-//! ARP and NDP caches and the bridge's forwarding database over rtnetlink).
+//! The sets `leases` (dnsmasq's lease file, odhcpd's ubus leases and, where the gateway runs
+//! miniupnpd, its lease file) and `neighbors` (the ARP and NDP caches and the bridge's
+//! forwarding database over rtnetlink).
 
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 use serde_json::{Value, json};
 
 use super::net::LAN_PREFIX6;
-use crate::world::{Client, World, catalog::WAN_VLAN, clients::LEASE_MS};
+use crate::world::{
+    Client, World,
+    catalog::{Kind, WAN_VLAN},
+    clients::LEASE_MS,
+};
 
 /// rtnetlink's neighbor states.
 const REACHABLE: u32 = 2;
 const STALE: u32 = 4;
 
-pub(super) fn leases(world: &World, n: usize) -> Value {
+/// The leases; `files` is the node's `/etc/config`, whose `upnpd` says whether miniupnpd runs.
+pub(super) fn leases(world: &World, n: usize, files: &BTreeMap<String, String>) -> Value {
     let now_s = world.now_ms() / 1000;
     if n != 0 {
         // Access points serve no DHCP.
@@ -67,6 +73,7 @@ pub(super) fn leases(world: &World, n: usize) -> Value {
         .collect();
     json!({
         "now": now_s,
+        "upnp": upnp(world, files),
         "dnsmasq": [{"file": "/tmp/dhcp.leases", "data": data}],
         "odhcpd": {
             "ipv4leases": null,
@@ -159,4 +166,38 @@ fn recent(client: &Client) -> bool {
             .assoc
             .as_ref()
             .is_some_and(|assoc| assoc.inactive_ms < 30_000)
+}
+
+/// miniupnpd's lease file where `upnpd` turns it on: the TVs and laptops at home keep a port
+/// open (a media server, a game), for an hour from when they last came home.
+fn upnp(world: &World, files: &BTreeMap<String, String>) -> Value {
+    let on = files
+        .get("upnpd")
+        .and_then(|text| uniwrt_uci::parse("upnpd", text).ok())
+        .and_then(|package| {
+            package
+                .section("config")?
+                .option("enabled")
+                .map(|e| e == "1")
+        })
+        .unwrap_or(false);
+    if !on {
+        return Value::Null;
+    }
+    let mut data = String::new();
+    let open = world
+        .clients
+        .iter()
+        .filter(|client| client.home() && matches!(client.spec.kind, Kind::Tv | Kind::Laptop));
+    for (i, client) in open.enumerate() {
+        let port = 32400 + u16::try_from(i).unwrap_or(0);
+        let expiry = (client.lease_ms + LEASE_MS) / 1000;
+        let name = client.hostname.as_deref().unwrap_or("client");
+        let _ = writeln!(
+            data,
+            "TCP:{port}:{}:{port}:{expiry}:{name} media",
+            client.ip
+        );
+    }
+    json!({"file": "/var/run/miniupnpd.leases", "data": data})
 }

@@ -2,7 +2,8 @@
 source: crates/render/tests/golden.rs
 expression: show(&result)
 ---
-services: dnsmasq on, firewall on, odhcpd on
+services: dnsmasq on, firewall on, miniupnpd on, odhcpd on
+requires: miniupnpd-nftables
 
 # system
 
@@ -245,3 +246,33 @@ config rule
 	option dest_port '500'
 	option proto 'udp'
 	option target 'ACCEPT'
+
+
+# upnpd
+
+config upnpd 'config'
+	option enabled '1'
+	option enable_natpmp '1'
+	option enable_upnp '1'
+	option secure_mode '1'
+	option log_output '0'
+	option download '1024'
+	option upload '512'
+	option internal_iface 'lan'
+	option port '5000'
+	option upnp_lease_file '/var/run/miniupnpd.leases'
+	option igdv1 '1'
+
+config perm_rule
+	option action 'allow'
+	option ext_ports '1024-65535'
+	option int_addr '0.0.0.0/0'
+	option int_ports '1024-65535'
+	option comment 'Allow high ports'
+
+config perm_rule
+	option action 'deny'
+	option ext_ports '0-65535'
+	option int_addr '0.0.0.0/0'
+	option int_ports '0-65535'
+	option comment 'Default deny'

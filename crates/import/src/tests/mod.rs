@@ -6,6 +6,7 @@
 #[path = "../../../render/tests/support/mod.rs"]
 mod support;
 
+mod firewall;
 mod golden;
 mod sim;
 mod stock;

@@ -8,6 +8,7 @@ import type { InterfaceFacts } from "./InterfaceFacts";
 import type { LeaseFacts } from "./LeaseFacts";
 import type { NeighborFacts } from "./NeighborFacts";
 import type { PhyFacts } from "./PhyFacts";
+import type { PortMapping } from "./PortMapping";
 import type { RadioFacts } from "./RadioFacts";
 import type { StationFacts } from "./StationFacts";
 import type { SystemFacts } from "./SystemFacts";
@@ -42,6 +43,11 @@ stations: Array<StationFacts>,
  * DHCP leases the node handed out.
  */
 leases: Array<LeaseFacts>, 
+/**
+ * The ports clients opened through UPnP or NAT-PMP (miniupnpd's leases), collected with
+ * the DHCP leases.
+ */
+port_mappings: Array<PortMapping>, 
 /**
  * The IPv4 and IPv6 neighbor caches.
  */

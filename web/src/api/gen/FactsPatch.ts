@@ -8,6 +8,7 @@ import type { InterfaceFacts } from "./InterfaceFacts";
 import type { LeaseFacts } from "./LeaseFacts";
 import type { NeighborFacts } from "./NeighborFacts";
 import type { PhyFacts } from "./PhyFacts";
+import type { PortMapping } from "./PortMapping";
 import type { RadioFacts } from "./RadioFacts";
 import type { StationFacts } from "./StationFacts";
 import type { SystemFacts } from "./SystemFacts";
@@ -16,4 +17,4 @@ import type { Timestamp } from "./Timestamp";
 /**
  * The parts of a node's facts that changed: replace each one present.
  */
-export type FactsPatch = { collected_at: Timestamp, board?: BoardFacts, system?: SystemFacts, capabilities?: Capabilities, interfaces?: Array<InterfaceFacts>, devices?: Array<DeviceFacts>, phys?: Array<PhyFacts>, radios?: Array<RadioFacts>, stations?: Array<StationFacts>, leases?: Array<LeaseFacts>, neighbors?: Array<NeighborFacts>, fdb?: Array<FdbEntry>, batman?: Array<BatmanFacts>, };
+export type FactsPatch = { collected_at: Timestamp, board?: BoardFacts, system?: SystemFacts, capabilities?: Capabilities, interfaces?: Array<InterfaceFacts>, devices?: Array<DeviceFacts>, phys?: Array<PhyFacts>, radios?: Array<RadioFacts>, stations?: Array<StationFacts>, leases?: Array<LeaseFacts>, port_mappings?: Array<PortMapping>, neighbors?: Array<NeighborFacts>, fdb?: Array<FdbEntry>, batman?: Array<BatmanFacts>, };

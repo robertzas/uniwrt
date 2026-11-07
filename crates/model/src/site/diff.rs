@@ -1,5 +1,5 @@
 //! The structural diff of two documents: what was added, removed or changed, by path. List items
-//! are matched by their key (`id`, `node`, `radio` or `mac`), so editing one network is one
+//! are matched by their key (`id`, `node`, `radio`, `mac`, `port` or `name`), so editing one network is one
 //! change at `networks/<id>/…`, not a shifted list. Lists without a key compare whole.
 
 use std::collections::BTreeSet;
@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use super::SiteConfig;
 
 /// The fields that key list items, in the order they are tried.
-const KEYS: [&str; 5] = ["id", "node", "radio", "mac", "port"];
+const KEYS: [&str; 6] = ["id", "node", "radio", "mac", "port", "name"];
 
 /// One difference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

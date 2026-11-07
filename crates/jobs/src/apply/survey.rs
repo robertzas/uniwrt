@@ -48,7 +48,7 @@ pub(crate) const RENDER_SETS: [Set; 6] = [
 ];
 
 /// The services render may switch, which the planner reads.
-const SERVICES: [&str; 5] = ["dnsmasq", "odhcpd", "firewall", "sqm", "mwan3"];
+const SERVICES: [&str; 6] = ["dnsmasq", "odhcpd", "firewall", "sqm", "mwan3", "miniupnpd"];
 
 /// A login on a node.
 pub(crate) struct Login {

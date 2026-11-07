@@ -742,6 +742,16 @@
       "expires_in_s": 3600
     }
   ],
+  "port_mappings": [
+    {
+      "proto": "tcp",
+      "external_port": 32400,
+      "ip": "10.0.0.20",
+      "internal_port": 32400,
+      "description": "Plex Media Server",
+      "expires_in_s": 3600
+    }
+  ],
   "neighbors": [
     {
       "ip": "10.0.0.20",
