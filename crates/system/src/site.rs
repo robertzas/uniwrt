@@ -162,9 +162,11 @@ pub fn home(uplink: Uplink) -> SiteConfig {
 /// address (`lan`), with neither DHCP nor IPv6, so nothing answers on Docker's network; the lab's
 /// clients live on `labnet` (VLAN 99, 10.99.0.0/24 as in the lab's own config), whose WLAN is
 /// the one client c joins on both bands. The mesh is the lab's, on channel 36; the WAN, a stub.
+/// UPnP is off: the lab's image has no miniupnpd (the system harness checks it).
 pub fn lab(lan: Ipv4Net) -> SiteConfig {
     let mut site = defaults(Uplink::Static);
     site.site.country = Some("US".to_owned());
+    site.firewall.upnp.enabled = false;
     let lan_net = &mut site.networks[0];
     lan_net.ipv6 = Ipv6Mode::Off;
     lan_net.ipv4 = Some(Ipv4Config {
