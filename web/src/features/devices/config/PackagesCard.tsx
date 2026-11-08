@@ -9,7 +9,7 @@ import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
 import { Checkbox } from "../../../ui/Checkbox";
 import { showToast } from "../../../ui/Toast";
-import { changeOf, managedOf, PACKAGES, RENDERED, withManaged } from "./packages";
+import { changeOf, GATEWAY_ONLY, managedOf, PACKAGES, RENDERED, withManaged } from "./packages";
 
 const p = strings.device.packages;
 
@@ -33,6 +33,14 @@ export function PackagesCard(props: { node: Node; admin: boolean }) {
   });
   const change = () => changeOf(saved(), chosen());
   const changed = () => change().added.length > 0 || change().removed.length > 0;
+
+  /** Why `name` can't be chosen here, if it can't: render doesn't write it (on this node). */
+  const unavailable = (name: ManagedPackage) =>
+    !RENDERED.includes(name)
+      ? p.later
+      : GATEWAY_ONLY.includes(name) && props.node.role !== "gateway"
+        ? p.gatewayOnly
+        : undefined;
 
   const toggle = (name: ManagedPackage, on: boolean) =>
     setChosen((current) => (on ? [...current, name] : current.filter((other) => other !== name)));
@@ -74,9 +82,14 @@ export function PackagesCard(props: { node: Node; admin: boolean }) {
                 <li>
                   <Checkbox
                     label={name}
-                    hint={RENDERED.includes(name) ? p.names[name] : `${p.names[name]}. ${p.later}`}
+                    hint={[p.names[name], unavailable(name)].filter(Boolean).join(". ")}
                     checked={chosen().includes(name)}
-                    disabled={!props.admin || saving() || !RENDERED.includes(name)}
+                    disabled={
+                      !props.admin ||
+                      saving() ||
+                      // A package chosen where it can't be stays clearable.
+                      (unavailable(name) !== undefined && !chosen().includes(name))
+                    }
                     onChange={(on) => toggle(name, on)}
                   />
                 </li>

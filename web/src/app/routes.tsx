@@ -27,6 +27,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/internet": lazy(() =>
     import("../features/internet/InternetPage").then((m) => ({ default: m.InternetPage })),
   ),
+  "/security": lazy(() =>
+    import("../features/security/SecurityPage").then((m) => ({ default: m.SecurityPage })),
+  ),
   "/insights/logs": lazy(() =>
     import("../features/logs/LogsPage").then((m) => ({ default: m.LogsPage })),
   ),

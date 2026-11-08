@@ -680,14 +680,15 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
-- `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, addr.ts, dns.ts, draft.ts, summary.ts
+- `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
 - `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
+- `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, entities.ts, events.ts, format.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts

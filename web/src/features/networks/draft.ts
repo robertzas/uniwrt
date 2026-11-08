@@ -3,11 +3,12 @@ import type { Ipv6Mode } from "../../api/gen/Ipv6Mode";
 import type { Network } from "../../api/gen/Network";
 import type { Purpose } from "../../api/gen/Purpose";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
+import { cidr, ipv4, isHost, isPrivate } from "../../lib/ipv4";
 import { isDnsName, isHostname, normalizeMac } from "../../lib/names";
 import { strings } from "../../lib/strings";
-import { cidr, ipv4, isHost, isPrivate } from "./addr";
 
 const e = strings.networks.errors;
+const u = strings.networks.editor.uses;
 
 /** The lease times offered, in seconds (OpenWrt's default is 12 hours). */
 export const LEASES = [1800, 3600, 7200, 21600, 43200, 86400, 604800] as const;
@@ -300,7 +301,10 @@ export function errorsOfIssues(
   return { errors, other };
 }
 
-/** What in the site refers to network `id`, in words: its WLANs and the nodes whose ports name it. */
+/**
+ * What in the site refers to network `id`, in words: its WLANs, the nodes whose ports name it,
+ * UPnP, and the port forwards and DMZ host on its subnet.
+ */
 export function usesOf(config: SiteConfig, id: string, nodeName: (id: number) => string): string[] {
   const wlans = config.wlans.filter((wlan) => wlan.network === id).map((wlan) => wlan.ssid);
   const nodes = config.nodes
@@ -311,13 +315,38 @@ export function usesOf(config: SiteConfig, id: string, nodeName: (id: number) =>
       ),
     )
     .map((node) => nodeName(node.node));
-  return [...wlans, ...nodes];
+  const address = config.networks.find((n) => n.id === id)?.ipv4?.address;
+  const subnet = address ? cidr(address) : undefined;
+  const inSubnet = (text: string) => {
+    const ip = ipv4(text);
+    return (
+      subnet !== undefined && ip !== undefined && ip >= subnet.network && ip <= subnet.broadcast
+    );
+  };
+  const firewall = config.firewall;
+  return [
+    ...wlans,
+    ...nodes,
+    ...(firewall.upnp.networks.includes(id) ? [u.upnp] : []),
+    ...firewall.forwards.filter((f) => inSubnet(f.to)).map((f) => u.forward(f.name)),
+    ...(firewall.dmz !== null && inSubnet(firewall.dmz) ? [u.dmz] : []),
+  ];
 }
 
-/** `config` with `network` in place of the one with its id, or added; `remove` drops `id`. */
+/**
+ * `config` with `network` in place of the one with its id, or added; `remove` drops `id` and
+ * the firewall policies naming it.
+ */
 export function withNetwork(config: SiteConfig, network: Network | { remove: string }): SiteConfig {
   if ("remove" in network) {
-    return { ...config, networks: config.networks.filter((n) => n.id !== network.remove) };
+    const gone = network.remove;
+    // The firewall's cells to and from the network go with it.
+    const policies = config.firewall.policies.filter((p) => p.from !== gone && p.to !== gone);
+    return {
+      ...config,
+      networks: config.networks.filter((n) => n.id !== gone),
+      firewall: { ...config.firewall, policies },
+    };
   }
   const known = config.networks.some((n) => n.id === network.id);
   return {

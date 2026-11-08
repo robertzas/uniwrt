@@ -8,6 +8,7 @@ import { api } from "../../lib/api";
 import { createClientsView } from "../../lib/clientList";
 import { LiveContext } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
+import { sortNetworks } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
@@ -18,7 +19,7 @@ import { DnsCard } from "./DnsCard";
 import { NetworkEditor } from "./NetworkEditor";
 import { NetworkRow } from "./NetworkRow";
 import { NewNetworkDialog } from "./NewNetworkDialog";
-import { sortNetworks, useOf, warningsOf } from "./summary";
+import { useOf, warningsOf } from "./summary";
 
 const t = strings.networks;
 

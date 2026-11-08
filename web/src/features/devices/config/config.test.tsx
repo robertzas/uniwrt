@@ -122,7 +122,10 @@ describe("Device › Config", () => {
     const user = userEvent.setup();
     await renderConfig();
     const network = await screen.findByRole("checkbox", { name: "network" });
-    expect(screen.getByRole("checkbox", { name: "sqm" })).toBeDisabled();
+    // The gateway's features are choosable on the gateway; WireGuard comes later.
+    expect(screen.getByRole("checkbox", { name: "sqm" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "upnpd" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "wireguard" })).toBeDisabled();
     const save = screen.getByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
     await user.click(network);

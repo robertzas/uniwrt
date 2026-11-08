@@ -9,11 +9,21 @@ export const RENDERED: readonly ManagedPackage[] = [
   "wireless",
   "dhcp",
   "firewall",
+  "sqm",
+  "mwan3",
+  "upnpd",
 ];
+
+/** Packages of the gateway's features: render writes them on the gateway only. */
+export const GATEWAY_ONLY: readonly ManagedPackage[] = ["sqm", "mwan3", "upnpd"];
 
 /** Every package uniwrt will own (D-011), in the server's order. */
 export const PACKAGES: readonly ManagedPackage[] = [
-  ...RENDERED,
+  "system",
+  "network",
+  "wireless",
+  "dhcp",
+  "firewall",
   "dropbear",
   "usteer",
   "sqm",

@@ -1,3 +1,4 @@
+import type { Network } from "../api/gen/Network";
 import type { SiteConfig } from "../api/gen/SiteConfig";
 import type { SiteView } from "../api/gen/SiteView";
 import { ApiError, api } from "./api";
@@ -25,4 +26,10 @@ export async function saveSite(
     if (err instanceof ApiError && err.status === 409) return once();
     throw err;
   });
+}
+
+/** The networks in the list's order: the default one first, then by VLAN, untagged ones last. */
+export function sortNetworks(networks: readonly Network[]): Network[] {
+  const rank = (n: Network) => (n.purpose === "default" ? -1 : (n.vlan ?? 5000));
+  return [...networks].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }

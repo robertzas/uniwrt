@@ -2,7 +2,7 @@ import type { Client } from "../../api/gen/Client";
 import type { Issue } from "../../api/gen/Issue";
 import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { Network } from "../../api/gen/Network";
-import { cidr, ipv4, subnetText } from "./addr";
+import { cidr, ipv4, subnetText } from "../../lib/ipv4";
 
 /** What the networks list shows of one network: its subnet and how full it is. */
 export interface NetworkUse {
@@ -60,10 +60,4 @@ export function warningsOf(issues: readonly Issue[], id: string): string[] {
   return issues
     .filter((issue) => issue.path === at || issue.path.startsWith(`${at}/`))
     .map((issue) => issue.message);
-}
-
-/** The networks in the list's order: the default one first, then by VLAN, untagged ones last. */
-export function sortNetworks(networks: readonly Network[]): Network[] {
-  const rank = (n: Network) => (n.purpose === "default" ? -1 : (n.vlan ?? 5000));
-  return [...networks].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }

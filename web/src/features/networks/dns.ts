@@ -1,7 +1,7 @@
 import type { DnsRecord } from "../../api/gen/DnsRecord";
+import { ipv4 } from "../../lib/ipv4";
 import { isDnsName } from "../../lib/names";
 import { strings } from "../../lib/strings";
-import { ipv4 } from "./addr";
 
 const e = strings.networks.dns.errors;
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Network } from "../../api/gen/Network";
+import { cidr, formatIpv4, ipv4, isHost } from "../../lib/ipv4";
+import { sortNetworks } from "../../lib/site";
 import { client } from "../../test/clients";
 import { siteConfig } from "../../test/site";
-import { cidr, formatIpv4, ipv4, isHost } from "./addr";
 import { recordErrorsOfIssues, recordsOf } from "./dns";
 import { draftOf, errorsOfIssues, networkOf, usesOf, withNetwork } from "./draft";
-import { sortNetworks, useOf, warningsOf } from "./summary";
+import { useOf, warningsOf } from "./summary";
 
 function iot(extra: Partial<Network> = {}): Network {
   return {
@@ -142,8 +143,38 @@ describe("the network editor's draft", () => {
       },
     ];
     expect(usesOf(config, "iot", (id) => `ap${id}`)).toEqual(["uniwrt-demo", "ap2"]);
-    expect(usesOf(config, "lan", (id) => `ap${id}`)).toEqual([]);
-    expect(withNetwork(config, { remove: "iot" }).networks.map((n) => n.id)).toEqual(["lan"]);
+    expect(usesOf(config, "lan", (id) => `ap${id}`)).toEqual(["UPnP"]);
+    // UPnP, forwards and the DMZ host on its subnet use it too; policies go with it.
+    config.firewall = {
+      policies: [
+        { from: "iot", to: "lan", action: "allow" },
+        { from: "lan", to: "wan", action: "block" },
+      ],
+      forwards: [
+        {
+          name: "Camera",
+          enabled: false,
+          proto: "tcp",
+          ports: { first: 8443, last: 8443 },
+          to: "10.0.30.20",
+          to_port: 443,
+          source: null,
+          reflection: true,
+        },
+      ],
+      dmz: "10.0.30.21",
+      upnp: { enabled: false, networks: ["iot"] },
+    };
+    expect(usesOf(config, "iot", (id) => `ap${id}`)).toEqual([
+      "uniwrt-demo",
+      "ap2",
+      "UPnP",
+      "the port forward Camera",
+      "the DMZ host",
+    ]);
+    const removed = withNetwork(config, { remove: "iot" });
+    expect(removed.networks.map((n) => n.id)).toEqual(["lan"]);
+    expect(removed.firewall.policies).toEqual([{ from: "lan", to: "wan", action: "block" }]);
     const renamed = withNetwork(config, iot({ name: "Things" }));
     expect(renamed.networks.map((n) => n.name)).toEqual(["Default", "Things"]);
     expect(withNetwork(siteConfig(), iot()).networks).toHaveLength(2);
