@@ -57,7 +57,9 @@ impl fmt::Display for Target {
     }
 }
 
-/// How to log in: the controller key, or a password (only to install the key at adoption).
+/// How to log in: the controller key, or a password (only to install the key at adoption). An
+/// empty password is a node without one (factory-default OpenWrt): its dropbear lets root in
+/// with the `none` method, which is tried first.
 #[derive(Clone)]
 pub enum Credential {
     Key(ControllerKey),
@@ -173,6 +175,12 @@ impl Session {
             let user = target.user.as_str();
             let auth = match credential {
                 Credential::Key(key) => handle.authenticate_publickey(user, key.credential()).await,
+                Credential::Password(password) if password.is_empty() => {
+                    match handle.authenticate_none(user).await {
+                        Ok(AuthResult::Success) => Ok(AuthResult::Success),
+                        _ => handle.authenticate_password(user, "").await,
+                    }
+                }
                 Credential::Password(password) => {
                     handle.authenticate_password(user, password.as_str()).await
                 }

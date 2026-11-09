@@ -1,9 +1,11 @@
 //! The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed,
 //! check the node, install the controller's key, read its inventory, take a backup, record it
 //! all, and start watching. In observe mode, `authorized_keys` is the only thing it changes on
-//! the node (directive 8); the agent runs from `/tmp`.
+//! the node (directive 8), but for root's password on a node that had none ([`login`]); the
+//! agent runs from `/tmp`.
 
 pub(crate) mod check;
+mod login;
 pub(crate) mod packages;
 #[cfg(test)]
 mod tests;
@@ -21,19 +23,21 @@ use uniwrt_node::{Credential, ExecRequest, HostKey, Target, proto::ops::Set};
 use uniwrt_store::{Adoption, NodeRepo as _, VaultRepo as _};
 use zeroize::Zeroizing;
 
+use self::login::Login;
 use crate::{
     Remote,
-    errors::{chain, connect_error, internal, node_error, unsupported},
+    errors::{chain, internal, node_error, unsupported},
     progress::Progress,
     runner::Shared,
 };
 
 /// The adopt job's steps, in order.
-pub(crate) const STEPS: [StepName; 8] = [
+pub(crate) const STEPS: [StepName; 9] = [
     StepName::Connect,
     StepName::Check,
     StepName::InstallKey,
     StepName::VerifyKey,
+    StepName::SetPassword,
     StepName::Inventory,
     StepName::Backup,
     StepName::Record,
@@ -58,8 +62,9 @@ pub struct AdoptRequest {
     pub target: Target,
     /// The host key the user confirmed; the node must present it.
     pub host_key: HostKey,
-    /// The root password, to install the controller's key; `None` when the node trusts the key
-    /// already.
+    /// The root password, to install the controller's key; empty for a node without one
+    /// (factory defaults). `None` logs in with the controller's key, or without a password when
+    /// the node refuses the key.
     pub password: Option<Zeroizing<String>>,
     /// Keep the password in the vault, for emergencies (features/adoption.md).
     pub remember_password: bool,
@@ -135,11 +140,25 @@ async fn adopt(
         })?;
     progress.set_node(node.id);
     let mut detail = format!("Recorded as {} in observe mode", node.name);
-    if let (true, Some(password)) = (request.remember_password, &request.password) {
+    match login::keep_pending(shared, node.mac, node.id).await {
+        Ok(true) => detail.push_str("; its root password is kept in the vault"),
+        Ok(false) => {}
+        Err(err) => {
+            warn!(%err, "cannot move the node's root password");
+            detail.push_str("; its root password is kept in the vault under its MAC address");
+        }
+    }
+    if let (true, Some(password)) = (
+        request.remember_password,
+        request
+            .password
+            .as_ref()
+            .filter(|password| !password.is_empty()),
+    ) {
         let secret = Zeroizing::new(password.as_bytes().to_vec());
         if let Err(err) = shared
             .vault
-            .put_secret(&format!("node/{}/root_password", node.id), secret)
+            .put_secret(&login::vault_name(node.id), secret)
             .await
         {
             warn!(%err, "cannot keep the node's password");
@@ -168,28 +187,9 @@ async fn on_node(
     let Some(dial) = &shared.dial else {
         return Err(internal("no way to reach nodes", &"no dial"));
     };
-    let key = Credential::Key(shared.key.clone());
-    let password = request.password.clone().map(Credential::Password);
-
     progress.start(StepName::Connect).await;
-    let first = dial
-        .connect(
-            &request.target,
-            &request.host_key,
-            password.as_ref().unwrap_or(&key),
-        )
-        .await
-        .map_err(|err| connect_error(&err))?;
-    progress
-        .done(Some(
-            if password.is_some() {
-                "Logged in with the root password"
-            } else {
-                "Logged in with the controller's key"
-            }
-            .to_owned(),
-        ))
-        .await;
+    let (first, login) = login::first(shared, dial.as_ref(), request).await?;
+    progress.done(Some(login.detail().to_owned())).await;
 
     let checked = match check(shared, progress, first.as_ref()).await {
         Ok(checked) => checked,
@@ -198,15 +198,7 @@ async fn on_node(
             return Err(err);
         }
     };
-    let remote = match key_login(
-        shared,
-        request,
-        progress,
-        first.as_ref(),
-        password.is_some(),
-    )
-    .await
-    {
+    let remote = match key_login(shared, request, progress, first.as_ref(), login).await {
         Ok(Some(second)) => {
             first.close().await;
             second
@@ -217,6 +209,20 @@ async fn on_node(
             return Err(err);
         }
     };
+    if login == Login::Blank {
+        progress.start(StepName::SetPassword).await;
+        match login::set_password(shared, remote.as_ref(), checked.mac).await {
+            Ok(detail) => progress.done(Some(detail)).await,
+            Err(err) => {
+                remote.close().await;
+                return Err(err);
+            }
+        }
+    } else {
+        progress
+            .skip(StepName::SetPassword, "Root has a password already")
+            .await;
+    }
     let found = inspect(shared, progress, remote.as_ref(), checked).await;
     remote.close().await;
     found
@@ -288,16 +294,16 @@ async fn check(
     })
 }
 
-/// Installs the controller's key and logs in with it when the first login used the password;
+/// Installs the controller's key and logs in with it when the first login didn't use it;
 /// returns that second login.
 async fn key_login(
     shared: &Shared,
     request: &AdoptRequest,
     progress: &mut Progress,
     remote: &dyn Remote,
-    with_password: bool,
+    login: Login,
 ) -> Result<Option<Box<dyn Remote>>, JobError> {
-    if !with_password {
+    if login == Login::Key {
         let detail = "The node trusts the controller's key already";
         progress.skip(StepName::InstallKey, detail).await;
         progress.skip(StepName::VerifyKey, detail).await;

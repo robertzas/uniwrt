@@ -15,7 +15,7 @@ use uniwrt_core::{JobId, NodeId, SystemClock};
 use uniwrt_jobs::{AdoptRequest, BoxFuture, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
     facts::NodeFacts,
-    job::{Job, JobErrorCode, JobState, StepState},
+    job::{Job, JobErrorCode, JobState, StepName, StepState},
     node::{Node, NodeMode},
 };
 use uniwrt_node::{
@@ -84,6 +84,18 @@ async fn changed_since_mark(session: &Session) -> String {
     run(session, &argv).await
 }
 
+/// Root has a password: every step is done but setting one, which is skipped.
+fn done_but_set_password(job: &Job) {
+    for step in &job.steps {
+        let expected = if step.name == StepName::SetPassword {
+            StepState::Skipped
+        } else {
+            StepState::Done
+        };
+        assert_eq!(step.state, expected, "{step:?}");
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs OpenWrt at UNIWRT_NODE; run by `just test-agent`"]
 async fn adoption_changes_only_authorized_keys() {
@@ -139,7 +151,7 @@ async fn adoption_changes_only_authorized_keys() {
     let started = jobs.adopt(request(Some(&password)), None).await.unwrap();
     let job = ended(&mut updates, started.id).await;
     assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
-    assert!(job.steps.iter().all(|step| step.state == StepState::Done));
+    done_but_set_password(&job);
 
     let node = watched.0.lock().unwrap()[0].clone();
     assert_eq!(node.mode, NodeMode::Observe);

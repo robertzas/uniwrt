@@ -112,6 +112,7 @@ const adoptSteps = [
   "check",
   "install_key",
   "verify_key",
+  "set_password",
   "inventory",
   "backup",
   "record",

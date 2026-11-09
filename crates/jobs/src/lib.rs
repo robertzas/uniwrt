@@ -11,12 +11,16 @@
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
+//!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
+//!   ([`bootstrap`], D-080);
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
 //!   them. [`SshDial`] reaches nodes over SSH; [`Remote`] is one login. Errors are [`Error`];
 //!   why a job failed is its `JobError`, a code the UI can act on plus a message.
 //! - **Adoption** steps: connect (with the root password, or the controller's key when the node
-//!   trusts it) → check (the release, then the agent's facts: memory, `/tmp`, identity, not
-//!   adopted yet) → install the key → log in with it → inventory (packages) → backup
+//!   trusts it, or without a password on factory defaults) → check (the release, then the
+//!   agent's facts: memory, `/tmp`, identity, not adopted yet) → install the key → log in with
+//!   it → set a random root password where root had none (sealed in the vault first) →
+//!   inventory (packages) → backup
 //!   (`sysupgrade -b`, sealed) → record (node, pin, facts, inventory and backup in one
 //!   transaction; the password in the vault if asked) → watch. At most 4 run at once; more wait.
 //! - **Management** steps: connect (the controller's key, the pinned host key) → install the
@@ -49,7 +53,7 @@
 //!   4 at a time, each result held 10 minutes. Reported: dropbear servers, those names, and mesh
 //!   originators none of whose devices is reported (with no address).
 //! - **Invariants:** nothing on a node changes before every check passed, and in observe mode
-//!   only `authorized_keys` changes (directive 8); the agent runs from `/tmp`. The node must
+//!   only `authorized_keys` changes, and root's password where it had none (directive 8); the agent runs from `/tmp`. The node must
 //!   present the host key the user confirmed. One job at a time per target. Each change of a
 //!   step is saved before it is announced. Jobs do not resume (D-042): a stop fails the running
 //!   ones, at shutdown or else at the next start. Passwords are zeroized and never logged or
@@ -66,6 +70,7 @@
 
 mod adopt;
 mod apply;
+pub mod bootstrap;
 mod discovery;
 mod errors;
 mod import;

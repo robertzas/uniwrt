@@ -386,6 +386,19 @@ impl Jobs {
         self.shared.discovery.scan(adopted, wait).await
     }
 
+    /// The routers at `hosts` ([`bootstrap::candidates`](crate::bootstrap::candidates)) that
+    /// could be the gateway to set up: dropbear answers, with whether root has no password and,
+    /// if so, the model and release. Nothing changes on them.
+    pub async fn find_gateways(
+        &self,
+        hosts: &[std::net::Ipv4Addr],
+    ) -> Result<Vec<crate::bootstrap::FoundGateway>> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        Ok(crate::bootstrap::find(&self.shared, hosts).await)
+    }
+
     pub async fn job(&self, id: JobId) -> Result<Option<Job>> {
         Ok(self.shared.store.job(id).await?)
     }

@@ -24,7 +24,14 @@ async fn adopting_with_the_password_installs_the_key_records_everything_and_watc
     let (job, seen) = setup.adopt(request).await;
 
     assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
-    assert!(job.steps.iter().all(|step| step.state == StepState::Done));
+    for step in &job.steps {
+        let expected = if step.name == StepName::SetPassword {
+            StepState::Skipped
+        } else {
+            StepState::Done
+        };
+        assert_eq!(step.state, expected, "{step:?}");
+    }
     assert!(job.finished_at.is_some());
     assert!(
         seen.len() > 2 * job.steps.len(),
@@ -101,7 +108,14 @@ async fn a_node_that_trusts_the_key_needs_no_password_and_no_change() {
         .filter(|step| step.state == StepState::Skipped)
         .map(|step| step.name)
         .collect();
-    assert_eq!(skipped, [StepName::InstallKey, StepName::VerifyKey]);
+    assert_eq!(
+        skipped,
+        [
+            StepName::InstallKey,
+            StepName::VerifyKey,
+            StepName::SetPassword
+        ]
+    );
     assert!(!setup.node.commands().contains(&"sh".to_owned()));
     let node = setup.store.node(job.node.unwrap()).await.unwrap().unwrap();
     assert_eq!((node.name.as_str(), node.role), ("attic", NodeRole::Bridge));
@@ -113,6 +127,85 @@ async fn a_node_that_trusts_the_key_needs_no_password_and_no_change() {
             .unwrap()
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn a_node_without_a_root_password_gets_a_random_one_kept_in_the_vault() {
+    for given in [Some(""), None] {
+        let setup = setup(true).await;
+        setup.node.password.lock().unwrap().clear();
+        let (job, _) = setup.adopt(setup.request(given)).await;
+        assert_eq!(job.state, JobState::Succeeded, "{given:?}: {job:#?}");
+        assert!(
+            job.steps.iter().all(|step| step.state == StepState::Done),
+            "{job:#?}"
+        );
+        let connect = job.steps.iter().find(|s| s.name == StepName::Connect);
+        assert!(
+            connect
+                .and_then(|step| step.detail.as_deref())
+                .is_some_and(|detail| detail.contains("no password")),
+            "{connect:?}"
+        );
+        assert_eq!(
+            setup.node.commands(),
+            ["cat", "sh", "passwd", "grep", "sysupgrade"],
+            "the password is set after the key works, before the inventory"
+        );
+        let set = setup.node.password.lock().unwrap().clone();
+        assert_eq!(set.len(), 29, "{set}");
+        let id = job.node.unwrap();
+        let kept = setup
+            .vault
+            .secret(&format!("node/{id}/root_password"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(kept.as_slice(), set.as_bytes());
+        let node = setup.store.node(id).await.unwrap().unwrap();
+        assert!(
+            setup
+                .vault
+                .secret(&format!("adopt/{}/root_password", node.mac))
+                .await
+                .unwrap()
+                .is_none(),
+            "moved to the node's name"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_root_password_kept_by_a_failed_adoption_moves_to_the_node_on_the_next() {
+    let setup = setup(true).await;
+    // An earlier adoption set the password and installed the key, then failed to record.
+    setup
+        .node
+        .authorized_keys
+        .lock()
+        .unwrap()
+        .push_str(&(setup.key.authorized_key().unwrap() + "\n"));
+    let mac = "1e:09:3b:df:16:4c";
+    setup
+        .vault
+        .put_secret(
+            &format!("adopt/{mac}/root_password"),
+            zeroize::Zeroizing::new(b"kept-earlier".to_vec()),
+        )
+        .await
+        .unwrap();
+    let (job, _) = setup.adopt(setup.request(None)).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    let id = job.node.unwrap();
+    let node = setup.store.node(id).await.unwrap().unwrap();
+    assert_eq!(node.mac.to_string(), mac, "the capture's MAC");
+    let kept = setup
+        .vault
+        .secret(&format!("node/{id}/root_password"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(kept.as_slice(), b"kept-earlier");
 }
 
 #[tokio::test]

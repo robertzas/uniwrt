@@ -130,8 +130,8 @@ describe("Adoption", () => {
         .map((li) => li.textContent);
     expect(steps()[0]).toBe("Log in: In progress");
 
-    delta(ws, adoptJob(5, "10.0.0.3", 5));
-    await waitFor(() => expect(steps()[5]).toBe("Back up the configuration: In progress"));
+    delta(ws, adoptJob(5, "10.0.0.3", 6));
+    await waitFor(() => expect(steps()[6]).toBe("Back up the configuration: In progress"));
     expect(steps()[1]).toBe("Check the device: Donecheck detail");
 
     delta(ws, adoptJob(5, "10.0.0.3", 8, "done", { state: "succeeded", node: 7 }));

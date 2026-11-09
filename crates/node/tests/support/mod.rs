@@ -82,6 +82,7 @@ impl TestServer {
         self.shared.authorized.lock().unwrap().push(key);
     }
 
+    /// Root's password; an empty one lets root in with the `none` method only.
     pub fn set_password(&self, password: &str) {
         *self.shared.password.lock().unwrap() = Some(password.to_owned());
     }
@@ -172,6 +173,12 @@ impl server::Handler for Connection {
             .iter()
             .any(|authorized| authorized.key_data() == key.public_key.key_data());
         ready(Ok(self.login(user == "root" && known)))
+    }
+
+    /// Root without a password (factory-default OpenWrt) gets in without one.
+    fn auth_none(&mut self, user: &str) -> impl Future<Output = Result<Auth, Self::Error>> + Send {
+        let blank = self.shared.password.lock().unwrap().as_deref() == Some("");
+        ready(Ok(self.login(user == "root" && blank)))
     }
 
     fn auth_password(

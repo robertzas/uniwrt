@@ -26,6 +26,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/session.rs`: Login sessions: a random 256-bit token in the `__Host-uniwrt-session` cookie (`HttpOnly`, Secure, SameSite=Strict, the whole site), stored only as its SHA-256.
 - `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
+- `src/bootstrap.rs`: First run with a factory-default gateway (features/adoption.md, Path E; D-080), for admins:
+- `src/bootstrap/tests.rs`: The first-run routes over demo mode, whose dial reaches only the simulated nodes.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
 - `src/clients.rs`: The client routes, with a session (features/observability.md, Clients): `GET /api/v1/clients` is every client the controller knows (the WS topic `clients` keeps it current), `GET /api/v1/clients/{mac}` one client with its last hour of samples and last day of sessions ([`ClientDetail`], the `client:<mac>` topic's snapshot), `GET /api/v1/clients/{mac}/sessions?since=<ms>` its sessions since a time, and `PATCH /api/v1/clients/{mac}` renames it (admins; audited).
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
@@ -205,6 +207,7 @@ ISP presets (features/wan.md, Preset format; D-075): what the WAN wizard offers 
 Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
 
 - `src/adopt/check.rs`: What adoption checks before it changes anything (features/adoption.md, Path A): the release, the resources the agent needs, and the node's identity; and the role a node seems to have.
+- `src/adopt/login.rs`: How adoption logs in, and root's password on a node that had none (features/adoption.md, Identity, credentials, trust).
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
 - `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
@@ -223,6 +226,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/tests/install.rs`: The apply's install step (D-076) over a scripted gateway: what SQM needs is installed before anything is staged, its service kept off until the transaction switches it on; a failed install changes nothing.
 - `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
 - `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
+- `src/bootstrap.rs`: Finding the gateway to set up at first run (features/adoption.md, Path E): the controller sits behind a factory-default OpenWrt router, which is its default gateway (or, from a container on a bridge network, still at OpenWrt's 192.168.1.1 through the host).
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
@@ -368,6 +372,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/scan.rs`: `scan`: a neighbor scan of one radio, mirrored by `node-agent/scan.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
+- `src/root_password.rs`: Root's password on a node (features/adoption.md, Identity, credentials, trust): adoption gives a node that has none (factory-default OpenWrt, whose dropbear lets anyone on its LAN in as root) a random one, which the controller keeps in its vault for emergencies.
 - `src/shell.rs`: Argv to a command line for the node's shell.
 - `src/ssh/banner.rs`: [`banner`]: the version line an SSH server sends as soon as a client connects (RFC 4253, 4.2), read without starting a handshake, so that discovery can tell dropbear, and so likely OpenWrt, from other hosts with one cheap connection.
 - `src/ssh/channel.rs`: Commands on session channels.
@@ -664,7 +669,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (322 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (324 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
@@ -713,7 +718,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
 - `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.
 - `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test last (it restarts the container).
-- `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and runs crates/node/tests/dropbear.rs against it.
+- `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and one without (factory defaults) and runs crates/node/tests/dropbear.rs against them.
 - `scripts/test-system.sh`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `scripts/tz.py`: (no header comment)
 - `scripts/uci-conformance.sh`: The uci crate's conformance fixtures (TESTING.md, Fixtures): runs `uci export` on every fixture in crates/uci/fixtures/{cases,openwrt/*} inside OpenWrt rootfs containers, requires the releases to agree, and writes what uci printed next to each fixture as <name>.out (its stdout when it succeeded, else its error).

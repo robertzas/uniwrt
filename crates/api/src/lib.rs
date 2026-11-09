@@ -24,7 +24,9 @@
 //!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
-//!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/discovered` (unadopted
+//!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/bootstrap/gateway` (admins:
+//!   the factory-default router to set up at first run, [`FoundGateways`]), `POST
+//!   v1/nodes/{id}/root-password/reveal` (admins, audited), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the clients
@@ -75,6 +77,7 @@ mod adopt;
 mod alerts;
 mod apply;
 pub mod auth;
+mod bootstrap;
 mod client;
 mod clients;
 mod discovered;
@@ -124,6 +127,7 @@ pub use alerts::{
 };
 pub use apply::ApplyBody;
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
+pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
 pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
@@ -170,6 +174,11 @@ pub fn router(api: Api) -> Router {
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))
+        .route("/v1/bootstrap/gateway", get(bootstrap::gateway))
+        .route(
+            "/v1/nodes/{id}/root-password/reveal",
+            post(bootstrap::reveal_root_password),
+        )
         .route("/v1/discovered", get(discovered::list))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))

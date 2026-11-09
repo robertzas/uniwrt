@@ -31,6 +31,7 @@ pub(crate) const COLLECTED: &str = include_str!(concat!(
 pub(crate) const PASSWORD: &str = "correct horse battery staple";
 pub(crate) const OPKG_STATUS: &str = "Package: dropbear\nVersion: 2024.86-r3\nStatus: install ok installed\n\
                            Package: luci\nVersion: 25.1\nStatus: install user installed\n";
+pub(crate) const BOARD: &str = r#"{"model":"QEMU Standard PC (Q35 + ICH9, 2009)","hostname":"OpenWrt","board_name":"qemu-standard-pc-q35-ich9-2009"}"#;
 pub(crate) const TARBALL: &[u8] = b"\x1f\x8b\x08\x00 etc/config/network";
 
 /// A node as the job sees it over SSH.
@@ -38,6 +39,8 @@ pub(crate) struct FakeNode {
     pub(crate) host_key: HostKey,
     pub(crate) release: Mutex<String>,
     pub(crate) authorized_keys: Mutex<String>,
+    /// Root's password; empty for none (factory defaults).
+    pub(crate) password: Mutex<String>,
     /// Every command run, by argv.
     pub(crate) commands: Mutex<Vec<Vec<String>>>,
     /// Logins wait here while held.
@@ -55,6 +58,7 @@ impl FakeNode {
                 .unwrap(),
             release: Mutex::new("DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='24.10.8'\n".to_owned()),
             authorized_keys: Mutex::default(),
+            password: Mutex::new(PASSWORD.to_owned()),
             commands: Mutex::default(),
             gate: Mutex::default(),
             footprint: Mutex::default(),
@@ -71,8 +75,9 @@ impl FakeNode {
             .collect()
     }
 
-    fn run(&self, argv: &[String]) -> ExecOutput {
-        self.commands.lock().unwrap().push(argv.to_vec());
+    fn run(&self, request: &ExecRequest) -> ExecOutput {
+        let argv = &request.argv;
+        self.commands.lock().unwrap().push(argv.clone());
         let ok = |stdout: &[u8]| ExecOutput {
             status: ExitStatus::Code(0),
             stdout: stdout.to_vec(),
@@ -91,7 +96,16 @@ impl FakeNode {
                     ok(b"added\n")
                 }
             }
+            ["passwd", "root"] => {
+                let stdin = String::from_utf8(request.stdin.clone().unwrap().to_vec()).unwrap();
+                let lines: Vec<_> = stdin.lines().collect();
+                assert_eq!(lines.len(), 2, "the new password twice");
+                assert_eq!(lines[0], lines[1]);
+                *self.password.lock().unwrap() = lines[0].to_owned();
+                ok(b"")
+            }
             ["grep", _, _, "/usr/lib/opkg/status"] => ok(OPKG_STATUS.as_bytes()),
+            ["ubus", "call", "system", "board"] => ok(BOARD.as_bytes()),
             ["sysupgrade", "-b", "-"] => ok(TARBALL),
             ["sh", "-c", script] if *script == script_of(&txn::status().request) => {
                 let footprint = self.footprint.lock().unwrap();
@@ -167,7 +181,9 @@ impl Dial for FakeDial {
                 });
             }
             let accepted = match credential {
-                Credential::Password(password) => password.as_str() == PASSWORD,
+                Credential::Password(password) => {
+                    password.as_str() == self.0.password.lock().unwrap().as_str()
+                }
                 Credential::Key(key) => self
                     .0
                     .authorized_keys
@@ -192,7 +208,7 @@ pub(crate) struct FakeRemote(pub(crate) Arc<FakeNode>);
 
 impl Remote for FakeRemote {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>> {
-        Box::pin(async move { Ok(self.0.run(&request.argv)) })
+        Box::pin(async move { Ok(self.0.run(&request)) })
     }
 
     fn collect<'a>(&'a self, _sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {

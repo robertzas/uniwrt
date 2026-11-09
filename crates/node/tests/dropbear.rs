@@ -1,6 +1,7 @@
 //! The transport against dropbear on real OpenWrt (TESTING.md, Transport). Ignored by default:
 //! `just test-dropbear` starts an OpenWrt rootfs container per release and runs these against
-//! it, with `UNIWRT_NODE=<host:port>` and `UNIWRT_NODE_PASSWORD=<root password>`.
+//! it, with `UNIWRT_NODE=<host:port>` and `UNIWRT_NODE_PASSWORD=<root password>`, and a second
+//! one without a root password (factory defaults) at `UNIWRT_FACTORY_NODE=<host:port>`.
 
 // Test code throughout: clippy.toml allows unwrap in tests, but not in their helpers.
 #![allow(clippy::unwrap_used)]
@@ -13,8 +14,9 @@ use uniwrt_core::SystemClock;
 use uniwrt_node::{
     AUTHORIZED_KEY_COMMENT, AgentLaunch, AgentState, Credential, Error, ExecRequest, ExitStatus,
     HostKey, LinkConfig, LinkState, NodeLink as _, Output, Session, SshConfig, SshLink, Target,
-    banner, probe,
+    banner, probe, root_password,
 };
+use zeroize::Zeroizing;
 
 mod openwrt;
 
@@ -249,4 +251,33 @@ async fn a_link_runs_a_ucode_agent() {
     let output = link.exec(ExecRequest::new(["echo", "too"])).await.unwrap();
     assert_eq!(output.stdout, b"too\n");
     link.shutdown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
+async fn a_factory_node_lets_root_in_without_a_password_until_adoption_sets_one() {
+    let address = std::env::var("UNIWRT_FACTORY_NODE").expect("UNIWRT_FACTORY_NODE=<host:port>");
+    let (host, port) = address.rsplit_once(':').unwrap();
+    let target = Target::new(host, port.parse().unwrap());
+    let config = SshConfig::default();
+    let host_key = probe(&target, None, &config).await.unwrap();
+    let blank = Credential::Password(Zeroizing::new(String::new()));
+    let session = Session::connect(&target, None, &host_key, &blank, &config)
+        .await
+        .unwrap();
+
+    let password = root_password::generate().unwrap();
+    let set = session.exec(&root_password::set(&password)).await.unwrap();
+    set.check("passwd").unwrap();
+    session.close().await;
+
+    let err = Session::connect(&target, None, &host_key, &blank, &config)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::AuthRejected { .. }), "{err:?}");
+    let root = Credential::Password(password);
+    let session = Session::connect(&target, None, &host_key, &root, &config)
+        .await
+        .unwrap();
+    assert_eq!(run(&session, &["id", "-un"]).await, "root\n");
 }

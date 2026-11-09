@@ -36,7 +36,7 @@ ready='ubus -S call network.interface.lan status 2>/dev/null | grep -q "\"up\":t
 for image in "${images[@]}"; do
   echo "== $image"
   password="uniwrt-$(od -An -N8 -tx8 /dev/urandom | tr -d ' ')"
-  container=$(docker run -d --rm --cap-add NET_ADMIN -p 127.0.0.1::22 "$image" \
+  container=$(docker run -d --rm --network bridge --cap-add NET_ADMIN -p 127.0.0.1::22 "$image" \
     /bin/sh -c "$setup" "$password")
   port=$(docker port "$container" 22/tcp | head -n1 | sed 's/.*://')
   # Ready inside, and dropbear's banner arrives through the port mapping.

@@ -3,4 +3,4 @@
 /**
  * The steps of every kind of job.
  */
-export type StepName = "connect" | "check" | "install_key" | "verify_key" | "inventory" | "backup" | "record" | "watch" | "install_tool" | "remove_tool" | "plan" | "install" | "stage" | "apply" | "verify" | "confirm" | "link" | "address" | "gateway" | "dns" | "https" | "ipv6" | "six_rd" | "rollback" | "idle" | "download" | "upload";
+export type StepName = "connect" | "check" | "install_key" | "verify_key" | "set_password" | "inventory" | "backup" | "record" | "watch" | "install_tool" | "remove_tool" | "plan" | "install" | "stage" | "apply" | "verify" | "confirm" | "link" | "address" | "gateway" | "dns" | "https" | "ipv6" | "six_rd" | "rollback" | "idle" | "download" | "upload";

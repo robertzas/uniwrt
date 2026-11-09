@@ -144,6 +144,8 @@ pub enum StepName {
     InstallKey,
     /// Log in again with the controller's key.
     VerifyKey,
+    /// Give root a random password, kept in the vault, on a node that had none.
+    SetPassword,
     /// Read what the node is and runs: its facts and installed packages.
     Inventory,
     /// Take a configuration backup (`sysupgrade -b`) and keep it on the controller.

@@ -261,6 +261,7 @@ export const strings = {
       check: "Check the device",
       install_key: "Install uniwrt's key",
       verify_key: "Log in with the key",
+      set_password: "Set a root password",
       inventory: "Read the packages",
       backup: "Back up the configuration",
       record: "Record the device",

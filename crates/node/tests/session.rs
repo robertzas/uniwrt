@@ -110,6 +110,37 @@ async fn keys_and_passwords_log_in_and_wrong_ones_are_rejected() {
 }
 
 #[tokio::test]
+async fn an_empty_password_logs_in_where_root_has_none() {
+    let (server, _) = server_with_key(1).await;
+    let config = SshConfig::default();
+    let target = server.target();
+    let pinned = server.host_key();
+    let blank = Credential::Password(Zeroizing::new(String::new()));
+
+    server.set_password("");
+    Session::connect(&target, None, &pinned, &blank, &config)
+        .await
+        .unwrap();
+    assert_eq!(server.logins(), 1);
+
+    server.set_password("hunter2");
+    let err = Session::connect(&target, None, &pinned, &blank, &config)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            Error::AuthRejected {
+                method: "password",
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    assert_eq!(server.logins(), 1);
+}
+
+#[tokio::test]
 async fn nobody_listening_and_a_silent_listener_fail_cleanly() {
     let server = TestServer::start(1).await;
     let target = server.target();

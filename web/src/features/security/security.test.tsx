@@ -213,7 +213,7 @@ describe("Security", () => {
     const host = within(card).getByLabelText("Host address");
     await user.type(host, "192.168.1.1");
     await user.click(within(card).getByRole("button", { name: "Save" }));
-    expect(within(card).getByText("The gateway's own address")).toBeVisible();
+    expect(await within(card).findByText("The gateway's own address")).toBeVisible();
     await user.clear(host);
     await user.type(host, "192.168.1.100");
     await user.click(within(card).getByRole("button", { name: "Save" }));

@@ -18,7 +18,7 @@ const LOW_ROOT: u64 = 64 << 10;
 
 /// Checks `/etc/openwrt_release`: OpenWrt at [`MIN_RELEASE`] or later, or a snapshot. Returns
 /// the release for people, such as `OpenWrt 24.10.8`.
-pub(super) fn release(openwrt_release: &str) -> Result<String, String> {
+pub(crate) fn release(openwrt_release: &str) -> Result<String, String> {
     let field = |name: &str| {
         openwrt_release.lines().find_map(|line| {
             let value = line.strip_prefix(name)?.strip_prefix('=')?;

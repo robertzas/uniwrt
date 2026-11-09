@@ -18,8 +18,9 @@ pub const DEFAULT_MAX_OUTPUT: usize = 16 << 20;
 /// How much unread output a stream may queue before it is cut off.
 pub const STREAM_BUDGET: usize = 4 << 20;
 
-/// A command to run once, collecting its output.
-#[derive(Debug, Clone)]
+/// A command to run once, collecting its output. Its `Debug` shows stdin's size only: stdin may
+/// carry a secret (a password, a staged package).
+#[derive(Clone)]
 pub struct ExecRequest {
     pub argv: Vec<String>,
     /// Written to the command's stdin, which is then closed. Without it, stdin is closed at once.
@@ -27,6 +28,23 @@ pub struct ExecRequest {
     pub timeout: Duration,
     /// More stdout and stderr than this fails the request with [`Error::Overflow`].
     pub max_output: usize,
+}
+
+impl std::fmt::Debug for ExecRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecRequest")
+            .field("argv", &self.argv)
+            .field(
+                "stdin",
+                &self
+                    .stdin
+                    .as_ref()
+                    .map(|stdin| format!("{} bytes", stdin.len())),
+            )
+            .field("timeout", &self.timeout)
+            .field("max_output", &self.max_output)
+            .finish()
+    }
 }
 
 impl ExecRequest {
