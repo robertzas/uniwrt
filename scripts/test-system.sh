@@ -27,7 +27,7 @@ HELPER_IMAGE=openwrt/rootfs:x86-64-25.12.6
 ENV_FILE=target/system.env
 
 host_root() {
-  docker run --rm --name uniwrt-system-helper --privileged --net host --pid host -v /:/host \
+  docker run --rm --name uniwrt-system-helper --privileged --network host --pid host -v /:/host \
     "$HELPER_IMAGE" chroot /host /bin/sh -c "$@"
 }
 

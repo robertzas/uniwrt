@@ -34,7 +34,7 @@ HELPER_IMAGE=openwrt/rootfs:x86-64-25.12.6
 # Runs a command as root on the host: in a privileged container that shares the host's network
 # and PID namespaces and chroots into its filesystem.
 host_root() {
-  docker run --rm --name uniwrt-root-helper --privileged --net host --pid host -v /:/host \
+  docker run --rm --name uniwrt-root-helper --privileged --network host --pid host -v /:/host \
     "$HELPER_IMAGE" chroot /host /bin/sh -c "$@"
 }
 
