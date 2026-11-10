@@ -30,6 +30,7 @@ This is the entry point for AI coding agents working on **uniwrt**. Claude Code 
 
 ## Token economy rules
 
+- ALWAYS take the smallest high impact approach to output
 - Load docs progressively: AGENTS.md (automatic) → STATUS.md → the WP's section → only the feature and dev docs the WP lists.
 - Prefer contracts, maps and specs over implementation. Grep for symbols, and read line ranges instead of whole large files.
 - Never read generated or bulky files: `Cargo.lock`, `web/bun.lock`, `web/src/api/gen/**`, `web/dist/**`, `target/**`, `crates/*/data/oui*`, and `**/*.snap` unless you are reviewing that snapshot.
