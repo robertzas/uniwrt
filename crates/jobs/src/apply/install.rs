@@ -2,7 +2,8 @@
 //! lacks (SQM's, mwan3), installed with its package manager before anything is staged. The
 //! services they bring are stopped and disabled at once, so the node runs as before until its
 //! transaction switches them on, and a rollback leaves them off. A failure changes nothing
-//! else: no transaction has started.
+//! else: no transaction has started. And the transaction tool itself, brought to this
+//! controller's version before anything is staged (D-081).
 
 use std::time::Duration;
 
@@ -10,7 +11,10 @@ use uniwrt_model::{
     facts::PackageManager,
     job::{JobError, JobErrorCode, JobNodeState, StepName},
 };
-use uniwrt_node::ExecRequest;
+use uniwrt_node::{
+    ExecRequest,
+    txn::{self, Footprint},
+};
 use uniwrt_render::Requirement;
 
 use super::run::Run;
@@ -66,6 +70,39 @@ fn last_line(output: &[u8]) -> String {
 }
 
 impl Run<'_> {
+    /// Brings the transaction tool on every node that changes to this controller's version: a
+    /// node keeps the one it got when management was turned on, which may lack a newer
+    /// command (`bounce`, D-081). Nothing is staged yet.
+    pub(crate) async fn update_tools(&mut self, progress: &mut Progress) -> Result<(), JobError> {
+        let footprint = Footprint::get();
+        for i in self.active() {
+            let live = &self.lives[i];
+            if live.follows() {
+                continue;
+            }
+            let updated = async {
+                let status = live.tool(&txn::status()).await?;
+                if status.is_some_and(|status| status.version == footprint.version()) {
+                    return Ok(());
+                }
+                live.tool(&footprint.install()).await.map(|_| ())
+            }
+            .await;
+            if let Err(err) = updated {
+                let why = format!("Cannot update the transaction tool: {}", chain(&err));
+                progress
+                    .node(live.node.id, JobNodeState::Failed, &why)
+                    .await;
+                self.not_applied(progress).await;
+                return Err(JobError {
+                    code: JobErrorCode::NodeFailed,
+                    message: format!("Nothing changed. {}: {why}", live.node.name),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Installs what each node lacks, one node at a time; nothing is staged yet.
     pub(crate) async fn install(&mut self, progress: &mut Progress) -> Result<(), JobError> {
         let wanted: Vec<usize> = (0..self.lives.len())
@@ -132,6 +169,9 @@ impl Run<'_> {
                 .node(id, JobNodeState::Pending, format!("Installed {names}"))
                 .await;
             installed.push(live.node.name.clone());
+            // A later transaction is planned from what the node holds then (D-081).
+            let packages = packages.clone();
+            self.lives[i].reading.installed(&packages);
         }
         progress
             .done(Some(format!("Installed on {}", installed.join(", "))))

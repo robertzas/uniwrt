@@ -10,7 +10,8 @@
 # collects the gateway's and the AP's facts with the working tree's agent, renders sites for
 # them, writes the packages and checks that uci, fw4 and netifd take them, through
 # `docker exec`; crates/system/tests/apply/ drives the controller's apply job onto both (the
-# transaction tool, the agent and the health checks; a confirm and two rollbacks).
+# transaction tool, the agent and the health checks; a confirm, two rollbacks and
+# a renumbering).
 #
 # Linking the containers and loading the kernel's 8021q and pppoe modules need root, which a
 # privileged helper container provides, as in the hwsim lab (D-035).

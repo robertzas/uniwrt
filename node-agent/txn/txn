@@ -59,6 +59,34 @@ valid() {
 	[ ${#1} -le 64 ]
 }
 
+# Ports: network device names.
+valid_dev() {
+	case $1 in '' | *[!A-Za-z0-9_.-]* | .*) return 1 ;; esac
+	[ ${#1} -le 15 ]
+}
+
+# Takes the ports down for $1 seconds, then up again, detached from the caller: the controller's
+# own login may run over one of them.
+bounce() {
+	secs=$1
+	shift
+	(
+		exec 9>&- </dev/null >/dev/null 2>&1
+		sleep 1
+		for port; do ip link set "$port" down; done
+		sleep "$secs"
+		for port; do ip link set "$port" up; done
+	) &
+}
+
+# Bounces the ports the journal file $1 lists, if any: the hosts behind them ask again.
+rebounce() {
+	[ -f "$1" ] || return 0
+	# shellcheck disable=SC2046
+	set -- $(cat "$1")
+	bounce "$@"
+}
+
 seconds() {
 	case $1 in '' | *[!0-9]*) return 1 ;; esac
 	[ ${#1} -le 5 ] && [ "$1" -ge $MIN_S ] && [ "$1" -le $MAX_S ]
@@ -151,6 +179,7 @@ roll_back() {
 	sync
 	if [ "$2" != boot ]; then
 		reload_all
+		rebounce "$j/bounce"
 	fi
 	# Services the transaction stopped start again (at boot too: rcS listed the boot's scripts
 	# before the guard enabled them again).
@@ -285,6 +314,29 @@ cmd_apply() {
 	rm -rf "$STAGE"
 	guard
 	ok "{\"timeout_s\":$2}"
+}
+
+# bounce <seconds> <port>…: once the open transaction is applied, takes the ports down and up
+# again so the hosts behind them ask for a lease again (make-before-break renumbering); a
+# rollback bounces them once more.
+cmd_bounce() {
+	case ${1:-} in '' | *[!0-9]*) fail bad_request "the seconds are 1 to 30" ;; esac
+	[ "$1" -ge 1 ] && [ "$1" -le 30 ] || fail bad_request "the seconds are 1 to 30"
+	secs=$1
+	shift
+	[ $# -gt 0 ] || fail bad_request "no ports"
+	for port; do
+		valid_dev "$port" || fail bad_request "bad port name: $port"
+		[ -d "/sys/class/net/$port" ] || fail not_found "no such port: $port"
+	done
+	lock
+	open=$(open_id)
+	[ -n "$open" ] || fail bad_request "no transaction is open"
+	state=$(state_of "$open")
+	[ "$state" = applied ] || fail busy "transaction $open is $state"
+	printf '%s\n' "$secs" "$@" >"$JOURNAL/$open/bounce"
+	bounce "$secs" "$@"
+	ok "{\"ports\":$#}"
 }
 
 cmd_extend() {
@@ -437,6 +489,7 @@ put) cmd_put "$@" ;;
 check) cmd_check "$@" ;;
 apply) cmd_apply "$@" ;;
 extend) cmd_extend "$@" ;;
+bounce) cmd_bounce "$@" ;;
 confirm) cmd_confirm "$@" ;;
 rollback) cmd_rollback "$@" ;;
 status) cmd_status ;;

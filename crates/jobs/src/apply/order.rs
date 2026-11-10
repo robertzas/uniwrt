@@ -117,6 +117,8 @@ mod tests {
             services: Vec::new(),
             installs: Vec::new(),
             address: None,
+            renumbering: None,
+            wan_last: false,
             hops,
             timeout_s: 120,
             warnings: Vec::new(),

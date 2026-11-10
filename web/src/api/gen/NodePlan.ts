@@ -6,6 +6,7 @@ import type { NodeRole } from "./NodeRole";
 import type { PlanAction } from "./PlanAction";
 import type { PlanIssue } from "./PlanIssue";
 import type { RawSection } from "./RawSection";
+import type { Renumbering } from "./Renumbering";
 import type { ServiceChange } from "./ServiceChange";
 
 /**
@@ -45,6 +46,17 @@ installs: Array<string>,
  * Where the controller reaches it once applied, when that moves.
  */
 address: AddressChange | null, 
+/**
+ * The network this controller sits on moves: the gateway keeps its old address beside the
+ * new one until the controller reaches it from the new subnet, then drops it
+ * (make-before-break, D-081).
+ */
+renumbering: Renumbering | null, 
+/**
+ * Its WAN changes with other things, so the WAN changes last, in its own transaction: a
+ * failure there rolls back only the WAN (D-081).
+ */
+wan_last: boolean, 
 /**
  * Hops from the gateway, by wire or mesh, when known: the farthest apply first.
  */

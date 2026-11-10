@@ -63,6 +63,9 @@ pub(crate) struct FakeNode {
     pub(crate) collect_hook: Mutex<Option<CollectHook>>,
     /// Answers commands before the rest (the WAN test's `ping` and `wget`).
     pub(crate) exec_hook: Mutex<Option<ExecHook>>,
+    /// The address the controller's host takes when the node's ports bounce (and loses when a
+    /// rollback bounces them again); `None` for a host that keeps its address.
+    pub(crate) renews_to: Mutex<Option<&'static str>>,
     /// The tool's commands run on every node, as `<node's first address> <command>`.
     journal: Arc<Mutex<Vec<String>>>,
 }
@@ -83,6 +86,7 @@ impl FakeNode {
             down: AtomicBool::new(false),
             collect_hook: Mutex::default(),
             exec_hook: Mutex::default(),
+            renews_to: Mutex::default(),
             journal,
         })
     }
@@ -119,10 +123,14 @@ impl FakeNode {
             return Ok(output);
         }
         if argv[0] == "env" {
-            // The controller logs in from 192.168.1.50.
+            // The controller logs in from 192.168.1.50, until its host asks for a lease again.
+            let bounces = self.tool.lock().unwrap().bounced.len();
+            let from = (*self.renews_to.lock().unwrap())
+                .filter(|_| bounces % 2 == 1)
+                .unwrap_or("192.168.1.50");
             return Ok(output(
                 0,
-                "USER=root\nSSH_CONNECTION=192.168.1.50 50022 192.168.1.1 22\n",
+                &format!("USER=root\nSSH_CONNECTION={from} 50022 192.168.1.1 22\n"),
             ));
         }
         if argv[0] == "nslookup" {

@@ -36,6 +36,8 @@ pub struct Tool {
     pub files: BTreeMap<String, String>,
     /// The installed init scripts, and whether each starts at boot.
     pub services: BTreeMap<String, bool>,
+    /// The ports each `bounce` named, in order.
+    pub bounced: Vec<Vec<String>>,
     stage: Option<Stage>,
     open: Option<Open>,
     last: Option<serde_json::Value>,
@@ -65,6 +67,8 @@ struct Open {
     /// The packages it replaced, `None` for those the node lacked.
     files: BTreeMap<String, Option<String>>,
     services: BTreeMap<String, bool>,
+    /// The ports it bounced, which a rollback bounces again.
+    bounced: Option<Vec<String>>,
 }
 
 type Reply = Result<serde_json::Value, (&'static str, String)>;
@@ -138,6 +142,20 @@ impl Tool {
                 let seconds = timeout(seconds)?;
                 self.require_open(id)?.deadline_s = now.uptime_s + seconds;
                 Ok(json!({ "timeout_s": seconds }))
+            }
+            ("bounce", [seconds, ports @ ..]) if !ports.is_empty() => {
+                if !(1..=30).contains(&seconds.parse::<u64>().unwrap_or(0)) {
+                    return Err((code::BAD_REQUEST, "the seconds are 1 to 30".to_owned()));
+                }
+                // The sim's open transaction is applied as soon as it is open.
+                let Some(open) = &mut self.open else {
+                    return Err((code::BAD_REQUEST, "no transaction is open".to_owned()));
+                };
+                let ports: Vec<String> = ports.iter().map(|p| (*p).to_owned()).collect();
+                let count = ports.len();
+                open.bounced = Some(ports.clone());
+                self.bounced.push(ports);
+                Ok(json!({ "ports": count }))
             }
             ("confirm", [id]) => {
                 self.require_open(id)?;
@@ -242,6 +260,7 @@ impl Tool {
             booted_ms: now.booted_ms,
             files,
             services,
+            bounced: None,
         });
         Ok(json!({ "timeout_s": seconds }))
     }
@@ -276,6 +295,11 @@ impl Tool {
             };
         }
         self.services.extend(open.services.clone());
+        if reason != "boot"
+            && let Some(ports) = &open.bounced
+        {
+            self.bounced.push(ports.clone());
+        }
         self.open = Some(open);
         self.finish("rolled_back", Some(reason), now);
     }

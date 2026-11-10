@@ -44,6 +44,7 @@ async fn a_drift_is_shown_acknowledged_and_muted() {
             revision: head.meta.id,
             job: JobId::new(1),
             nodes: vec![AppliedNode {
+                holds: true,
                 node: gateway,
                 host: None,
                 packages: [("system".to_owned(), CONFIRMED.to_owned())].into(),

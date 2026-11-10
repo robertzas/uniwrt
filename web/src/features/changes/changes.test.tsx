@@ -107,6 +107,11 @@ describe("Review & apply", () => {
     const gateway = cards[1] as HTMLElement;
     expect(gateway).toHaveTextContent("@device[1]");
     expect(gateway).toHaveTextContent("Reached at 10.0.0.1 once applied (now 192.168.1.1)");
+    expect(gateway).toHaveTextContent(
+      "it keeps 192.168.1.0/24 beside 10.0.0.0/24 until uniwrt's host has an address on 10.0.0.0/24",
+    );
+    expect(gateway).toHaveTextContent("The WAN changes last, on its own");
+    expect(attic).not.toHaveTextContent("The WAN changes last");
     expect(gateway).toHaveTextContent("factory subnet");
     // Packages open and close.
     await user.click(within(gateway).getByRole("button", { name: "The network package" }));

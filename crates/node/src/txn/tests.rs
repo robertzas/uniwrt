@@ -2,7 +2,7 @@ use std::{fs, io::Write as _, path::Path, process::Command as Process, time::Dur
 
 use super::{
     Checked, Command, Done, FILES, Finished, Footprint, Open, OpenState, Outcome, Reason, Status,
-    TxnId, apply, code, put, stage, status, uninstall,
+    TxnId, apply, bounce, code, put, stage, status, uninstall,
 };
 use crate::{Error, ExecOutput, ExitStatus};
 
@@ -38,6 +38,17 @@ fn ids_and_names_are_what_the_tool_takes() {
     assert!(stage(&id(), [("dnsmasq", true), ("odhcpd", false)]).is_ok());
     assert!(stage(&id(), [("dns masq", true)]).is_err());
     assert!(put(&id(), "../network", "x").is_err());
+    for bad in [
+        "",
+        "lan 1",
+        "lan1;reboot",
+        ".",
+        "..",
+        "averyveryverylongname",
+    ] {
+        assert!(bounce([bad], Duration::from_secs(3)).is_err(), "{bad:?}");
+    }
+    assert!(bounce([], Duration::from_secs(3)).is_err());
 }
 
 #[test]
@@ -66,6 +77,12 @@ fn commands_are_argv_arrays() {
     assert_eq!(
         applied.request.argv,
         ["/etc/uniwrt/txn", "apply", "j42", "120"]
+    );
+    // The ports stay down for 1 to 30 s.
+    let bounced = bounce(["lan1", "eth0.2"], Duration::from_secs(300)).unwrap();
+    assert_eq!(
+        bounced.request.argv,
+        ["/etc/uniwrt/txn", "bounce", "30", "lan1", "eth0.2"]
     );
 }
 

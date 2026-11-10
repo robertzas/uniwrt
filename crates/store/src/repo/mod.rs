@@ -57,8 +57,9 @@ use crate::{Result, SealedSecret};
 
 /// The revision each node holds (features/lifecycle.md, Render → diff → apply).
 pub trait ApplyRepo: Send + Sync {
-    /// Records that `applied.nodes` hold `applied.revision`, and moves each whose address
-    /// changed, all or nothing. A node removed meanwhile is left out.
+    /// Records that `applied.nodes` hold `applied.revision` (those with `holds`; the others
+    /// only their packages, D-081), and moves each whose address changed, all or nothing. A
+    /// node removed meanwhile is left out.
     fn record_applied(&self, applied: Applied) -> impl Future<Output = Result<()>> + Send;
 
     /// The revision each node holds, by node id.

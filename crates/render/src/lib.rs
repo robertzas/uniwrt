@@ -58,6 +58,7 @@ mod ports;
 mod preserve;
 pub mod raw;
 mod redirect;
+mod split;
 mod sqm;
 mod switch;
 mod system;
@@ -162,6 +163,7 @@ pub use self::{
     firewall::seeded,
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},
+    split::{wan_interface, wan_sections, without_wan},
     upnp::LEASE_FILE as UPNP_LEASE_FILE,
 };
 

@@ -2,7 +2,9 @@
 //! `isp ═ gw ═ ap`: the controller's apply job reaches the gateway and the AP over a
 //! `docker exec` dial ([`dial`]), turns management on (installing the transaction tool and the
 //! guard), and applies revisions through the real tool, agent and health checks: a confirmed
-//! apply, a broken WAN that rolls both back, and a lost AP that rolls back at its deadline.
+//! apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a
+//! lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a
+//! host behind the gateway.
 //!
 //! Each test starts from the same ground: no open transaction, the defaults behind DHCP written
 //! directly (`Node::apply`), the nodes adopted into a new store with that site as revision 1.
@@ -10,17 +12,22 @@
 
 mod dial;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use uniwrt_core::{MacAddr, NodeId, SystemClock, Timestamp};
 use uniwrt_jobs::{ApplyTiming, BoxFuture, Jobs, JobsConfig, Watch};
 use uniwrt_model::{
     apply::PlanAction,
     facts::NodeFacts,
-    job::{Job, JobErrorCode, JobNodeState, JobState},
+    job::{Job, JobErrorCode, JobNodeState, JobState, StepName, StepState},
     node::{NewNode, Node as NodeRecord, NodeRole},
     site::{
         SiteConfig,
+        network::Reservation,
         node::{RawSection, RawValue},
         revision::{NewRevision, RevisionKind},
     },
@@ -52,19 +59,18 @@ fn timing() -> ApplyTiming {
     }
 }
 
-/// The apply moves no node in these tests; watching is the engine's, which isn't here.
-struct NoWatch;
+/// Where the applies moved the nodes; watching is the engine's, which isn't here.
+#[derive(Default)]
+struct Moves(Mutex<Vec<(NodeId, String)>>);
 
-impl Watch for NoWatch {
+impl Watch for Moves {
     fn watch(&self, _: NodeRecord, _: HostKey, _: NodeFacts) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
 
     fn moved(&self, node: NodeRecord, _: HostKey) -> BoxFuture<'_, ()> {
-        panic!(
-            "{} moved to {}, which no test renumbers",
-            node.name, node.host
-        )
+        self.0.lock().expect("moves").push((node.id, node.host));
+        Box::pin(async {})
     }
 }
 
@@ -73,6 +79,7 @@ struct Lab {
     store: Store,
     jobs: Jobs,
     dial: DockerDial,
+    moves: Arc<Moves>,
     gw: Node,
     ap: Node,
     base: SiteConfig,
@@ -147,6 +154,13 @@ fn reset(base: &SiteConfig, gw: &Node, ap: &Node) -> String {
     gw.wait_interface("wan", UP, wan_up);
     gw.wait_interface("lan", UP, |s| ipv4(s) == ["10.0.0.1/24"]);
     ap.apply(&render_for(base, ap, AP, NodeRole::Ap));
+    // A lease from a renumbered gateway (the test before): ask again rather than wait it out.
+    if !ap
+        .interface("lan")
+        .is_some_and(|s| in_subnet(&s, "10.0.0."))
+    {
+        ap.sh("ifup lan", &[]);
+    }
     let lan = ap.wait_interface("lan", UP, |s| in_subnet(s, "10.0.0."));
     let address = ipv4(&lan)[0].clone();
     address.split('/').next().unwrap_or_default().to_owned()
@@ -190,6 +204,7 @@ async fn lab() -> Lab {
         store.pin_host_key(id, pin).await.expect("the pin");
     }
     commit(&store, None, base.clone()).await;
+    let moves = Arc::new(Moves::default());
     let jobs = Jobs::start_with(
         JobsConfig {
             store: store.clone(),
@@ -197,7 +212,7 @@ async fn lab() -> Lab {
             clock: Arc::new(SystemClock),
             key: ControllerKey::generate().expect("a key"),
             dial: Some(Arc::new(dial.clone())),
-            watch: Arc::new(NoWatch),
+            watch: Arc::clone(&moves) as _,
         },
         timing(),
     )
@@ -208,6 +223,7 @@ async fn lab() -> Lab {
         store,
         jobs,
         dial,
+        moves,
         gw,
         ap,
         base,
@@ -372,6 +388,26 @@ async fn a_confirmed_apply_holds_on_both() {
     );
 }
 
+/// A static WAN without its gateway on the gateway's node: up, with no default route.
+fn break_wan(config: &mut SiteConfig, device: &str) {
+    let options = [
+        ("proto", "static"),
+        ("device", device),
+        ("ipaddr", "192.0.2.2"),
+        ("netmask", "255.255.255.0"),
+    ];
+    config.nodes[0].raw.push(RawSection {
+        package: "network".to_owned(),
+        kind: "interface".to_owned(),
+        name: Some("wan".to_owned()),
+        options: options
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
+            .collect(),
+        merge: false,
+    });
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs scripts/test-system.sh's topology"]
 async fn a_broken_wan_rolls_both_back() {
@@ -382,25 +418,11 @@ async fn a_broken_wan_rolls_both_back() {
         .sh("uci -q get network.wan.device", &[])
         .trim()
         .to_owned();
-    // A static WAN without its gateway: up, with no default route.
+    // The gateway changes its WAN alone, so the WAN isn't a transaction of its own (D-081).
     let revision = lab
         .revise(|config| {
-            let options = [
-                ("proto", "static"),
-                ("device", device.as_str()),
-                ("ipaddr", "192.0.2.2"),
-                ("netmask", "255.255.255.0"),
-            ];
-            config.nodes[0].raw.push(RawSection {
-                package: "network".to_owned(),
-                kind: "interface".to_owned(),
-                name: Some("wan".to_owned()),
-                options: options
-                    .into_iter()
-                    .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
-                    .collect(),
-                merge: false,
-            });
+            config.nodes[0].hostname = None;
+            break_wan(config, &device);
         })
         .await;
     let plan = lab.jobs.plan().await.expect("a plan");
@@ -446,6 +468,66 @@ async fn a_broken_wan_rolls_both_back() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs scripts/test-system.sh's topology"]
+async fn a_broken_wan_among_other_changes_rolls_back_alone() {
+    let lab = lab().await;
+    let device = lab
+        .gw
+        .sh("uci -q get network.wan.device", &[])
+        .trim()
+        .to_owned();
+    // The hostnames change too: they apply and confirm first, then the WAN, last and alone.
+    let revision = lab.revise(|config| break_wan(config, &device)).await;
+    let plan = lab.jobs.plan().await.expect("a plan");
+    assert!(plan.nodes.iter().any(|n| n.wan_last), "{plan:#?}");
+
+    let job = lab.apply(revision).await;
+    assert_eq!(job.state, JobState::Failed, "{job:#?}");
+    let error = job.error.clone().expect("why");
+    assert_eq!(error.code, JobErrorCode::PartialApply, "{job:#?}");
+    assert!(
+        error
+            .message
+            .starts_with("The WAN's change failed and was undone")
+            && error.message.contains("the WAN is down"),
+        "{job:#?}"
+    );
+    let wan = job.steps.iter().find(|s| s.name == StepName::Wan);
+    assert_eq!(wan.map(|s| s.state), Some(StepState::Failed), "{job:#?}");
+    assert_eq!(Lab::state(&job, AP).0, JobNodeState::Confirmed, "{job:#?}");
+    assert_eq!(
+        Lab::state(&job, GATEWAY),
+        (JobNodeState::RolledBack, "Rolled back".to_owned()),
+        "{job:#?}"
+    );
+    // Only the WAN's transaction rolled back: the hostnames stay, and the WAN is as it was.
+    let status = wait_status(GW, Duration::ZERO, |_| true).await;
+    let last = status.last.expect("a finished transaction");
+    assert_eq!(
+        (status.open, last.id, last.outcome, last.reason),
+        (
+            None,
+            format!("uniwrt-{}-wan", job.id),
+            txn::Outcome::RolledBack,
+            Some(txn::Reason::Requested)
+        )
+    );
+    assert_eq!(
+        (hostname(&lab.gw), hostname(&lab.ap)),
+        ("e2e-gw".to_owned(), "e2e-ap".to_owned())
+    );
+    assert_eq!(
+        lab.gw.sh("uci -q get network.wan.proto", &[]).trim(),
+        "dhcp"
+    );
+    lab.gw.wait_interface("wan", UP, wan_up);
+    // The AP holds the revision; the gateway stays behind it.
+    let applied = lab.store.applied_revisions().await.expect("applied");
+    let holders: Vec<_> = applied.iter().map(|a| (a.node, a.revision)).collect();
+    assert_eq!(holders, [(AP, revision)]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs scripts/test-system.sh's topology"]
 async fn a_lost_node_rolls_back_at_its_deadline() {
     let lab = lab().await;
     let before = (hostname(&lab.gw), hostname(&lab.ap));
@@ -483,4 +565,88 @@ async fn a_lost_node_rolls_back_at_its_deadline() {
         )
     );
     assert_eq!(hostname(&lab.ap), before.1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs scripts/test-system.sh's topology"]
+async fn the_lan_renumbers_under_a_host_behind_the_gateway() {
+    let lab = lab().await;
+    // The AP stands in for this controller's host too: a DHCP client behind the gateway's LAN
+    // port, which the gateway sees the logins come from.
+    lab.dial.controller_behind(AP_CONTAINER);
+    let mac: MacAddr = lab
+        .ap
+        .sh("cat /sys/class/net/br-lan/address", &[])
+        .trim()
+        .parse()
+        .expect("the AP's MAC");
+    let revision = lab
+        .revise(|config| {
+            let lan = config.networks[0].ipv4.as_mut().expect("the LAN's IPv4");
+            lan.address = "10.0.7.1/24".parse().expect("a subnet");
+            let dhcp = lan.dhcp.as_mut().expect("the LAN's pool");
+            dhcp.start = "10.0.7.100".parse().expect("an address");
+            dhcp.end = "10.0.7.199".parse().expect("an address");
+            dhcp.reservations.push(Reservation {
+                mac,
+                ip: "10.0.7.20".parse().expect("an address"),
+                name: None,
+            });
+        })
+        .await;
+    let plan = lab.jobs.plan().await.expect("a plan");
+    assert!(plan.ready(), "{plan:#?}");
+    let renumbering = plan.nodes.iter().find_map(|n| n.renumbering.as_ref());
+    assert_eq!(
+        renumbering.map(|r| (r.network.as_str(), r.from.as_str(), r.to.as_str())),
+        Some(("lan", "10.0.0.0/24", "10.0.7.0/24")),
+        "{plan:#?}"
+    );
+
+    let job = lab.apply(revision).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    let settle = job.steps.iter().find(|s| s.name == StepName::Settle);
+    assert_eq!(settle.map(|s| s.state), Some(StepState::Done), "{job:#?}");
+    // The gateway holds the new address alone, and its pool leases for its own time again.
+    lab.gw
+        .wait_interface("lan", UP, |s| ipv4(s) == ["10.0.7.1/24"]);
+    assert_eq!(
+        lab.gw.sh("uci -q get dhcp.lan.leasetime", &[]).trim(),
+        "12h"
+    );
+    lab.gw.wait_interface("wan", UP, wan_up);
+    // The host behind it asked again when the port bounced, and took its reservation.
+    lab.ap
+        .wait_interface("lan", UP, |s| ipv4(s) == ["10.0.7.20/24"]);
+    // uniwrt.lan follows the controller's host.
+    assert_eq!(
+        lab.gw
+            .sh("nslookup uniwrt.lan 127.0.0.1 | grep -c 10.0.7.20", &[])
+            .trim(),
+        "1"
+    );
+    for (id, host) in [(GATEWAY, "10.0.7.1"), (AP, "10.0.7.20")] {
+        let node = lab
+            .store
+            .node(id)
+            .await
+            .expect("the node")
+            .expect("recorded");
+        assert_eq!(node.host, host);
+        assert!(
+            lab.moves
+                .0
+                .lock()
+                .expect("moves")
+                .contains(&(id, host.to_owned())),
+            "{host} is watched"
+        );
+    }
+    let plan = lab.jobs.plan().await.expect("a plan");
+    assert!(
+        plan.nodes.iter().all(|n| n.action == PlanAction::Unchanged),
+        "{plan:#?}"
+    );
+    // The ground of the tests that follow.
+    tokio::task::block_in_place(|| reset(&lab.base, &lab.gw, &lab.ap));
 }

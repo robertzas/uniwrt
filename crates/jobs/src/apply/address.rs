@@ -1,15 +1,80 @@
 //! Where the controller finds a node once an apply renumbers it (the owner's choice: follow the
 //! new address, features/lifecycle.md). The gateway's address is its static one on the
 //! network that holds it now; an access point's comes from DHCP on the management network,
-//! so it stays only while that subnet holds it, else it is the node's reservation.
+//! so it stays only while that subnet holds it, else it is the node's reservation. And whether
+//! the network the controller itself sits on moves ([`renumbering`]), which the apply does
+//! make-before-break (D-081).
 
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 
+use uniwrt_core::Ipv4Net;
 use uniwrt_model::{
+    apply::Renumbering,
     facts::NodeFacts,
     node::{Node, NodeRole},
     site::SiteConfig,
 };
+
+/// The network the controller sits on moving under it: the gateway's address on it now and
+/// once applied, both with the prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Bridge {
+    pub(crate) network: String,
+    pub(crate) old: Ipv4Net,
+    pub(crate) new: Ipv4Net,
+}
+
+impl Bridge {
+    pub(crate) fn plan(&self) -> Renumbering {
+        Renumbering {
+            network: self.network.clone(),
+            from: self.old.trunc().to_string(),
+            to: self.new.trunc().to_string(),
+        }
+    }
+}
+
+/// Whether applying `site` moves the network `controller` (the gateway's view of its login)
+/// sits on from under it: `Ok(Some)` when the network's new subnet won't hold the controller's
+/// address, `Err` when the network loses its IPv4 address (the controller would lose the
+/// gateway), `Ok(None)` when the controller stays inside, sits on the WAN or on no network of
+/// the site's.
+pub(crate) fn renumbering(
+    facts: &NodeFacts,
+    site: &SiteConfig,
+    controller: IpAddr,
+) -> Result<Option<Bridge>, String> {
+    let IpAddr::V4(controller) = controller else {
+        return Ok(None);
+    };
+    let Some((iface, old)) = facts.interfaces.iter().find_map(|iface| {
+        let net = iface.ipv4.iter().find(|net| net.contains(&controller))?;
+        Some((iface, *net))
+    }) else {
+        return Ok(None);
+    };
+    if iface.name.starts_with("wan") {
+        return Ok(None);
+    }
+    let Some(net) = site.networks.iter().find(|net| net.id == iface.name) else {
+        return Ok(None);
+    };
+    let Some(ipv4) = &net.ipv4 else {
+        return Err(format!(
+            "This controller reaches the gateway from {controller} on network {}, which would \
+             have no IPv4 address",
+            net.id
+        ));
+    };
+    if ipv4.address.contains(&controller) {
+        return Ok(None);
+    }
+    Ok(Some(Bridge {
+        network: net.id.clone(),
+        old,
+        new: ipv4.address,
+    }))
+}
 
 /// The node's address once `site` applies: `Ok(None)` while it stays `node.host` (or that is
 /// a name, which follows by itself), `Ok(Some(new))` when it moves, and `Err` with what keeps
@@ -94,7 +159,7 @@ mod tests {
         site::{SiteConfig, network::Reservation},
     };
 
-    use super::expected;
+    use super::{Bridge, expected, renumbering};
 
     const MAC: MacAddr = MacAddr::new([0x02, 0, 0, 0, 0, 0x14]);
 
@@ -149,6 +214,50 @@ mod tests {
         );
         let named = node(NodeRole::Gateway, "router.home.arpa");
         assert_eq!(expected(&named, &NodeFacts::default(), &site()), Ok(None));
+    }
+
+    #[test]
+    fn the_controllers_network_moves_make_before_break() {
+        let stock = facts("lan", "192.168.1.1/24");
+        let controller = "192.168.1.50".parse().unwrap();
+        assert_eq!(
+            renumbering(&stock, &site(), controller),
+            Ok(Some(Bridge {
+                network: "lan".to_owned(),
+                old: "192.168.1.1/24".parse().unwrap(),
+                new: "10.0.0.1/24".parse().unwrap(),
+            }))
+        );
+        let bridge = renumbering(&stock, &site(), controller).unwrap().unwrap();
+        assert_eq!(
+            (bridge.plan().from, bridge.plan().to),
+            ("192.168.1.0/24".to_owned(), "10.0.0.0/24".to_owned())
+        );
+        // Inside the new subnet, over the WAN, or on no network of the site's: nothing moves.
+        let inside = facts("lan", "10.0.0.1/24");
+        assert_eq!(
+            renumbering(&inside, &site(), "10.0.0.50".parse().unwrap()),
+            Ok(None)
+        );
+        assert_eq!(
+            renumbering(&facts("wan", "192.168.1.1/24"), &site(), controller),
+            Ok(None)
+        );
+        assert_eq!(
+            renumbering(&facts("guest", "192.168.1.1/24"), &site(), controller),
+            Ok(None)
+        );
+        assert_eq!(
+            renumbering(&stock, &site(), "fd12::50".parse().unwrap()),
+            Ok(None)
+        );
+        let mut site = site();
+        site.networks[0].ipv4 = None;
+        assert!(
+            renumbering(&stock, &site, controller)
+                .unwrap_err()
+                .contains("would have no IPv4 address")
+        );
     }
 
     #[test]

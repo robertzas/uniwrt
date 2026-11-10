@@ -15,7 +15,7 @@ use uniwrt_model::{
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::RENDERABLE;
 
-use super::{Part, Report, plan};
+use super::{Part, Report, Round, plan};
 use crate::ApplyTiming;
 use crate::testing::COLLECTED;
 
@@ -77,7 +77,7 @@ pub(crate) fn site(nodes: &[NodeId]) -> SiteConfig {
     site
 }
 
-fn stock_services() -> BTreeMap<String, ServiceState> {
+pub(crate) fn stock_services() -> BTreeMap<String, ServiceState> {
     ["dnsmasq", "odhcpd", "firewall"]
         .into_iter()
         .map(|name| (name.to_owned(), ServiceState::On))
@@ -303,10 +303,32 @@ fn a_gateway_with_sqm_installs_its_packages_first() {
     );
     let (manager, _) = first.installs.as_ref().unwrap();
     assert_eq!(*manager, PackageManager::Opkg);
-    // Their services come with them, and the transaction switches them on.
-    assert!(first.services.contains(&("sqm".to_owned(), true)));
-    assert!(first.services.contains(&("mwan3".to_owned(), true)));
+    // Their services come with them, and the plan switches them on: the WAN's in its own
+    // transaction, last, since more than the WAN changes.
+    for name in ["sqm", "mwan3", "miniupnpd"] {
+        assert!(
+            first
+                .plan
+                .services
+                .iter()
+                .any(|s| s.name == name && s.enable)
+        );
+    }
+    assert!(first.plan.wan_last);
+    assert_eq!(first.next, [Round::Wan]);
     assert!(first.services.contains(&("miniupnpd".to_owned(), true)));
+    assert!(
+        !first
+            .services
+            .iter()
+            .any(|(name, _)| name == "sqm" || name == "mwan3")
+    );
+    assert!(
+        !first
+            .files
+            .iter()
+            .any(|(name, _)| name == "sqm" || name == "mwan3")
+    );
     // Installed already: nothing to install; the services, absent, are an issue no more.
     let all: BTreeSet<String> = first.plan.installs.iter().cloned().collect();
     let again = planned(&all, &facts);

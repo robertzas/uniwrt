@@ -5,20 +5,26 @@
 //! holds, render, diff; any refused node stops it) → install (the feed packages a node's
 //! configuration needs, [`install`]) → stage (stage and check every transaction)
 //! → apply (leaves → gateway, each with its dead-man timer) → verify (all at once, each over a
-//! new login at the address it moves to, against its health before) → confirm (all) → record
+//! new login at the address it moves to, against its health before) → confirm (all) → settle
+//! and wan (the gateway's later transactions, D-081: dropping the old address of this
+//! controller's network once it reaches the new one, and the WAN's change last) → record
 //! (the revision each node holds, and the addresses that moved). A failure before a confirm
-//! rolls every applied node back, and one it can't reach rolls back by itself at its deadline.
+//! rolls every applied node back, and one it can't reach rolls back by itself at its deadline;
+//! a failure in a later transaction rolls back that one alone.
 
 mod address;
 mod controller;
 pub(crate) mod health;
 mod install;
+mod later;
 mod order;
 pub(crate) mod plan;
+mod round;
 mod run;
 pub(crate) mod survey;
 #[cfg(test)]
 pub(crate) mod tests;
+mod verify;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
@@ -34,7 +40,7 @@ use uniwrt_node::txn::TxnId;
 use uniwrt_store::ApplyRepo as _;
 
 use self::{
-    run::{Live, Run, nodes},
+    run::{Holds, Live, Run, nodes},
     survey::Survey,
 };
 use crate::{errors::internal, progress::Progress, runner::Shared};
@@ -42,7 +48,7 @@ use crate::{errors::internal, progress::Progress, runner::Shared};
 /// The key that keeps one apply at a time.
 pub(crate) const TARGET: &str = "apply";
 
-const STEPS: [StepName; 8] = [
+const STEPS: [StepName; 10] = [
     StepName::Connect,
     StepName::Plan,
     StepName::Install,
@@ -50,6 +56,8 @@ const STEPS: [StepName; 8] = [
     StepName::Apply,
     StepName::Verify,
     StepName::Confirm,
+    StepName::Settle,
+    StepName::Wan,
     StepName::Record,
 ];
 
@@ -121,7 +129,7 @@ pub(crate) async fn plan(
 ) -> Result<ApplyPlan, JobError> {
     let (managed, observing) = survey::managed(nodes);
     let (logins, failed) = survey::connect_all(shared, managed).await;
-    let Survey { plan, members } =
+    let Survey { plan, members, .. } =
         survey::plan_all(shared, revision, logins, failed, observing).await?;
     for member in members {
         member.login.remote.close().await;
@@ -171,8 +179,11 @@ async fn apply(
         .await;
 
     progress.start(StepName::Plan).await;
-    let Survey { plan, members } =
-        survey::plan_all(shared, revision, logins, Vec::new(), observing).await?;
+    let Survey {
+        plan,
+        members,
+        secrets,
+    } = survey::plan_all(shared, revision, logins, Vec::new(), observing).await?;
     if !plan.ready() {
         for member in members {
             member.login.remote.close().await;
@@ -194,7 +205,7 @@ async fn apply(
     let mut unchanged = Vec::new();
     let mut lives = Vec::new();
     for member in members {
-        if member.part.plan.action == PlanAction::Change {
+        if member.part.plan.action == PlanAction::Change || member.part.follows() {
             lives.push(Live::from(member));
         } else {
             let detail = format!("Holds revision {} already", revision.meta.id);
@@ -214,6 +225,8 @@ async fn apply(
             StepName::Apply,
             StepName::Verify,
             StepName::Confirm,
+            StepName::Settle,
+            StepName::Wan,
         ] {
             progress.skip(step, "Nothing to change").await;
         }
@@ -221,24 +234,18 @@ async fn apply(
     }
     let txn = TxnId::new(format!("uniwrt-{}", progress.job_id().get()))
         .map_err(|err| internal("naming the transaction", &err))?;
-    let mut run = Run { shared, txn, lives };
-    let result = async {
-        run.install(progress).await?;
-        run.stage(progress).await?;
-        run.apply(progress).await?;
-        run.verify(progress).await?;
-        run.confirm(progress).await
-    }
-    .await;
+    let mut run = Run::new(shared, &revision.config, secrets, txn, lives);
+    let result = run.rounds(progress).await;
     run.close().await;
     match result {
         Ok(()) => record(shared, revision, progress, &run.lives, &unchanged).await,
         Err(err) if err.code == JobErrorCode::PartialApply => {
-            // The confirmed nodes hold the revision: record them before failing.
+            // Record what was confirmed before failing: the nodes that hold the revision,
+            // and the packages of one that holds part of it.
             let confirmed: Vec<_> = run
                 .lives
                 .into_iter()
-                .filter(|live| live.confirmed)
+                .filter(|live| live.holds != Holds::Before)
                 .collect();
             if let Err(why) = store(shared, revision, progress, &confirmed, &unchanged).await {
                 warn!("{}", why.message);
@@ -283,11 +290,13 @@ async fn store(
             .iter()
             .map(|live| AppliedNode {
                 node: live.node.id,
+                holds: live.holds == Holds::Revision,
                 host: moved(live),
-                packages: live.held().clone(),
+                packages: live.held.clone(),
             })
             .chain(unchanged.iter().map(|(node, held)| AppliedNode {
                 node: node.id,
+                holds: true,
                 host: None,
                 packages: held.clone(),
             }))

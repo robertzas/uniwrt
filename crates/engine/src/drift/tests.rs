@@ -191,6 +191,7 @@ async fn apply(store: &Store, node: NodeId, files: &Files) {
             revision: revision.id,
             job: JobId::new(1),
             nodes: vec![AppliedNode {
+                holds: true,
                 node,
                 host: None,
                 packages,

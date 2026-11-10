@@ -14,6 +14,7 @@ impl ApplyRepo for Store {
             // A write runs in its own savepoint: all or nothing.
             for AppliedNode {
                 node,
+                holds,
                 host,
                 packages,
             } in &applied.nodes
@@ -24,18 +25,20 @@ impl ApplyRepo for Store {
                     )?
                     .execute(params![node.get(), host, now])?;
                 }
-                conn.prepare_cached(
-                    "INSERT INTO node_applied (node_id, revision_id, job_id, applied_at)
-                     SELECT id, ?2, ?3, ?4 FROM nodes WHERE id = ?1
-                     ON CONFLICT (node_id) DO UPDATE SET revision_id = excluded.revision_id,
-                     job_id = excluded.job_id, applied_at = excluded.applied_at",
-                )?
-                .execute(params![
-                    node.get(),
-                    applied.revision.get(),
-                    applied.job.get(),
-                    now
-                ])?;
+                if *holds {
+                    conn.prepare_cached(
+                        "INSERT INTO node_applied (node_id, revision_id, job_id, applied_at)
+                         SELECT id, ?2, ?3, ?4 FROM nodes WHERE id = ?1
+                         ON CONFLICT (node_id) DO UPDATE SET revision_id = excluded.revision_id,
+                         job_id = excluded.job_id, applied_at = excluded.applied_at",
+                    )?
+                    .execute(params![
+                        node.get(),
+                        applied.revision.get(),
+                        applied.job.get(),
+                        now
+                    ])?;
+                }
                 conn.prepare_cached("DELETE FROM node_config WHERE node_id = ?1")?
                     .execute(params![node.get()])?;
                 for (package, text) in packages {
@@ -181,6 +184,7 @@ mod tests {
     fn applied_node(node: NodeId, host: Option<&str>, packages: &[(&str, &str)]) -> AppliedNode {
         AppliedNode {
             node,
+            holds: true,
             host: host.map(str::to_owned),
             packages: packages
                 .iter()

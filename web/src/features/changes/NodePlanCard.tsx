@@ -3,6 +3,7 @@ import {
   Cable,
   CircleAlert,
   FilePen,
+  Globe,
   Package,
   Power,
   RadioTower,
@@ -121,6 +122,20 @@ export function NodePlanCard(props: { plan: NodePlan }) {
                 {t.address(address().from, address().to)}
               </p>
             )}
+          </Show>
+          <Show when={p().renumbering}>
+            {(moving) => (
+              <p class="flex items-start gap-2 text-fg-muted text-sm" title={t.renumberingHint}>
+                <Icon icon={Cable} class="mt-0.5 size-4 shrink-0 text-info" />
+                {t.renumbering(moving().from, moving().to)}
+              </p>
+            )}
+          </Show>
+          <Show when={p().wan_last}>
+            <p class="flex items-center gap-2 text-fg-muted text-sm">
+              <Icon icon={Globe} class="size-4 shrink-0 text-info" />
+              {t.wanLast}
+            </p>
           </Show>
           <Show when={(p().installs ?? []).length > 0}>
             <div class="flex flex-wrap items-center gap-1.5 text-sm" title={t.installsHint}>

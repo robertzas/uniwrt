@@ -35,6 +35,9 @@ struct Faults {
     lost: BTreeSet<String>,
     /// Lost as soon as the tool's `apply` succeeds on it.
     lose_after_apply: BTreeSet<String>,
+    /// The container that stands in for the controller's host: the gateway sees the logins
+    /// come from its LAN address.
+    controller: Option<String>,
 }
 
 struct Inner {
@@ -81,6 +84,13 @@ impl DockerDial {
             .find(|c| c.name == name)
             .map(|c| c.host_key.clone())
             .expect("a known container")
+    }
+
+    /// Has the logins come from `name`'s LAN address, as the gateway's `SSH_CONNECTION` tells:
+    /// a `docker exec` has no SSH client, so nothing would renumber under the controller.
+    pub(crate) fn controller_behind(&self, name: &str) {
+        let mut faults = self.0.faults.lock().expect("faults");
+        faults.controller = Some(name.to_owned());
     }
 
     /// Cuts `name` off once the tool applies a transaction on it.
@@ -181,6 +191,10 @@ impl Remote for DockerRemote {
             if self.dial.lost(&self.container) {
                 return Err(disconnected("exec"));
             }
+            let controller = self.dial.faults.lock().expect("faults").controller.clone();
+            if let Some(host) = controller.filter(|_| request.argv == ["env"]) {
+                return login_from(&host).await;
+            }
             let output = exec(&self.container, &request).await?;
             let applied = request.argv.first().map(String::as_str) == Some(TOOL)
                 && request.argv.get(1).map(String::as_str) == Some("apply")
@@ -220,6 +234,22 @@ impl Remote for DockerRemote {
     fn close(&self) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+}
+
+/// What `env` prints over a login from `container`'s LAN address, if it has one now.
+async fn login_from(container: &str) -> Result<ExecOutput> {
+    let request = ExecRequest::new(["ubus", "call", "network.interface.lan", "status"]);
+    let output = exec(container, &request).await?;
+    let status: Value = serde_json::from_slice(&output.stdout).unwrap_or_default();
+    let env = match status["ipv4-address"][0]["address"].as_str() {
+        Some(address) => format!("USER=root\nSSH_CONNECTION={address} 50022 0.0.0.0 22\n"),
+        None => "USER=root\n".to_owned(),
+    };
+    Ok(ExecOutput {
+        status: ExitStatus::Code(0),
+        stdout: env.into_bytes(),
+        stderr: Vec::new(),
+    })
 }
 
 /// Runs `request` in `container` through `docker exec`, bounded by its timeout and output limit.

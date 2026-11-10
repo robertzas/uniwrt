@@ -57,17 +57,21 @@ pub(crate) struct Login {
     pub(crate) remote: Box<dyn Remote>,
 }
 
-/// A managed node in the apply, with its part.
+/// A managed node in the apply, with its part and what it reported, which a later transaction
+/// of its is planned from again (D-081).
 pub(crate) struct Member {
     pub(crate) login: Login,
     pub(crate) baseline: Health,
     pub(crate) part: Part,
+    pub(crate) reading: Reading,
 }
 
-/// The plan, and the members that carry it out, in its order.
+/// The plan, the members that carry it out, in its order, and the vault's values the later
+/// transactions render with.
 pub(crate) struct Survey {
     pub(crate) plan: ApplyPlan,
     pub(crate) members: Vec<Member>,
+    pub(crate) secrets: VaultSecrets,
 }
 
 /// Logs in to `node` at `host` with the controller's key, against its pinned host key.
@@ -120,15 +124,77 @@ pub(crate) async fn connect_all(
 }
 
 /// What a node holds now.
-struct Reading {
-    files: BTreeMap<String, Option<String>>,
-    services: BTreeMap<String, current::ServiceState>,
-    facts: NodeFacts,
+pub(crate) struct Reading {
+    pub(crate) files: BTreeMap<String, Option<String>>,
+    pub(crate) services: BTreeMap<String, current::ServiceState>,
+    pub(crate) facts: NodeFacts,
     /// The packages installed from the feeds, or why they can't be read.
-    installed: Result<BTreeSet<String>, String>,
-    dns: [bool; 2],
+    pub(crate) installed: Result<BTreeSet<String>, String>,
+    pub(crate) dns: [bool; 2],
     /// The controller's address as the gateway sees it.
-    controller: Option<IpAddr>,
+    pub(crate) controller: Option<IpAddr>,
+}
+
+impl Reading {
+    /// The report a part is planned from, for `node`.
+    pub(crate) fn report<'a>(&'a self, node: &'a Node) -> Report<'a> {
+        Report {
+            node,
+            facts: &self.facts,
+            files: &self.files,
+            services: &self.services,
+            installed: self.installed.as_ref(),
+            controller: self.controller,
+        }
+    }
+
+    /// Reads the gateway's view of the controller's login again, and the facts, over `remote`.
+    pub(crate) async fn refresh(
+        &mut self,
+        shared: &Shared,
+        remote: &dyn Remote,
+        role: NodeRole,
+    ) -> Result<(), String> {
+        self.facts = collect(shared, remote, &Set::ALL, &RENDER_SETS).await?;
+        if role == NodeRole::Gateway {
+            self.controller = super::controller::read(remote).await;
+        }
+        Ok(())
+    }
+
+    /// Notes a confirmed transaction: the files it wrote and the services it switched.
+    pub(crate) fn confirmed(&mut self, part: &Part) {
+        for (name, text) in &part.files {
+            self.files.insert(name.clone(), Some(text.clone()));
+        }
+        for (name, on) in &part.services {
+            self.services.insert(
+                name.clone(),
+                if *on {
+                    current::ServiceState::On
+                } else {
+                    current::ServiceState::Off
+                },
+            );
+        }
+    }
+
+    /// Notes the feed packages installed, whose services exist now, off.
+    pub(crate) fn installed(&mut self, packages: &[uniwrt_render::Requirement]) {
+        if let Ok(installed) = &mut self.installed {
+            installed.extend(packages.iter().map(|r| r.package.to_owned()));
+        }
+        for service in packages.iter().filter_map(|r| r.service) {
+            self.services
+                .entry(service.to_owned())
+                .and_modify(|state| {
+                    if *state == current::ServiceState::Absent {
+                        *state = current::ServiceState::Off;
+                    }
+                })
+                .or_insert(current::ServiceState::Off);
+        }
+    }
 }
 
 async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
@@ -311,19 +377,7 @@ pub(crate) async fn plan_all(
                 continue;
             }
         };
-        let mut part = plan::plan(
-            site,
-            &secrets,
-            &Report {
-                node: &login.node,
-                facts: &reading.facts,
-                files: &reading.files,
-                services: &reading.services,
-                installed: reading.installed.as_ref(),
-                controller: reading.controller,
-            },
-            &shared.timing,
-        );
+        let mut part = plan::plan(site, &secrets, &reading.report(&login.node), &shared.timing);
         part.plan.hops = hops.get(&login.node.id).copied();
         part.plan.drift = drifts
             .iter()
@@ -335,6 +389,7 @@ pub(crate) async fn plan_all(
             baseline: Health::measure(login.node.role, &reading.facts, reading.dns),
             login,
             part,
+            reading,
         });
     }
     for (node, why) in failed {
@@ -360,6 +415,7 @@ pub(crate) async fn plan_all(
             nodes: plans,
         },
         members,
+        secrets,
     })
 }
 

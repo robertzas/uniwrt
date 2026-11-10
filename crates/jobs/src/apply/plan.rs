@@ -1,7 +1,11 @@
 //! One node's part of an apply, planned from what it reported (pure): render the revision, diff
 //! each package against the node's file (D-066: only a semantic change rewrites one), switch
 //! the services whose start at boot differs, find where the controller will reach it, and
-//! mask secrets for the review screen.
+//! mask secrets for the review screen. On the gateway the part may be the first of several
+//! transactions (D-081): when the network this controller sits on moves, the first keeps the
+//! old address beside the new one (the bridge) and a [`Round::Settle`] drops it; when the WAN
+//! changes among other things, it changes last in a [`Round::Wan`] ([`super::round`]). The
+//! later rounds are planned again from what the node holds then.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,14 +16,23 @@ use std::{
 use uniwrt_model::{
     apply::{AddressChange, NodePlan, PlanAction, PlanIssue, ServiceChange},
     facts::{NodeFacts, PackageManager},
-    node::Node,
-    site::{SiteConfig, node::RawSection},
+    node::{Node, NodeRole},
+    site::{
+        SiteConfig,
+        node::{ManagedPackage, RawSection},
+    },
 };
 use uniwrt_node::txn::current::ServiceState;
-use uniwrt_render::{Issue, RENDERABLE, Requirement, Secrets, Target, render, uplink_section};
+use uniwrt_render::{
+    Issue, RENDERABLE, Requirement, Secrets, Target, render, uplink_section, without_wan,
+};
 use uniwrt_uci::Package;
 
-use super::{ApplyTiming, address};
+use super::{
+    ApplyTiming, address,
+    address::Bridge,
+    round::{Round, WAN_PACKAGES, bridge_ports, bridge_round, wan_last},
+};
 
 /// What a managed node reported while planning.
 pub(crate) struct Report<'a> {
@@ -49,9 +62,29 @@ pub(crate) struct Part {
     pub(crate) installs: Option<(PackageManager, Vec<Requirement>)>,
     /// Where the controller reaches it once applied, when that moves.
     pub(crate) address: Option<Ipv4Addr>,
-    /// Its dead-man timer, longer when it changes the WAN or the mesh (`uplink`).
+    /// The network the controller sits on moves: this transaction keeps the old address beside
+    /// the new one, and the verify waits for the controller to come from the new subnet.
+    pub(crate) bridge: Option<Bridge>,
+    /// The bridge's ports to bounce once applied, so the hosts behind them ask for a lease.
+    pub(crate) bounce: Vec<String>,
+    /// The interface whose lease to renew once the gateway applied: an access point that moves.
+    pub(crate) renew: Option<String>,
+    /// The transactions after this one.
+    pub(crate) next: Vec<Round>,
+    /// Its dead-man timer, longer when it changes the WAN or the mesh (`uplink`) or bridges.
     pub(crate) timeout: Duration,
     pub(crate) uplink: bool,
+}
+
+impl Part {
+    /// Nothing to apply, but an address to follow: an access point whose network renumbers
+    /// around it.
+    pub(crate) fn follows(&self) -> bool {
+        self.files.is_empty()
+            && self.services.is_empty()
+            && self.installs.is_none()
+            && self.address.is_some()
+    }
 }
 
 /// The names of the packages render writes, which the planner reads.
@@ -73,6 +106,8 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
         services: Vec::new(),
         installs: Vec::new(),
         address: None,
+        renumbering: None,
+        wan_last: false,
         hops: None,
         timeout_s: 0,
         warnings: Vec::new(),
@@ -115,6 +150,10 @@ pub(crate) fn plan(
         services: Vec::new(),
         installs: None,
         address: None,
+        bridge: None,
+        bounce: Vec::new(),
+        renew: None,
+        next: Vec::new(),
         timeout: timing.timer,
         uplink: false,
     };
@@ -141,35 +180,23 @@ pub(crate) fn plan(
         }
     };
     part.plan.warnings = rendered.warnings.into_iter().map(from_render).collect();
-    let mut uplink = false;
-    for (package, after) in &rendered.packages {
-        let name = package.name();
-        let before = current
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| Package::new(name));
-        let mut diff = uniwrt_uci::diff(&before, after);
-        if diff.is_empty() {
-            if let Some(Some(text)) = report.files.get(name) {
-                part.held.insert(name.to_owned(), text.clone());
-            }
-            continue;
-        }
-        uplink |= diff.sections.iter().any(|section| {
-            [&section.before, &section.after]
-                .into_iter()
-                .flatten()
-                .filter_map(|id| id.name.as_deref())
-                .any(uplink_section)
-        });
-        let file = after.to_file();
-        part.held.insert(name.to_owned(), file.clone());
-        part.files.push((name.to_owned(), file));
-        mask(&mut diff);
-        part.plan.packages.push(diff);
-    }
+    let (round, deferred) = first_round(
+        site,
+        report,
+        &rendered.packages,
+        &rendered.services,
+        &current,
+        &mut part,
+    );
+    let mut uplink = files(&rendered.packages, &round, &current, report, &mut part);
     let coming = installs(&rendered.requires, report, &mut part);
-    services(&rendered.services, report.services, &coming, &mut part);
+    services(
+        &rendered.services,
+        report.services,
+        &coming,
+        &deferred,
+        &mut part,
+    );
     match address::expected(node, report.facts, site) {
         Ok(address) => {
             part.address = address;
@@ -177,6 +204,11 @@ pub(crate) fn plan(
                 from: node.host.clone(),
                 to: to.to_string(),
             });
+            if address.is_some() && node.role != NodeRole::Gateway {
+                // A new lease takes as long as an uplink's change.
+                part.renew = uniwrt_render::management_network(site).map(|net| net.id.clone());
+                uplink = true;
+            }
         }
         // Only a change that applies moves the node.
         Err(why) if !part.files.is_empty() => part.plan.issues.push(issue("node", why)),
@@ -196,7 +228,123 @@ pub(crate) fn plan(
     } else {
         PlanAction::Change
     };
+    if part.plan.action != PlanAction::Change {
+        part.next.clear();
+    }
     part
+}
+
+/// The packages of the node's first transaction, and the services a later one switches: the
+/// rendering, unless the gateway's WAN goes last or this controller's network moves (D-081).
+fn first_round(
+    site: &SiteConfig,
+    report: &Report<'_>,
+    rendered: &BTreeMap<ManagedPackage, Package>,
+    services: &BTreeMap<&'static str, bool>,
+    current: &BTreeMap<String, Package>,
+    part: &mut Part,
+) -> (BTreeMap<ManagedPackage, Package>, BTreeSet<&'static str>) {
+    // The services the WAN's transaction switches, when it goes last.
+    let mut deferred = BTreeSet::new();
+
+    // This transaction's packages: the rendering, unless the WAN goes last or the controller's
+    // network moves (the gateway's, D-081).
+    let mut round = rendered.clone();
+    if report.node.role == NodeRole::Gateway {
+        if wan_last(rendered, current, services, report.services) {
+            let empty = Package::new("network");
+            let now = current.get("network").unwrap_or(&empty);
+            if let Some(network) = round.get_mut(&ManagedPackage::Network) {
+                *network = without_wan(network, now);
+            }
+            for p in WAN_PACKAGES {
+                round.remove(&p);
+                deferred.insert(p.name());
+            }
+            part.plan.wan_last = true;
+            part.next.push(Round::Wan);
+        }
+        match report
+            .controller
+            .map(|controller| address::renumbering(report.facts, site, controller))
+            .transpose()
+        {
+            Ok(bridge) => {
+                if let Some(bridge) = bridge.flatten() {
+                    bridge_round(&bridge, rendered, &mut round);
+                    part.bounce = bridge_ports(rendered);
+                    part.plan.renumbering = Some(bridge.plan());
+                    part.plan.warnings.push(issue(
+                        &format!("networks/{}", bridge.network),
+                        format!(
+                            "Devices wired to the gateway ask for a new address when its ports \
+                             bounce. Devices on Wi-Fi or behind a switch keep their address on \
+                             {}, which stops working once the apply is done, until they \
+                             reconnect or their lease renews: reconnect them afterwards",
+                            bridge.old.trunc()
+                        ),
+                    ));
+                    part.bridge = Some(bridge);
+                    part.next.insert(0, Round::Settle);
+                }
+            }
+            Err(why) => part.plan.issues.push(issue("node", why)),
+        }
+    }
+    (round, deferred)
+}
+
+/// Fills the review's diffs (the whole change) and this transaction's files; whether the
+/// transaction changes the node's uplink.
+fn files(
+    rendered: &BTreeMap<ManagedPackage, Package>,
+    round: &BTreeMap<ManagedPackage, Package>,
+    current: &BTreeMap<String, Package>,
+    report: &Report<'_>,
+    part: &mut Part,
+) -> bool {
+    // The review's diffs and services are the whole change; the files are this transaction's.
+    for (package, after) in rendered {
+        let name = package.name();
+        let before = current
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| Package::new(name));
+        let mut diff = uniwrt_uci::diff(&before, after);
+        if !diff.is_empty() {
+            mask(&mut diff);
+            part.plan.packages.push(diff);
+        }
+        if let Some(Some(text)) = report.files.get(name) {
+            part.held.insert(name.to_owned(), text.clone());
+        }
+    }
+    let mut uplink = part.bridge.is_some();
+    for (package, after) in round {
+        let name = package.name();
+        let before = current
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| Package::new(name));
+        let diff = uniwrt_uci::diff(&before, after);
+        if diff.is_empty() {
+            continue;
+        }
+        uplink |= diff.sections.iter().any(|section| {
+            [&section.before, &section.after]
+                .into_iter()
+                .flatten()
+                .filter_map(|id| id.name.as_deref())
+                .any(uplink_section)
+        });
+        // A device only the WAN stands on is its uplink too.
+        uplink |= *package == ManagedPackage::Network
+            && !uniwrt_uci::diff(&without_wan(after, &before), after).is_empty();
+        let file = after.to_file();
+        part.held.insert(name.to_owned(), file.clone());
+        part.files.push((name.to_owned(), file));
+    }
+    uplink
 }
 
 /// Plans installing the feed packages the configuration `requires` and the node lacks; the
@@ -261,35 +409,34 @@ fn raw_overrides(site: &SiteConfig, node: &Node) -> Vec<RawSection> {
 
 /// Switches the services whose start at boot differs from what render wants.
 /// `coming` are the services of the packages installed first: switched on once they are there.
+/// `deferred` are those a later transaction switches: planned, but not part of this one.
 fn services(
     wanted: &BTreeMap<&'static str, bool>,
     current: &BTreeMap<String, ServiceState>,
     coming: &BTreeSet<&str>,
+    deferred: &BTreeSet<&str>,
     part: &mut Part,
 ) {
     for (&name, &on) in wanted {
         match (current.get(name), on) {
             (Some(ServiceState::On), true)
-            | (Some(ServiceState::Off | ServiceState::Absent) | None, false) => {}
-            (Some(ServiceState::Absent) | None, true) if coming.contains(name) => {
-                part.services.push((name.to_owned(), true));
-                part.plan.services.push(ServiceChange {
-                    name: name.to_owned(),
-                    enable: true,
-                });
+            | (Some(ServiceState::Off | ServiceState::Absent) | None, false) => continue,
+            (Some(ServiceState::Absent) | None, true) if !coming.contains(name) => {
+                part.plan.issues.push(issue(
+                    "node",
+                    format!("The {name} service isn't installed on the node"),
+                ));
+                continue;
             }
-            (Some(ServiceState::Absent) | None, true) => part.plan.issues.push(issue(
-                "node",
-                format!("The {name} service isn't installed on the node"),
-            )),
-            (Some(_), _) => {
-                part.services.push((name.to_owned(), on));
-                part.plan.services.push(ServiceChange {
-                    name: name.to_owned(),
-                    enable: on,
-                });
-            }
+            _ => {}
         }
+        if !deferred.contains(name) {
+            part.services.push((name.to_owned(), on));
+        }
+        part.plan.services.push(ServiceChange {
+            name: name.to_owned(),
+            enable: on,
+        });
     }
 }
 

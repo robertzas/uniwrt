@@ -108,6 +108,10 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - ✅ `network.interface dump`: addresses are `{address, mask}`. A LAN's IPv6 addresses are the `local-address` of each `ipv6-prefix-assignment`, and delegated prefixes are under `ipv6-prefix`. Default routes have target `0.0.0.0` or `::` with mask 0.
 - ✅ `/sys/class/net`: `DEVTYPE` is in `uevent` (`bridge`, `vlan`, `wlan`). `carrier` and `speed` can't be read while a device is down, and bridges and VLANs report their ports' speed. `master` links to the bridge or batman device, and `bonding_masters` may sit beside the devices.
 - ⚠️ DSA user ports have `DEVTYPE=dsa`.
+- ✅ An interface with two `list ipaddr` entries holds both; dnsmasq's init takes the pool's subnet from the first, and authoritative dnsmasq answers a request for a lease of the other subnet with `DHCPNAK … wrong network` (the pool on 24.10 and 25.12 in the system test; the NAK seen on 25.12, M4.3a2).
+- ✅ `ubus call network.interface.<name> renew` (SIGUSR1 to udhcpc) sends one unicast and three broadcast renews 3 s apart; udhcpc ignores the NAKs, declares the lease lost after about 13 s and discovers again: a new lease about 16 s after the call (25.12). Losing the carrier restarts the client at once (a veth peer loses its carrier when the other end goes down).
+- ✅ BusyBox's `ip link add <name> type veth` ignores `peer name …`: the peer gets a name of the kernel's (`veth0`); find it by `iflink` and rename it.
+- ⚠️ Unverified on hardware: `ip link set <port> down` on a DSA user port or a plain NIC drops the link partner's carrier (the PHY powers down); the renumbering's port bounce relies on it (D-081).
 - ⚠️ `hostapd -v<feature>` and `wpa_supplicant -v<feature>` exit 0 when the feature is built in (LuCI checks it the same way).
 
 ## UCI syntax ✅

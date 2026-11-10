@@ -17,6 +17,8 @@ export function nodePlan(node: number, name: string, extra: Partial<NodePlan> = 
     services: [],
     installs: [],
     address: null,
+    renumbering: null,
+    wan_last: false,
     hops: 1,
     timeout_s: 120,
     warnings: [],
@@ -98,6 +100,8 @@ export function applyPlan(): ApplyPlan {
           { package: "dhcp", sections: [] },
         ],
         address: { from: "192.168.1.1", to: "10.0.0.1" },
+        renumbering: { network: "lan", from: "192.168.1.0/24", to: "10.0.0.0/24" },
+        wan_last: true,
         warnings: [{ path: "networks/lan", message: "192.168.1.0/24 is OpenWrt's factory subnet" }],
       }),
       nodePlan(3, "Hall AP"),
@@ -115,15 +119,15 @@ export function applyJob(state: Job["state"], nodes: Partial<JobNode>[] = []): J
     node: null,
     revision: 5,
     state,
-    steps: (["connect", "plan", "stage", "apply", "verify", "confirm", "record"] as const).map(
-      (name) => ({
-        name,
-        state: state === "succeeded" ? "done" : "pending",
-        detail: null,
-        started_at: null,
-        finished_at: null,
-      }),
-    ),
+    steps: (
+      ["connect", "plan", "stage", "apply", "verify", "confirm", "settle", "wan", "record"] as const
+    ).map((name) => ({
+      name,
+      state: state === "succeeded" ? "done" : "pending",
+      detail: null,
+      started_at: null,
+      finished_at: null,
+    })),
     nodes: nodes.map((node, i) => ({
       node: i + 1,
       name: `Node ${i + 1}`,

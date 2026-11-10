@@ -170,6 +170,11 @@ pub enum StepName {
     Verify,
     /// Confirm every transaction.
     Confirm,
+    /// Drop the old address of the network the controller sits on, once it reaches the new one
+    /// (make-before-break renumbering, D-081).
+    Settle,
+    /// Apply the WAN's change last, in its own transaction (D-081).
+    Wan,
     /// The WAN port has a link (the connectivity test's steps follow, `uniwrt_isp::Step`).
     Link,
     /// A DHCP lease, a PPP session, the static address or the DS-Lite tunnel.

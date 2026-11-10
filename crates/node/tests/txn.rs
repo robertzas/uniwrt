@@ -224,6 +224,62 @@ async fn a_rollback_restores_the_snapshot_and_the_services() {
     );
 }
 
+/// How often `port` lost its carrier, and whether it has one now.
+async fn carrier(session: &Session, port: &str) -> (u32, bool) {
+    let dir = format!("/sys/class/net/{port}");
+    let lost = run(session, &["cat", &format!("{dir}/carrier_down_count")]).await;
+    let up = run(session, &["cat", &format!("{dir}/carrier")]).await;
+    (lost.trim().parse().unwrap(), up.trim() == "1")
+}
+
+async fn wait_carrier(session: &Session, port: &str, lost: u32) {
+    let start = Instant::now();
+    loop {
+        let now = carrier(session, port).await;
+        if now == (lost, true) {
+            return;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(15),
+            "{port}: {now:?}, not ({lost}, true)"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn a_bounce_drops_the_carrier_once_applied_and_again_at_a_rollback() {
+    let session = managed().await;
+    // A cable inside the node: what `uwa` does, its peer `uwb` sees. BusyBox's `ip` names the
+    // peer itself, so it is found by its index and renamed.
+    let cable = r#"ip link del uwa 2>/dev/null; ip link add uwa type veth || exit 1
+        peer=$(cat /sys/class/net/uwa/iflink)
+        for dev in /sys/class/net/*; do
+            [ "$(cat "$dev/ifindex")" = "$peer" ] && name=${dev##*/}
+        done
+        ip link set "$name" name uwb && ip link set uwa up && ip link set uwb up"#;
+    assert!(shell_ok(&session, cable).await, "a veth pair");
+    let id = TxnId::new("bounce").unwrap();
+    let bounce = txn::bounce(["uwa"], Duration::from_secs(1)).unwrap();
+    assert_eq!(txn_code(exec(&session, &bounce).await), code::BAD_REQUEST);
+
+    begin(&session, &id, Duration::from_secs(300)).await;
+    wait_state(&session, OpenState::Applied).await;
+    let missing = txn::bounce(["uwa", "nosuch0"], Duration::from_secs(1)).unwrap();
+    assert_eq!(txn_code(exec(&session, &missing).await), code::NOT_FOUND);
+    let (lost, up) = carrier(&session, "uwb").await;
+    assert!(up, "the cable is up");
+    assert_eq!(exec(&session, &bounce).await.unwrap().ports, 1);
+    wait_carrier(&session, "uwb", lost + 1).await;
+
+    // The rollback bounces it once more, so the hosts behind it return.
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    wait_carrier(&session, "uwb", lost + 2).await;
+    wait_until(&session, "dnsmasq runs again", DNSMASQ_ON).await;
+    assert!(shell_ok(&session, "ip link del uwa").await);
+}
+
 #[tokio::test]
 #[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
 async fn an_unconfirmed_transaction_rolls_back_at_its_deadline() {

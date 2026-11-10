@@ -63,6 +63,13 @@ pub struct NodePlan {
     pub installs: Vec<String>,
     /// Where the controller reaches it once applied, when that moves.
     pub address: Option<AddressChange>,
+    /// The network this controller sits on moves: the gateway keeps its old address beside the
+    /// new one until the controller reaches it from the new subnet, then drops it
+    /// (make-before-break, D-081).
+    pub renumbering: Option<Renumbering>,
+    /// Its WAN changes with other things, so the WAN changes last, in its own transaction: a
+    /// failure there rolls back only the WAN (D-081).
+    pub wan_last: bool,
     /// Hops from the gateway, by wire or mesh, when known: the farthest apply first.
     pub hops: Option<u32>,
     /// The dead-man timer: unconfirmed for this long, it rolls back by itself.
@@ -122,6 +129,18 @@ pub struct AddressChange {
     pub to: String,
 }
 
+/// The renumbering of the network the controller sits on, as the gateway sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Renumbering {
+    /// The network's id.
+    pub network: String,
+    /// Its subnet now, as `192.168.1.0/24`.
+    pub from: String,
+    /// Its subnet once applied.
+    pub to: String,
+}
+
 /// Something render or the planner reports, at a path of the site's document (`wlans/home`)
 /// or `node`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,8 +161,8 @@ pub struct AppliedRevision {
     pub at: Timestamp,
 }
 
-/// What an apply records once it ends: the nodes that hold `revision` now, the address of each
-/// one the controller found elsewhere, and the managed packages each holds (drift's baseline).
+/// What an apply records once it ends: the nodes that hold `revision` now (or part of it), the
+/// address of each one the controller found elsewhere, and the managed packages each holds (drift's baseline).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Applied {
     pub revision: RevisionId,
@@ -151,10 +170,14 @@ pub struct Applied {
     pub nodes: Vec<AppliedNode>,
 }
 
-/// One node that holds an apply's revision.
+/// One node an apply changed or moved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppliedNode {
     pub node: NodeId,
+    /// Whether it holds the revision now. `false` once the apply confirmed only its first
+    /// transactions (the WAN's rolled back, say): its address and packages are recorded, and
+    /// it stays behind the revision (D-081).
+    pub holds: bool,
     /// Where the controller found it, when that moved.
     pub host: Option<String>,
     /// Its managed packages as it holds them now, by package: what drift compares with. The

@@ -78,6 +78,15 @@ impl fmt::Display for TxnId {
     }
 }
 
+/// A network device name, as the kernel allows it (`lan1`, `eth0.2`).
+fn valid_device(name: &str) -> bool {
+    (1..=15).contains(&name.len())
+        && !name.starts_with('.')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b'.')
+}
+
 /// Names the tool takes: ids, packages and services.
 fn valid_name(name: &str) -> bool {
     (1..=64).contains(&name.len())
@@ -160,6 +169,12 @@ pub struct Checked {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Armed {
     pub timeout_s: u64,
+}
+
+/// What `bounce` answers: how many ports go down and up again.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Bounced {
+    pub ports: u64,
 }
 
 /// What the tool reports: its footprint's version, the open transaction and the last one that
@@ -272,6 +287,33 @@ pub fn apply(id: &TxnId, timeout: Duration) -> Command<Armed> {
 /// Moves the open transaction's deadline to `timeout` from now.
 pub fn extend(id: &TxnId, timeout: Duration) -> Command<Armed> {
     Command::tool("extend", &[id.as_str(), &timeout.as_secs().to_string()])
+}
+
+/// Once the open transaction is applied, takes `ports` down for `down` (1–30 s) and up again,
+/// detached from the login, so the hosts behind them ask for a lease again (make-before-break
+/// renumbering, D-081); a rollback bounces them once more. Fails with [`code::BUSY`] while
+/// the transaction still reloads.
+pub fn bounce<'a>(
+    ports: impl IntoIterator<Item = &'a str>,
+    down: Duration,
+) -> Result<Command<Bounced>> {
+    let secs = down.as_secs().clamp(1, 30).to_string();
+    let mut args = vec![secs];
+    for port in ports {
+        if !valid_device(port) {
+            return Err(Error::Invalid {
+                what: format!("port name {port:?}"),
+            });
+        }
+        args.push(port.to_owned());
+    }
+    if args.len() == 1 {
+        return Err(Error::Invalid {
+            what: "no ports to bounce".to_owned(),
+        });
+    }
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    Ok(Command::tool("bounce", &args))
 }
 
 /// Keeps the applied transaction; fails with [`code::BUSY`] while it reloads, and with

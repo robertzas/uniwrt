@@ -62,8 +62,10 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
         (job.kind, job.revision),
         (JobKind::Apply, Some(fleet.head().await.meta.id))
     );
+    // Nothing to install, and this controller's network stays; the gateway, managed for the
+    // first time, changes its WAN last.
     assert!(states(&job).iter().all(|(name, state)| *state
-        == if *name == StepName::Install {
+        == if matches!(name, StepName::Install | StepName::Settle) {
             StepState::Skipped
         } else {
             StepState::Done
@@ -76,11 +78,11 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
         .iter()
         .position(|line| line.ends_with(" apply"))
         .unwrap();
-    let last_check = journal
+    let checked = journal[..first_apply]
         .iter()
-        .rposition(|line| line.ends_with(" check"))
-        .unwrap();
-    assert!(last_check < first_apply, "{journal:#?}");
+        .filter(|line| line.ends_with(" check"))
+        .count();
+    assert_eq!(checked, 3, "{journal:#?}");
     let applies: Vec<&str> = journal
         .iter()
         .filter(|line| line.ends_with(" apply"))
@@ -91,6 +93,7 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
         [
             "192.168.1.21 apply",
             "192.168.1.22 apply",
+            "192.168.1.1 apply",
             "192.168.1.1 apply"
         ]
     );
@@ -99,7 +102,7 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
             .iter()
             .filter(|line| line.ends_with(" confirm"))
             .count(),
-        3
+        4
     );
 
     let ap = fleet.fake(1);
@@ -147,8 +150,23 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
             StepName::Stage,
             StepName::Apply,
             StepName::Verify,
-            StepName::Confirm
+            StepName::Confirm,
+            StepName::Settle,
+            StepName::Wan
         ]
+    );
+}
+
+#[tokio::test]
+async fn an_older_transaction_tool_is_updated_before_staging() {
+    let fleet = fleet(&[GW]).await;
+    // Management was turned on by an older controller.
+    fleet.fake(0).tool.lock().unwrap().footprint = Some("older".to_owned());
+    let job = fleet.apply().await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    assert_eq!(
+        fleet.fake(0).tool.lock().unwrap().footprint.as_deref(),
+        Some(txn::Footprint::get().version())
     );
 }
 
@@ -312,37 +330,6 @@ async fn unreachable_or_refused_nodes_stop_it_and_observed_ones_are_skipped() {
     let job = fleet.apply().await;
     failed_with(&job, JobErrorCode::Refused);
     assert_eq!(fleet.journal(), Vec::<String>::new());
-}
-
-#[tokio::test]
-async fn the_gateway_moves_to_its_new_address_and_is_watched_there() {
-    let fleet = fleet(&[GW]).await;
-    let head = fleet.head().await;
-    let mut site = head.config.clone();
-    let lan = site.networks[0].ipv4.as_mut().unwrap();
-    lan.address = "10.0.0.1/24".parse().unwrap();
-    let dhcp = lan.dhcp.as_mut().unwrap();
-    dhcp.start = "10.0.0.100".parse().unwrap();
-    dhcp.end = "10.0.0.249".parse().unwrap();
-    commit(&fleet.store, Some(head.meta.id), site).await;
-    fleet
-        .fake(0)
-        .hosts
-        .lock()
-        .unwrap()
-        .push("10.0.0.1".to_owned());
-    let job = fleet.apply().await;
-    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
-    let node = fleet
-        .store
-        .node(fleet.nodes[0].0.id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(node.host, "10.0.0.1");
-    let moved = fleet.watched.1.lock().unwrap().clone();
-    assert_eq!(moved.len(), 1);
-    assert_eq!(moved[0].host, "10.0.0.1");
 }
 
 #[tokio::test]

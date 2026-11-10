@@ -274,6 +274,8 @@ export const strings = {
       apply: "Apply",
       verify: "Check every device",
       confirm: "Confirm",
+      settle: "Drop the old address",
+      wan: "Change the WAN",
       link: "Link on the WAN port",
       address: "Get an address",
       gateway: "Reach the ISP's gateway",
@@ -1793,6 +1795,11 @@ export const strings = {
       on: "on",
       off: "off",
       address: (from: string, to: string) => `Reached at ${to} once applied (now ${from})`,
+      renumbering: (from: string, to: string) =>
+        `uniwrt sits on this network: it keeps ${from} beside ${to} until uniwrt's host has an address on ${to}, then drops it`,
+      renumberingHint:
+        "The gateway's LAN ports go down for a few seconds so wired devices ask for a new address. uniwrt's host must get its address from the gateway's DHCP; behind a switch, renew its lease while the apply checks. Otherwise everything rolls back.",
+      wanLast: "The WAN changes last, on its own: if it fails, only the WAN rolls back",
       packages: (n: number) => `${n} ${n === 1 ? "package changes" : "packages change"}`,
       noPackages: "Only services change.",
       drift: (packages: readonly string[]) =>
