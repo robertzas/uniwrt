@@ -71,12 +71,12 @@ async fn once(
 ) -> Option<Timestamp> {
     let head = store.head_revision().await.ok()??;
     let sqm = head.config.wan.sqm.clone().filter(|sqm| sqm.autotune)?;
+    let now = clock.now();
     let offset = tz::posix(&head.config.site.timezone)
-        .and_then(tz::standard_offset_s)
-        .unwrap_or(0);
+        .and_then(|posix| tz::local(posix, now))
+        .map_or(0, |local| local.offset_s);
     let tests = store.speed_tests(50).await.ok()?;
     let last_test = tests.iter().find(|test| test.bypassed).map(|test| test.at);
-    let now = clock.now();
     if !autotune_due(now, offset, last_test, last_try) {
         return None;
     }
