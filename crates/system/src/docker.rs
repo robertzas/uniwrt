@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use uniwrt_model::facts::NodeFacts;
 use uniwrt_node::{facts, proto::ops::Collected};
 use uniwrt_render::Rendered;
@@ -84,6 +84,24 @@ impl Node {
         let errors = facts::apply(&collected, &mut node);
         assert!(errors.is_empty(), "{}: {errors:?}", self.container);
         node
+    }
+
+    /// The working tree's agent's answer to `op` with `args`: its result, or its error
+    /// (`code`, `msg`).
+    pub fn agent(&self, op: &str, args: &Value) -> Result<Value, Value> {
+        let request = format!("{}\n", json!({"id": 1, "op": op, "args": args}));
+        let run = self.run(
+            "ucode /tmp/uniwrt/agent/main.uc --sync",
+            &[],
+            request.as_bytes(),
+        );
+        assert!(run.ok, "{}: {op} failed: {}", self.container, run.stderr);
+        let line = run.stdout.lines().last().expect("the agent answers");
+        let mut answer: Value = serde_json::from_str(line).expect("a JSON answer");
+        match answer.get_mut("ok") {
+            Some(ok) => Ok(ok.take()),
+            None => Err(answer["err"].take()),
+        }
     }
 
     /// The managed packages the node holds now, by name.

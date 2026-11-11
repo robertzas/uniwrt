@@ -312,6 +312,12 @@ pub enum EventKind {
         error: String,
     },
     ClientBansOk,
+    /// The controller could not give a node's access points their 802.11k neighbor lists
+    /// (raises `neighbor-reports`, cleared once it could; features/wifi.md, Roaming).
+    NeighborReportsFailed {
+        error: String,
+    },
+    NeighborReportsOk,
 }
 
 impl EventKind {
@@ -350,11 +356,13 @@ impl EventKind {
             Self::ChannelChanged { radar: true, .. }
             | Self::ChannelCongested { .. }
             | Self::WlanScheduleFailed { .. }
-            | Self::ClientBansFailed { .. } => (C::Wifi, L::Warning),
+            | Self::ClientBansFailed { .. }
+            | Self::NeighborReportsFailed { .. } => (C::Wifi, L::Warning),
             Self::ChannelChanged { .. }
             | Self::ChannelClear { .. }
             | Self::WlanScheduleOk { .. }
-            | Self::ClientBansOk => (C::Wifi, L::Notice),
+            | Self::ClientBansOk
+            | Self::NeighborReportsOk => (C::Wifi, L::Notice),
             Self::WlanScheduled { .. } => (C::Wifi, L::Info),
         }
     }
@@ -398,6 +406,8 @@ impl EventKind {
             Self::ClientUnblocked { .. } => "client_unblocked",
             Self::ClientBansFailed { .. } => "client_bans_failed",
             Self::ClientBansOk => "client_bans_ok",
+            Self::NeighborReportsFailed { .. } => "neighbor_reports_failed",
+            Self::NeighborReportsOk => "neighbor_reports_ok",
         }
     }
 }

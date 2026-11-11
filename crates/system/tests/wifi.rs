@@ -4,7 +4,8 @@
 //! Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
 //! Then c's 5 GHz uplink fast-roams (802.11r with SAE, D-085) from b to a and back: each
 //! access point reports the station authorized by FT, the keys handed between them under the
-//! rendered key holders. The test leaves the lab rendered; the script restarts it afterwards.
+//! rendered key holders. Before that, the agent's `rrm` op gives each 5 GHz access point the
+//! other as its 802.11k neighbor. The test leaves the lab rendered; the script restarts it afterwards.
 
 use std::{
     process::Command,
@@ -12,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use serde_json::json;
 use uniwrt_core::{Ipv4Net, MacAddr};
 use uniwrt_model::node::NodeRole;
 use uniwrt_system::{
@@ -176,6 +178,39 @@ fn fast_roam(c: &Node, iface: &str, station: MacAddr, to: &Node) {
     );
 }
 
+/// The agent's `rrm` op on the rendered 802.11k (features/wifi.md, Roaming): each node's 5 GHz
+/// access point reports itself and takes the other's as its neighbor, which hostapd's list then
+/// holds; the same lists sent again change nothing.
+fn neighbor_reports(a: &Node, b: &Node) {
+    let mine = |node: &Node| {
+        let (ifname, _) = ap_on_36(node);
+        let state = node.agent("rrm", &json!({})).expect("rrm answers");
+        let own = state["own"].as_array().cloned().unwrap_or_default();
+        let report = own.into_iter().find(|o| o["ifname"] == ifname.as_str());
+        let report =
+            report.unwrap_or_else(|| panic!("{}: no report of {ifname}: {state}", node.container));
+        (ifname, report)
+    };
+    let (ra, rb) = (mine(a), mine(b));
+    for (node, (ifname, _), (_, theirs)) in [(a, &ra, &rb), (b, &rb, &ra)] {
+        let entry = json!([theirs["bssid"], theirs["ssid"], theirs["nr"]]);
+        let lists = json!({"lists": {ifname: [entry]}});
+        let state = node.agent("rrm", &lists).expect("rrm sets");
+        assert_eq!(state["set"], json!([ifname]), "{}: {state}", node.container);
+        assert_eq!(state["failed"], json!([]), "{}: {state}", node.container);
+        let held = node.sh(r#"ubus call "hostapd.$1" rrm_nr_list"#, &[ifname]);
+        let bssid = theirs["bssid"].as_str().expect("a BSSID");
+        assert!(held.contains(bssid), "{}: {held}", node.container);
+        let again = node.agent("rrm", &lists).expect("rrm answers");
+        assert_eq!(
+            again["set"],
+            json!([]),
+            "{}: held already: {again}",
+            node.container
+        );
+    }
+}
+
 #[test]
 #[ignore = "needs the hwsim lab"]
 fn rendered_wlans_and_mesh_carry_the_client() {
@@ -250,6 +285,8 @@ fn rendered_wlans_and_mesh_carry_the_client() {
             ipv4(s).iter().any(|a| a.starts_with("10.99.0."))
         });
     }
+
+    neighbor_reports(&a, &b);
 
     // c's 5 GHz uplink offers 802.11r too, joins b with FT-SAE, then roams to a and back.
     c.sh(

@@ -266,6 +266,10 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return withDetail(titles.clientBansFailed(node), what.error);
     case "client_bans_ok":
       return { title: titles.clientBansOk(node) };
+    case "neighbor_reports_failed":
+      return withDetail(titles.neighborReportsFailed(node), what.error);
+    case "neighbor_reports_ok":
+      return { title: titles.neighborReportsOk(node) };
   }
 }
 

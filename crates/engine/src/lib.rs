@@ -41,7 +41,9 @@
 //!   through the agent's `bss` op, and announces the turns and refusals as events (D-083);
 //!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
-//!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084).
+//!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
+//!   [`NeighborReports`] ([`NeighborsConfig`]) gives the managed nodes' 802.11k access points
+//!   their neighbor lists through the agent's `rrm` op, ranked by the RF report's matrix.
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -90,6 +92,7 @@ mod interest;
 mod live;
 mod logs;
 mod metrics;
+mod neighbors;
 mod notify;
 mod rf;
 mod roam;
@@ -115,6 +118,7 @@ pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use logs::{LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
+pub use neighbors::{NeighborReports, NeighborsConfig};
 pub use notify::{Notifications, Notify, NotifyConfig, NotifyStopped};
 pub use rf::{Rf, RfConfig, RfError, RfScanner};
 pub use schedule::Intervals;

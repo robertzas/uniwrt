@@ -85,6 +85,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
             "log_follow",
             "ping",
             "read_file",
+            "rrm",
             "scan",
             "set_interval",
             "subscribe",

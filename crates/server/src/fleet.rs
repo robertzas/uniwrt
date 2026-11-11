@@ -17,9 +17,9 @@ use uniwrt_core::Clock;
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, ClientRecorder, DriftConfig,
     DriftWatch, Drifts, Engine, EngineConfig, EventRecorder, EventsConfig, HistoryConfig,
-    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, Notifications, Notify, NotifyConfig,
-    RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig, Snapshots, TopologyHistory,
-    WlanSchedules,
+    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
+    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
+    Snapshots, TopologyHistory, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -58,6 +58,7 @@ pub(crate) struct Fleet {
     drift: Option<DriftWatch>,
     schedules: Option<WlanSchedules>,
     bans: Option<ClientBans>,
+    neighbors: Option<NeighborReports>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -113,6 +114,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             bans: None,
+            neighbors: None,
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
@@ -191,6 +193,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             bans: None,
+            neighbors: None,
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
@@ -242,6 +245,9 @@ impl Fleet {
         }
         if let Some(bans) = self.bans {
             bans.stop().await;
+        }
+        if let Some(neighbors) = self.neighbors {
+            neighbors.stop().await;
         }
         if let Some(drift) = self.drift {
             drift.stop().await;
@@ -333,6 +339,12 @@ impl Fleet {
             store.clone(),
             Some(jobs.subscribe()),
             BansConfig::default(),
+        ));
+        self.neighbors = Some(NeighborReports::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            NeighborsConfig::default(),
         ));
     }
 

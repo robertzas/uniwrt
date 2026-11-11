@@ -24,7 +24,7 @@ macro_rules! file {
 
 /// The agent's files, relative to `node-agent/`; a test keeps the list in step with the
 /// directory.
-const FILES: [(&str, &str); 26] = [
+const FILES: [(&str, &str); 27] = [
     file!("ban.uc"),
     file!("bss.uc"),
     file!("bus.uc"),
@@ -46,6 +46,7 @@ const FILES: [(&str, &str); 26] = [
     file!("main.uc"),
     file!("ops.uc"),
     file!("proto.uc"),
+    file!("rrm.uc"),
     file!("scan.uc"),
     file!("streams.uc"),
     file!("ticks.uc"),

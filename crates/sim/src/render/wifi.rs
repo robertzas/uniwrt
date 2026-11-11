@@ -57,6 +57,38 @@ pub(crate) fn ap_ifaces(
         .collect()
 }
 
+/// The BSSID of a radio's `k`th access point: further BSSes take locally administered
+/// addresses after the first's.
+pub(crate) fn bss_mac(node: &crate::world::Node, band: Band, k: usize) -> uniwrt_core::MacAddr {
+    let mut mac = node.bssid(band).octets();
+    if k > 0 {
+        mac[0] |= 0x02;
+        mac[5] = mac[5].wrapping_add(k as u8);
+    }
+    uniwrt_core::MacAddr::new(mac)
+}
+
+/// The access points up on node `n`, as `(ifname, ssid, bssid, band, channel)`.
+pub(crate) fn bsses(
+    world: &World,
+    n: usize,
+    aps: &[(String, String, String)],
+    off: &BTreeSet<String>,
+) -> Vec<(String, String, uniwrt_core::MacAddr, Band, u8)> {
+    let node = &world.nodes[n];
+    let mut out = Vec::new();
+    for radio in &node.radios {
+        let mine = ap_ifaces(aps, radio.band.index(), radio.band);
+        for (k, (_, ifname, ssid)) in mine.into_iter().enumerate() {
+            if !off.contains(&ifname) {
+                let mac = bss_mac(node, radio.band, k);
+                out.push((ifname, ssid, mac, radio.band, radio.channel));
+            }
+        }
+    }
+    out
+}
+
 /// The radios and their interfaces: `aps` are the access points the node's `wireless` sets up
 /// ([`ap_ifaces`]); those in `off` are down (netifd lists them, nl80211 doesn't).
 pub(super) fn radios(
@@ -111,13 +143,7 @@ pub(super) fn radios(
             if off.contains(ifname) {
                 continue;
             }
-            // Further BSSes take locally administered addresses after the first's.
-            let mut mac = node.bssid(band).octets();
-            if k > 0 {
-                mac[0] |= 0x02;
-                mac[5] = mac[5].wrapping_add(k as u8);
-            }
-            let mac = uniwrt_core::MacAddr::new(mac).to_string();
+            let mac = bss_mac(node, band, k).to_string();
             nl.push(nl_iface(ifname, 3, mac, Some(ssid)));
         }
         if band == Band::G5 {

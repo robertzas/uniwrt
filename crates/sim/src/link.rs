@@ -16,7 +16,7 @@ use tokio::sync::{broadcast, watch};
 use uniwrt_node::{
     AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, LinkState, NodeLink,
     Result,
-    proto::ops::{LogFollow, LogMode, Set, SetInterval, Topic},
+    proto::ops::{LogFollow, LogMode, NeighborReport, Set, SetInterval, Topic},
 };
 
 use crate::{
@@ -176,6 +176,7 @@ impl SimLink {
             }
             "bss" => self.bss(&world, op, args)?,
             "ban" => self.ban(&mut world, op, args)?,
+            "rrm" => self.rrm(&world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;
                 render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {
@@ -245,6 +246,46 @@ impl SimLink {
             })
             .collect();
         Ok(json!({"bsses": bsses, "kicked": kicked, "failed": []}))
+    }
+
+    /// `rrm`: every access point's own neighbor report, and the lists set (`node-agent/rrm.uc`),
+    /// which last until `wireless` changes.
+    fn rrm(&self, world: &crate::world::World, op: &str, args: &RawValue) -> Result<Value> {
+        let lists: BTreeMap<String, Vec<NeighborReport>> = field(op, args, "lists")?;
+        let mut disk = lock(&self.shared.nodes[self.node].disk);
+        let aps = render::config::aps(&disk.tool.files);
+        let bsses = render::wifi::bsses(world, self.node, &aps, &disk.bss_off());
+        let own: Vec<Value> = bsses
+            .iter()
+            .map(|(ifname, ssid, bssid, band, channel)| {
+                // BSSID, BSSID information, operating class, channel and PHY type (HE).
+                let class = if *band == crate::world::radio::Band::G2 {
+                    81
+                } else {
+                    128
+                };
+                let hex = bssid.to_string().replace(':', "");
+                let nr = format!("{hex}8f000000{class:02x}{channel:02x}0e");
+                json!({"ifname": ifname, "bssid": bssid.to_string(), "ssid": ssid, "nr": nr})
+            })
+            .collect();
+        let mut held = disk.rrm();
+        let (mut set, mut failed) = (Vec::new(), Vec::new());
+        for (ifname, mut list) in lists {
+            if !bsses.iter().any(|(i, ..)| *i == ifname) {
+                failed
+                    .push(json!({"ifname": ifname, "error": "no access point with 802.11k there"}));
+                continue;
+            }
+            list.sort();
+            if held.get(&ifname) != Some(&list) {
+                set.push(ifname.clone());
+                held.insert(ifname, list);
+            }
+        }
+        let wireless = disk.tool.files.get("wireless").cloned().unwrap_or_default();
+        disk.rrm = Some((wireless, held));
+        Ok(json!({"own": own, "set": set, "failed": failed}))
     }
 
     /// `read_file` of a package in `/etc/config`, which is all the controller reads so.

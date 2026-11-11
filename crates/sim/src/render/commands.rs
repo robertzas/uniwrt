@@ -6,9 +6,12 @@
 //! the gateway's DNS check (`nslookup`). Anything else exits 127, as `sh` does for a command it
 //! cannot find.
 
-use std::{collections::BTreeSet, fmt::Write as _};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+};
 
-use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus};
+use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus, proto::ops::NeighborReport};
 
 use crate::{
     hand_edit::HandEdit,
@@ -41,6 +44,9 @@ pub(crate) struct Disk {
     /// The BSSes the `bss` op turned off, and `/etc/config/wireless` as it was then: a
     /// `wifi reload` (an apply that changes it) brings them back ([`Disk::bss_off`]).
     pub(crate) bss_off: Option<(String, BTreeSet<String>)>,
+    /// The neighbor lists the `rrm` op set, by interface, with the `wireless` they were set
+    /// under: hostapd forgets them when a reload restarts the BSSes ([`Disk::rrm`]).
+    pub(crate) rrm: Option<(String, BTreeMap<String, Vec<NeighborReport>>)>,
 }
 
 impl Default for Disk {
@@ -54,6 +60,7 @@ impl Default for Disk {
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
             bss_off: None,
+            rrm: None,
         }
     }
 }
@@ -66,6 +73,16 @@ impl Disk {
                 off.clone()
             }
             _ => BTreeSet::new(),
+        }
+    }
+
+    /// The neighbor lists hostapd holds: those set since `wireless` last changed.
+    pub(crate) fn rrm(&self) -> BTreeMap<String, Vec<NeighborReport>> {
+        match &self.rrm {
+            Some((wireless, lists)) if self.tool.files.get("wireless") == Some(wireless) => {
+                lists.clone()
+            }
+            _ => BTreeMap::new(),
         }
     }
 

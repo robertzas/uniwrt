@@ -1116,6 +1116,8 @@ export const strings = {
       clientUnblocked: (client: string) => `${client} was unblocked`,
       clientBansFailed: (node: string) => `${node}: couldn't keep blocked clients off`,
       clientBansOk: (node: string) => `${node}: keeps blocked clients off again`,
+      neighborReportsFailed: (node: string) => `${node}: couldn't take its roaming neighbors`,
+      neighborReportsOk: (node: string) => `${node}: takes its roaming neighbors again`,
     },
     detail: {
       by: (user: string) => `By ${user}`,
@@ -1334,6 +1336,8 @@ export const strings = {
       client_unblocked: "Client unblocked",
       client_bans_failed: "Blocked clients not kept off",
       client_bans_ok: "Blocked clients kept off again",
+      neighbor_reports_failed: "Roaming neighbors not set",
+      neighbor_reports_ok: "Roaming neighbors set again",
       log_pattern: "Problem in a log",
     },
     kindGroups: {

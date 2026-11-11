@@ -173,6 +173,15 @@ describe("events in words", () => {
     expect(describeEvent(event({ kind: "client_bans_ok" }), names).title).toBe(
       "Attic AP: keeps blocked clients off again",
     );
+    expect(
+      describeEvent(event({ kind: "neighbor_reports_failed", error: "refused" }), names),
+    ).toEqual({
+      title: "Attic AP: couldn't take its roaming neighbors",
+      detail: "refused",
+    });
+    expect(describeEvent(event({ kind: "neighbor_reports_ok" }), names).title).toBe(
+      "Attic AP: takes its roaming neighbors again",
+    );
   });
 
   it("links to the logs around it, on its device", () => {

@@ -141,6 +141,10 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/logs/source.rs`: Where one node's log comes from, and what to skip so that each entry is stored once (D-059): the agent follows the log until syslog arrives from the node, and again once its syslog stops (TCP closed, or quiet for a while over UDP).
 - `src/logs/tests.rs`: The recorder over a store, an engine with one node (its link never connects) and syslog fed by hand: the agent follows the log, resumes after what is stored, gives way to syslog and takes over again when syslog goes quiet or closes; other hosts are stored by name.
 - `src/metrics.rs`: Recording metrics (`uniwrt_metrics`; features/observability.md, Metrics): a sampler fed by the bus (facts, topology builds, clients' samples) whose closed windows are written every [`MetricsConfig::flush_every`], and the store's upkeep beside it: rollups every [`MetricsConfig::roll_up_every`], retention every [`MetricsConfig::prune_every`].
+- `src/neighbors/mod.rs`: 802.11k neighbor reports (features/wifi.md, Roaming): each access point of the managed nodes (those whose saved config manages `wireless`) tells its clients which of the site's other access points broadcast its SSID, so they can measure those first and roam sooner.
+- `src/neighbors/plan.rs`: Each BSS's neighbor list: pure, over the BSSes known and how the nodes hear each other.
+- `src/neighbors/task.rs`: The neighbor reports' task: what each node holds, what to send it, and what to announce.
+- `src/neighbors/tests.rs`: The neighbor reports over a store and an engine watching two nodes (the lab gateway's capture), the `rrm` op answered by hand: each managed node's BSS gets the other's as its neighbor, a node in observe mode is left alone, and a refusal raises a condition that clears once the node takes its lists.
 - `src/notify/mod.rs`: Notifications (features/observability.md, Notifications; `uniwrt_notify`): the alerts the alert engine stores ([`Event::Alerts`]) go through the notifiers' [`Policy`], which is also ticked for reminders; what it decides goes to each notifier's worker, which gathers what arrives together into one message, delivers it with its secrets from the vault, tries again when that may help, and records how it went.
 - `src/notify/tests.rs`: Notifications over a store, a vault and an engine without nodes, fed alerts by hand on a manual clock, delivering to a webhook on loopback: an alert already firing at the start is not repeated, a failed delivery is tried again, alerts that arrive together go as a digest, reminders follow the clock, a disabled notifier hears nothing, and a test goes out at once.
 - `src/notify/worker.rs`: One notifier's deliveries, in order: what arrives within [`NotifyConfig::gather`] of the first goes out together (one alert as itself, several as a digest of at most [`MAX_DIGEST`]), and a delivery that fails in a way that may pass is tried again after each of [`NotifyConfig::retries`].
@@ -386,6 +390,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
+- `src/proto/ops/rrm.rs`: `rrm`: 802.11k neighbor reports, mirrored by `node-agent/rrm.uc` (features/wifi.md, Roaming).
 - `src/proto/ops/scan.rs`: `scan`: a neighbor scan of one radio, mirrored by `node-agent/scan.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
 - `src/root_password.rs`: Root's password on a node (features/adoption.md, Identity, credentials, trust): adoption gives a node that has none (factory-default OpenWrt, whose dropbear lets anyone on its LAN in as root) a random one, which the controller keeps in its vault for emergencies.
@@ -540,6 +545,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `tests/bss.rs`: The simulated agent's `bss` op (D-083): a BSS it turns off is down in the `radios` set (netifd still lists it) and its clients are gone from `stations`; turned on, both come back; a phy the node lacks is refused.
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
+- `tests/rrm.rs`: The simulated agent's `rrm` op: each access point's own neighbor report, and lists that are set once and left alone when sent again.
 
 ### `uniwrt-store` (crates/store)
 
@@ -682,6 +688,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `ops.uc`: The agent's operations (`proto::ops`).
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
+- `rrm.uc`: The `rrm` op (features/wifi.md, Roaming): 802.11k neighbor reports.
 - `scan.uc`: The `scan` op's worker, run by ops.uc as a process of its own (`ucode scan.uc '<args>'`) so that its nl80211 socket is its own: a forked task would share the agent's, and the agent's ticks could read the scan's replies.
 - `streams.uc`: Push events from ubus (`subscribe`, `unsubscribe`; event loop only): the notifications of daemons' objects, forwarded as `{"ev":"<source>.<type>","ts":…,"data":{…}}` with the data as the daemon sent it.
 - `ticks.uc`: Periodic collection (`set_interval`; event loop only): sets collected on a schedule and pushed as `{"tick":{"sets":{…},"errors":{…}}}`, the shape of a `collect` answer.
