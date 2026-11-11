@@ -18,6 +18,7 @@ use crate::{
     ext::SectionExt,
     mesh,
     plan::{Plan, band_name, mesh_default_channel},
+    roaming,
 };
 
 pub(crate) fn render(plan: &mut Plan<'_>) -> Package {
@@ -329,26 +330,23 @@ fn ap_ifaces(
     if wlan.security == WlanSecurity::OweTransition && radio.band != Band::G6 {
         *pairs += 1;
         let (open, owe) = (format!("uw{pairs}-open"), format!("uw{pairs}-owe"));
+        let open_bss = bss(format!("{name}o"), &wlan.ssid, "none")
+            .with("ifname", open.as_str())
+            .with("owe_transition_ifname", owe.as_str())
+            .flag("hidden", wlan.hidden);
+        let owe_bss = bss(name, &format!("{}OWE", wlan.ssid), encryption)
+            .with("ifname", owe.as_str())
+            .with("owe_transition_ifname", open.as_str())
+            .maybe("ieee80211w", pmf)
+            .flag("hidden", true);
         return vec![
-            common(
-                bss(format!("{name}o"), &wlan.ssid, "none")
-                    .with("ifname", open.as_str())
-                    .with("owe_transition_ifname", owe.as_str())
-                    .flag("hidden", wlan.hidden),
-            ),
-            common(
-                bss(name, &format!("{}OWE", wlan.ssid), encryption)
-                    .with("ifname", owe.as_str())
-                    .with("owe_transition_ifname", open.as_str())
-                    .maybe("ieee80211w", pmf)
-                    .flag("hidden", true),
-            ),
+            common(roaming::options(plan, wlan, "none", open_bss)),
+            common(roaming::options(plan, wlan, encryption, owe_bss)),
         ];
     }
-    vec![common(
-        bss(name, &wlan.ssid, encryption)
-            .maybe("key", key)
-            .maybe("ieee80211w", pmf)
-            .flag("hidden", wlan.hidden),
-    )]
+    let section = bss(name, &wlan.ssid, encryption)
+        .maybe("key", key)
+        .maybe("ieee80211w", pmf)
+        .flag("hidden", wlan.hidden);
+    vec![common(roaming::options(plan, wlan, encryption, section))]
 }

@@ -157,6 +157,7 @@ describe("Wi-Fi", () => {
       isolation: true,
       max_clients: null,
       schedule: null,
+      roaming: { fast: null, hints: true },
     });
   });
 
@@ -175,6 +176,12 @@ describe("Wi-Fi", () => {
     await user.click(within(editor).getByRole("button", { name: "All but these" }));
     await user.click(within(editor).getByLabelText("attic"));
     await user.type(within(editor).getByLabelText("Clients per radio"), "40");
+    // Fast roaming: left to the mode, WPA3 goes without; forced on, the form warns.
+    expect(within(editor).getByText(/Auto: on for WPA2.*Now off\./)).toBeInTheDocument();
+    const fast = within(editor).getByRole("group", { name: "Fast roaming (802.11r)" });
+    await user.click(within(fast).getByRole("button", { name: "On" }));
+    expect(within(editor).getByText(/Some clients fail to join WPA3/)).toBeInTheDocument();
+    await user.click(within(editor).getByLabelText("Roaming hints (802.11k/v)"));
     await user.click(within(editor).getByRole("button", { name: "Save" }));
     expect(await within(editor).findByText(/Saved as revision 3/)).toBeInTheDocument();
     expect(put().message).toBe("Edit WLAN uniwrt-demo");
@@ -187,6 +194,7 @@ describe("Wi-Fi", () => {
       nodes: { scope: "except", nodes: [2] },
       max_clients: 40,
       schedule: null,
+      roaming: { fast: true, hints: false },
     });
   });
 

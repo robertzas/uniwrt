@@ -103,13 +103,27 @@ pub(crate) fn assert_lossless(import: &Import) {
     }
 }
 
+/// Whether a residual changes only the 802.11r keys: the import renders a stand-in for the
+/// controller's, which replace a node's own (D-085).
+pub(crate) fn ft_keys_only(diff: &uniwrt_uci::Diff) -> bool {
+    diff.sections.iter().all(|section| {
+        section.before.is_some()
+            && section.after.is_some()
+            && !section.moved
+            && section
+                .options
+                .iter()
+                .all(|option| matches!(option.name.as_str(), "r0kh" | "r1kh"))
+    })
+}
+
 /// The packages the import renders for a node, with all of them managed.
 pub(crate) fn rendered(import: &Import, found: &Found) -> BTreeMap<String, Package> {
     let mut site = import.site.clone();
     crate::node_config(&mut site, found.node).managed = RENDERABLE.into_iter().collect();
     let rendered = uniwrt_render::render(
         &site,
-        &import.secrets,
+        &crate::fit::Trial(&import.secrets),
         Target {
             node: found.node,
             role: found.role,

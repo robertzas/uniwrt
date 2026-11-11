@@ -37,6 +37,20 @@ function features(binary, names) {
 	return found;
 }
 
+// 802.11v has no `-v` switch: only a hostapd built with WNM (the full and mesh wpad, not the
+// basic one) knows the `wnm_sleep_mode` option, and netifd writes it as asked, so a hostapd
+// without it would refuse the whole BSS. The binary names its options (D-085).
+function wnm(binary) {
+	return status(["grep", "-qF", "wnm_sleep_mode", binary], 5000) == 0;
+}
+
+function hostapd() {
+	let found = features("/usr/sbin/hostapd", HOSTAPD);
+	if (found != null && wnm("/usr/sbin/hostapd"))
+		push(found, "11v");
+	return found;
+}
+
 function collect() {
 	let package_managers = [];
 	for (let name, path in PACKAGE_MANAGERS)
@@ -52,7 +66,7 @@ function collect() {
 	return {
 		package_managers: package_managers,
 		software: software,
-		hostapd: features("/usr/sbin/hostapd", HOSTAPD),
+		hostapd: hostapd(),
 		wpa_supplicant: features("/usr/sbin/wpa_supplicant", SUPPLICANT),
 		swconfig: readjson("/etc/board.json")?.switch != null,
 		dsa: length(fs.glob("/sys/class/net/*/dsa") ?? []) > 0,

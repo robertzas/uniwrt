@@ -4,6 +4,7 @@ import { siteConfig } from "../../test/site";
 import {
   draftOf,
   errorsOfIssues,
+  fastRoams,
   idOf,
   joinCode,
   minutesOf,
@@ -23,11 +24,25 @@ describe("WLAN drafts", () => {
       max_clients: 30,
       nodes: { scope: "only", nodes: [2, 1] },
       schedule: { spans: [{ days: ["mon", "fri"], from: 420, to: 1320 }] },
+      roaming: { fast: false, hints: false },
     };
     const out = wlanOf(draftOf(wlan), wlan, []);
     expect(out.errors).toEqual({});
     expect(out.wlan).toEqual({ ...wlan, nodes: { scope: "only", nodes: [1, 2] } });
     expect(out.secrets).toBeUndefined();
+  });
+
+  it("decides fast roaming as the controller does", () => {
+    expect(draftOf(home()).fast).toBe("auto");
+    expect(fastRoams("wpa2", "auto")).toBe(true);
+    expect(fastRoams("wpa2_wpa3", "auto")).toBe(false);
+    expect(fastRoams("wpa3", "on")).toBe(true);
+    expect(fastRoams("wpa2", "off")).toBe(false);
+    expect(fastRoams("owe", "on")).toBe(false);
+    const on = wlanOf({ ...draftOf(home()), fast: "on" }, home(), []);
+    expect(on.wlan?.roaming).toEqual({ fast: true, hints: true });
+    const auto = wlanOf(draftOf(home()), home(), []);
+    expect(auto.wlan?.roaming).toEqual({ fast: null, hints: true });
   });
 
   it("sends a new passphrase as a secret and drops the reference of an open WLAN", () => {

@@ -11,7 +11,7 @@ use uniwrt_model::{
         node::{ManagedPackage, RawSection, RawValue},
     },
 };
-use uniwrt_render::{MESH_IFACE, RENDERABLE, Rendered, Target, raw};
+use uniwrt_render::{MESH_IFACE, RENDERABLE, Rendered, Secrets, Target, raw};
 use uniwrt_uci::{Package, Section, Value};
 
 use crate::{Fate, NodeImport, SectionImport, Source, node_config, read::Renames};
@@ -50,6 +50,17 @@ pub(crate) fn node(
         })
         .collect();
     rename_interfaces(&mut original, &renames.interfaces);
+    if let Some(wireless) = original.get_mut(&ManagedPackage::Wireless) {
+        // The controller's 802.11r keys replace the node's own (D-085): they never go raw.
+        for iface in wireless
+            .sections
+            .iter_mut()
+            .filter(|s| s.kind == "wifi-iface")
+        {
+            iface.remove("r0kh");
+            iface.remove("r1kh");
+        }
+    }
     if let Some(sqm) = original.get_mut(&ManagedPackage::Sqm) {
         for section in &mut sqm.sections {
             if let Some(new) = section.name.as_deref().and_then(|n| renames.queues.get(n)) {
@@ -87,7 +98,9 @@ pub(crate) fn node(
     let residual = original
         .iter()
         .filter_map(|(package, before)| {
-            let diff = uniwrt_uci::diff(before, rendered.packages.get(package)?);
+            let mut diff = uniwrt_uci::diff(before, rendered.packages.get(package)?);
+            // As review screens show secrets: the 802.11r keys are a stand-in anyway.
+            uniwrt_model::apply::mask(&mut diff);
             (!diff.is_empty()).then_some(diff)
         })
         .collect();
@@ -213,6 +226,20 @@ fn seal(
     }
 }
 
+/// The trial's secrets: the values found, and a stand-in for the controller's 802.11r keys,
+/// which aren't the import's to read.
+pub(crate) struct Trial<'a>(pub(crate) &'a BTreeMap<SecretRef, String>);
+
+impl Secrets for Trial<'_> {
+    fn get(&self, secret: &SecretRef) -> Option<&str> {
+        self.0.get(secret).map(String::as_str)
+    }
+
+    fn ft_key(&self, _wlan: &str) -> Option<&str> {
+        Some("0000000000000000000000000000000000000000000000000000000000000000")
+    }
+}
+
 /// Renders the node with every package render writes managed.
 fn trial(
     site: &SiteConfig,
@@ -223,7 +250,7 @@ fn trial(
     node_config(&mut trial, source.node).managed = RENDERABLE.into_iter().collect();
     uniwrt_render::render(
         &trial,
-        secrets,
+        &Trial(secrets),
         Target {
             node: source.node,
             role: source.role,

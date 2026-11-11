@@ -19,6 +19,8 @@ import {
   type DraftErrors,
   draftOf,
   errorsOfIssues,
+  type FastRoaming,
+  fastRoams,
   needsPassphrase,
   type Preset,
   presetWlan,
@@ -33,6 +35,17 @@ import { BAND_DOT } from "./WlanRow";
 const t = strings.wifi.editor;
 const PRESETS: readonly Preset[] = ["main", "guest", "iot"];
 const SCOPES: readonly NodeScope["scope"][] = ["all", "only", "except"];
+const FAST: readonly FastRoaming[] = ["auto", "on", "off"];
+
+/** What fast roaming does with this security mode, or why it can't. */
+function fastHint(draft: WlanDraft): { text: string; warn: boolean } {
+  if (!needsPassphrase(draft.security)) return { text: t.fastNeedsPassphrase, warn: false };
+  const wpa3 = draft.security === "wpa3" || draft.security === "wpa2_wpa3";
+  if (draft.fast === "on" && wpa3) return { text: t.fastWpa3, warn: true };
+  if (draft.fast === "auto")
+    return { text: t.fastAuto(fastRoams(draft.security, "auto")), warn: false };
+  return { text: draft.fast === "on" ? t.fastOn : t.fastOff, warn: false };
+}
 
 /**
  * A WLAN's editor (wifi.md, WLANs): its name and network, security, bands, the devices that
@@ -293,6 +306,27 @@ export function WlanEditor(props: {
                 error={errors().maxClients}
               />
             </div>
+          </section>
+          <section class="flex flex-col gap-3" aria-label={t.roaming}>
+            <h3 class="font-semibold text-sm">{t.roaming}</h3>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="text-sm">{t.fast}</span>
+              <Segmented
+                label={t.fast}
+                value={draft().fast}
+                options={FAST.map((value) => ({ value, label: t.fastModes[value] ?? value }))}
+                onChange={(fast) => change({ fast })}
+              />
+            </div>
+            <p class={["text-xs", fastHint(draft()).warn ? "text-warn" : "text-fg-muted"]}>
+              {fastHint(draft()).text}
+            </p>
+            <Checkbox
+              checked={draft().hints}
+              onChange={(hints) => change({ hints })}
+              label={t.hints}
+              hint={t.hintsHint}
+            />
           </section>
           <ScheduleField
             scheduled={draft().scheduled}

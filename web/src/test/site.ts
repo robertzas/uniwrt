@@ -61,6 +61,7 @@ export function siteConfig(): SiteConfig {
         isolation: false,
         max_clients: null,
         schedule: null,
+        roaming: { fast: null, hints: true },
       },
     ],
     mesh: {

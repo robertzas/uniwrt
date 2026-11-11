@@ -58,6 +58,7 @@ mod ports;
 mod preserve;
 pub mod raw;
 mod redirect;
+mod roaming;
 mod split;
 mod sqm;
 mod switch;
@@ -69,6 +70,14 @@ mod wireless;
 /// The vault's values of the site's secrets.
 pub trait Secrets {
     fn get(&self, secret: &SecretRef) -> Option<&str>;
+
+    /// The 802.11r key of the WLAN `wlan` (64 hex digits), which its access points protect
+    /// the keys they send each other with under SAE: the controller derives it from a key of
+    /// its own (D-085), so clients that know the passphrase can't.
+    fn ft_key(&self, wlan: &str) -> Option<&str> {
+        let _ = wlan;
+        None
+    }
 }
 
 impl Secrets for BTreeMap<SecretRef, String> {

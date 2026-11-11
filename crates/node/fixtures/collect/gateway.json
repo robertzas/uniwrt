@@ -223,7 +223,8 @@
     "11r",
     "acs",
     "sae",
-    "owe"
+    "owe",
+    "11v"
    ],
    "wpa_supplicant": [
     "eap",

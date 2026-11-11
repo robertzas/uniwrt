@@ -34,13 +34,35 @@ pub(crate) fn secret(n: u8) -> SecretRef {
     SecretRef::new(format!("config/{n:032x}")).unwrap()
 }
 
-pub(crate) fn secrets() -> BTreeMap<SecretRef, String> {
-    BTreeMap::from([
-        (secret(1), "correct horse battery".to_owned()),
-        (secret(2), "things-only-2024".to_owned()),
-        (secret(3), "mesh key 0123456789".to_owned()),
-        (secret(4), "pppoe-pass".to_owned()),
-    ])
+/// The vault's values, and an 802.11r key for every WLAN: its id, repeated to 64 characters.
+pub(crate) struct TestSecrets {
+    values: BTreeMap<SecretRef, String>,
+    ft_keys: BTreeMap<String, String>,
+}
+
+impl uniwrt_render::Secrets for TestSecrets {
+    fn get(&self, secret: &SecretRef) -> Option<&str> {
+        self.values.get(secret).map(String::as_str)
+    }
+
+    fn ft_key(&self, wlan: &str) -> Option<&str> {
+        self.ft_keys.get(wlan).map(String::as_str)
+    }
+}
+
+pub(crate) fn secrets() -> TestSecrets {
+    TestSecrets {
+        values: BTreeMap::from([
+            (secret(1), "correct horse battery".to_owned()),
+            (secret(2), "things-only-2024".to_owned()),
+            (secret(3), "mesh key 0123456789".to_owned()),
+            (secret(4), "pppoe-pass".to_owned()),
+        ]),
+        ft_keys: ["home", "things", "guest"]
+            .into_iter()
+            .map(|id| (id.to_owned(), id.repeat(64).chars().take(64).collect()))
+            .collect(),
+    }
 }
 
 /// The canonical gateway: a GL-MT6000 (DSA, full wpad, batman-adv) on 25.12.
@@ -126,7 +148,8 @@ pub(crate) fn triband_facts() -> NodeFacts {
 }
 
 /// An older ath79 board: a swconfig switch with the WAN on port 1 behind the same CPU port,
-/// wpad-basic (SAE, OWE and 11r/w, no mesh or ACS), no batman-adv, and 802.11n/ac radios.
+/// wpad-basic (SAE, OWE and 11r/k/w, no mesh, ACS or 11v), no batman-adv, and 802.11n/ac
+/// radios.
 pub(crate) fn swconfig_facts() -> NodeFacts {
     let mut facts = gateway_facts();
     let layout = &mut facts.board.layout;
@@ -151,6 +174,7 @@ pub(crate) fn swconfig_facts() -> NodeFacts {
         WifiFeature::Sae,
         WifiFeature::Owe,
         WifiFeature::FastTransition,
+        WifiFeature::RadioMeasurement,
         WifiFeature::ProtectedManagementFrames,
     ]
     .into();
@@ -269,6 +293,7 @@ fn wlan(
         isolation: false,
         max_clients: None,
         schedule: None,
+        roaming: uniwrt_model::site::wireless::Roaming::default(),
     }
 }
 
@@ -359,6 +384,10 @@ pub(crate) fn home_site() -> SiteConfig {
             &[Band::G2, Band::G5],
         ),
     ];
+    // 802.11r with SAE (keys from the controller) on home, as WPA2 suggests on things (keys
+    // generated locally); no 11k/v hints on guest.
+    site.wlans[0].roaming.fast = Some(true);
+    site.wlans[2].roaming.hints = false;
     site.mesh.enabled = true;
     "uw-home".clone_into(&mut site.mesh.mesh_id);
     site.mesh.key = Some(secret(3));

@@ -74,6 +74,7 @@ fn site(node: NodeId, managed: bool) -> SiteConfig {
                 to: 21 * 60,
             }],
         }),
+        roaming: uniwrt_model::site::wireless::Roaming::default(),
     }];
     let mut node = NodeConfig::new(node);
     if managed {

@@ -1,5 +1,6 @@
 //! Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly,
-//! with nothing raw and no residual, on every capability set.
+//! with nothing raw and no residual but the 802.11r keys (the controller's replace a node's
+//! own, D-085), on every capability set.
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
@@ -64,7 +65,7 @@ fn round_trip_from(
     let import = run(&SiteConfig::defaults(None), &found);
     assert_lossless(&import);
     for node in &import.nodes {
-        let exact = node.residual.is_empty()
+        let exact = node.residual.iter().all(super::ft_keys_only)
             && node
                 .sections
                 .iter()

@@ -117,7 +117,8 @@
         "acs",
         "sae",
         "owe",
-        "wps"
+        "wps",
+        "11v"
       ],
       "wpa_supplicant": [
         "eap",

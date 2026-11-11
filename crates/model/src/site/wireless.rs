@@ -30,9 +30,52 @@ pub struct Wlan {
     pub max_clients: Option<u16>,
     /// When it is on; `None` is always. The controller turns it off and on (D-083).
     pub schedule: Option<Schedule>,
+    /// Defaults when left out, as `max_clients` and `schedule` do.
+    #[serde(default)]
+    pub roaming: Roaming,
+}
+
+/// How clients move between the access points of a WLAN (features/wifi.md, Roaming; D-085).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Roaming {
+    /// 802.11r fast transition; `None` follows the security mode ([`Wlan::fast_roams`]).
+    pub fast: Option<bool>,
+    /// 802.11k neighbor reports and 802.11v BSS transition, where the node's hostapd has them.
+    pub hints: bool,
+}
+
+impl Default for Roaming {
+    fn default() -> Self {
+        Self {
+            fast: None,
+            hints: true,
+        }
+    }
 }
 
 impl Wlan {
+    /// Whether it offers 802.11r: only with a passphrase (WPA2 or WPA3); on by default for
+    /// WPA2 alone, since OpenWrt 25.12's notes list clients that fail 802.11r with WPA3.
+    pub fn fast_roams(&self) -> bool {
+        self.security.needs_passphrase()
+            && self
+                .roaming
+                .fast
+                .unwrap_or(self.security == WlanSecurity::Wpa2)
+    }
+
+    /// Its 802.11r mobility domain, the same on every node: 4 hex digits from its id (FNV-1a
+    /// folded to 16 bits), so renaming the SSID keeps it.
+    pub fn mobility_domain(&self) -> String {
+        let hash = format!("uniwrt/{}", self.id)
+            .bytes()
+            .fold(0x811c_9dc5_u32, |hash, byte| {
+                (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+            });
+        format!("{:04x}", (hash >> 16) ^ (hash & 0xffff))
+    }
+
     /// Whether `section` is one of its `wifi-iface`s as render names them (features/wifi.md,
     /// Rendering): `uw_<id>_<band>`, then the radio's number when the band has several, then
     /// `o` for OWE transition's open BSS.

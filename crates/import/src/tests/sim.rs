@@ -118,7 +118,7 @@ fn an_import_renders_back_into_itself() {
     assert_eq!(second.secrets, first.secrets);
     for node in &second.nodes {
         assert!(
-            node.residual.is_empty(),
+            node.residual.iter().all(super::ft_keys_only),
             "{}: {:?}",
             node.node,
             node.residual

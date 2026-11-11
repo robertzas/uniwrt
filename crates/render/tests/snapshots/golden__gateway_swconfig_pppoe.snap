@@ -4,7 +4,9 @@ expression: show(&result)
 ---
 services: dnsmasq on, firewall on, miniupnpd on, odhcpd on
 requires: miniupnpd-nftables
+warning: wlans/home/roaming: The node's hostapd has no 802.11v (BSS transition): install the full wpad for it
 warning: node/radios/radio0: The node can't choose 5 GHz channels itself (its hostapd has no ACS): the radio stays on channel 36
+warning: wlans/things/roaming: The node's hostapd has no 802.11v (BSS transition): install the full wpad for it
 warning: node/radios/radio1: The node can't choose 2.4 GHz channels itself (its hostapd has no ACS): the radio stays on channel 6
 
 # system
@@ -150,6 +152,13 @@ config wifi-iface 'uw_home_5g'
 	option encryption 'sae-mixed'
 	option key 'correct horse battery'
 	option ieee80211w '1'
+	option ieee80211r '1'
+	option mobility_domain 'c98b'
+	option ft_over_ds '0'
+	option ft_psk_generate_local '0'
+	list r0kh 'ff:ff:ff:ff:ff:ff,*,homehomehomehomehomehomehomehomehomehomehomehomehomehomehomehome'
+	list r1kh '00:00:00:00:00:00,00:00:00:00:00:00,homehomehomehomehomehomehomehomehomehomehomehomehomehomehomehome'
+	option ieee80211k '1'
 
 config wifi-iface 'uw_guest_5g'
 	option device 'radio0'
@@ -168,6 +177,13 @@ config wifi-iface 'uw_home_2g'
 	option encryption 'sae-mixed'
 	option key 'correct horse battery'
 	option ieee80211w '1'
+	option ieee80211r '1'
+	option mobility_domain 'c98b'
+	option ft_over_ds '0'
+	option ft_psk_generate_local '0'
+	list r0kh 'ff:ff:ff:ff:ff:ff,*,homehomehomehomehomehomehomehomehomehomehomehomehomehomehomehome'
+	list r1kh '00:00:00:00:00:00,00:00:00:00:00:00,homehomehomehomehomehomehomehomehomehomehomehomehomehomehomehome'
+	option ieee80211k '1'
 
 config wifi-iface 'uw_things_2g'
 	option device 'radio1'
@@ -176,6 +192,11 @@ config wifi-iface 'uw_things_2g'
 	option ssid 'Things'
 	option encryption 'psk2'
 	option key 'things-only-2024'
+	option ieee80211r '1'
+	option mobility_domain 'a687'
+	option ft_over_ds '0'
+	option ft_psk_generate_local '1'
+	option ieee80211k '1'
 
 config wifi-iface 'uw_guest_2g'
 	option device 'radio1'

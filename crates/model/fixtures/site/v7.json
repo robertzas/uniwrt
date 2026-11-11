@@ -1,0 +1,375 @@
+{
+  "schema": 7,
+  "site": {
+    "name": "Home",
+    "country": "US",
+    "timezone": "America/Denver",
+    "domain": "lan",
+    "ntp_servers": [
+      "0.openwrt.pool.ntp.org",
+      "192.0.2.123"
+    ]
+  },
+  "addressing": {
+    "ipv4": "10.0.0.0/16",
+    "ula": "fd12:3456:789a::/48"
+  },
+  "networks": [
+    {
+      "id": "lan",
+      "name": "Default",
+      "purpose": "default",
+      "vlan": null,
+      "ipv4": {
+        "address": "10.0.0.1/24",
+        "dhcp": {
+          "start": "10.0.0.100",
+          "end": "10.0.0.249",
+          "lease_time_s": 43200,
+          "reservations": [
+            {
+              "mac": "aa:bb:cc:00:00:01",
+              "ip": "10.0.0.40",
+              "name": "nas"
+            }
+          ],
+          "options": {
+            "dns": [
+              "10.0.0.53"
+            ],
+            "ntp": [
+              "10.0.0.1"
+            ],
+            "domain": "home.arpa",
+            "boot": {
+              "filename": "netboot.xyz.efi",
+              "server_name": "nas",
+              "server": "10.0.0.20"
+            },
+            "custom": [
+              "option:mtu,1500"
+            ]
+          }
+        }
+      },
+      "ipv6": "both",
+      "isolation": false,
+      "mdns": true,
+      "igmp_snooping": false,
+      "ipv6_clients": "slaac_stateful"
+    },
+    {
+      "id": "iot",
+      "name": "IoT",
+      "purpose": "iot",
+      "vlan": 30,
+      "ipv4": {
+        "address": "10.0.30.1/24",
+        "dhcp": null
+      },
+      "ipv6": "off",
+      "isolation": false,
+      "mdns": true,
+      "igmp_snooping": true,
+      "ipv6_clients": "slaac_stateless"
+    },
+    {
+      "id": "guest",
+      "name": "Guest",
+      "purpose": "guest",
+      "vlan": 40,
+      "ipv4": null,
+      "ipv6": "delegated",
+      "isolation": true,
+      "mdns": false,
+      "igmp_snooping": false,
+      "ipv6_clients": "slaac_stateless"
+    }
+  ],
+  "wlans": [
+    {
+      "id": "home",
+      "ssid": "Home",
+      "enabled": true,
+      "network": "lan",
+      "security": "wpa2_wpa3",
+      "passphrase": "config/0123456789abcdef0123456789abcdef",
+      "bands": [
+        "2g",
+        "5g"
+      ],
+      "nodes": {
+        "scope": "all"
+      },
+      "hidden": false,
+      "isolation": false,
+      "max_clients": null,
+      "schedule": null,
+      "roaming": {
+        "fast": false,
+        "hints": true
+      }
+    },
+    {
+      "id": "things",
+      "ssid": "Things",
+      "enabled": true,
+      "network": "iot",
+      "security": "wpa2",
+      "passphrase": "config/fedcba9876543210fedcba9876543210",
+      "bands": [
+        "2g"
+      ],
+      "nodes": {
+        "scope": "except",
+        "nodes": [
+          2
+        ]
+      },
+      "hidden": true,
+      "isolation": false,
+      "max_clients": null,
+      "schedule": null,
+      "roaming": {
+        "fast": true,
+        "hints": false
+      }
+    },
+    {
+      "id": "visitors",
+      "ssid": "Visitors",
+      "enabled": false,
+      "network": "guest",
+      "security": "owe",
+      "passphrase": null,
+      "bands": [
+        "5g",
+        "6g"
+      ],
+      "nodes": {
+        "scope": "only",
+        "nodes": [
+          1,
+          2
+        ]
+      },
+      "hidden": false,
+      "isolation": true,
+      "max_clients": null,
+      "schedule": null,
+      "roaming": {
+        "fast": null,
+        "hints": false
+      }
+    }
+  ],
+  "mesh": {
+    "enabled": true,
+    "mesh_id": "uniwrt-mesh",
+    "key": "config/00112233445566778899aabbccddeeff",
+    "band": "5g",
+    "routing": "batman_iv"
+  },
+  "radio": {
+    "bands": [
+      {
+        "band": "2g",
+        "channel": {
+          "fixed": 6
+        },
+        "width": 20,
+        "tx_power": "auto"
+      },
+      {
+        "band": "5g",
+        "channel": "auto",
+        "width": 80,
+        "tx_power": {
+          "dbm": 20
+        }
+      }
+    ]
+  },
+  "wan": {
+    "proto": {
+      "kind": "pppoe",
+      "username": "user@isp",
+      "password": "config/ffeeddccbbaa99887766554433221100",
+      "service": null
+    },
+    "vlan": 201,
+    "pcp": 0,
+    "mtu": 1492,
+    "mac": "02:00:00:00:00:01",
+    "ipv6": {
+      "mode": "6rd",
+      "prefix": "2602::/24",
+      "border_relay": "205.171.2.64",
+      "ipv4_mask_len": 0
+    },
+    "preset": "us-centurylink-pppoe",
+    "sqm": {
+      "download_kbps": 850000,
+      "upload_kbps": 850000,
+      "overhead": 44,
+      "autotune": true
+    },
+    "failover": {
+      "link": {
+        "kind": "usb",
+        "device": "usb0"
+      },
+      "proto": {
+        "kind": "dhcp"
+      }
+    }
+  },
+  "firewall": {
+    "policies": [
+      {
+        "from": "iot",
+        "to": "lan",
+        "action": "established"
+      }
+    ],
+    "forwards": [
+      {
+        "name": "Game server",
+        "enabled": true,
+        "proto": "tcp_udp",
+        "ports": {
+          "first": 27015,
+          "last": 27030
+        },
+        "to": "10.0.0.20",
+        "to_port": null,
+        "source": null,
+        "reflection": true
+      },
+      {
+        "name": "NAS",
+        "enabled": false,
+        "proto": "tcp",
+        "ports": {
+          "first": 8443,
+          "last": 8443
+        },
+        "to": "10.0.0.21",
+        "to_port": 443,
+        "source": "203.0.113.0/24",
+        "reflection": false
+      }
+    ],
+    "dmz": null,
+    "upnp": {
+      "enabled": true,
+      "networks": [
+        "lan",
+        "iot"
+      ]
+    }
+  },
+  "services": {
+    "dns_records": [
+      {
+        "kind": "host",
+        "name": "printer",
+        "ip": "10.0.0.41"
+      },
+      {
+        "kind": "cname",
+        "name": "files",
+        "target": "nas.lan"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "node": 1,
+      "hostname": "gateway",
+      "managed": [
+        "system",
+        "network",
+        "dhcp",
+        "firewall",
+        "sqm",
+        "mwan3",
+        "upnpd"
+      ],
+      "radios": [],
+      "ports": [
+        {
+          "port": "lan4",
+          "native": "iot",
+          "tagged": {
+            "kind": "none"
+          }
+        },
+        {
+          "port": "lan3",
+          "native": "lan",
+          "tagged": {
+            "kind": "only",
+            "networks": [
+              "iot"
+            ]
+          }
+        }
+      ],
+      "raw": [
+        {
+          "package": "network",
+          "type": "route",
+          "name": "office",
+          "options": {
+            "interface": "lan",
+            "target": "10.8.0.0/24",
+            "gateway": "10.0.0.2"
+          },
+          "merge": false
+        }
+      ]
+    },
+    {
+      "node": 2,
+      "hostname": null,
+      "managed": [
+        "wireless"
+      ],
+      "radios": [
+        {
+          "radio": "radio1",
+          "disabled": false,
+          "channel": {
+            "fixed": 36
+          },
+          "width": 80,
+          "tx_power": null
+        },
+        {
+          "radio": "radio0",
+          "disabled": true,
+          "channel": null,
+          "width": null,
+          "tx_power": null
+        }
+      ],
+      "ports": [],
+      "raw": [
+        {
+          "package": "wireless",
+          "type": "wifi-iface",
+          "name": null,
+          "options": {
+            "device": "radio1",
+            "ifname": [
+              "a",
+              "b"
+            ]
+          },
+          "merge": true
+        }
+      ]
+    }
+  ]
+}

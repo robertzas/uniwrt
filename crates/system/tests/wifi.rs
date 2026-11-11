@@ -2,7 +2,9 @@
 //! becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on
 //! both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off
 //! Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
-//! The test leaves the lab rendered; the script restarts it afterwards.
+//! Then c's 5 GHz uplink fast-roams (802.11r with SAE, D-085) from b to a and back: each
+//! access point reports the station authorized by FT, the keys handed between them under the
+//! rendered key holders. The test leaves the lab rendered; the script restarts it afterwards.
 
 use std::{
     process::Command,
@@ -10,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use uniwrt_core::Ipv4Net;
+use uniwrt_core::{Ipv4Net, MacAddr};
 use uniwrt_model::node::NodeRole;
 use uniwrt_system::{
     Node, ipv4, render_for, render_with,
@@ -46,17 +48,132 @@ fn bridged(node: &Node, iface: &str, vlans: &[&str]) {
 
 /// The interfaces of `mode` (`AP`, `mesh point`) that `iw dev` lists.
 fn ifaces(node: &Node, mode: &str) -> Vec<String> {
+    iw_dev(node)
+        .into_iter()
+        .filter(|iface| iface.mode == mode && !iface.name.is_empty())
+        .map(|iface| iface.name)
+        .collect()
+}
+
+/// An interface as `iw dev` lists it.
+#[derive(Default)]
+struct Iface {
+    name: String,
+    addr: String,
+    mode: String,
+    channel: String,
+}
+
+fn iw_dev(node: &Node) -> Vec<Iface> {
     let out = node.sh("iw dev", &[]);
-    let mut names = Vec::new();
-    let mut current = "";
+    let mut found: Vec<Iface> = Vec::new();
     for line in out.lines().map(str::trim) {
         if let Some(name) = line.strip_prefix("Interface ") {
-            current = name;
-        } else if line == format!("type {mode}") {
-            names.push(current.to_owned());
+            found.push(Iface {
+                name: name.to_owned(),
+                ..Iface::default()
+            });
+        } else if line.starts_with("Unnamed") || line.starts_with("phy#") {
+            // A P2P device without a netdev, or the next phy: not the interface before.
+            found.push(Iface::default());
+        } else if let Some(iface) = found.last_mut() {
+            if let Some(addr) = line.strip_prefix("addr ") {
+                addr.clone_into(&mut iface.addr);
+            } else if let Some(mode) = line.strip_prefix("type ") {
+                mode.clone_into(&mut iface.mode);
+            } else if let Some(channel) = line.strip_prefix("channel ") {
+                channel
+                    .split(' ')
+                    .next()
+                    .unwrap_or_default()
+                    .clone_into(&mut iface.channel);
+            }
         }
     }
-    names
+    found
+}
+
+/// The node's access point on channel 36, once it is up there: its interface and BSSID.
+fn ap_on_36(node: &Node) -> (String, String) {
+    let find = || {
+        iw_dev(node)
+            .into_iter()
+            .find(|iface| iface.mode == "AP" && iface.channel == "36" && !iface.name.is_empty())
+    };
+    wait(
+        "an access point on channel 36",
+        node,
+        || find().is_some(),
+        "iw dev",
+    );
+    let iface = find().expect("an access point on channel 36");
+    (iface.name, iface.addr)
+}
+
+/// What c's `wpa_supplicant` on `iface` answers `command` (its ubus `control`); nothing while
+/// the interface is (re)starting.
+fn supplicant(c: &Node, iface: &str, command: &str) -> String {
+    let run = c.run(
+        r#"ubus call "wpa_supplicant.$1" control "{\"command\":\"$2\"}""#,
+        &[iface, command],
+        &[],
+    );
+    serde_json::from_str::<serde_json::Value>(&run.stdout)
+        .ok()
+        .and_then(|reply| reply["result"].as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// A `key=value` line of `STATUS`.
+fn status_of(status: &str, key: &str) -> Option<String> {
+    status
+        .lines()
+        .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+        .map(str::to_owned)
+}
+
+/// c's station `iface` moves to `to`'s access point on channel 36 with an FT authentication,
+/// which `to`'s hostapd reports for `station`.
+fn fast_roam(c: &Node, iface: &str, station: MacAddr, to: &Node) {
+    let (ap, bssid) = ap_on_36(to);
+    to.sh(
+        r#"ubus subscribe "hostapd.$1" </dev/null >/tmp/ft.log 2>&1 & echo $! >/tmp/ft.pid"#,
+        &[&ap],
+    );
+    let context = "logread | grep -E 'wpa_supplicant|hostapd' | tail -n 30";
+    wait(
+        "c's scan to find the target",
+        c,
+        || {
+            supplicant(c, iface, "SCAN");
+            thread::sleep(Duration::from_secs(4));
+            supplicant(c, iface, "SCAN_RESULTS").contains(&bssid)
+        },
+        context,
+    );
+    assert_eq!(supplicant(c, iface, &format!("ROAM {bssid}")).trim(), "OK");
+    wait(
+        "c's roam",
+        c,
+        || {
+            let status = supplicant(c, iface, "STATUS");
+            status_of(&status, "bssid").as_deref() == Some(bssid.as_str())
+                && status_of(&status, "wpa_state").as_deref() == Some("COMPLETED")
+        },
+        context,
+    );
+    let status = supplicant(c, iface, "STATUS");
+    assert_eq!(status_of(&status, "key_mgmt").as_deref(), Some("FT-SAE"));
+    let events: String = to
+        .sh("kill $(cat /tmp/ft.pid); cat /tmp/ft.log", &[])
+        .split_whitespace()
+        .collect();
+    let authorized = format!(r#""address":"{station}","ifname":"{ap}","auth-alg":"ft""#);
+    assert!(
+        events.contains(&authorized),
+        "{}: no FT authorization of {station} in {events}",
+        to.container
+    );
 }
 
 #[test]
@@ -133,4 +250,41 @@ fn rendered_wlans_and_mesh_carry_the_client() {
             ipv4(s).iter().any(|a| a.starts_with("10.99.0."))
         });
     }
+
+    // c's 5 GHz uplink offers 802.11r too, joins b with FT-SAE, then roams to a and back.
+    c.sh(
+        "uci set wireless.sta_radio1.ieee80211r=1 && uci commit wireless && wifi reload",
+        &[],
+    );
+    let station: MacAddr = "02:00:00:00:05:00".parse().expect("a MAC");
+    let find = || {
+        c.run("ubus list 'wpa_supplicant.*'", &[], &[])
+            .stdout
+            .lines()
+            .filter_map(|path| path.strip_prefix("wpa_supplicant."))
+            .find(|iface| supplicant(&c, iface, "STATUS").contains(&format!("address={station}")))
+            .map(str::to_owned)
+    };
+    wait(
+        "c's 5 GHz station",
+        &c,
+        || find().is_some(),
+        "ubus list; logread | tail -n 20",
+    );
+    let iface = find().expect("c's 5 GHz station");
+
+    let (_, b_bssid) = ap_on_36(&b);
+    wait(
+        "c's FT-SAE association with b",
+        &c,
+        || {
+            let status = supplicant(&c, &iface, "STATUS");
+            status_of(&status, "bssid").as_deref() == Some(b_bssid.as_str())
+                && status_of(&status, "key_mgmt").as_deref() == Some("FT-SAE")
+                && status_of(&status, "wpa_state").as_deref() == Some("COMPLETED")
+        },
+        "logread | grep wpa_supplicant | tail -n 30",
+    );
+    fast_roam(&c, &iface, station, &a);
+    fast_roam(&c, &iface, station, &b);
 }

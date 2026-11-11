@@ -164,6 +164,13 @@ Remote syslog, on `system.@system[0]`: `log_ip`, `log_port`, `log_proto 'tcp'`, 
 
 Roaming options on a `wifi-iface`: `ieee80211r '1'`, `mobility_domain 'a1b2'`, `ft_over_ds '0'`, `ft_psk_generate_local '1'`, `ieee80211k '1'`, `bss_transition '1'`, `ieee80211w '0|1|2'`.
 
+Roaming ✅ (24.10 and 25.12, D-085):
+- wpad variants (`hostapd -v<feature>` and the binary's strings): `wpad-basic-mbedtls` has `11r`, `sae`, `owe`, `acs` and 802.11k (`rrm_neighbor_report`, ubus `rrm_nr_set`/`rrm_nr_get_own`), but no WNM: no `bss_transition`, `wnm_sleep_mode` or `bss_transition_request`, and no `eap`, `mesh` or `wps`. `wpad-mbedtls` (full) and `wpad-mesh-mbedtls` have WNM. There is no `-v11v`: the agent greps the binary for `wnm_sleep_mode` (`bss_transition` also matches basic's strings).
+- netifd's scripts (25.12's ucode `wifi/ap.uc`, 24.10's `hostapd.sh`) write `bss_transition=1` and `wnm_sleep_mode=1` as asked, whatever hostapd was built with; a hostapd without WNM fails the BSS on the unknown key. `ieee80211k 1` sets `rrm_neighbor_report` (and on 25.12 `rrm_beacon_report`).
+- With `ieee80211r 1`: `mobility_domain` defaults to `md5(ssid)`'s first 4 hex digits; `ft_psk_generate_local` defaults on for PSK alone (off for `sae-mixed` and `sae`); without `r0kh`/`r1kh` lists the scripts derive the key as `md5("<mobility_domain>/<key>")` into wildcard entries `ff:ff:ff:ff:ff:ff,*,<key>` and `00:00:00:00:00:00,00:00:00:00:00:00,<key>` (commas become spaces in hostapd's file); `ft_iface` is the network's bridge (the RRB frames' path), `reassociation_deadline` 20000 on 25.12 and 1000 on 24.10, and `nas_identifier` the BSSID without colons (25.12's `hostapd.uc`). With `sae-mixed`, `wpa_key_mgmt` becomes `SAE FT-SAE WPA-PSK WPA-PSK-SHA256 FT-PSK`.
+- A station's wifi-iface takes `ieee80211r 1` for FT-SAE/FT-PSK. wpa_supplicant's ubus object `wpa_supplicant.<ifname>` has `control` (`{"command":"STATUS"}`, `SCAN`, `SCAN_RESULTS`, `ROAM <bssid>`): the images have no `wpa_cli`. `ubus subscribe hostapd.<ifname>` prints its notifications (no `timeout` in BusyBox: kill it).
+- apk swaps the basic wpad for the full one in one transaction: `apk add wpad-mbedtls '!wpad-basic-mbedtls'` (checked in a 25.12 container; on hardware the post-install restarts Wi-Fi).
+
 VLANs:
 - DSA: `config bridge-vlan` with `device`, `vlan`, and `list ports 'lan1:u*'` / `'lan2:t'` (`u` untagged, `*` the port's PVID, `t` tagged). A port in no `bridge-vlan` of a filtering bridge passes nothing; render leaves such a port out of the bridge instead.
 - swconfig: `config switch_vlan` with `device 'switch0'`, `vlan`, and `ports '0t 1 2'` (a port untagged in one VLAN takes it as its PVID).

@@ -194,7 +194,7 @@ Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configu
 - `src/read.rs`: Reading a node's packages as OpenWrt does: booleans, lists written as options, addresses with or without a netmask; and the renames that render's naming needs.
 - `src/settings.rs`: The site's settings, from the gateway: its time zone and NTP servers (`system`) and the local domain (dnsmasq's `domain`).
 - `src/tests/firewall.rs`: Port forwards, the DMZ host and UPnP from a stock 25.12 gateway with redirects as LuCI writes them (with a DNAT target), some the model can't hold, and miniupnpd's package.
-- `src/tests/golden.rs`: Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly, with nothing raw and no residual, on every capability set.
+- `src/tests/golden.rs`: Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly, with nothing raw and no residual but the 802.11r keys (the controller's replace a node's own, D-085), on every capability set.
 - `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
 - `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
 - `src/tests/stock.rs`: OpenWrt's stock configs (`crates/uci/fixtures/openwrt/`): 24.10's and 25.12's on a PC router, and the hwsim lab's gateway with its radios.
@@ -239,6 +239,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/tests/install.rs`: The apply's install step (D-076) over a scripted gateway: what SQM needs is installed before anything is staged, its service kept off until the transaction switches it on; a failed install changes nothing.
 - `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
 - `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
+- `src/apply/tests/roaming.rs`: The 802.11r keys an apply renders with (D-085): one per WLAN that fast-roams, derived from the controller's roaming key, which is made only once some WLAN needs it.
 - `src/apply/tests/rounds.rs`: The gateway's later transactions (D-081) over the scripted fleet: the network this controller sits on renumbers make-before-break, and the WAN changes last and alone.
 - `src/apply/verify.rs`: The verify phase of an apply (features/lifecycle.md, Render → diff → apply, step 4): every node at once over a new login at the address it moves to; it applied and reloaded, its timer is extended, the bridging gateway sees this controller come from the new subnet (D-081), and its health holds against the baseline.
 - `src/bootstrap.rs`: Finding the gateway to set up at first run (features/adoption.md, Path E): the controller sits behind a factory-default OpenWrt router, which is its default gateway (or, from a container on a bridge network, still at OpenWrt's 192.168.1.1 through the host).
@@ -443,6 +444,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
 - `src/raw.rs`: A node's raw sections (the validated escape hatch, D-011): each joins its package after everything rendered, or replaces the rendered section of the same name; a merge (D-072) sets its options on a rendered section instead, found by name or, for an anonymous one, by the key options of its type ([`key`]).
 - `src/redirect.rs`: The gateway's port forwards and DMZ host as fw4 `redirect`s (features/network.md, Firewall policy): DNAT from the WAN to the zone of the network whose subnet holds the host. fw4 accepts what it forwards, and reflects it to the networks (NAT reflection) unless a forward says otherwise.
+- `src/roaming.rs`: A WLAN's roaming options on each of its BSSes (features/wifi.md, Roaming; D-085), each only where the node's hostapd has it: 802.11r (fast transition) over the air in the WLAN's mobility domain, its PMK-R0/R1 keys generated locally for WPA2 or, for SAE, sent between the access points under the WLAN's FT key ([`Secrets::ft_key`](crate::Secrets::ft_key)); 802.11k neighbor reports (the controller fills them in, M5.2); 802.11v BSS transition with WNM sleep, its keys left out of sleep responses for stations that would reinstall them.
 - `src/split.rs`: Splitting a node's `network` package into the WAN and the rest, so an apply that changes the WAN with other things can change it last, in its own transaction (features/lifecycle.md, Make-before-break; D-081).
 - `src/sqm.rs`: The `sqm` package (features/wan.md, SQM; D-076): one `queue` that shapes the WAN's layer-3 device with cake through sqm-scripts' `piece_of_cake.qos`, a little below the line's rates, with fairness per host behind NAT.
 - `src/switch.rs`: A swconfig switch in the `network` package: one `switch_vlan` per network (each user port as its profile says: by default untagged in the untagged network, tagged in the others) and on the gateway one for the WAN, each tagged on its CPU port, whose `<cpu>.<vid>` devices netifd then creates.
@@ -584,6 +586,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/vault/config.rs`: Configuration secrets (features/security.md, Secrets vault): Wi-Fi passphrases, the mesh key, the PPPoE password.
 - `src/vault/key.rs`: The master key: 32 random bytes that every secret in the vault is sealed under, kept outside the database (`master.key` or `UNIWRT_MASTER_KEY`; features/security.md, Secrets vault).
 - `src/vault/mod.rs`: The secrets vault ([`Vault`]): [`VaultRepo`] over the `vault` table, every value sealed with XChaCha20-Poly1305 under the [`MasterKey`] (features/security.md, Secrets vault).
+- `src/vault/roaming.rs`: The controller's roaming key (features/wifi.md, Roaming; D-085): 32 random bytes made on first use and kept in the vault (`controller/roaming_key`), from which each WLAN's 802.11r key is derived.
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
 - `src/vault/tests.rs`: The vault over a real database: sealing, resealing the stub's rows and refusing a wrong key.
 - `src/writer.rs`: The writer: one thread owns the only write connection and commits queued operations in batches.
@@ -690,7 +693,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (332 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (333 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

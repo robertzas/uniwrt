@@ -164,7 +164,7 @@ pub enum RawValue {
 /// The UCI options that hold secrets in the packages render writes: Wi-Fi keys and RADIUS
 /// secrets, passwords of WAN protocols, WireGuard's keys. Rendered packages carry their values,
 /// so review screens mask them; raw sections hold them sealed ([`RawValue::Secret`]).
-pub const SECRET_OPTIONS: [&str; 13] = [
+pub const SECRET_OPTIONS: [&str; 15] = [
     "key",
     "key1",
     "key2",
@@ -178,6 +178,9 @@ pub const SECRET_OPTIONS: [&str; 13] = [
     "priv_key_pwd",
     "private_key",
     "preshared_key",
+    // 802.11r key holders: each entry ends with the key their frames are protected with.
+    "r0kh",
+    "r1kh",
 ];
 
 /// Whether a UCI option of that name holds a secret ([`SECRET_OPTIONS`]).

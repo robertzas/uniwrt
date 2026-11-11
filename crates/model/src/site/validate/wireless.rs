@@ -8,7 +8,7 @@ use super::{Issues, names};
 use crate::{
     site::{
         SiteConfig,
-        wireless::{Channel, NodeScope, Schedule, TxPower, WlanSecurity},
+        wireless::{Channel, NodeScope, Schedule, TxPower, Wlan, WlanSecurity},
     },
     wifi::{Band, ChannelWidth},
 };
@@ -99,10 +99,26 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
                 "In OWE transition mode an SSID is 29 bytes at most: the encrypted one adds OWE",
             );
         }
+        roaming(wlan, &at, issues);
         if let Some(schedule) = &wlan.schedule {
             self::schedule(schedule, &format!("{at}/schedule"), issues);
         }
         scope(&wlan.nodes, &format!("{at}/nodes"), nodes, issues);
+    }
+}
+
+fn roaming(wlan: &Wlan, at: &str, issues: &mut Issues) {
+    match (wlan.roaming.fast, wlan.security) {
+        (Some(true), security) if !security.needs_passphrase() => issues.warn(
+            format!("{at}/roaming"),
+            "Fast roaming (802.11r) needs a passphrase: this security mode goes without it",
+        ),
+        (Some(true), WlanSecurity::Wpa2Wpa3 | WlanSecurity::Wpa3) => issues.warn(
+            format!("{at}/roaming"),
+            "Some clients fail to join WPA3 networks with fast roaming (802.11r): turn it off \
+             if a device can't connect",
+        ),
+        _ => {}
     }
 }
 

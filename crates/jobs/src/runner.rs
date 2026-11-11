@@ -62,7 +62,7 @@ pub struct JobsConfig {
 /// The job runner. Clones share it.
 #[derive(Clone)]
 pub struct Jobs {
-    shared: Arc<Shared>,
+    pub(crate) shared: Arc<Shared>,
 }
 
 pub(crate) struct Shared {

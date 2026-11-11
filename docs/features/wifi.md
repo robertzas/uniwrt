@@ -10,7 +10,8 @@ Fields (✅ in the model and the editor; D-083):
 - ✅ bands (2.4/5/6 GHz) and nodes (all | only | all but)
 - ✅ hidden, client isolation, max clients per radio (`maxassoc`)
 - ✅ schedule: weekly on-times in the site's time zone, daylight saving included. The controller enforces the saved site's (no apply needed): outside its times a WLAN's BSSes on managed nodes go off through the agent's `bss` op (hostapd's `config_set` with netifd's config less those BSSes; no UCI change, the radio's other BSSes and its mesh point keep running), and on again at the start; a `wifi reload` or an apply brings them back on, and the controller turns them off again within half a minute. While the controller is down a WLAN stays as it is. Events: `wlan_scheduled` (site-wide), `wlan_schedule_failed`/`wlan_schedule_ok` per node and phy (D-083).
-- 802.11w (PMF) follows the security mode (transition 1, WPA3 and OWE 2); roaming options are M5.2
+- 802.11w (PMF) follows the security mode (transition 1, WPA3 and OWE 2)
+- ✅ roaming (schema v7, D-085): fast roaming (802.11r) Auto, On or Off, and roaming hints (802.11k/v) on or off; see Roaming
 - advanced, later: DTIM, multicast-to-unicast, `disassoc_low_ack`, minimum basic rate, airtime fairness
 
 Security modes: WPA2-PSK, WPA2/WPA3 transition (`sae-mixed`), WPA3-SAE (required on 6 GHz), OWE for open guest networks, OWE in transition mode (an open companion for devices without OWE), plain open (warned about), and WPA2/3-Enterprise later. PPSK is open option O-8.
@@ -19,7 +20,7 @@ Rendering: one `wifi-iface` per WLAN × radio on every in-scope node, named `uw_
 
 UI: `/wifi` lists the WLANs (security, bands in the band colors, network, devices, schedule, the clients on each now, the document's warnings) and warns while the site has no country or a device doesn't manage `wireless`. Admins edit a WLAN in a dialog; a new one starts from a preset (Main: WPA2/WPA3 on 2.4 and 5 GHz; Guest: OWE in transition mode, isolated, on the guest network; IoT: WPA2 on 2.4 GHz, on the IoT network) and takes its id from its name. A QR code joins a phone: for a WLAN with a passphrase it is read from the vault (admins, audited). The site's name, country (the regulatory domain) and time zone are in Settings › Site.
 
-Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `wpad-basic-mbedtls`. The controller manages the swap, which briefly drops Wi-Fi, so it happens on the bench, during a maintenance window, or through a ZTP image.
+Packages: `wpad-basic-mbedtls` has SAE, OWE, ACS, 802.11r and 802.11k on 24.10 and 25.12; 802.11v (BSS transition, WNM sleep), 802.11s mesh, EAP and WPS need the full `wpad-mbedtls` (the mesh also runs on `wpad-mesh-mbedtls`, which has 802.11v too). Each admin swaps it per device (D-085, M5.2's second part): the swap briefly drops that device's Wi-Fi.
 
 ## Client actions [M5.1]
 
@@ -33,13 +34,15 @@ Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `w
 
 ## Roaming [M5.2]
 
-- **802.11r (Fast Transition):**
-  - The mobility domain is derived from the site ID (4 hex digits). `ft_over_ds 0` (over the air) is the most compatible choice.
-  - WPA2-PSK uses `ft_psk_generate_local 1`. SAE uses r0kh/r1kh entries built from a site FT key the controller generates.
-  - **Defaults:** on for WPA2-PSK SSIDs. **Off, with a warning,** for WPA3 and transition SSIDs, because the OpenWrt 25.12 release notes list client problems with 802.11r on WPA3. The user can turn it on per SSID.
-- **802.11k:** `ieee80211k 1`. The controller computes each BSS's neighbor list (the other nodes' BSSIDs for the same SSID, ranked by measured inter-node RSSI) and pushes it with hostapd's ubus `rrm_nr_set`. No config churn; it refreshes whenever the topology changes.
-- **802.11v:** `bss_transition 1` and `wnm_sleep_mode 1`.
-- **Client capabilities** (11k/v/r support, bands, Wi-Fi generation) are learned from association events, shown per client, and used by steering.
+Split (D-085): roaming a ✅ (render, keys, the editor, the lab's FT roam) | roaming b (controller-pushed neighbor reports, client capabilities shown, the per-device wpad swap) | steering.
+
+- ✅ **Per WLAN** (`Wlan.roaming`, schema v7): `fast` is 802.11r, `null` (Auto) following the security mode: on for WPA2-PSK, **off for WPA3 and transition**, because OpenWrt 25.12's release notes list clients that fail 802.11r with WPA3; the admin can force it on (validation warns) or off. Modes without a passphrase never fast-roam. `hints` (on by default) is 802.11k and 802.11v. The editor has a Roaming section: Auto/On/Off with what Auto means for the mode, and a Roaming hints checkbox.
+- ✅ **802.11r (Fast Transition)**, over the air (`ft_over_ds 0`, the most compatible), in a mobility domain of 4 hex digits from the WLAN's id (FNV-1a folded to 16 bits: the same on every node, kept when the SSID is renamed). WPA2-PSK generates its keys locally (`ft_psk_generate_local 1`). SAE and the transition mode hand the keys between access points (`ft_psk_generate_local 0`, wildcard `r0kh`/`r1kh`, so the APs learn each other over the network's bridge) under the WLAN's **FT key**: HMAC-SHA256 of the controller's roaming key (32 random bytes in the vault, `controller/roaming_key`, made the first time a WLAN fast-roams) over the WLAN's id and its passphrase's vault name. A new passphrase brings a new key, and clients that know the passphrase can't derive it (OpenWrt's default derives it from the passphrase). The key holders are secret options (masked on review screens). A node without 802.11r renders the WLAN without it, with a warning.
+- ✅ **802.11k:** `ieee80211k 1` wherever hostapd has it (every OpenWrt hostapd since 23.05, the basic wpad's too). Next (roaming b): the controller computes each BSS's neighbor list (the other nodes' BSSIDs for the same SSID, ranked by measured inter-node RSSI) and pushes it with hostapd's ubus `rrm_nr_set`. No config churn; it refreshes whenever the topology changes.
+- ✅ **802.11v:** `bss_transition 1`, `wnm_sleep_mode 1` and `wnm_sleep_mode_no_keys 1` (no keys in WNM sleep responses, for stations that would reinstall them), only where the agent found WNM in hostapd (the `11v` capability): netifd writes the options whatever hostapd was built with, and a hostapd without WNM refuses the whole BSS. A node without it warns once per WLAN (install the full wpad).
+- ✅ **Import** reads `ieee80211r` into `fast` (unset where it matches the mode's default) and `ieee80211k`/`bss_transition` into `hints`; one access point with roaming brings it to the whole WLAN, so roaming never splits one. A node's own `r0kh`/`r1kh` are dropped: the controller's keys replace them (the import's residual shows them, masked).
+- ✅ **Lab:** the system test fast-roams client c's 5 GHz uplink with FT-SAE from b (24.10) to a (25.12) and back on the rendered config; each AP's hostapd reports `sta-authorized` with `auth-alg` `ft`.
+- **Client capabilities** (11k/v/r support, bands, Wi-Fi generation) are learned from association events, shown per client, and used by steering (roaming b).
 
 ## Steering & balancing [M5.2]
 

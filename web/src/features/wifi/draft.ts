@@ -50,7 +50,13 @@ export interface WlanDraft {
   maxClients: string;
   scheduled: boolean;
   spans: SpanDraft[];
+  /** 802.11r: `auto` follows the security mode. */
+  fast: FastRoaming;
+  /** 802.11k and 802.11v. */
+  hints: boolean;
 }
+
+export type FastRoaming = "auto" | "on" | "off";
 
 export type DraftErrors = Partial<
   Record<"ssid" | "network" | "passphrase" | "bands" | "nodes" | "maxClients" | "schedule", string>
@@ -90,7 +96,16 @@ export function draftOf(wlan: Wlan): WlanDraft {
           to: clock(span.to),
         }))
       : [newSpan()],
+    fast: wlan.roaming.fast === null ? "auto" : wlan.roaming.fast ? "on" : "off",
+    hints: wlan.roaming.hints,
   };
+}
+
+/** Whether a WLAN of `security` fast-roams with `fast`, as the controller decides (D-085): only
+ * with a passphrase, and when left to it, on for WPA2 alone. */
+export function fastRoams(security: WlanSecurity, fast: FastRoaming): boolean {
+  if (!needsPassphrase(security)) return false;
+  return fast === "auto" ? security === "wpa2" : fast === "on";
 }
 
 /** A new WLAN of a preset: the main one, a guest one (open but encrypted) or one for things. */
@@ -110,6 +125,7 @@ export function presetWlan(preset: Preset, config: SiteConfig): Wlan {
     isolation: false,
     max_clients: null,
     schedule: null,
+    roaming: { fast: null, hints: true },
   };
   if (preset === "guest") {
     return { ...base, network: of("guest") ?? main, security: "owe_transition", isolation: true };
@@ -213,6 +229,10 @@ export function wlanOf(
     isolation: draft.isolation,
     max_clients: max === "" ? null : Number(max),
     schedule: spans === null ? null : { spans },
+    roaming: {
+      fast: draft.fast === "auto" ? null : draft.fast === "on",
+      hints: draft.hints,
+    },
   };
   const secrets =
     secret && draft.passphrase !== "" ? { [`wlans/${id}/passphrase`]: draft.passphrase } : {};

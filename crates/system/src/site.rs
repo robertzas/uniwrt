@@ -38,16 +38,32 @@ pub fn secret(n: u8) -> SecretRef {
     SecretRef::new(format!("config/{n:032x}")).expect("a valid secret reference")
 }
 
-/// The vault's values of the sites' secrets; the PPPoE password is in scripts/system/pap-secrets.
-pub fn secrets() -> BTreeMap<SecretRef, String> {
-    BTreeMap::from([
+/// The vault's values of the sites' secrets (the PPPoE password is in
+/// scripts/system/pap-secrets), and every WLAN's 802.11r key: [`FT_KEY`].
+pub struct Secrets(BTreeMap<SecretRef, String>);
+
+/// The 802.11r key of every WLAN in these tests.
+pub const FT_KEY: &str = "5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e";
+
+impl uniwrt_render::Secrets for Secrets {
+    fn get(&self, secret: &SecretRef) -> Option<&str> {
+        self.0.get(secret).map(String::as_str)
+    }
+
+    fn ft_key(&self, _wlan: &str) -> Option<&str> {
+        Some(FT_KEY)
+    }
+}
+
+pub fn secrets() -> Secrets {
+    Secrets(BTreeMap::from([
         (secret(1), "correct horse battery".to_owned()),
         (secret(2), "things-only-2024".to_owned()),
         (secret(3), "mesh key 0123456789".to_owned()),
         (secret(4), "pppoe-pass".to_owned()),
         (secret(5), "uniwrt-lab-key".to_owned()),
         (secret(6), "uniwrt-lab-mesh-key".to_owned()),
-    ])
+    ]))
 }
 
 fn managed(node: NodeId) -> NodeConfig {
@@ -195,6 +211,11 @@ pub fn lab(lan: Ipv4Net) -> SiteConfig {
         isolation: false,
         max_clients: None,
         schedule: None,
+        // 802.11r with SAE, so c's uplink can fast-roam between a and b.
+        roaming: uniwrt_model::site::wireless::Roaming {
+            fast: Some(true),
+            hints: true,
+        },
     }];
     site.mesh.enabled = true;
     "uniwrt-lab-mesh".clone_into(&mut site.mesh.mesh_id);

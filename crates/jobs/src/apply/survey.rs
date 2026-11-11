@@ -308,19 +308,27 @@ pub(crate) async fn dns(remote: &dyn Remote, role: NodeRole) -> [bool; 2] {
     resolved
 }
 
-/// The vault's values of the site's secrets, wiped when dropped.
-pub(crate) struct VaultSecrets(BTreeMap<SecretRef, Zeroizing<String>>);
+/// The vault's values of the site's secrets and its WLANs' 802.11r keys, wiped when dropped.
+pub(crate) struct VaultSecrets {
+    values: BTreeMap<SecretRef, Zeroizing<String>>,
+    /// By WLAN id.
+    ft_keys: BTreeMap<String, Zeroizing<String>>,
+}
 
 impl VaultSecrets {
     /// Adds a value not in the vault yet, such as a password a WAN test tries.
     pub(crate) fn insert(&mut self, secret: SecretRef, value: Zeroizing<String>) {
-        self.0.insert(secret, value);
+        self.values.insert(secret, value);
     }
 }
 
 impl Secrets for VaultSecrets {
     fn get(&self, secret: &SecretRef) -> Option<&str> {
-        self.0.get(secret).map(|value| value.as_str())
+        self.values.get(secret).map(|value| value.as_str())
+    }
+
+    fn ft_key(&self, wlan: &str) -> Option<&str> {
+        self.ft_keys.get(wlan).map(|key| key.as_str())
     }
 }
 
@@ -340,7 +348,21 @@ pub(crate) async fn secrets(shared: &Shared, site: &SiteConfig) -> Result<VaultS
             values.insert(secret.clone(), Zeroizing::new(text.to_owned()));
         }
     }
-    Ok(VaultSecrets(values))
+    let mut ft_keys = BTreeMap::new();
+    let fast: Vec<_> = site.wlans.iter().filter(|wlan| wlan.fast_roams()).collect();
+    if !fast.is_empty() {
+        let roaming = shared
+            .vault
+            .roaming_key()
+            .await
+            .map_err(|err| internal("reading the roaming key", &err))?;
+        for wlan in fast {
+            if let Some(passphrase) = &wlan.passphrase {
+                ft_keys.insert(wlan.id.clone(), roaming.ft_key(&wlan.id, passphrase.name()));
+            }
+        }
+    }
+    Ok(VaultSecrets { values, ft_keys })
 }
 
 /// Reads every logged-in node and plans `revision` for it; `failed` nodes (and those it can't

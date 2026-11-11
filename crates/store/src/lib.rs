@@ -66,4 +66,4 @@ pub use repo::{
     SettingsRepo, SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
 };
 pub use store::Store;
-pub use vault::{MasterKey, SealedBackup, SealedSecret, Vault};
+pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

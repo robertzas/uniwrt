@@ -12,7 +12,8 @@ use uniwrt_model::{
         SecretRef, SiteConfig,
         node::RadioOverride,
         wireless::{
-            BandPolicy, Channel, MeshConfig, MeshRouting, NodeScope, TxPower, Wlan, WlanSecurity,
+            BandPolicy, Channel, MeshConfig, MeshRouting, NodeScope, Roaming, TxPower, Wlan,
+            WlanSecurity,
         },
     },
     wifi::{Band, ChannelWidth},
@@ -47,6 +48,27 @@ struct Ap {
     isolation: bool,
     max_clients: Option<u16>,
     enabled: bool,
+    roam: Roam,
+}
+
+/// The roaming an access point has.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+struct Roam {
+    /// 802.11r.
+    fast: bool,
+    /// 802.11k or 802.11v.
+    hints: bool,
+}
+
+impl Ap {
+    /// Whether both belong to one WLAN: the same but for roaming, which the WLAN takes from any.
+    fn same_wlan(&self, other: &Self) -> bool {
+        let plain = |ap: &Self| Self {
+            roam: Roam::default(),
+            ..ap.clone()
+        };
+        plain(self) == plain(other)
+    }
 }
 
 const SECURITIES: [WlanSecurity; 5] = [
@@ -131,18 +153,26 @@ pub(crate) fn import(
             let Some(ap) = ap(iface, renames, &networks) else {
                 continue;
             };
-            let index = aps.iter().position(|(a, ..)| *a == ap).unwrap_or_else(|| {
-                aps.push((ap, BTreeSet::new(), BTreeSet::new()));
-                hints.push(iface.name.as_deref().and_then(hint));
-                let index = aps.len() - 1;
-                let at = previous
-                    .get(device)
-                    .and_then(|p| order.iter().position(|o| o == p))
-                    .map_or(order.len(), |p| p + 1);
-                order.insert(at, index);
-                index
-            });
+            let roam = ap.roam;
+            let index = aps
+                .iter()
+                .position(|(a, ..)| a.same_wlan(&ap))
+                .unwrap_or_else(|| {
+                    aps.push((ap, BTreeSet::new(), BTreeSet::new()));
+                    hints.push(iface.name.as_deref().and_then(hint));
+                    let index = aps.len() - 1;
+                    let at = previous
+                        .get(device)
+                        .and_then(|p| order.iter().position(|o| o == p))
+                        .map_or(order.len(), |p| p + 1);
+                    order.insert(at, index);
+                    index
+                });
             previous.insert(device.to_owned(), index);
+            // Roaming doesn't split a WLAN: one access point with it brings it to all.
+            let merged = &mut aps[index].0.roam;
+            merged.fast |= roam.fast;
+            merged.hints |= roam.hints;
             aps[index].1.insert(band);
             aps[index].2.insert(source.node);
         }
@@ -192,6 +222,11 @@ fn ap(iface: &Section, renames: &read::Renames, networks: &BTreeSet<String>) -> 
             .and_then(|max| max.parse().ok())
             .filter(|max| *max > 0),
         enabled: read::flag(iface, "disabled") != Some(true),
+        roam: Roam {
+            fast: read::flag(iface, "ieee80211r").unwrap_or(false),
+            hints: read::flag(iface, "ieee80211k").unwrap_or(false)
+                || read::flag(iface, "bss_transition").unwrap_or(false),
+        },
     })
 }
 
@@ -240,9 +275,20 @@ fn wlans(
             max_clients: ap.max_clients,
             // Nodes keep no schedules (and an imported OWE pair stays two WLANs).
             schedule: None,
+            roaming: roaming(SECURITIES[ap.security], ap.roam),
         });
     }
     found
+}
+
+/// The roaming the node's access points have: 802.11r unset where it is what the security mode
+/// suggests anyway (and where it can't apply), so the site's default keeps following it.
+fn roaming(security: WlanSecurity, roam: Roam) -> Roaming {
+    let usual = security == WlanSecurity::Wpa2;
+    Roaming {
+        fast: (security.needs_passphrase() && roam.fast != usual).then_some(roam.fast),
+        hints: roam.hints,
+    }
 }
 
 /// The mesh: an 802.11s point whose network is a batman-adv hard interface.

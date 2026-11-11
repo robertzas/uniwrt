@@ -8,6 +8,7 @@
 mod backup;
 mod config;
 mod key;
+mod roaming;
 mod seal;
 
 use std::{fmt, sync::Arc};
@@ -19,6 +20,7 @@ pub use backup::SealedBackup;
 pub(crate) use backup::backup_from_row;
 pub use config::SealedSecret;
 pub use key::MasterKey;
+pub use roaming::RoamingKey;
 pub(crate) use seal::ALG;
 use seal::Sealer;
 

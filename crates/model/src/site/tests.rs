@@ -24,6 +24,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v4.json"),
     include_str!("../../fixtures/site/v5.json"),
     include_str!("../../fixtures/site/v6.json"),
+    include_str!("../../fixtures/site/v7.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -386,6 +387,34 @@ fn network_identity() {
     }
     let issues = issues_after(|c| c.site.timezone = "Mars/Olympus".to_owned());
     assert!(has(&issues, "site/timezone", Severity::Error));
+}
+
+#[test]
+fn fast_roaming_follows_the_security_mode_unless_set() {
+    let config = upgrade(fixture(6)).unwrap();
+    let [home, things, visitors] = &config.wlans[..] else {
+        panic!("three WLANs")
+    };
+    // Unset: on for WPA2 alone; never without a passphrase.
+    assert!(!home.fast_roams() && things.fast_roams() && !visitors.fast_roams());
+    let mut on = home.clone();
+    on.roaming.fast = Some(true);
+    assert!(on.fast_roams());
+    let mut owe = visitors.clone();
+    owe.roaming.fast = Some(true);
+    assert!(!owe.fast_roams());
+    // The same id gives the same domain wherever it renders; another id, another.
+    assert_eq!(home.mobility_domain(), home.clone().mobility_domain());
+    assert_eq!(home.mobility_domain().len(), 4);
+    assert_ne!(home.mobility_domain(), things.mobility_domain());
+
+    let issues = issues_after(|c| {
+        c.wlans[0].roaming.fast = Some(true);
+        c.wlans[2].roaming.fast = Some(true);
+    });
+    assert!(has(&issues, "wlans/home/roaming", Severity::Warning));
+    assert!(has(&issues, "wlans/visitors/roaming", Severity::Warning));
+    assert!(!has(&issues, "wlans/things/roaming", Severity::Warning));
 }
 
 #[test]

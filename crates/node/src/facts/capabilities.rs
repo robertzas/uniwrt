@@ -43,16 +43,16 @@ pub(super) fn parse(raw: Raw) -> Capabilities {
         "eap" => Some(WifiFeature::Eap),
         "mesh" => Some(WifiFeature::Mesh),
         "11r" => Some(WifiFeature::FastTransition),
+        "11v" => Some(WifiFeature::BssTransition),
         "acs" => Some(WifiFeature::Acs),
         "wps" => Some(WifiFeature::Wps),
         _ => None,
     }));
     if raw.hostapd.is_some() {
         // No build switch: every hostapd OpenWrt has shipped since 23.05 (2.10 and later) has
-        // them.
+        // them, the basic wpad's too (802.11v isn't: the agent reports it, D-085).
         wifi.extend([
             WifiFeature::RadioMeasurement,
-            WifiFeature::BssTransition,
             WifiFeature::ProtectedManagementFrames,
         ]);
     }

@@ -46,6 +46,7 @@ fn wlan(passphrase: &SecretRef) -> Wlan {
         isolation: false,
         max_clients: None,
         schedule: None,
+        roaming: uniwrt_model::site::wireless::Roaming::default(),
     }
 }
 

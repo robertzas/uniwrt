@@ -177,6 +177,7 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
           isolation: false,
           max_clients: null,
           schedule: null,
+          roaming: known?.roaming ?? { fast: null, hints: true },
         },
       ];
   const node = config.nodes.find((n) => n.node === choices.gateway);

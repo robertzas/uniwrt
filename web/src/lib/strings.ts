@@ -2840,6 +2840,20 @@ export const strings = {
       isolationHint: "Its clients can't reach each other, only the gateway and the internet.",
       maxClients: "Clients per radio",
       maxClientsHint: "The most a radio takes; empty for no limit.",
+      roaming: "Roaming",
+      fast: "Fast roaming (802.11r)",
+      fastModes: { auto: "Auto", on: "On", off: "Off" } as Record<string, string>,
+      fastAuto: (on: boolean) =>
+        `Auto: on for WPA2; off for WPA3 and the transition mode, where some clients fail with it. Now ${on ? "on" : "off"}.`,
+      fastOn:
+        "Clients move between access points without a new handshake: calls and video don't drop.",
+      fastOff: "Clients authenticate again at each access point they move to.",
+      fastWpa3:
+        "Some clients fail to join WPA3 networks with fast roaming: turn it off if a device can't connect.",
+      fastNeedsPassphrase: "Needs a passphrase: this security mode roams without it.",
+      hints: "Roaming hints (802.11k/v)",
+      hintsHint:
+        "Access points tell clients their neighbors and suggest better ones. Devices without the full wpad offer the neighbors only.",
       schedule: "Schedule",
       scheduled: "Only on at certain times",
       scheduledHint: (zone: string) =>

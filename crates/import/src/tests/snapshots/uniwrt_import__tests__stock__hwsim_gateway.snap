@@ -2,14 +2,12 @@
 source: crates/import/src/tests/stock.rs
 expression: summary(&import)
 ---
-# 1 — confidence 88%
+# 1 — confidence 91%
 kept [packet_steering] network.globals (globals)
 kept [peerdns, dns] network.wan (interface)
 network.wan6rd (interface) → wan6
 network.mesh (interface) → uw_mesh
 kept [cell_density] wireless.radio0 (wifi-device)
-kept [ieee80211r, mobility_domain, ft_over_ds, ft_psk_generate_local, ieee80211k, bss_transition] wireless.uw_home_2g (wifi-iface)
-kept [ieee80211r, mobility_domain] wireless.uw_home_5g (wifi-iface)
 kept [server] dhcp.@ (dnsmasq)
 raw firewall.@ (rule)
 raw firewall.iot_dns (rule)
@@ -36,9 +34,24 @@ raw firewall.uniwrt (include)
     mtu: '1536' → '1532'
 ~ wireless.uw_home_2g
     ieee80211w: ∅ → '1'
+    mobility_domain: 'a1b2' → 'c98b'
+    ft_psk_generate_local: '1' → '0'
+    r0kh: ∅ → '••••••••'
+    r1kh: ∅ → '••••••••'
+    wnm_sleep_mode: ∅ → '1'
+    wnm_sleep_mode_no_keys: ∅ → '1'
 ~ wireless.uw_guest_2g (moved)
 ~ wireless.uw_home_5g
     ieee80211w: ∅ → '1'
+    mobility_domain: 'a1b2' → 'c98b'
+    ft_over_ds: ∅ → '0'
+    ft_psk_generate_local: ∅ → '0'
+    r0kh: ∅ → '••••••••'
+    r1kh: ∅ → '••••••••'
+    ieee80211k: ∅ → '1'
+    bss_transition: ∅ → '1'
+    wnm_sleep_mode: ∅ → '1'
+    wnm_sleep_mode_no_keys: ∅ → '1'
 ~ wireless.uw_mesh
     mesh_rssi_threshold: '0' → '-80'
 ~ dhcp.@dnsmasq[0]
