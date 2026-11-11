@@ -241,6 +241,12 @@ jobs:
           command -v iw >/dev/null || packages+=(iw)
           [[ -e /lib/firmware/regulatory.db ]] || packages+=(wireless-regdb)
           if ((${#packages[@]})); then
+            # The runners' resolver has failed on Ubuntu's mirrors for an hour at a time
+            # (2026-11-11): fall back to public resolvers for this job.
+            if ! getent hosts archive.ubuntu.com >/dev/null; then
+              echo "::warning::The runner can't resolve archive.ubuntu.com: using public resolvers"
+              printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' | sudo tee /etc/resolv.conf >/dev/null
+            fi
             sudo apt-get update -q
             sudo apt-get install -yq --no-install-recommends "${packages[@]}"
           fi
