@@ -1,5 +1,5 @@
 import { memoryHistory } from "@solidjs/router";
-import { render, screen, waitFor, within } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -187,6 +187,35 @@ describe("Wi-Fi", () => {
       nodes: { scope: "except", nodes: [2] },
       max_clients: 40,
       schedule: null,
+    });
+  });
+
+  it("schedules a WLAN: its days and times, overnight", async () => {
+    const user = userEvent.setup();
+    config.site.timezone = "Europe/Berlin";
+    await renderWifi();
+    const row = await screen.findByRole("listitem", { name: "uniwrt-demo" });
+    await user.click(within(row).getByRole("button", { name: "Edit uniwrt-demo" }));
+    const editor = await screen.findByRole("dialog", { name: "WLAN uniwrt-demo" });
+    const schedule = within(editor).getByRole("region", { name: "Schedule" });
+    expect(within(schedule).getByText(/Europe\/Berlin time/)).toBeInTheDocument();
+    await user.click(within(schedule).getByLabelText("Only on at certain times"));
+    // A new time is every day from 07:00 to 22:00: the weekend goes, and it runs overnight.
+    await user.click(within(schedule).getByRole("button", { name: "Saturday" }));
+    await user.click(within(schedule).getByRole("button", { name: "Sunday" }));
+    expect(within(schedule).getByRole("button", { name: "Sunday" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    fireEvent.input(within(schedule).getByLabelText("From"), { target: { value: "18:00" } });
+    // A person's edits land in separate ticks: Solid flushes the first before the second.
+    await new Promise((settled) => setTimeout(settled));
+    fireEvent.input(within(schedule).getByLabelText("To"), { target: { value: "01:30" } });
+    expect(await within(schedule).findByText("until the next day")).toBeInTheDocument();
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+    expect(await within(editor).findByText(/Saved as revision 3/)).toBeInTheDocument();
+    expect(put().config.wlans[0]?.schedule).toEqual({
+      spans: [{ days: ["mon", "tue", "wed", "thu", "fri"], from: 1080, to: 90 }],
     });
   });
 

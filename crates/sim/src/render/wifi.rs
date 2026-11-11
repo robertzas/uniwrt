@@ -2,7 +2,7 @@
 //! (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim
 //! capture's wiphys).
 
-use std::sync::LazyLock;
+use std::{collections::BTreeSet, sync::LazyLock};
 
 use serde_json::{Map, Value, json};
 
@@ -27,9 +27,44 @@ pub(super) fn phys() -> Value {
     PHYS.clone()
 }
 
-/// The radios and their interfaces; `ssid` is the access point's (the node's `wireless` names
-/// it once uniwrt, or the user, configured one).
-pub(super) fn radios(world: &World, n: usize, ssid: &str) -> Value {
+/// The access points of radio `index` as `(section, ifname, ssid)`: those `aps` (the node's
+/// `wireless`) puts on it, or the demo's one while `wireless` has none. The first is
+/// `phy<index>-ap0`, where the clients are.
+pub(crate) fn ap_ifaces(
+    aps: &[(String, String, String)],
+    index: usize,
+    band: Band,
+) -> Vec<(String, String, String)> {
+    if aps.is_empty() {
+        return vec![(
+            format!("default_radio{index}"),
+            band.ap_iface().to_owned(),
+            SSID.to_owned(),
+        )];
+    }
+    let device = format!("radio{index}");
+    aps.iter()
+        .filter(|(_, on, _)| *on == device)
+        .enumerate()
+        .map(|(k, (section, _, ssid))| {
+            let ifname = if k == 0 {
+                band.ap_iface().to_owned()
+            } else {
+                format!("phy{index}-ap{k}")
+            };
+            (section.clone(), ifname, ssid.clone())
+        })
+        .collect()
+}
+
+/// The radios and their interfaces: `aps` are the access points the node's `wireless` sets up
+/// ([`ap_ifaces`]); those in `off` are down (netifd lists them, nl80211 doesn't).
+pub(super) fn radios(
+    world: &World,
+    n: usize,
+    aps: &[(String, String, String)],
+    off: &BTreeSet<String>,
+) -> Value {
     let node = &world.nodes[n];
     let mut wireless = Map::new();
     let mut nl = Vec::new();
@@ -44,11 +79,17 @@ pub(super) fn radios(world: &World, n: usize, ssid: &str) -> Value {
         } else {
             format!("{WIFI_PATH}+{index}")
         };
-        let mut ifaces = vec![json!({
-            "section": format!("default_radio{index}"),
-            "ifname": band.ap_iface(),
-            "config": {"mode": "ap", "ssid": ssid, "encryption": "sae-mixed", "network": ["lan"], "ieee80211r": true},
-        })];
+        let mine = ap_ifaces(aps, index, band);
+        let mut ifaces: Vec<Value> = mine
+            .iter()
+            .map(|(section, ifname, ssid)| {
+                json!({
+                    "section": section,
+                    "ifname": ifname,
+                    "config": {"mode": "ap", "ssid": ssid, "encryption": "sae-mixed", "network": ["lan"], "ieee80211r": true},
+                })
+            })
+            .collect();
         let width = if band.width_mhz() == 80 { 3 } else { 1 };
         let nl_iface = |ifname: &str, iftype: u32, mac: String, ssid: Option<&str>| {
             let mut iface = json!({
@@ -66,12 +107,19 @@ pub(super) fn radios(world: &World, n: usize, ssid: &str) -> Value {
             }
             iface
         };
-        nl.push(nl_iface(
-            band.ap_iface(),
-            3,
-            node.bssid(band).to_string(),
-            Some(ssid),
-        ));
+        for (k, (_, ifname, ssid)) in mine.iter().enumerate() {
+            if off.contains(ifname) {
+                continue;
+            }
+            // Further BSSes take locally administered addresses after the first's.
+            let mut mac = node.bssid(band).octets();
+            if k > 0 {
+                mac[0] |= 0x02;
+                mac[5] = mac[5].wrapping_add(k as u8);
+            }
+            let mac = uniwrt_core::MacAddr::new(mac).to_string();
+            nl.push(nl_iface(ifname, 3, mac, Some(ssid)));
+        }
         if band == Band::G5 {
             ifaces.push(json!({
                 "section": "mesh_radio1",
@@ -115,7 +163,8 @@ pub(super) fn radios(world: &World, n: usize, ssid: &str) -> Value {
     })
 }
 
-pub(super) fn stations(world: &World, n: usize) -> Value {
+/// The stations of node `n`'s interfaces; those of a BSS in `off` are gone with it.
+pub(super) fn stations(world: &World, n: usize, off: &BTreeSet<String>) -> Value {
     let now_ms = world.now_ms();
     let mut stations: Map<String, Value> = ["phy0-ap0", "phy1-ap0", "phy1-mesh0"]
         .into_iter()
@@ -127,6 +176,9 @@ pub(super) fn stations(world: &World, n: usize) -> Value {
         .collect();
     for (client, assoc) in world.stations(n) {
         let iface = assoc.band.ap_iface();
+        if off.contains(iface) {
+            continue;
+        }
         if let Some(Value::Array(list)) = stations.get_mut(iface) {
             list.push(station(client, assoc, now_ms));
         }

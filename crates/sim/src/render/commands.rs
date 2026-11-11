@@ -38,6 +38,9 @@ pub(crate) struct Disk {
     pub(crate) hand_edit: HandEdit,
     /// The packages installed from the feeds since the image ([`super::feeds`]).
     pub(crate) installed: BTreeSet<String>,
+    /// The BSSes the `bss` op turned off, and `/etc/config/wireless` as it was then: a
+    /// `wifi reload` (an apply that changes it) brings them back ([`Disk::bss_off`]).
+    pub(crate) bss_off: Option<(String, BTreeSet<String>)>,
 }
 
 impl Default for Disk {
@@ -50,11 +53,22 @@ impl Default for Disk {
             tool: Tool::stock(),
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
+            bss_off: None,
         }
     }
 }
 
 impl Disk {
+    /// The BSSes that are off: those the `bss` op turned off, unless `wireless` changed since.
+    pub(crate) fn bss_off(&self) -> BTreeSet<String> {
+        match &self.bss_off {
+            Some((wireless, off)) if self.tool.files.get("wireless") == Some(wireless) => {
+                off.clone()
+            }
+            _ => BTreeSet::new(),
+        }
+    }
+
     /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]); a
     /// `factory` gateway's is OpenWrt's own, and its root has no password.
     pub(crate) fn of(world: &World, n: usize, factory: bool) -> Self {

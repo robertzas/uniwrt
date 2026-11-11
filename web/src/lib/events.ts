@@ -245,6 +245,12 @@ export function describeEvent(event: EventRecord, names: Names): Described {
         lasted ? d.busyFor(what.busy_percent, lasted) : d.busy(what.busy_percent),
       );
     }
+    case "wlan_scheduled":
+      return { title: titles.wlanScheduled(what.ssid, what.on) };
+    case "wlan_schedule_failed":
+      return withDetail(titles.wlanScheduleFailed(node, what.phy), what.error);
+    case "wlan_schedule_ok":
+      return { title: titles.wlanScheduleOk(node, what.phy) };
   }
 }
 

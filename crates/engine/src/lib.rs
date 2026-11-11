@@ -36,7 +36,9 @@
 //!   on it (view, scan, settings); [`DriftWatch`] ([`DriftConfig`]) compares the agents' hashes
 //!   of `/etc/config` with what applies confirmed (`DriftRepo`), reads and diffs a package whose
 //!   hash moved, stores its drift and announces [`Event::Drift`]; [`Drifts`] is the API's
-//!   handle on it (state, acknowledge, mute).
+//!   handle on it (state, acknowledge, mute); [`WlanSchedules`] ([`SchedulesConfig`]) keeps
+//!   the WLANs to their schedules (the saved site's), turning managed nodes' BSSes off and on
+//!   through the agent's `bss` op, and announces the turns and refusals as events (D-083).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -60,7 +62,7 @@
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
 //!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`,
-//!   `DriftRepo`), `uniwrt-uci` (drift's semantic diff), `sha2` (the hash of a file read),
+//!   `DriftRepo`, `RevisionRepo`), `uniwrt-uci` (drift's semantic diff), `sha2` (the hash of a file read),
 //!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-rf` (the RF
 //!   report), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
 //!   receiver hands on, the annotations), tokio, tracing,
@@ -93,6 +95,7 @@ mod status;
 #[cfg(test)]
 mod testing;
 mod topology;
+mod wlans;
 
 pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
 pub use bus::Event;
@@ -112,3 +115,4 @@ pub use rf::{Rf, RfConfig, RfError, RfScanner};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
 pub use topology::Identity;
+pub use wlans::{SchedulesConfig, WlanSchedules};

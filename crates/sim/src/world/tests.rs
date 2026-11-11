@@ -23,13 +23,15 @@ fn a_seed_tells_one_story() {
             &a,
             2,
             &uniwrt_node::proto::ops::Set::ALL,
-            &std::collections::BTreeMap::default()
+            &std::collections::BTreeMap::default(),
+            &std::collections::BTreeSet::default()
         ),
         render::collect(
             &b,
             2,
             &uniwrt_node::proto::ops::Set::ALL,
-            &std::collections::BTreeMap::default()
+            &std::collections::BTreeMap::default(),
+            &std::collections::BTreeSet::default()
         )
     );
     let other = World::new(&SimConfig { seed: 1, ..config }, START);

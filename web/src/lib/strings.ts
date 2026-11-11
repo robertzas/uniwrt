@@ -1068,6 +1068,12 @@ export const strings = {
       channelCongested: (node: string, radio: string) => `${node} ${radio}: channel congested`,
       channelClear: (node: string, radio: string) => `${node} ${radio}: channel clear again`,
       sqmRatesDrifted: "The line's speed changed: new SQM rates suggested",
+      wlanScheduled: (ssid: string, on: boolean) =>
+        on ? `${ssid} turned on by its schedule` : `${ssid} turned off by its schedule`,
+      wlanScheduleFailed: (node: string, phy: string) =>
+        `${node}: couldn't follow the WLAN schedules on ${phy}`,
+      wlanScheduleOk: (node: string, phy: string) =>
+        `${node}: follows the WLAN schedules on ${phy} again`,
     },
     detail: {
       downFor: (d: string) => `Down for ${d}`,
@@ -1276,6 +1282,9 @@ export const strings = {
       channel_changed: "Channel changed",
       channel_congested: "Channel congested",
       channel_clear: "Channel clear again",
+      wlan_scheduled: "WLAN turned on or off by its schedule",
+      wlan_schedule_failed: "WLAN schedule not followed",
+      wlan_schedule_ok: "WLAN schedule followed again",
       log_pattern: "Problem in a log",
     },
     kindGroups: {

@@ -257,6 +257,36 @@ pub struct FileData {
     pub truncated: bool,
 }
 
+/// `bss`: turns BSSes of a phy off and its others on, without touching UCI (`node-agent/bss.uc`;
+/// D-083): hostapd takes netifd's config of the phy (of each radio, on a multi-radio phy) less the
+/// BSSes in `off`, by interface name. With `off` empty all are on, which changes nothing when they
+/// are. [`code::NOT_FOUND`] when netifd has no hostapd config of the phy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Bss {
+    pub phy: String,
+    pub off: Vec<String>,
+}
+
+impl Op for Bss {
+    const NAME: &'static str = "bss";
+    type Output = BssSet;
+}
+
+/// What hostapd took, per config of the phy.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct BssSet {
+    pub radios: Vec<BssRadio>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct BssRadio {
+    /// The radio of a multi-radio phy; `None` for the phy's only one.
+    pub radio: Option<u32>,
+    /// The BSSes it runs, and those it left out.
+    pub on: Vec<String>,
+    pub off: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

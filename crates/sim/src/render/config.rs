@@ -121,14 +121,25 @@ pub(crate) fn lan_addresses(files: &BTreeMap<String, String>) -> Vec<Ipv4Addr> {
         .unwrap_or_default()
 }
 
-/// The SSID of the first access point `wireless` names, if it names one.
-pub(crate) fn ssid(files: &BTreeMap<String, String>) -> Option<String> {
-    let wireless = uniwrt_uci::parse("wireless", files.get("wireless")?).ok()?;
+/// The access points `wireless` sets up, as `(section, device, ssid)`, in its order.
+pub(crate) fn aps(files: &BTreeMap<String, String>) -> Vec<(String, String, String)> {
+    let Some(wireless) = files
+        .get("wireless")
+        .and_then(|text| uniwrt_uci::parse("wireless", text).ok())
+    else {
+        return Vec::new();
+    };
     wireless
         .sections_of("wifi-iface")
-        .find(|iface| iface.option("mode") == Some("ap") && iface.option("disabled") != Some("1"))
-        .and_then(|iface| iface.option("ssid"))
-        .map(str::to_owned)
+        .filter(|iface| iface.option("mode") == Some("ap") && iface.option("disabled") != Some("1"))
+        .filter_map(|iface| {
+            Some((
+                iface.name.clone()?,
+                iface.option("device")?.to_owned(),
+                iface.option("ssid")?.to_owned(),
+            ))
+        })
+        .collect()
 }
 
 /// The `config` set: each file's SHA-256, as `node-agent/collect/config.uc` reports it.

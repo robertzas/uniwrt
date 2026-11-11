@@ -133,6 +133,24 @@ describe("events in words", () => {
     ).toBe("40% busy, after 20m congested");
   });
 
+  it("tells WLANs turned off and on by their schedules, and when a device won't", () => {
+    const turned = { kind: "wlan_scheduled", wlan: "guest", ssid: "Guests" } as const;
+    expect(describeEvent(event({ ...turned, on: false }, { node: null }), names).title).toBe(
+      "Guests turned off by its schedule",
+    );
+    expect(describeEvent(event({ ...turned, on: true }, { node: null }), names).title).toBe(
+      "Guests turned on by its schedule",
+    );
+    const failed = { kind: "wlan_schedule_failed", phy: "phy1", error: "no hostapd" } as const;
+    expect(describeEvent(event(failed), names)).toEqual({
+      title: "Attic AP: couldn't follow the WLAN schedules on phy1",
+      detail: "no hostapd",
+    });
+    expect(describeEvent(event({ kind: "wlan_schedule_ok", phy: "phy1" }), names).title).toBe(
+      "Attic AP: follows the WLAN schedules on phy1 again",
+    );
+  });
+
   it("links to the logs around it, on its device", () => {
     const url = new URL(
       logsAround(event({ kind: "node_adopted" }, { last_at: 1_060_000 })),

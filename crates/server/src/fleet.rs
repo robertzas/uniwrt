@@ -18,7 +18,7 @@ use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, ClientRecorder, DriftConfig, DriftWatch, Drifts, Engine,
     EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder, LogsConfig,
     MetricsConfig, MetricsRecorder, Notifications, Notify, NotifyConfig, RecorderConfig, Rf,
-    RfConfig, RfScanner, Snapshots, TopologyHistory,
+    RfConfig, RfScanner, SchedulesConfig, Snapshots, TopologyHistory, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -55,6 +55,7 @@ pub(crate) struct Fleet {
     rf: Option<RfScanner>,
     /// Drift detection.
     drift: Option<DriftWatch>,
+    schedules: Option<WlanSchedules>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -108,6 +109,7 @@ impl Fleet {
             notifications: None,
             rf: None,
             drift: None,
+            schedules: None,
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
@@ -184,6 +186,7 @@ impl Fleet {
             notifications: None,
             rf: None,
             drift: None,
+            schedules: None,
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
@@ -229,6 +232,9 @@ impl Fleet {
         }
         if let Some(rf) = self.rf {
             rf.stop().await;
+        }
+        if let Some(schedules) = self.schedules {
+            schedules.stop().await;
         }
         if let Some(drift) = self.drift {
             drift.stop().await;
@@ -309,6 +315,12 @@ impl Fleet {
             Ok(drift) => self.drift = Some(drift),
             Err(err) => warn!(%err, "drift detection cannot start"),
         }
+        self.schedules = Some(WlanSchedules::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            SchedulesConfig::default(),
+        ));
     }
 
     /// Drift detection's handle, once [`Fleet::record_events`] started it.

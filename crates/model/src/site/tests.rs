@@ -444,6 +444,37 @@ fn wlan_limits_companions_and_schedules() {
 }
 
 #[test]
+fn a_wlan_knows_its_sections() {
+    let mut wlan = sample().wlans[0].clone();
+    wlan.id = "home".to_owned();
+    for own in [
+        "uw_home_2g",
+        "uw_home_5g2",
+        "uw_home_6g",
+        "uw_home_5go",
+        "uw_home_2g3o",
+    ] {
+        assert!(wlan.owns_section(own), "{own}");
+    }
+    for other in [
+        "uw_home",
+        "uw_home_",
+        "uw_home_7g",
+        "uw_home_2g0",
+        "uw_home_2gx",
+        "uw_home_2_2g",
+        "uw_homes_2g",
+        "uw_mesh",
+        "default_radio0",
+    ] {
+        assert!(!wlan.owns_section(other), "{other}");
+    }
+    // An id with an underscore doesn't claim another's sections.
+    wlan.id = "home_2g".to_owned();
+    assert!(wlan.owns_section("uw_home_2g_5g") && !wlan.owns_section("uw_home_2g"));
+}
+
+#[test]
 fn wireless_rules() {
     let issues = issues_after(|c| {
         c.wlans[0].security = WlanSecurity::Wpa2;

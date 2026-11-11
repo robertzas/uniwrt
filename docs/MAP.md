@@ -149,6 +149,10 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
 - `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed; each build updates the clients' book ([`Event::Clients`]).
 - `src/topology_tests.rs`: The topology of the hwsim lab's captures (TESTING.md, Wi-Fi lab): node a (the gateway, 25.12) and node b (an access point, 24.10) meshed over 802.11s and a wired backhaul (`bh0`) with batman-adv over both; client c on a's 2g AP (`…:04:00`) and b's 5g AP (`…:05:00`).
+- `src/wlans/mod.rs`: WLAN schedules (features/wifi.md, WLANs; D-083): the controller turns a WLAN's BSSes off outside its schedule and on again, through each node's agent (the `bss` op: hostapd takes netifd's config less the BSSes that are off, so no configuration changes and nothing runs on the nodes on its own).
+- `src/wlans/plan.rs`: Which of a node's BSSes the WLANs' schedules want on now: pure, over the saved site and the node's facts, so a schedule needs no apply (it changes no configuration on the node).
+- `src/wlans/task.rs`: The schedules' task: when to compare, what to send, and what to announce.
+- `src/wlans/tests.rs`: The schedules over a store and an engine watching the lab gateway's capture, its sections renamed as render names a WLAN's (`uw_guest_2g` on radio0 through `phy1-ap0`, `uw_guest_5g` on radio1 through `phy2-ap0`), the `bss` op answered by hand: the schedule's end turns both off and is announced, the same request waits `retry`, a node in observe mode or held by a job is left alone, and a refusal raises a condition that clears once the node takes it.
 - `tests/agent.rs`: The engine watching real OpenWrt (TESTING.md, Agent): an actor over an SSH link to the agent, in both loop modes.
 
 ### `uniwrt-events` (crates/events)
@@ -394,7 +398,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 - `tests/txn.rs`: Transactions on real OpenWrt (TESTING.md, Agent; D-069): the footprint installs and goes, and a transaction that replaces `system` and stops dnsmasq is confirmed, rolled back on request, at its deadline or at boot, or refused before it changes anything.
-- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point.
+- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point; the `bss` op turns an access point off and on again on both releases.
 
 ### `uniwrt-notify` (crates/notify)
 
@@ -524,6 +528,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/world/radio.rs`: Radio arithmetic: bands and channels, indoor path loss, and the rates a signal-to-noise ratio buys (MCS tables of 802.11n, ac and ax).
 - `src/world/tests.rs`: The world's dynamics over simulated hours: determinism, roaming, leaving, reboots.
 - `src/world/traffic.rs`: Traffic: what each client downloads and uploads per second (bursty, capped by its link), the retries a weak signal costs, and the counters it moves on its access point's radio, its uplink and the gateway's WAN port.
+- `tests/bss.rs`: The simulated agent's `bss` op (D-083): a BSS it turns off is down in the `radios` set (netifd still lists it) and its clients are gone from `stations`; turned on, both come back; a phy the node lacks is refused.
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
 
@@ -646,6 +651,7 @@ UCI, OpenWrt's configuration format (docs/openwrt/REFERENCE.md, UCI syntax): the
 
 ucode modules, embedded in the binary and installed on nodes by hash (`crates/node/src/bundle.rs`). The entry point is `main.uc`.
 
+- `bss.uc`: The `bss` op (features/wifi.md, WLANs; D-083): turns a phy's BSSes off and on again without touching UCI, through hostapd's own `config_set`. hostapd takes the phy's config as netifd wrote it (/var/run/hostapd-<phy>[.<radio>].conf), less the BSSes named off, and adds and removes BSSes to match: the others keep running, the first BSS included (the next one takes its place), and a config without BSSes removes hostapd's interface on the phy (a mesh point there stays).
 - `bus.uc`: ubus calls on one shared connection, with errors mapped to the protocol's codes.
 - `collect.uc`: The collect sets: each gathers the raw sources of one part of the node's facts, which crates/node/src/facts parses.
 - `collect/batman.uc`: The `batman` set: each batman-adv mesh device as batctl's JSON queries report it: the mesh, its hard interfaces, originators, neighbors, gateways and both translation tables.

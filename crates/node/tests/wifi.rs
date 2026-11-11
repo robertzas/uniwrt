@@ -1,7 +1,8 @@
 //! The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over
 //! SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their
 //! facts show the lab's topology; the gateway pushes its client's comings and goings; and each
-//! node's scan hears the other's access points and mesh point. The
+//! node's scan hears the other's access points and mesh point; the `bss` op turns an access point
+//! off and on again on both releases. The
 //! tests run one at a time, since one of them disconnects the client. Ignored by default: `just test-wifi` starts the lab and runs
 //! these with `UNIWRT_LAB_GW` and `UNIWRT_LAB_AP` (`<host:port>`) and `UNIWRT_LAB_PASSWORD`.
 
@@ -26,7 +27,7 @@ use uniwrt_node::{
     AgentEvent, AgentLaunch, Hello, NodeLink as _,
     events::Push,
     facts,
-    proto::ops::{Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
+    proto::ops::{Bss, Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
 };
 
 const LONG: Duration = Duration::from_secs(30);
@@ -232,6 +233,86 @@ async fn the_gateway_pushes_station_and_lease_events_across_radio_restarts() {
     let back = station(&mut pushes, StationChange::Authorized).await;
     assert_eq!(back.iface, iface);
     link.shutdown().await;
+}
+
+/// Turns the lab node in `$var`'s access point that `client` uses off with the `bss` op, then on
+/// again (D-083): off, its section stays in netifd's status with the interface down; on, the
+/// client comes back to it.
+async fn bss_off_and_on(var: &str, client: &str) {
+    let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
+    let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let where_is = Collect {
+        sets: vec![Set::Radios, Set::Stations],
+    };
+    let look = async || {
+        let mut facts = NodeFacts::default();
+        let collected = link.request(&where_is, LONG).await.unwrap();
+        assert_eq!(facts::apply(&collected, &mut facts), []);
+        facts
+    };
+    let facts = look().await;
+    let iface = facts
+        .stations
+        .iter()
+        .find(|s| s.mac == mac(client))
+        .unwrap_or_else(|| panic!("{client} on {var}: {:?}", facts.stations))
+        .iface
+        .clone();
+    let (radio, section) = facts
+        .radios
+        .iter()
+        .find_map(|r| {
+            let i = r.ifaces.iter().find(|i| i.name.as_ref() == Some(&iface))?;
+            Some((r.clone(), i.section.clone().unwrap()))
+        })
+        .unwrap();
+    let phy = radio.phy.clone().unwrap();
+
+    let off = Bss {
+        phy: phy.clone(),
+        off: vec![iface.clone()],
+    };
+    let set = link.request(&off, LONG).await.unwrap();
+    assert_eq!(set.radios.len(), 1, "{set:?}");
+    assert_eq!(set.radios[0].off, std::slice::from_ref(&iface));
+    assert!(!set.radios[0].on.contains(&iface));
+    let facts = look().await;
+    let bss = facts
+        .radios
+        .iter()
+        .flat_map(|r| &r.ifaces)
+        .find(|i| i.section.as_ref() == Some(&section))
+        .unwrap_or_else(|| panic!("{section} is gone: {:?}", facts.radios));
+    assert!(!bss.up, "{bss:?}");
+    assert!(!facts.stations.iter().any(|s| s.mac == mac(client)));
+
+    let on = Bss { phy, off: vec![] };
+    let set = link.request(&on, LONG).await.unwrap();
+    assert!(set.radios[0].on.contains(&iface) && set.radios[0].off.is_empty());
+    for _ in 0..30 {
+        let facts = look().await;
+        let up = facts
+            .radios
+            .iter()
+            .flat_map(|r| &r.ifaces)
+            .any(|i| i.section.as_ref() == Some(&section) && i.up);
+        if up && facts.stations.iter().any(|s| s.mac == mac(client)) {
+            link.shutdown().await;
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    panic!("{client} did not come back to {var}'s {section}");
+}
+
+#[tokio::test]
+#[ignore = "needs the hwsim lab: just test-wifi"]
+async fn the_bss_op_turns_one_access_point_off_and_on_again() {
+    // a (25.12): the 2g AP; b (24.10): the 5g AP, c's way to the gateway through the mesh.
+    bss_off_and_on("UNIWRT_LAB_GW", CLIENT_2G).await;
+    bss_off_and_on("UNIWRT_LAB_AP", CLIENT_5G).await;
 }
 
 /// Scans `band` through the lab node in `$var`'s access point on it.

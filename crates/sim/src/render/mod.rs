@@ -15,7 +15,7 @@ pub(crate) mod scan;
 mod system;
 pub(crate) mod wifi;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 use uniwrt_node::{
@@ -31,7 +31,8 @@ use crate::world::{Happening, What, World};
 pub(crate) use self::logs::{log_entries, log_lines};
 
 /// The ops a simulated agent answers.
-const OPS: [&str; 8] = [
+const OPS: [&str; 9] = [
+    "bss",
     "collect",
     "log_follow",
     "ping",
@@ -65,6 +66,7 @@ pub(crate) fn collect(
     node: usize,
     sets: &[Set],
     files: &BTreeMap<String, String>,
+    off: &BTreeSet<String>,
 ) -> Value {
     let sets: Map<_, _> = sets
         .iter()
@@ -73,10 +75,8 @@ pub(crate) fn collect(
                 Set::Config => config::hashes(files),
                 Set::Interfaces => net::interfaces(world, node, files),
                 Set::Leases => l2::leases(world, node, files),
-                Set::Radios => {
-                    let ssid = config::ssid(files);
-                    wifi::radios(world, node, ssid.as_deref().unwrap_or(wifi::SSID))
-                }
+                Set::Radios => wifi::radios(world, node, &config::aps(files), off),
+                Set::Stations => wifi::stations(world, node, off),
                 _ => set_of(world, node, set),
             };
             (set.as_str().to_owned(), value)
@@ -97,8 +97,8 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Leases => l2::leases(world, n, &BTreeMap::new()),
         Set::Neighbors => l2::neighbors(world, n),
         Set::Phys => wifi::phys(),
-        Set::Radios => wifi::radios(world, n, wifi::SSID),
-        Set::Stations => wifi::stations(world, n),
+        Set::Radios => wifi::radios(world, n, &[], &BTreeSet::new()),
+        Set::Stations => wifi::stations(world, n, &BTreeSet::new()),
         Set::System => system::system(world, node),
     }
 }

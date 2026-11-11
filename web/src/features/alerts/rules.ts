@@ -60,7 +60,17 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
     group: "mesh",
     kinds: ["mesh_link_down", "mesh_link_up", "mesh_link_weak", "mesh_link_recovered"],
   },
-  { group: "wifi", kinds: ["channel_changed", "channel_congested", "channel_clear"] },
+  {
+    group: "wifi",
+    kinds: [
+      "channel_changed",
+      "channel_congested",
+      "channel_clear",
+      "wlan_scheduled",
+      "wlan_schedule_failed",
+      "wlan_schedule_ok",
+    ],
+  },
   { group: "clients", kinds: ["client_joined", "client_left", "client_roamed", "new_client"] },
   { group: "logs", kinds: ["log_pattern"] },
 ];

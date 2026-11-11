@@ -110,7 +110,7 @@ impl SimLink {
             "collect" => {
                 let sets: Vec<Set> = field(op, args, "sets")?;
                 let disk = lock(&self.shared.nodes[self.node].disk);
-                render::collect(&world, self.node, &sets, &disk.tool.files)
+                render::collect(&world, self.node, &sets, &disk.tool.files, &disk.bss_off())
             }
             "read_file" => self.read_file(op, args)?,
             "subscribe" | "unsubscribe" => {
@@ -174,6 +174,7 @@ impl SimLink {
                 });
                 json!({"mode": mode})
             }
+            "bss" => self.bss(&world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;
                 render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {
@@ -184,6 +185,39 @@ impl SimLink {
             }
             _ => return Err(bad_request(op, "unknown op")),
         })
+    }
+
+    /// `bss`: the BSSes of a phy to keep off, until `wireless` changes (a reload brings them
+    /// back), as `node-agent/bss.uc` has hostapd do.
+    fn bss(&self, world: &crate::world::World, op: &str, args: &RawValue) -> Result<Value> {
+        let phy: String = field(op, args, "phy")?;
+        let off: Vec<String> = field(op, args, "off")?;
+        let node = &world.nodes[self.node];
+        let Some((index, band)) = node
+            .radios
+            .iter()
+            .map(|radio| (radio.band.index(), radio.band))
+            .find(|(index, _)| format!("phy{index}") == phy)
+        else {
+            return Err(Error::Remote {
+                op: op.to_owned(),
+                code: "not_found".to_owned(),
+                msg: format!("netifd has no hostapd config of {phy}"),
+            });
+        };
+        let mut disk = lock(&self.shared.nodes[self.node].disk);
+        let aps = render::config::aps(&disk.tool.files);
+        let mine = render::wifi::ap_ifaces(&aps, index, band);
+        let mut now_off = disk.bss_off();
+        now_off.retain(|ifname| !mine.iter().any(|(_, i, _)| i == ifname));
+        let (dropped, kept): (Vec<_>, Vec<_>) = mine
+            .into_iter()
+            .map(|(_, ifname, _)| ifname)
+            .partition(|ifname| off.contains(ifname));
+        now_off.extend(dropped.iter().cloned());
+        let wireless = disk.tool.files.get("wireless").cloned().unwrap_or_default();
+        disk.bss_off = Some((wireless, now_off));
+        Ok(json!({"radios": [{"radio": null, "on": kept, "off": dropped}]}))
     }
 
     /// `read_file` of a package in `/etc/config`, which is all the controller reads so.

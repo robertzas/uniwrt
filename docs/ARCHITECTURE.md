@@ -110,7 +110,7 @@ Rules:
 {"tick":{"sets":{"radios":{},"stations":{}},"errors":{}}}
 ```
 
-- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c, event loop only; D-036). Transactions don't go through the agent: the controller runs the transaction tool (`/etc/uniwrt/txn`) over exec (D-069), since the agent dies with the session a reload may cut. Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
+- **Ops:** `hello`, `ping`, `collect`, `ubus`, `exec` (an argv array with a timeout and bounded output), `read_file` (M1.3); `subscribe`/`unsubscribe`, `log_follow`, `set_interval` (M1.3c, event loop only; D-036); `bss` (M5.1, D-083: a phy's BSSes off and on through hostapd's `config_set`, for WLAN schedules). Transactions don't go through the agent: the controller runs the transaction tool (`/etc/uniwrt/txn`) over exec (D-069), since the agent dies with the session a reload may cut. Failures carry a code: `bad_request`, `not_found`, `timeout`, `too_large`, `denied`, `unsupported` or `failed`.
 - **Source of truth:** `crates/node/src/proto.rs` and `proto/ops.rs`, mirrored by `node-agent/proto.uc` and `ops.uc`. The `proto` integer bumps on breaking changes; the controller supports the current version and the previous one.
 - **Jump hosts:** a `direct-tcpip` channel through an adopted node reaches isolated segments, such as the adoption port described in features/adoption.md.
 

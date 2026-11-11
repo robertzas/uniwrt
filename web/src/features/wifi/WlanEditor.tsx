@@ -33,8 +33,6 @@ import { BAND_DOT } from "./WlanRow";
 const t = strings.wifi.editor;
 const PRESETS: readonly Preset[] = ["main", "guest", "iot"];
 const SCOPES: readonly NodeScope["scope"][] = ["all", "only", "except"];
-/** The schedule shows once the controller enforces it (M5.1's schedules part, D-083). */
-const SCHEDULES = false;
 
 /**
  * A WLAN's editor (wifi.md, WLANs): its name and network, security, bands, the devices that
@@ -296,15 +294,13 @@ export function WlanEditor(props: {
               />
             </div>
           </section>
-          <Show when={SCHEDULES}>
-            <ScheduleField
-              scheduled={draft().scheduled}
-              spans={draft().spans}
-              zone={props.view.config.site.timezone}
-              error={errors().schedule}
-              onChange={change}
-            />
-          </Show>
+          <ScheduleField
+            scheduled={draft().scheduled}
+            spans={draft().spans}
+            zone={props.view.config.site.timezone}
+            error={errors().schedule}
+            onChange={change}
+          />
           <Show when={failure()}>
             <div class="flex flex-col gap-1">
               <RequestError text={failure()} />

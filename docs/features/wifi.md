@@ -9,7 +9,7 @@ Fields (✅ in the model and the editor; D-083):
 - ✅ SSID, enabled, network (VLAN), security, passphrase (vault)
 - ✅ bands (2.4/5/6 GHz) and nodes (all | only | all but)
 - ✅ hidden, client isolation, max clients per radio (`maxassoc`)
-- schedule: weekly on-times in the site's time zone. In the model and validated (schema v6); the controller's enforcement and the editor are M5.1's second part.
+- ✅ schedule: weekly on-times in the site's time zone, daylight saving included. The controller enforces the saved site's (no apply needed): outside its times a WLAN's BSSes on managed nodes go off through the agent's `bss` op (hostapd's `config_set` with netifd's config less those BSSes; no UCI change, the radio's other BSSes and its mesh point keep running), and on again at the start; a `wifi reload` or an apply brings them back on, and the controller turns them off again within half a minute. While the controller is down a WLAN stays as it is. Events: `wlan_scheduled` (site-wide), `wlan_schedule_failed`/`wlan_schedule_ok` per node and phy (D-083).
 - 802.11w (PMF) follows the security mode (transition 1, WPA3 and OWE 2); roaming options are M5.2
 - advanced, later: DTIM, multicast-to-unicast, `disassoc_low_ack`, minimum basic rate, airtime fairness
 

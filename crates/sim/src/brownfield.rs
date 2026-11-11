@@ -2,7 +2,7 @@
 //! facts, as its agent reports them, and its `/etc/config` before uniwrt manages it
 //! (`render::config`), for import's round-trip tests and the demo.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use uniwrt_core::Timestamp;
 use uniwrt_model::{facts::NodeFacts, node::NodeRole};
@@ -41,8 +41,9 @@ pub(crate) fn of(world: &World) -> Vec<Brownfield> {
     (0..world.nodes.len())
         .map(|n| {
             let files = config::files(world, n);
-            let collected: Collected = serde_json::from_value(collect(world, n, &Set::ALL, &files))
-                .expect("the sim's collect parses");
+            let collected: Collected =
+                serde_json::from_value(collect(world, n, &Set::ALL, &files, &BTreeSet::new()))
+                    .expect("the sim's collect parses");
             let mut found = NodeFacts::default();
             let _ = facts::apply(&collected, &mut found);
             let node = &world.nodes[n];

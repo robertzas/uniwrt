@@ -32,6 +32,29 @@ pub struct Wlan {
     pub schedule: Option<Schedule>,
 }
 
+impl Wlan {
+    /// Whether `section` is one of its `wifi-iface`s as render names them (features/wifi.md,
+    /// Rendering): `uw_<id>_<band>`, then the radio's number when the band has several, then
+    /// `o` for OWE transition's open BSS.
+    pub fn owns_section(&self, section: &str) -> bool {
+        let Some(rest) = section
+            .strip_prefix("uw_")
+            .and_then(|rest| rest.strip_prefix(self.id.as_str()))
+            .and_then(|rest| rest.strip_prefix('_'))
+        else {
+            return false;
+        };
+        let Some(rest) = ["2g", "5g", "6g", "60g"]
+            .iter()
+            .find_map(|band| rest.strip_prefix(band))
+        else {
+            return false;
+        };
+        let rest = rest.strip_suffix('o').unwrap_or(rest);
+        rest.bytes().all(|b| b.is_ascii_digit()) && !rest.starts_with('0')
+    }
+}
+
 /// The times of the week a WLAN is on, in the site's time zone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

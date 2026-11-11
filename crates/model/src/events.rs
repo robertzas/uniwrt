@@ -277,6 +277,22 @@ pub enum EventKind {
         shaped_download_kbps: u32,
         shaped_upload_kbps: u32,
     },
+    /// A WLAN's schedule turned it off, or on again, across the site (features/wifi.md, WLANs;
+    /// D-083).
+    WlanScheduled {
+        wlan: String,
+        ssid: String,
+        on: bool,
+    },
+    /// The controller could not turn a node's BSSes on `phy` off or on as the schedules want
+    /// (raises `wlan-schedule:<phy>`, cleared once it could).
+    WlanScheduleFailed {
+        phy: String,
+        error: String,
+    },
+    WlanScheduleOk {
+        phy: String,
+    },
 }
 
 impl EventKind {
@@ -312,7 +328,11 @@ impl EventKind {
             Self::ChannelChanged { radar: true, .. } | Self::ChannelCongested { .. } => {
                 (C::Wifi, L::Warning)
             }
-            Self::ChannelChanged { .. } | Self::ChannelClear { .. } => (C::Wifi, L::Notice),
+            Self::WlanScheduleFailed { .. } => (C::Wifi, L::Warning),
+            Self::ChannelChanged { .. }
+            | Self::ChannelClear { .. }
+            | Self::WlanScheduleOk { .. } => (C::Wifi, L::Notice),
+            Self::WlanScheduled { .. } => (C::Wifi, L::Info),
         }
     }
 
@@ -347,6 +367,9 @@ impl EventKind {
             Self::ConfigDrift { .. } => "config_drift",
             Self::ConfigDriftEnded { .. } => "config_drift_ended",
             Self::SqmRatesDrifted { .. } => "sqm_rates_drifted",
+            Self::WlanScheduled { .. } => "wlan_scheduled",
+            Self::WlanScheduleFailed { .. } => "wlan_schedule_failed",
+            Self::WlanScheduleOk { .. } => "wlan_schedule_ok",
         }
     }
 }
