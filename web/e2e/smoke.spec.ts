@@ -196,7 +196,7 @@ test("maps the network, details a device and pins it", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("lists the clients, opens one and renames it", async ({ page }) => {
+test("lists the clients, opens one, renames it and blocks it", async ({ page }) => {
   test.setTimeout(60_000);
   const errors = watchErrors(page);
   await signIn(page);
@@ -209,7 +209,11 @@ test("lists the clients, opens one and renames it", async ({ page }) => {
   await table.locator("tbody tr").first().click();
   await expect(page).toHaveURL(/\/clients\/[0-9a-f:]{17}$/);
   await expect(page.getByRole("heading", { level: 2, name: "Experience" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Kick", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Kick", exact: true }).click();
+  const kick = page.getByRole("dialog", { name: "Kick this client" });
+  await expect(kick.getByRole("button", { name: "1 min" })).toHaveAttribute("aria-pressed", "true");
+  await kick.getByRole("button", { name: "Cancel" }).click();
+  await expect(kick).toBeHidden();
 
   await page.getByRole("tab", { name: "Timeline" }).click();
   await expect(page.getByRole("table", { name: "Where it connected" })).toBeVisible();
@@ -221,6 +225,15 @@ test("lists the clients, opens one and renames it", async ({ page }) => {
   await dialog.getByLabel("Name").fill("Demo phone");
   await dialog.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Demo phone");
+
+  await page.getByRole("button", { name: "Block", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Block Demo phone?" })
+    .getByRole("button", { name: "Block" })
+    .click();
+  await expect(page.getByRole("button", { name: "Unblock" })).toBeVisible();
+  await page.getByRole("button", { name: "Unblock" }).click();
+  await expect(page.getByRole("button", { name: "Block", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
