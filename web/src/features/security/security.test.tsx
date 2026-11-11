@@ -209,9 +209,13 @@ describe("Security", () => {
     );
 
     const card = screen.getByLabelText("Port forwards");
+    // The dialog is gone before the typing starts: closing, it gives the focus back to its
+    // trigger, which on a busy runner can happen mid-word and take the rest of it.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(within(card).getAllByRole("button", { name: "Edit" })[0] as HTMLElement);
     const host = within(card).getByLabelText("Host address");
     await user.type(host, "192.168.1.1");
+    expect(host).toHaveValue("192.168.1.1");
     await user.click(within(card).getByRole("button", { name: "Save" }));
     expect(await within(card).findByText("The gateway's own address")).toBeVisible();
     await user.clear(host);
