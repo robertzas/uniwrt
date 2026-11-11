@@ -1,11 +1,12 @@
 //! The book over builds: clients appearing, roaming, leaving and coming back; nodes going
-//! quiet; a restart; aliases and groups; samples and retries; forgetting.
+//! quiet; a restart; aliases and groups; samples and retries; forgetting; Wi-Fi capabilities.
 
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
-    client::{ClientMedium, ClientRecord, ClientSession, SessionEnd},
+    client::{ClientMedium, ClientRecord, ClientSession, ClientWifi, SessionEnd},
+    facts::StationCapability,
     status::NodeState,
-    wifi::Band,
+    wifi::{Band, WifiStandard},
 };
 
 use super::{AP, World, phone, private, secs};
@@ -150,6 +151,7 @@ fn a_restored_session_goes_on_or_ends_when_the_client_was_last_seen() {
         first_seen: secs(-1000),
         last_seen: secs(50),
         blocked: Some(secs(-500)),
+        wifi: ClientWifi::default(),
     };
     let mut book = Book::new(BookConfig::default());
     let changes = book.restore(vec![record.clone()], vec![session(1, secs(-30), None)]);
@@ -277,4 +279,86 @@ fn clients_long_gone_are_forgotten_unless_named_or_blocked() {
         2,
         "the last sessions of the ones kept"
     );
+}
+
+#[test]
+fn wifi_capabilities_are_learned_over_associations_and_kept() {
+    let mut world = World::new();
+    world.associate(1, phone(), secs(-30));
+    let station = &mut world.nodes[0].stations[0];
+    station.standard = Some(WifiStandard::Vht);
+    station.capabilities = [StationCapability::RadioMeasurement].into();
+    let changes = world.build(secs(10));
+    let learned = ClientWifi {
+        standard: Some(WifiStandard::Vht),
+        bands: [Band::G5].into(),
+        capabilities: [StationCapability::RadioMeasurement].into(),
+    };
+    assert_eq!(changes.records.last().unwrap().wifi, learned);
+    assert_eq!(changes.clients[0].wifi, learned);
+
+    // A newer standard and another feature are saved at once; nothing new isn't.
+    let station = &mut world.nodes[0].stations[0];
+    station.standard = Some(WifiStandard::He);
+    station.capabilities = [StationCapability::BssTransition].into();
+    let changes = world.build(secs(20));
+    let learned = ClientWifi {
+        standard: Some(WifiStandard::He),
+        capabilities: [
+            StationCapability::RadioMeasurement,
+            StationCapability::BssTransition,
+        ]
+        .into(),
+        ..learned
+    };
+    assert_eq!(changes.records[0].wifi, learned);
+    assert_eq!(world.build(secs(25)).records, []);
+
+    // 802.11r comes from a fast roam's authorization, once.
+    let changes = world
+        .book
+        .learn(phone(), StationCapability::FastTransition)
+        .unwrap();
+    assert!(
+        changes.records[0]
+            .wifi
+            .capabilities
+            .contains(&StationCapability::FastTransition)
+    );
+    assert_eq!(changes.clients[0].wifi, changes.records[0].wifi);
+    assert!(
+        world
+            .book
+            .learn(phone(), StationCapability::FastTransition)
+            .is_none()
+    );
+    assert!(
+        world
+            .book
+            .learn(private(9), StationCapability::FastTransition)
+            .is_none()
+    );
+
+    // Gone, it keeps them; a restored record adds what it knew.
+    world.leave(phone());
+    world.build(secs(30));
+    let stored = ClientRecord {
+        mac: phone(),
+        alias: None,
+        hostname: None,
+        first_seen: secs(-30),
+        last_seen: secs(25),
+        blocked: None,
+        wifi: ClientWifi {
+            standard: Some(WifiStandard::Ht),
+            bands: [Band::G2].into(),
+            capabilities: [StationCapability::Wmm].into(),
+        },
+    };
+    let changes = world.book.restore(vec![stored], Vec::new());
+    let wifi = &changes.clients[0].wifi;
+    assert!(!changes.clients[0].online);
+    assert_eq!(wifi.standard, Some(WifiStandard::He));
+    assert_eq!(wifi.bands, [Band::G2, Band::G5].into());
+    assert_eq!(wifi.capabilities.len(), 4);
 }

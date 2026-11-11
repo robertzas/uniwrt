@@ -6,8 +6,8 @@ use uniwrt_model::client::{ClientRecord, ClientSession};
 
 use super::ClientRepo;
 use crate::{
-    Result, Store,
-    codec::{enum_column, enum_text, mac_column, timestamp_column},
+    Error, Result, Store,
+    codec::{enum_column, enum_text, json_column, mac_column, timestamp_column},
 };
 
 const SESSION_COLUMNS: &str = "mac, started, ended, ended_by, node, port, medium, band, ssid";
@@ -17,7 +17,7 @@ impl ClientRepo for Store {
         self.read(|conn| {
             Ok(conn
                 .prepare_cached(
-                    "SELECT mac, alias, hostname, first_seen, last_seen, blocked FROM clients ORDER BY mac",
+                    "SELECT mac, alias, hostname, first_seen, last_seen, blocked, wifi FROM clients ORDER BY mac",
                 )?
                 .query_map([], |row| {
                     Ok(ClientRecord {
@@ -27,6 +27,7 @@ impl ClientRepo for Store {
                         first_seen: timestamp_column(row, 3)?,
                         last_seen: timestamp_column(row, 4)?,
                         blocked: row.get::<_, Option<i64>>(5)?.map(Timestamp::from_unix_ms),
+                        wifi: json_column(row, 6)?,
                     })
                 })?
                 .collect::<rusqlite::Result<_>>()?)
@@ -128,18 +129,29 @@ impl ClientRepo for Store {
 }
 
 /// Saves a record: a new one whole, an existing one's hostname (when known), the earlier first
-/// and the later last sighting, and what users chose (its alias and block) only `with_choices`.
+/// and the later last sighting, its Wi-Fi capabilities (when any), and what users chose (its alias and block) only `with_choices`.
 fn upsert(conn: &Connection, record: &ClientRecord, with_choices: bool) -> Result<()> {
     let choices = if with_choices {
         "alias = excluded.alias, blocked = excluded.blocked,"
     } else {
         ""
     };
+    let wifi = if record.wifi.is_empty() {
+        None
+    } else {
+        Some(
+            serde_json::to_string(&record.wifi).map_err(|source| Error::Encode {
+                what: "client Wi-Fi capabilities",
+                source,
+            })?,
+        )
+    };
     conn.prepare_cached(&format!(
-        "INSERT INTO clients (mac, alias, hostname, first_seen, last_seen, blocked)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO clients (mac, alias, hostname, first_seen, last_seen, blocked, wifi)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT (mac) DO UPDATE SET {choices}
          hostname = coalesce(excluded.hostname, clients.hostname),
+         wifi = coalesce(excluded.wifi, clients.wifi),
          first_seen = min(clients.first_seen, excluded.first_seen),
          last_seen = max(clients.last_seen, excluded.last_seen)"
     ))?
@@ -150,6 +162,7 @@ fn upsert(conn: &Connection, record: &ClientRecord, with_choices: bool) -> Resul
         record.first_seen.as_unix_ms(),
         record.last_seen.as_unix_ms(),
         record.blocked.map(Timestamp::as_unix_ms),
+        wifi,
     ])?;
     Ok(())
 }
@@ -182,8 +195,9 @@ fn optional_enum<T: serde::de::DeserializeOwned>(
 mod tests {
     use uniwrt_core::{MacAddr, NodeId, Timestamp};
     use uniwrt_model::{
-        client::{ClientMedium, ClientRecord, ClientSession, SessionEnd},
-        wifi::Band,
+        client::{ClientMedium, ClientRecord, ClientSession, ClientWifi, SessionEnd},
+        facts::StationCapability,
+        wifi::{Band, WifiStandard},
     };
 
     use crate::{ClientRepo as _, testing};
@@ -204,6 +218,7 @@ mod tests {
             first_seen: ms(seen.0),
             last_seen: ms(seen.1),
             blocked: None,
+            wifi: ClientWifi::default(),
         }
     }
 
@@ -251,6 +266,27 @@ mod tests {
             }
         );
         assert_eq!(clients[1], record(2, (10, 20)));
+        // Wi-Fi capabilities are kept by a later save that has none.
+        let wifi = ClientWifi {
+            standard: Some(WifiStandard::He),
+            bands: [Band::G2, Band::G5].into(),
+            capabilities: [StationCapability::FastTransition].into(),
+        };
+        store
+            .save_clients(vec![ClientRecord {
+                wifi: wifi.clone(),
+                ..record(2, (10, 30))
+            }])
+            .await
+            .unwrap();
+        store.save_clients(vec![record(2, (10, 40))]).await.unwrap();
+        assert_eq!(
+            store.clients().await.unwrap()[1],
+            ClientRecord {
+                wifi,
+                ..record(2, (10, 40))
+            }
+        );
         let blocked = ClientRecord {
             blocked: Some(ms(400)),
             ..record(1, (100, 300))

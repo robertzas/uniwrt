@@ -150,6 +150,9 @@ describe("a client's page", () => {
     expect(screen.getByRole("button", { name: "Block" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "Living room" })).toHaveAttribute("href", "/devices/2");
     expect(screen.getByText("Signal to noise")).toBeVisible();
+    // What it showed over its associations: the standard, the bands, the features.
+    expect(screen.getByText("Wi-Fi generation").nextElementSibling).toHaveTextContent("Wi-Fi 6");
+    expect(screen.getByText("Bands").nextElementSibling).toHaveTextContent("2.4 GHz · 5 GHz");
     for (const cap of ["802.11k", "802.11r", "802.11v"])
       expect(screen.getByText(cap)).toBeVisible();
 

@@ -136,7 +136,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use uniwrt_core::{Clock as _, ManualClock, NodeId, Timestamp};
-    use uniwrt_model::client::{ClientMedium, ClientRecord, ClientSession};
+    use uniwrt_model::client::{ClientMedium, ClientRecord, ClientSession, ClientWifi};
     use uniwrt_store::{ClientRepo as _, Store};
 
     use super::{ClientRecorder, RecorderConfig};
@@ -158,6 +158,7 @@ mod tests {
             first_seen: Timestamp::from_unix_secs(1_000),
             last_seen,
             blocked: None,
+            wifi: ClientWifi::default(),
         };
         store
             .save_clients(vec![

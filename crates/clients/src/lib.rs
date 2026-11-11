@@ -4,7 +4,9 @@
 //! - **API:** [`Book`] keeps every client the controller knows: [`Book::update`] takes each
 //!   topology build (with the [`Member`](uniwrt_topo::Member)s it was built from),
 //!   [`Book::restore`] what the store kept, [`Book::rename`] a user's alias, [`Book::block`]
-//!   a user's block, [`Book::prune`] forgets clients long gone (never named or blocked ones); each returns its [`Changes`]. [`Book::clients`] and
+//!   a user's block, [`Book::learn`] a capability seen outside the facts (802.11r from a fast
+//!   roam), [`Book::prune`] forgets clients long gone (never named or blocked ones); each
+//!   returns its [`Changes`]. [`Book::clients`] and
 //!   [`Book::detail`] read it. A client now is a [`Client`] (identity, [`Connection`],
 //!   [`Experience`]); its recent history is [`ClientSample`]s. [`vendor`] names the
 //!   organization a MAC address is assigned to; [`classify`] guesses a [`ClientKind`].
@@ -16,7 +18,9 @@
 //!   time it was seen, and an association that began before its session ended (the station's
 //!   connected time says) carries on the same session, as after a restart. Randomized
 //!   addresses are grouped by hostname, else by a DHCP client ID that is not the address, and
-//!   share an alias. The experience score v1 is in `score.rs`; the vendor table (IEEE MA-L,
+//!   share an alias. A Wi-Fi client's capabilities (its newest standard, its bands, 11k/v/w,
+//!   WMM, 11r) are learned from each association's station facts and kept on its record
+//!   (`ClientWifi`): they only grow. The experience score v1 is in `score.rs`; the vendor table (IEEE MA-L,
 //!   MA-M, MA-S) is embedded and made by `scripts/oui.py` (D-053).
 //! - **Invariants:** pure and deterministic: no IO, no clock (times come from the builds and
 //!   the facts). Sessions of a client never overlap, and a session's start identifies it. A

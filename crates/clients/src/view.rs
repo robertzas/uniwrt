@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, net::IpAddr};
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_model::{
-    client::ClientMedium,
+    client::{ClientMedium, ClientWifi},
     facts::{RadioFacts, Rate, StationCapability, StationFacts},
     status::NodeState,
     wifi::{Band, WifiStandard},
@@ -42,6 +42,8 @@ pub struct Client {
     pub blocked: Option<Timestamp>,
     /// While it is online over Wi-Fi.
     pub experience: Option<Experience>,
+    /// What it showed the access points over its associations, kept while it is away.
+    pub wifi: ClientWifi,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

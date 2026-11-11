@@ -2,6 +2,7 @@ import type { JSX } from "@solidjs/web";
 import { For, Show, useContext } from "solid-js";
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import type { ClientSample } from "../../api/gen/ClientSample";
+import type { ClientWifi } from "../../api/gen/ClientWifi";
 import type { ExperiencePart } from "../../api/gen/ExperiencePart";
 import { scoreTone, upstreamName } from "../../lib/clients";
 import {
@@ -107,7 +108,7 @@ function Stats(props: { detail: ClientDetail; now: number }) {
   );
 }
 
-function Rows(props: { rows: [string, JSX.Element][] }) {
+function Rows(props: { rows: [JSX.Element, JSX.Element][] }) {
   return (
     <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 pb-4 text-sm">
       <For each={props.rows}>
@@ -155,22 +156,6 @@ function Connection(props: { detail: ClientDetail; nodeName: (id: number) => str
         [c.band, connection.band ? radios.band[connection.band] : NONE],
         [c.channel, connection.channel ?? NONE],
         [c.standard, connection.standard ? radios.standard[connection.standard] : NONE],
-        [
-          c.roaming,
-          connection.capabilities.length > 0 ? (
-            <span class="flex flex-wrap justify-end gap-1 whitespace-normal">
-              <For each={connection.capabilities}>
-                {(cap) => (
-                  <span class="rounded-control bg-raised px-1.5 font-medium text-xs">
-                    {d.capability[cap]}
-                  </span>
-                )}
-              </For>
-            </span>
-          ) : (
-            NONE
-          ),
-        ],
         [c.capacity, connection.capacity_mbps != null ? c.mbps(connection.capacity_mbps) : NONE],
         [c.port, connection.port ?? NONE],
         [c.since, formatDateTime(connection.since)],
@@ -262,10 +247,36 @@ function Experience(props: { detail: ClientDetail }) {
   );
 }
 
+/** What a Wi-Fi client showed over its associations (features/wifi.md, Roaming); none for others. */
+function wifiRows(wifi: ClientWifi): [JSX.Element, JSX.Element][] {
+  const t = d.details;
+  const rows: [JSX.Element, JSX.Element][] = [];
+  if (wifi.standard) rows.push([t.standard, radios.standard[wifi.standard]]);
+  if (wifi.bands.length > 0)
+    rows.push([t.bands, wifi.bands.map((band) => radios.band[band]).join(" · ")]);
+  if (wifi.capabilities.length > 0)
+    rows.push([
+      <span title={t.featuresHint}>{t.features}</span>,
+      <span class="flex flex-wrap justify-end gap-1 whitespace-normal">
+        <For each={wifi.capabilities}>
+          {(cap) => (
+            <span
+              class="rounded-control bg-raised px-1.5 font-medium text-xs"
+              title={d.capabilityHint[cap]}
+            >
+              {d.capability[cap]}
+            </span>
+          )}
+        </For>
+      </span>,
+    ]);
+  return rows;
+}
+
 function Details(props: { detail: ClientDetail }) {
   const t = d.details;
   const client = () => props.detail.client;
-  const rows = (): [string, JSX.Element][] => [
+  const rows = (): [JSX.Element, JSX.Element][] => [
     [t.mac, <span class="font-mono text-xs">{client().mac}</span>],
     [t.vendor, client().vendor ?? NONE],
     [t.kind, strings.clients.kind[client().kind]],
@@ -280,6 +291,7 @@ function Details(props: { detail: ClientDetail }) {
         NONE
       ),
     ],
+    ...wifiRows(client().wifi),
     [t.firstSeen, formatDateTime(client().first_seen)],
     [t.lastSeen, formatDateTime(client().last_seen)],
     ...(client().group

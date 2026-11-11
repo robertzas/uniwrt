@@ -7,7 +7,11 @@ use std::sync::Arc;
 use tokio::{sync::broadcast::error::RecvError, time::Instant};
 use tracing::warn;
 use uniwrt_core::Timestamp;
-use uniwrt_model::{event::NodeEvent, facts::NodeFacts, log::LogEntry};
+use uniwrt_model::{
+    event::{NodeEvent, StationChange},
+    facts::{NodeFacts, StationCapability},
+    log::LogEntry,
+};
 use uniwrt_node::{
     AgentEvent, NodeLink,
     events::{self, Push},
@@ -108,6 +112,19 @@ impl<L: NodeLink> NodeActor<L> {
             NodeEvent::Station(station) => self.ctx.roams().observe(self.node, at, station),
             _ => None,
         };
+        // Only an authorization says a client fast-roamed (802.11r): the facts never do.
+        if let NodeEvent::Station(station) = &event
+            && station.change == StationChange::Authorized
+            && station.auth_alg.as_deref() == Some("ft")
+        {
+            let learned = self
+                .ctx
+                .clients()
+                .learn(station.mac, StationCapability::FastTransition);
+            if let Some(changes) = learned {
+                self.ctx.publish_clients(changes);
+            }
+        }
         self.mark_dirty(match &event {
             NodeEvent::Station(_) => Set::Stations,
             NodeEvent::Device(_) => Set::Devices,

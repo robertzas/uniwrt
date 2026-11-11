@@ -10,7 +10,10 @@ use std::{
 };
 
 use uniwrt_core::{MacAddr, Timestamp};
-use uniwrt_model::client::{ClientRecord, ClientSession};
+use uniwrt_model::{
+    client::{ClientRecord, ClientSession, ClientWifi},
+    facts::StationCapability,
+};
 use uniwrt_topo::{Member, Topology};
 
 use crate::{Client, ClientSample, entry::Entry, view::observe};
@@ -105,6 +108,15 @@ impl Book {
                     entry.record.alias = record.alias;
                     entry.record.blocked = record.blocked;
                     entry.record.first_seen = entry.record.first_seen.min(record.first_seen);
+                    let ClientWifi {
+                        standard,
+                        bands,
+                        capabilities,
+                    } = record.wifi;
+                    let wifi = &mut entry.record.wifi;
+                    wifi.standard = wifi.standard.max(standard);
+                    wifi.bands.extend(bands);
+                    wifi.capabilities.extend(capabilities);
                 }
                 None => {
                     self.entries.insert(record.mac, Entry::new(record));
@@ -143,6 +155,7 @@ impl Book {
                     first_seen: seen.at,
                     last_seen: seen.at,
                     blocked: None,
+                    wifi: ClientWifi::default(),
                 };
                 changes.records.push(record.clone());
                 Entry::new(record)
@@ -192,6 +205,19 @@ impl Book {
         let mut changes = Changes::default();
         self.refresh(&BTreeSet::from([mac]), &mut changes);
         Some((record, changes))
+    }
+
+    /// Notes a capability a client showed outside the stations' facts, such as 802.11r when it
+    /// fast-roamed; `None` when the client is unknown or the capability known already.
+    pub fn learn(&mut self, mac: MacAddr, capability: StationCapability) -> Option<Changes> {
+        let entry = self.entries.get_mut(&mac)?;
+        if !entry.record.wifi.add(capability) {
+            return None;
+        }
+        let mut changes = Changes::default();
+        entry.save(&mut changes);
+        self.refresh(&BTreeSet::from([mac]), &mut changes);
+        Some(changes)
     }
 
     /// The blocked clients' addresses.

@@ -90,7 +90,7 @@ Clients (features/observability.md, Clients): the inventory of every device that
 - `src/oui.rs`: Vendors by MAC address: IEEE's MA-L, MA-M and MA-S registries, embedded compressed (`data/oui.bin`, which `scripts/oui.py` makes; D-053) and unpacked on first use.
 - `src/rules.rs`: The device-kind rules ([`classify`](crate::classify)), in order: the first that matches wins, so specific rules come before broad ones (a tablet's "galaxy-tab" before a phone's "galaxy", a camera's "-cam" before the smart home's "esp32").
 - `src/score.rs`: The experience score v1 (features/observability.md, Clients): 0–100, a weighted mean of what a Wi-Fi client's connection is like, with each part kept so the UI can show why.
-- `src/tests/book.rs`: The book over builds: clients appearing, roaming, leaving and coming back; nodes going quiet; a restart; aliases and groups; samples and retries; forgetting.
+- `src/tests/book.rs`: The book over builds: clients appearing, roaming, leaving and coming back; nodes going quiet; a restart; aliases and groups; samples and retries; forgetting; Wi-Fi capabilities.
 - `src/tests/mod.rs`: A book driven through topology builds of a small house made in code (`World`): a gateway (node 1) and an access point (node 2), each with one 5 GHz AP interface, and clients moving between them.
 - `src/view.rs`: What a client looks like now ([`Client`]), as the API and the WS topics `clients` and `client:<mac>` carry it, its signal history's points ([`ClientSample`]), and what one topology build says about each client ([`observe`]).
 
@@ -700,7 +700,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (333 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (334 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

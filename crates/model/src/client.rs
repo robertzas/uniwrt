@@ -2,10 +2,15 @@
 //! that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was
 //! connected and when ([`ClientSession`]). What a client looks like now is `uniwrt_clients`'s.
 
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 
-use crate::wifi::Band;
+use crate::{
+    facts::{StationCapability, StationFacts},
+    wifi::{Band, WifiStandard},
+};
 
 /// The longest alias, in characters.
 pub const ALIAS_MAX: usize = 64;
@@ -24,6 +29,42 @@ pub struct ClientRecord {
     /// When a user blocked it: the controller keeps it off every managed access point until
     /// unblocked (features/wifi.md, Client actions).
     pub blocked: Option<Timestamp>,
+    /// What it showed the access points over every association (features/wifi.md, Roaming).
+    #[serde(default)]
+    pub wifi: ClientWifi,
+}
+
+/// A Wi-Fi client's capabilities, learned over its associations and kept while the client is
+/// away (features/wifi.md, Roaming: client capabilities): what steering may ask of it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct ClientWifi {
+    /// The newest Wi-Fi standard it advertised.
+    pub standard: Option<WifiStandard>,
+    /// The bands it connected on.
+    pub bands: BTreeSet<Band>,
+    /// The features it advertised; 802.11r once it fast-roamed.
+    pub capabilities: BTreeSet<StationCapability>,
+}
+
+impl ClientWifi {
+    pub fn is_empty(&self) -> bool {
+        self.standard.is_none() && self.bands.is_empty() && self.capabilities.is_empty()
+    }
+
+    /// Adds what an association on `band` showed; true when it learned something.
+    pub fn learn(&mut self, station: &StationFacts, band: Option<Band>) -> bool {
+        let before = self.clone();
+        self.standard = self.standard.max(station.standard);
+        self.bands.extend(band);
+        self.capabilities.extend(&station.capabilities);
+        *self != before
+    }
+
+    /// Adds one capability; true when it is new.
+    pub fn add(&mut self, capability: StationCapability) -> bool {
+        self.capabilities.insert(capability)
+    }
 }
 
 /// One stay of a client at one place: an access point's interface, or a node's port (or the

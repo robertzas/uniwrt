@@ -54,6 +54,7 @@ export function client(mac: string, extra: Partial<Client> = {}): Client {
         { factor: "retries", score: 71, weight: 20, value: 15 },
       ],
     },
+    wifi: { standard: "he", bands: ["2g", "5g"], capabilities: ["11k", "11r", "11v"] },
     ...extra,
   };
 }

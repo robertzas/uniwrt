@@ -11,7 +11,7 @@ use std::{
 
 use uniwrt_core::{MacAddr, Timestamp};
 use uniwrt_model::{
-    client::{ClientRecord, ClientSession, SessionEnd},
+    client::{ClientRecord, ClientSession, ClientWifi, SessionEnd},
     wifi::ChannelWidth,
 };
 
@@ -111,14 +111,14 @@ impl Entry {
         self.record.mac
     }
 
-    /// Notes who the client says it is: its hostname (saved when it changes), addresses and
-    /// DHCP client ID.
-    fn identify(&mut self, seen: &Seen<'_>, changes: &mut Changes) {
+    /// Notes who the client says it is: its hostname, addresses and DHCP client ID; true when
+    /// the hostname changed (to save).
+    fn identify(&mut self, seen: &Seen<'_>) -> bool {
         let hostname = seen.vertex.name.clone();
-        if hostname.is_some() && hostname != self.record.hostname {
+        let renamed = hostname.is_some() && hostname != self.record.hostname;
+        if renamed {
             self.record.hostname = hostname;
             self.kind = classify(self.record.hostname.as_deref(), self.vendor);
-            self.save(changes);
         }
         if !seen.vertex.ips.is_empty() {
             self.ips.clone_from(&seen.vertex.ips);
@@ -126,11 +126,12 @@ impl Entry {
         if let Some(id) = seen.client_id {
             self.client_id = Some(id.to_owned());
         }
+        renamed
     }
 
     /// The client is connected where `seen` says.
     pub(crate) fn online(&mut self, seen: &Seen<'_>, config: &BookConfig, changes: &mut Changes) {
-        self.identify(seen, changes);
+        let renamed = self.identify(seen);
         if seen.at > self.record.last_seen {
             self.record.last_seen = seen.at;
         }
@@ -151,7 +152,13 @@ impl Entry {
         };
         self.place(here, seen, config, changes);
         self.online = true;
-        if self.record.last_seen.saturating_duration_since(self.saved) >= config.save_every {
+        let learned = seen
+            .station
+            .is_some_and(|station| self.record.wifi.learn(station, seen.edge.band));
+        if renamed
+            || learned
+            || self.record.last_seen.saturating_duration_since(self.saved) >= config.save_every
+        {
             self.save(changes);
         }
         self.measure(seen, config, changes);
@@ -413,6 +420,7 @@ impl Entry {
             last_seen: self.record.last_seen,
             blocked: self.record.blocked,
             experience: self.experience.clone(),
+            wifi: self.record.wifi.clone(),
         }
     }
 
@@ -461,5 +469,6 @@ fn placeholder() -> Client {
         last_seen: Timestamp::UNIX_EPOCH,
         blocked: None,
         experience: None,
+        wifi: ClientWifi::default(),
     }
 }

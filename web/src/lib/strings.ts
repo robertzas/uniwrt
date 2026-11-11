@@ -551,7 +551,6 @@ export const strings = {
       band: "Band",
       channel: "Channel",
       standard: "Wi-Fi standard",
-      roaming: "Roaming support",
       capacity: "Link capacity",
       since: "Connected since",
       none: "Not connected",
@@ -564,6 +563,13 @@ export const strings = {
       "11v": "802.11v",
       "11w": "802.11w",
       wmm: "WMM",
+    },
+    capabilityHint: {
+      "11k": "Asks the access point for its neighbors before roaming",
+      "11r": "Fast-roamed: moves between access points without a new handshake",
+      "11v": "Accepts the access point's suggestions of where to roam",
+      "11w": "Protects its management frames",
+      wmm: "Prioritizes voice and video",
     },
     experience: {
       title: "Experience",
@@ -589,6 +595,11 @@ export const strings = {
       firstSeen: "First seen",
       lastSeen: "Last seen",
       group: "Grouped by",
+      standard: "Wi-Fi generation",
+      bands: "Bands",
+      features: "Wi-Fi features",
+      featuresHint:
+        "Learned from its connections and kept while it's away; 802.11r shows once it fast-roams.",
     },
     timeline: {
       title: "Where it connected",

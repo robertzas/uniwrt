@@ -33,6 +33,16 @@ pub(crate) fn timestamp_column(row: &Row<'_>, index: usize) -> rusqlite::Result<
     row.get(index).map(Timestamp::from_unix_ms)
 }
 
+/// A JSON column; NULL is the type's default.
+pub(crate) fn json_column<T: DeserializeOwned + Default>(
+    row: &Row<'_>,
+    index: usize,
+) -> rusqlite::Result<T> {
+    row.get::<_, Option<String>>(index)?
+        .map_or_else(|| Ok(T::default()), |text| serde_json::from_str(&text))
+        .map_err(|err| invalid(index, err))
+}
+
 fn invalid(index: usize, err: impl std::error::Error + Send + Sync + 'static) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(err))
 }

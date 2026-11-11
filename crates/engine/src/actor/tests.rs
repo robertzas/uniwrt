@@ -13,7 +13,9 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use uniwrt_core::{ManualClock, NodeId, Timestamp};
 use uniwrt_model::{
+    client::{ClientRecord, ClientWifi},
     event::{Attachment, NodeEvent, StationChange},
+    facts::StationCapability,
     status::{NodeState, NodeStatus, StatusReason},
 };
 use uniwrt_node::{AgentState, Error, LinkState, proto::ops::Set};
@@ -197,7 +199,32 @@ async fn station_events_are_announced_refresh_their_set_and_reveal_roams() {
         panic!("a station event: {event:?}");
     };
     assert_eq!(station.change, StationChange::Authorized);
+    // A client the book knows learns 802.11r from its fast roam.
+    let mac = "02:00:00:00:0a:00".parse().unwrap();
+    fleet.engine.context().clients().restore(
+        vec![ClientRecord {
+            mac,
+            alias: None,
+            hostname: None,
+            first_seen: NOW,
+            last_seen: NOW,
+            blocked: None,
+            wifi: ClientWifi::default(),
+        }],
+        Vec::new(),
+    );
     script_b.push_event("hostapd.sta-authorized", &authorized("ft"));
+    let learned = fleet
+        .next(|event| match event {
+            Event::Clients { changes } => Some(changes),
+            _ => None,
+        })
+        .await;
+    assert_eq!(learned.records[0].mac, mac);
+    assert_eq!(
+        learned.clients[0].wifi.capabilities,
+        [StationCapability::FastTransition].into()
+    );
     let roam = fleet
         .next(|event| match event {
             Event::Roam { roam, .. } => Some(roam),

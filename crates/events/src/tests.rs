@@ -322,6 +322,7 @@ fn client(mac: &str, online: bool, node: i64, since: i64) -> Arc<Client> {
                 "capacity_mbps": null, "traffic": null,
             },
             "first_seen": 0, "last_seen": 0, "experience": null,
+            "wifi": {"standard": null, "bands": [], "capabilities": []},
         }))
         .unwrap(),
     )
