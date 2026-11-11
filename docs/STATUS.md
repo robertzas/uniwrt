@@ -1,7 +1,7 @@
 # Status
 
 **Milestone:** M5 — Wi-Fi and mesh (M4 is done; the owner's acceptance of M1.7b/M1.8b waits for their hardware)
-**Next WP:** M5.1 — WLANs & client actions, split WLANs ✅ | schedules ✅ | client actions; next the client actions: kick (hostapd `del_client` with a ban time) and block/unblock (a MAC filter) on managed nodes, enabling the client page's disabled buttons (M2.3, D-053). Read ROADMAP M5; wifi.md; observability.md's client page; D-053; REFERENCE (`hostapd.*` methods: `del_client` ✅); the client page in `web/src/features/clients/`. The `bss` op's lab test (`crates/node/tests/wifi.rs`) ran only in CI's `wifi` job, not locally (docker0 was gone): if it fails there, start from REFERENCE's `hostapd` row.
+**Next WP:** M5.1 — WLANs & client actions, split WLANs ✅ | schedules ✅ | client actions; next the client actions: kick (hostapd `del_client` with a ban time) and block/unblock (a MAC filter) on managed nodes, enabling the client page's disabled buttons (M2.3, D-053). Read ROADMAP M5; wifi.md; observability.md's client page; D-053; REFERENCE (`hostapd.*` methods: `del_client` ✅); the client page in `web/src/features/clients/`. The `bss` op's lab test (`crates/node/tests/wifi.rs`) passed on both releases in CI's `wifi` job (ff68aea).
 **Last done:** M5.1 schedules (2026-11-11; D-083): the agent's `bss` op (hostapd `config_set` with netifd's config less the BSSes that are off; chosen by the owner after the hwsim lab ruled out `ip link down` and `config_remove`), the engine's `WlanSchedules` (the saved site, every 30 s and on each `radios` collect, per phy; events `wlan_scheduled`, `wlan_schedule_failed`/`_ok`), `tz::local` (DST), the sim's `bss` and its APs from `wireless`, the schedule editor shown.
 
 ## Open questions for the owner
