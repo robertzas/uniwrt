@@ -33,6 +33,8 @@ pub(crate) fn render(plan: &mut Plan<'_>) -> Package {
     let mut ifaces = Vec::new();
     // How many radios of each band already carry WLANs, which numbers the next one's sections.
     let mut per_band: Vec<(Band, usize)> = Vec::new();
+    // How many OWE transition pairs the node has, which names the next one's interfaces.
+    let mut pairs = 0;
     for radio in radios {
         let tweak = plan.config.radios.iter().find(|r| r.radio == radio.name);
         let off = tweak.is_some_and(|t| t.disabled);
@@ -58,10 +60,9 @@ pub(crate) fn render(plan: &mut Plan<'_>) -> Package {
                     1
                 };
                 for wlan in mine {
-                    if let Some(iface) = ap_iface(plan, wlan, radio, nth) {
-                        ifaces.push(iface);
-                        carried += 1;
-                    }
+                    let bss = ap_ifaces(plan, wlan, radio, nth, &mut pairs);
+                    carried += bss.len();
+                    ifaces.extend(bss);
                 }
             }
         }
@@ -257,10 +258,21 @@ fn htmode(radio: &RadioFacts, phy: Option<&PhyBand>, width: ChannelWidth) -> Opt
     Some(format!("{prefix}{}", width.mhz()))
 }
 
-/// A WLAN's BSS on one radio; `nth` numbers the radios of a band that carry WLANs.
-fn ap_iface(plan: &mut Plan<'_>, wlan: &Wlan, radio: &RadioFacts, nth: usize) -> Option<Section> {
+/// A WLAN's BSSes on one radio: one, or OWE's pair in transition mode (the open BSS under the
+/// WLAN's name and the encrypted one hidden as `<ssid>OWE`, as OpenWrt 25.12 names it, each
+/// pointing at the other's interface: `uw<n>-open` and `uw<n>-owe`, the node's `pairs`-th).
+/// `nth` numbers the radios of a band that carry WLANs.
+fn ap_ifaces(
+    plan: &mut Plan<'_>,
+    wlan: &Wlan,
+    radio: &RadioFacts,
+    nth: usize,
+    pairs: &mut usize,
+) -> Vec<Section> {
     let at = format!("wlans/{}", wlan.id);
-    let network = plan.net(&wlan.network)?.network;
+    let Some(network) = plan.net(&wlan.network).map(|net| net.network) else {
+        return Vec::new();
+    };
     let wifi = &plan.facts.capabilities.wifi;
     let (encryption, pmf) = match wlan.security {
         WlanSecurity::Wpa2 => ("psk2", None),
@@ -273,18 +285,23 @@ fn ap_iface(plan: &mut Plan<'_>, wlan: &Wlan, radio: &RadioFacts, nth: usize) ->
             ("psk2", None)
         }
         WlanSecurity::Wpa3 if wifi.contains(&WifiFeature::Sae) => ("sae", Some("2")),
-        WlanSecurity::Owe if wifi.contains(&WifiFeature::Owe) => ("owe", Some("2")),
-        WlanSecurity::Wpa3 | WlanSecurity::Owe => {
+        WlanSecurity::Owe | WlanSecurity::OweTransition if wifi.contains(&WifiFeature::Owe) => {
+            ("owe", Some("2"))
+        }
+        WlanSecurity::Wpa3 | WlanSecurity::Owe | WlanSecurity::OweTransition => {
             plan.errors.push(Issue::new(
                 &at,
                 "The node's hostapd lacks this security mode: install the full wpad",
             ));
-            return None;
+            return Vec::new();
         }
         WlanSecurity::Open => ("none", None),
     };
     let key = if wlan.security.needs_passphrase() {
-        Some(plan.secret(&format!("{at}/passphrase"), wlan.passphrase.as_ref())?)
+        let Some(key) = plan.secret(&format!("{at}/passphrase"), wlan.passphrase.as_ref()) else {
+            return Vec::new();
+        };
+        Some(key)
     } else {
         None
     };
@@ -294,17 +311,44 @@ fn ap_iface(plan: &mut Plan<'_>, wlan: &Wlan, radio: &RadioFacts, nth: usize) ->
         String::new()
     };
     let name = format!("uw_{}_{}{suffix}", wlan.id, band_key(radio.band));
-    Some(
+    let bss = |name: String, ssid: &str, encryption: &str| {
         Section::named("wifi-iface", name)
             .with("device", radio.name.as_str())
             .with("network", network.id.as_str())
             .with("mode", "ap")
-            .with("ssid", wlan.ssid.as_str())
+            .with("ssid", ssid)
             .with("encryption", encryption)
+    };
+    let common = |section: Section| {
+        section
+            .maybe("maxassoc", wlan.max_clients.map(|max| max.to_string()))
+            .flag("isolate", wlan.isolation || network.isolation)
+            .flag("disabled", !wlan.enabled)
+    };
+    // 6 GHz has no open BSS, so the encrypted one stands alone there.
+    if wlan.security == WlanSecurity::OweTransition && radio.band != Band::G6 {
+        *pairs += 1;
+        let (open, owe) = (format!("uw{pairs}-open"), format!("uw{pairs}-owe"));
+        return vec![
+            common(
+                bss(format!("{name}o"), &wlan.ssid, "none")
+                    .with("ifname", open.as_str())
+                    .with("owe_transition_ifname", owe.as_str())
+                    .flag("hidden", wlan.hidden),
+            ),
+            common(
+                bss(name, &format!("{}OWE", wlan.ssid), encryption)
+                    .with("ifname", owe.as_str())
+                    .with("owe_transition_ifname", open.as_str())
+                    .maybe("ieee80211w", pmf)
+                    .flag("hidden", true),
+            ),
+        ];
+    }
+    vec![common(
+        bss(name, &wlan.ssid, encryption)
             .maybe("key", key)
             .maybe("ieee80211w", pmf)
-            .flag("hidden", wlan.hidden)
-            .flag("isolate", wlan.isolation || network.isolation)
-            .flag("disabled", !wlan.enabled),
-    )
+            .flag("hidden", wlan.hidden),
+    )]
 }

@@ -5,16 +5,19 @@ Milestones: M2.6 (RF insight, read-only), M5.1 (WLANs, client kick/block), M5.2 
 
 ## WLANs (SSIDs) [M5.1]
 
-Fields:
-- SSID, enabled, network (VLAN), security, passphrase (vault)
-- bands (2.4/5/6 GHz) and nodes (all | include | exclude)
-- hidden, client isolation, max clients, schedule (on/off times)
-- 802.11w (PMF) and roaming options
-- advanced: DTIM, multicast-to-unicast, `disassoc_low_ack`, minimum basic rate, airtime fairness
+Fields (✅ in the model and the editor; D-083):
+- ✅ SSID, enabled, network (VLAN), security, passphrase (vault)
+- ✅ bands (2.4/5/6 GHz) and nodes (all | only | all but)
+- ✅ hidden, client isolation, max clients per radio (`maxassoc`)
+- schedule: weekly on-times in the site's time zone. In the model and validated (schema v6); the controller's enforcement and the editor are M5.1's second part.
+- 802.11w (PMF) follows the security mode (transition 1, WPA3 and OWE 2); roaming options are M5.2
+- advanced, later: DTIM, multicast-to-unicast, `disassoc_low_ack`, minimum basic rate, airtime fairness
 
-Security modes: WPA2-PSK, WPA2/WPA3 transition (`sae-mixed`), WPA3-SAE (required on 6 GHz), OWE for open guest networks (with a transition SSID), and WPA2/3-Enterprise later. PPSK is open option O-8.
+Security modes: WPA2-PSK, WPA2/WPA3 transition (`sae-mixed`), WPA3-SAE (required on 6 GHz), OWE for open guest networks, OWE in transition mode (an open companion for devices without OWE), plain open (warned about), and WPA2/3-Enterprise later. PPSK is open option O-8.
 
-Rendering: one `wifi-iface` per WLAN × radio on every in-scope node, named `uw_<wlan>_<band>`, attached to the bridge of the WLAN's VLAN. SSID, key and mobility domain are identical across nodes.
+Rendering: one `wifi-iface` per WLAN × radio on every in-scope node, named `uw_<wlan>_<band>`, attached to the bridge of the WLAN's VLAN. SSID, key and mobility domain are identical across nodes. OWE in transition mode is two sections that name each other's interface (`owe_transition_ifname`): `uw_<wlan>_<band>o`, open under the WLAN's name on `uw<n>-open`, and `uw_<wlan>_<band>`, hidden as `<ssid>OWE` on `uw<n>-owe`; 6 GHz has no open BSS, so it gets the encrypted one alone.
+
+UI: `/wifi` lists the WLANs (security, bands in the band colors, network, devices, schedule, the clients on each now, the document's warnings) and warns while the site has no country or a device doesn't manage `wireless`. Admins edit a WLAN in a dialog; a new one starts from a preset (Main: WPA2/WPA3 on 2.4 and 5 GHz; Guest: OWE in transition mode, isolated, on the guest network; IoT: WPA2 on 2.4 GHz, on the IoT network) and takes its id from its name. A QR code joins a phone: for a WLAN with a passphrase it is read from the vault (admins, audited). The site's name, country (the regulatory domain) and time zone are in Settings › Site.
 
 Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `wpad-basic-mbedtls`. The controller manages the swap, which briefly drops Wi-Fi, so it happens on the bench, during a maintenance window, or through a ZTP image.
 

@@ -6,11 +6,12 @@ import { strings } from "../../lib/strings";
 import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { NotificationsTab } from "./notifications/NotificationsTab";
 import { RevisionsTab } from "./revisions/RevisionsTab";
+import { SiteTab } from "./site/SiteTab";
 
 const t = strings.settings;
 
 /** The sections, in the URL as `?tab=`; more join as their features land (users, backups, …). */
-const TABS = ["notifications", "revisions"] as const;
+const TABS = ["site", "notifications", "revisions"] as const;
 type TabName = (typeof TABS)[number];
 
 /** `/settings` (features/ui.md): the controller's settings in tabs named in the URL. */
@@ -20,9 +21,7 @@ export function SettingsPage() {
   const [params, setParams] = useSearchParams<{ tab?: string }>();
   const admin = () => session.user.role === "admin";
   const tab = (): TabName =>
-    (TABS as readonly string[]).includes(params.tab ?? "")
-      ? (params.tab as TabName)
-      : "notifications";
+    (TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as TabName) : "site";
   const names = createMemo(() => new Map(live.fleet.nodes.map((n) => [n.id, n.name])));
 
   createEffect(
@@ -40,13 +39,17 @@ export function SettingsPage() {
       </header>
       <Tabs
         value={tab()}
-        onChange={(value) => setParams({ tab: value === "notifications" ? undefined : value })}
+        onChange={(value) => setParams({ tab: value === "site" ? undefined : value })}
         aria-label={strings.nav.settings.label}
       >
         <TabList>
+          <Tab value="site">{t.tabs.site}</Tab>
           <Tab value="notifications">{t.tabs.notifications}</Tab>
           <Tab value="revisions">{t.tabs.revisions}</Tab>
         </TabList>
+        <TabPanel value="site">
+          <SiteTab admin={admin()} />
+        </TabPanel>
         <TabPanel value="notifications">
           <NotificationsTab nodes={live.fleet.nodes} admin={admin()} />
         </TabPanel>

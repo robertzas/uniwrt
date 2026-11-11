@@ -23,6 +23,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v3.json"),
     include_str!("../../fixtures/site/v4.json"),
     include_str!("../../fixtures/site/v5.json"),
+    include_str!("../../fixtures/site/v6.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -385,6 +386,61 @@ fn network_identity() {
     }
     let issues = issues_after(|c| c.site.timezone = "Mars/Olympus".to_owned());
     assert!(has(&issues, "site/timezone", Severity::Error));
+}
+
+#[test]
+fn wlan_limits_companions_and_schedules() {
+    use super::wireless::{Schedule, Span, Weekday};
+    let span = |days: &[Weekday], from, to| Span {
+        days: days.to_vec(),
+        from,
+        to,
+    };
+    let issues = issues_after(|c| {
+        c.wlans[0].max_clients = Some(0);
+        c.wlans[1].schedule = Some(Schedule { spans: vec![] });
+        c.wlans[2].security = WlanSecurity::OweTransition;
+        c.wlans[2].bands.push(Band::G6);
+        c.wlans[2].ssid = "x".repeat(30);
+        c.wlans[2].schedule = Some(Schedule {
+            spans: vec![
+                span(&[], 0, 60),
+                span(&[Weekday::Mon, Weekday::Mon], 0, 60),
+                span(&[Weekday::Mon], 0, 1440),
+                span(&[Weekday::Sun], 60, 60),
+            ],
+        });
+    });
+    for path in [
+        "wlans/home/max_clients",
+        "wlans/things/schedule",
+        "wlans/visitors/ssid",
+        "wlans/visitors/schedule/spans/0",
+        "wlans/visitors/schedule/spans/1",
+        "wlans/visitors/schedule/spans/2",
+    ] {
+        assert!(has(&issues, path, Severity::Error), "{path}: {issues:?}");
+    }
+    assert!(!has(&issues, "wlans/visitors/security", Severity::Error));
+    assert!(!has(
+        &issues,
+        "wlans/visitors/schedule/spans/3",
+        Severity::Error
+    ));
+
+    // 22:00 to 06:00 on Fridays runs into Saturday morning; equal ends are the whole day.
+    let night = span(&[Weekday::Fri], 22 * 60, 6 * 60);
+    assert!(night.holds(Weekday::Fri, 23 * 60));
+    assert!(night.holds(Weekday::Sat, 5 * 60 + 59));
+    assert!(!night.holds(Weekday::Sat, 6 * 60));
+    assert!(!night.holds(Weekday::Fri, 5 * 60));
+    let day = span(&[Weekday::Mon], 8 * 60, 17 * 60);
+    assert!(day.holds(Weekday::Mon, 8 * 60) && !day.holds(Weekday::Mon, 17 * 60));
+    assert!(!day.holds(Weekday::Tue, 9 * 60));
+    let whole = span(&[Weekday::Mon], 60, 60);
+    assert!(whole.holds(Weekday::Mon, 0) || whole.holds(Weekday::Mon, 60));
+    assert!(whole.holds(Weekday::Mon, 1439) && whole.holds(Weekday::Tue, 59));
+    assert_eq!(Weekday::Mon.previous(), Weekday::Sun);
 }
 
 #[test]

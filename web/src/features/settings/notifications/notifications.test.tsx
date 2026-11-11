@@ -100,7 +100,7 @@ const sent = (path: string, method?: string) =>
 
 describe("Settings › Notifications", () => {
   it("lists the notifiers with where they send, their filter and their last delivery", async () => {
-    const list = await renderAt("/settings");
+    const list = await renderAt("/settings?tab=notifications");
     const rows = await within(list).findAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(within(list).getByText("2 on")).toBeVisible();
@@ -135,7 +135,7 @@ describe("Settings › Notifications", () => {
 
   it("adds an ntfy notifier, checked before it is sent", async () => {
     const user = userEvent.setup();
-    const list = await renderAt("/settings");
+    const list = await renderAt("/settings?tab=notifications");
     await user.click(within(list).getByRole("button", { name: "Add notifier" }));
     const dialog = await screen.findByRole("dialog", { name: "Add a notifier" });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -165,7 +165,7 @@ describe("Settings › Notifications", () => {
 
   it("edits a webhook: stored secrets shown as set, a test with them, the server's why", async () => {
     const user = userEvent.setup();
-    const list = await renderAt("/settings");
+    const list = await renderAt("/settings?tab=notifications");
     await user.click(await within(list).findByRole("button", { name: "Edit: Discord #net" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit Discord #net" });
     expect(within(dialog).getByText("https://discord.com/…")).toBeVisible();
@@ -202,7 +202,7 @@ describe("Settings › Notifications", () => {
 
   it("writes a custom template with placeholders and a preview", async () => {
     const user = userEvent.setup();
-    const list = await renderAt("/settings");
+    const list = await renderAt("/settings?tab=notifications");
     await user.click(await within(list).findByRole("button", { name: "Edit: Discord #net" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit Discord #net" });
     await user.selectOptions(within(dialog).getByLabelText("Format"), "custom");
@@ -228,7 +228,7 @@ describe("Settings › Notifications", () => {
 
   it("saves the link address, prefilled with this page's while unset", async () => {
     const user = userEvent.setup();
-    await renderAt("/settings");
+    await renderAt("/settings?tab=notifications");
     const card = await screen.findByRole("region", { name: "Links in messages" });
     expect(within(card).getByText("Not set")).toBeVisible();
     const input = within(card).getByLabelText("This controller's address") as HTMLInputElement;
@@ -249,7 +249,7 @@ describe("Settings › Notifications", () => {
   });
 
   it("shows viewers everything and lets them change nothing", async () => {
-    const list = await renderAt("/settings", "viewer");
+    const list = await renderAt("/settings?tab=notifications", "viewer");
     await within(list).findAllByRole("listitem");
     expect(within(list).getByText("Only admins change notifications")).toBeVisible();
     expect(within(list).queryByRole("button", { name: "Add notifier" })).not.toBeInTheDocument();

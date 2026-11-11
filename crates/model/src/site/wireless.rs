@@ -26,6 +26,88 @@ pub struct Wlan {
     pub hidden: bool,
     /// Clients on it cannot reach each other.
     pub isolation: bool,
+    /// The most clients each radio takes on it (`maxassoc`); `None` leaves it to the radio.
+    pub max_clients: Option<u16>,
+    /// When it is on; `None` is always. The controller turns it off and on (D-083).
+    pub schedule: Option<Schedule>,
+}
+
+/// The times of the week a WLAN is on, in the site's time zone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Schedule {
+    /// The WLAN is on within any of them.
+    pub spans: Vec<Span>,
+}
+
+impl Schedule {
+    /// Whether the WLAN is on at `minute` of `day`, both local.
+    pub fn is_on(&self, day: Weekday, minute: u16) -> bool {
+        self.spans.iter().any(|span| span.holds(day, minute))
+    }
+}
+
+/// A daily time span on some days of the week.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Span {
+    /// The days it starts on.
+    pub days: Vec<Weekday>,
+    /// Its start, in minutes after midnight (0–1439).
+    pub from: u16,
+    /// Its end, exclusive (0–1439): at or before `from`, it ends on the next day, so
+    /// `from == to` is the whole day.
+    pub to: u16,
+}
+
+impl Span {
+    /// Whether `minute` of `day` is in it.
+    pub fn holds(&self, day: Weekday, minute: u16) -> bool {
+        if self.from < self.to {
+            self.days.contains(&day) && (self.from..self.to).contains(&minute)
+        } else {
+            (self.days.contains(&day) && minute >= self.from)
+                || (self.days.contains(&day.previous()) && minute < self.to)
+        }
+    }
+}
+
+/// A day of the week.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum Weekday {
+    Mon,
+    Tue,
+    Wed,
+    Thu,
+    Fri,
+    Sat,
+    Sun,
+}
+
+impl Weekday {
+    pub const ALL: [Self; 7] = [
+        Self::Mon,
+        Self::Tue,
+        Self::Wed,
+        Self::Thu,
+        Self::Fri,
+        Self::Sat,
+        Self::Sun,
+    ];
+
+    /// The day `days` after a Monday.
+    #[must_use]
+    pub const fn from_monday(days: u8) -> Self {
+        Self::ALL[(days % 7) as usize]
+    }
+
+    /// The day before.
+    #[must_use]
+    pub const fn previous(self) -> Self {
+        Self::from_monday(self as u8 + 6)
+    }
 }
 
 /// How a WLAN authenticates and encrypts.
@@ -41,6 +123,9 @@ pub enum WlanSecurity {
     Wpa3,
     /// Opportunistic Wireless Encryption: open, but encrypted.
     Owe,
+    /// OWE in transition mode: an open SSID of the name beside the encrypted one, which hides,
+    /// so that clients without OWE can still join (6 GHz has no open BSS: OWE alone there).
+    OweTransition,
     /// Open and unencrypted.
     Open,
 }

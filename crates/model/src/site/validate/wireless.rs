@@ -8,7 +8,7 @@ use super::{Issues, names};
 use crate::{
     site::{
         SiteConfig,
-        wireless::{Channel, NodeScope, TxPower, WlanSecurity},
+        wireless::{Channel, NodeScope, Schedule, TxPower, WlanSecurity},
     },
     wifi::{Band, ChannelWidth},
 };
@@ -68,7 +68,10 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
             }
         }
         if bands.contains(&Band::G6)
-            && !matches!(wlan.security, WlanSecurity::Wpa3 | WlanSecurity::Owe)
+            && !matches!(
+                wlan.security,
+                WlanSecurity::Wpa3 | WlanSecurity::Owe | WlanSecurity::OweTransition
+            )
         {
             issues.error(
                 format!("{at}/security"),
@@ -81,7 +84,50 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
                 "Open and unencrypted: OWE keeps an open network private",
             );
         }
+        if wlan
+            .max_clients
+            .is_some_and(|max| !(1..=MAX_CLIENTS).contains(&max))
+        {
+            issues.error(
+                format!("{at}/max_clients"),
+                format!("A radio takes 1 to {MAX_CLIENTS} clients"),
+            );
+        }
+        if wlan.security == WlanSecurity::OweTransition && wlan.ssid.len() > 29 {
+            issues.error(
+                format!("{at}/ssid"),
+                "In OWE transition mode an SSID is 29 bytes at most: the encrypted one adds OWE",
+            );
+        }
+        if let Some(schedule) = &wlan.schedule {
+            self::schedule(schedule, &format!("{at}/schedule"), issues);
+        }
         scope(&wlan.nodes, &format!("{at}/nodes"), nodes, issues);
+    }
+}
+
+/// hostapd's `max_num_sta` ends at its association IDs.
+const MAX_CLIENTS: u16 = 2007;
+
+fn schedule(schedule: &Schedule, at: &str, issues: &mut Issues) {
+    if schedule.spans.is_empty() {
+        issues.error(
+            at,
+            "A schedule without times is never on: add a time, or turn the WLAN off",
+        );
+    }
+    for (nth, span) in schedule.spans.iter().enumerate() {
+        let at = format!("{at}/spans/{nth}");
+        if span.days.is_empty() {
+            issues.error(&at, "A time is on one day at least");
+        }
+        let mut days = BTreeSet::new();
+        if !span.days.iter().all(|day| days.insert(day)) {
+            issues.error(&at, "A day is listed twice");
+        }
+        if span.from >= 1440 || span.to >= 1440 {
+            issues.error(&at, "Times are within a day");
+        }
     }
 }
 

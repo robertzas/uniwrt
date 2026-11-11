@@ -267,6 +267,8 @@ fn wlan(
         nodes: NodeScope::All,
         hidden: false,
         isolation: false,
+        max_clients: None,
+        schedule: None,
     }
 }
 

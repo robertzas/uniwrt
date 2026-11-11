@@ -192,7 +192,7 @@ Render's assumptions, checked by the system harness (M3.3b, `crates/system`) on 
 ## Wireless option names ⚠️
 
 - `wifi-device`: `band` 2g|5g|6g|60g (replaces `hwmode`), `htmode` HT20…HE160 / EHT20…EHT320, `channel` N|auto, `country`, `cell_density` 0–3, `txpower` (dBm).
-- `wifi-iface`: `mode` ap|sta|mesh|monitor, `encryption` psk2|sae|sae-mixed|owe|wpa2|wpa3…, `ieee80211w` 0|1|2.
+- `wifi-iface`: `mode` ap|sta|mesh|monitor, `encryption` psk2|sae|sae-mixed|owe|wpa2|wpa3…, `ieee80211w` 0|1|2. `maxassoc` N is hostapd's `max_num_sta` for the BSS (24.10, 25.12 ✅ in the scripts). OWE transition mode: two `wifi-iface` sections, an open one and an `owe` one, each with `ifname` and `owe_transition_ifname` naming the other (both releases' `hostapd.sh`; `owe_transition_ssid`/`_bssid` are the alternative). 25.12 alone also takes `owe_transition 1` on the `owe` section and makes the pair itself (the hidden BSS is `<ssid>OWE`). ⚠️ The rendered pair is unverified on a running hostapd (the Wi-Fi lab has no OWE client yet).
 
 ## Sysupgrade ⚠️
 

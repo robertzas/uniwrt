@@ -3,4 +3,4 @@
 /**
  * How a WLAN authenticates and encrypts.
  */
-export type WlanSecurity = "wpa2" | "wpa2_wpa3" | "wpa3" | "owe" | "open";
+export type WlanSecurity = "wpa2" | "wpa2_wpa3" | "wpa3" | "owe" | "owe_transition" | "open";

@@ -193,6 +193,8 @@ pub fn lab(lan: Ipv4Net) -> SiteConfig {
         nodes: NodeScope::All,
         hidden: false,
         isolation: false,
+        max_clients: None,
+        schedule: None,
     }];
     site.mesh.enabled = true;
     "uniwrt-lab-mesh".clone_into(&mut site.mesh.mesh_id);

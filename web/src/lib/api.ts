@@ -52,6 +52,7 @@ import type { Purpose } from "../api/gen/Purpose";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
 import type { RevealedSecret } from "../api/gen/RevealedSecret";
+import type { RevealSecret } from "../api/gen/RevealSecret";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
 import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
@@ -268,6 +269,11 @@ export const api = {
     get: (signal?: AbortSignal) => request<SiteView>("/site", { signal }),
     /** Saves the next revision (admins); 409 when `base` is no longer the latest. */
     save: (save: SiteSave) => request<SiteView>("/site", { method: "PUT", body: save }),
+    /** A secret of the latest revision by its path, such as a WLAN's passphrase (admins; audited). */
+    reveal: (path: string) => {
+      const body: RevealSecret = { path };
+      return request<RevealedSecret>("/site/secrets/reveal", { method: "POST", body });
+    },
   },
   /** The address plan's suggestions (network.md, Address plan; D-077); nothing is saved. */
   ipam: {

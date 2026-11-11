@@ -307,6 +307,52 @@ fn transition_mode_falls_back_to_wpa2_without_sae() {
     assert!(rendered.warnings.iter().any(|w| w.path == "wlans/home"));
 }
 
+#[test]
+fn owe_gets_an_open_companion_except_on_6ghz_and_a_client_limit() {
+    let mut site = home_site();
+    let guest = site.wlans.iter_mut().find(|w| w.id == "guest").unwrap();
+    guest.bands = vec![Band::G2, Band::G6];
+    guest.security = WlanSecurity::OweTransition;
+    guest.max_clients = Some(20);
+    site.mesh.enabled = false;
+    let mut facts = triband_facts();
+    facts.radios[2].band = Band::G6;
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &facts));
+    let wireless = &rendered.packages[&ManagedPackage::Wireless];
+    let option = |section: &str, name: &str| {
+        wireless
+            .section(section)
+            .unwrap_or_else(|| panic!("no section {section}"))
+            .option(name)
+            .map(str::to_owned)
+    };
+    let some = |text: &str| Some(text.to_owned());
+    // The open BSS carries the name, and the pair point at each other.
+    assert_eq!(option("uw_guest_2go", "ssid"), some("Guest"));
+    assert_eq!(option("uw_guest_2go", "encryption"), some("none"));
+    assert_eq!(option("uw_guest_2go", "ifname"), some("uw1-open"));
+    assert_eq!(
+        option("uw_guest_2go", "owe_transition_ifname"),
+        some("uw1-owe")
+    );
+    assert_eq!(option("uw_guest_2go", "maxassoc"), some("20"));
+    assert_eq!(option("uw_guest_2g", "ssid"), some("GuestOWE"));
+    assert_eq!(option("uw_guest_2g", "encryption"), some("owe"));
+    assert_eq!(option("uw_guest_2g", "hidden"), some("1"));
+    assert_eq!(option("uw_guest_2g", "ifname"), some("uw1-owe"));
+    assert_eq!(
+        option("uw_guest_2g", "owe_transition_ifname"),
+        some("uw1-open")
+    );
+    assert_eq!(option("uw_guest_2g", "ieee80211w"), some("2"));
+    // 6 GHz has no open BSS.
+    assert!(wireless.section("uw_guest_6go").is_none());
+    assert_eq!(option("uw_guest_6g", "ssid"), some("Guest"));
+    assert_eq!(option("uw_guest_6g", "hidden"), None);
+    assert_eq!(option("uw_guest_6g", "ifname"), None);
+    assert_eq!(option("uw_guest_6g", "maxassoc"), some("20"));
+}
+
 fn sqm(overhead: Option<u8>) -> Sqm {
     Sqm {
         download_kbps: 850_000,

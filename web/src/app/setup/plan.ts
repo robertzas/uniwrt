@@ -175,6 +175,8 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
           nodes: { scope: "all" as const },
           hidden: false,
           isolation: false,
+          max_clients: null,
+          schedule: null,
         },
       ];
   const node = config.nodes.find((n) => n.node === choices.gateway);

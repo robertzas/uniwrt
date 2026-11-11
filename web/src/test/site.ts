@@ -59,6 +59,8 @@ export function siteConfig(): SiteConfig {
         },
         hidden: false,
         isolation: false,
+        max_clients: null,
+        schedule: null,
       },
     ],
     mesh: {

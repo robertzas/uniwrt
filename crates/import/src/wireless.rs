@@ -45,6 +45,7 @@ struct Ap {
     key: Option<String>,
     hidden: bool,
     isolation: bool,
+    max_clients: Option<u16>,
     enabled: bool,
 }
 
@@ -186,6 +187,10 @@ fn ap(iface: &Section, renames: &read::Renames, networks: &BTreeSet<String>) -> 
         key: key.filter(|_| security.needs_passphrase()),
         hidden: read::flag(iface, "hidden").unwrap_or(false),
         isolation: read::flag(iface, "isolate").unwrap_or(false),
+        max_clients: iface
+            .option("maxassoc")
+            .and_then(|max| max.parse().ok())
+            .filter(|max| *max > 0),
         enabled: read::flag(iface, "disabled") != Some(true),
     })
 }
@@ -232,6 +237,9 @@ fn wlans(
             nodes: scope,
             hidden: ap.hidden,
             isolation: ap.isolation,
+            max_clients: ap.max_clients,
+            // Nodes keep no schedules (and an imported OWE pair stays two WLANs).
+            schedule: None,
         });
     }
     found

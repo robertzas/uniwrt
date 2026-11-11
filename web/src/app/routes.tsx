@@ -21,6 +21,7 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/clients": lazy(() =>
     import("../features/clients/ClientsPage").then((m) => ({ default: m.ClientsPage })),
   ),
+  "/wifi": lazy(() => import("../features/wifi/WifiPage").then((m) => ({ default: m.WifiPage }))),
   "/networks": lazy(() =>
     import("../features/networks/NetworksPage").then((m) => ({ default: m.NetworksPage })),
   ),

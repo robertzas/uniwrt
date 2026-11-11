@@ -12,7 +12,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5];
+const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
 /// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
@@ -149,6 +149,20 @@ fn v4_to_v5(value: &mut Value) -> Result<(), String> {
         if managed.iter().any(|p| p == "firewall") && !managed.iter().any(|p| p == "upnpd") {
             managed.push(json!("upnpd"));
         }
+    }
+    Ok(())
+}
+
+/// v6 (M5.1, D-083): WLANs gain a client limit and a schedule, both unset.
+fn v5_to_v6(value: &mut Value) -> Result<(), String> {
+    let wlans = value
+        .get_mut("wlans")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no WLANs")?;
+    for wlan in wlans {
+        let wlan = wlan.as_object_mut().ok_or("a WLAN is not an object")?;
+        wlan.insert("max_clients".to_owned(), Value::Null);
+        wlan.insert("schedule".to_owned(), Value::Null);
     }
     Ok(())
 }

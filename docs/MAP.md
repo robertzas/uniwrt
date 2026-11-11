@@ -676,7 +676,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (325 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (328 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -700,7 +700,9 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
+- `features/settings/site/`: SiteTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
+- `features/wifi/`: JoinDialog.tsx, ScheduleField.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, draft.ts, summary.ts
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
