@@ -78,6 +78,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
     assert_eq!(
         hello.caps.ops,
         [
+            "bss",
             "collect",
             "exec",
             "log_follow",
