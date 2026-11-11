@@ -158,8 +158,10 @@ down() {
   down_containers
   rm -f "$ENV_FILE"
   if [[ -e $LOADED ]]; then
-    # Radios return to the host's namespace once their container is gone.
-    host_root "modprobe -r mac80211_hwsim batman-adv"
+    # Radios return to the host's namespace once their container is gone. rmmod, not
+    # `modprobe -r`: that also unloads what they leave unused, `bridge` among them, which
+    # takes docker0 with it.
+    host_root "rmmod mac80211_hwsim batman_adv"
     rm -f "$LOADED"
   fi
 }
