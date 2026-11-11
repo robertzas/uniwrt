@@ -43,6 +43,8 @@ pub(crate) struct World {
     /// Mean seconds between reboots of an access point; `None` for none.
     reboot_mean: Option<f64>,
     next_reboot: u64,
+    /// What happened between steps (a ban's kick), for the next step to hand on.
+    pending: Vec<Happening>,
 }
 
 pub(crate) struct Node {
@@ -69,6 +71,8 @@ pub(crate) struct Node {
     /// Counters of the wired devices, by name.
     pub(crate) ports: BTreeMap<String, Counters>,
     pub(crate) logd: Logd,
+    /// hostapd's bans: each client kept off until a world ms (`ban` op); forgotten at a reboot.
+    pub(crate) banned: BTreeMap<MacAddr, i64>,
 }
 
 impl Node {
@@ -317,7 +321,7 @@ impl World {
     /// Advances one second.
     pub(crate) fn step(&mut self) -> Vec<Happening> {
         self.now_s += 1;
-        let mut out = Vec::new();
+        let mut out = std::mem::take(&mut self.pending);
         self.step_nodes(&mut out);
         self.step_clients(&mut out);
         self.step_air();

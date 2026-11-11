@@ -16,8 +16,9 @@ use serde_json::{Value, json};
 use tower::ServiceExt as _;
 use uniwrt_core::{Clock, NodeId, SystemClock};
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, DriftConfig, DriftWatch, Drifts, Engine, EngineConfig,
-    Fleet, LogRecorder, LogsConfig, Notifications, Notify, NotifyConfig, Rf, RfConfig, RfScanner,
+    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, DriftConfig, DriftWatch,
+    Drifts, Engine, EngineConfig, Fleet, LogRecorder, LogsConfig, Notifications, Notify,
+    NotifyConfig, Rf, RfConfig, RfScanner,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -102,22 +103,35 @@ pub(crate) async fn api_with(
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
 ) -> Api {
-    api_full(store, fleet, clock, dial, None, None, None, None).await
+    api_full(store, fleet, clock, dial, Handles::default()).await
 }
 
-/// [`api_with`], with the alert engine's, the notifications', RF insight's and drift
-/// detection's handles.
-#[allow(clippy::too_many_arguments)]
+/// The engine's handles an [`api_full`] has.
+#[derive(Default)]
+pub(crate) struct Handles {
+    pub(crate) alerts: Option<Alerts>,
+    pub(crate) notify: Option<(Notify, Vault)>,
+    pub(crate) rf: Option<Rf>,
+    pub(crate) drift: Option<Drifts>,
+    pub(crate) bans: Option<Bans>,
+}
+
+/// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
+/// and the client bans' handles.
 pub(crate) async fn api_full(
     store: Store,
     fleet: Arc<dyn Fleet>,
     clock: Arc<dyn Clock>,
     dial: Option<Arc<dyn Dial>>,
-    alerts: Option<Alerts>,
-    notify: Option<(Notify, Vault)>,
-    rf: Option<Rf>,
-    drift: Option<Drifts>,
+    handles: Handles,
 ) -> Api {
+    let Handles {
+        alerts,
+        notify,
+        rf,
+        drift,
+        bans,
+    } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
         None => Vault::open(&store, &MasterKey::generate().unwrap())
@@ -140,6 +154,7 @@ pub(crate) async fn api_full(
         notify,
         rf,
         drift,
+        bans,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -178,6 +193,7 @@ pub(crate) struct Demo {
     _rf: RfScanner,
     /// Watches for drift, reading what the store confirmed every 100 ms.
     _drift: DriftWatch,
+    _bans: ClientBans,
 }
 
 impl Demo {
@@ -247,17 +263,23 @@ impl Demo {
         });
         let notify = Some((notifications.handle(), vault));
         let (rf, drift) = scanners(&engine, &store).await;
-        let api = api_full(
+        let bans = ClientBans::start(
+            &engine,
             store.clone(),
-            fleet,
-            clock,
-            dial,
-            Some(alerts.handle()),
+            None,
+            BansConfig {
+                tick_every: Duration::from_millis(50),
+                ..BansConfig::default()
+            },
+        );
+        let handles = Handles {
+            alerts: Some(alerts.handle()),
             notify,
-            Some(rf.handle()),
-            Some(drift.handle()),
-        )
-        .await;
+            rf: Some(rf.handle()),
+            drift: Some(drift.handle()),
+            bans: Some(bans.handle()),
+        };
+        let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();
         let mut demo = Self {
             _dir: dir,
@@ -272,6 +294,7 @@ impl Demo {
             _notifications: notifications,
             _rf: rf,
             _drift: drift,
+            _bans: bans,
         };
         demo.cookie = login(&demo.api).await;
         demo

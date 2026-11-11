@@ -21,6 +21,9 @@ pub struct ClientRecord {
     pub hostname: Option<String>,
     pub first_seen: Timestamp,
     pub last_seen: Timestamp,
+    /// When a user blocked it: the controller keeps it off every managed access point until
+    /// unblocked (features/wifi.md, Client actions).
+    pub blocked: Option<Timestamp>,
 }
 
 /// One stay of a client at one place: an access point's interface, or a node's port (or the

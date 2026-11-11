@@ -85,6 +85,11 @@ impl Fleet for FakeFleet {
     fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord> {
         self.book().rename(mac, alias).map(|(record, _)| record)
     }
+
+    fn block_client(&self, mac: MacAddr, blocked: bool, _: Option<String>) -> Option<ClientRecord> {
+        let at = blocked.then_some(uniwrt_core::Timestamp::UNIX_EPOCH);
+        self.book().block(mac, at).map(|(record, _)| record)
+    }
 }
 
 struct Harness {

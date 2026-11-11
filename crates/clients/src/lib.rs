@@ -3,8 +3,8 @@
 //!
 //! - **API:** [`Book`] keeps every client the controller knows: [`Book::update`] takes each
 //!   topology build (with the [`Member`](uniwrt_topo::Member)s it was built from),
-//!   [`Book::restore`] what the store kept, [`Book::rename`] a user's alias, [`Book::prune`]
-//!   forgets clients long gone; each returns its [`Changes`]. [`Book::clients`] and
+//!   [`Book::restore`] what the store kept, [`Book::rename`] a user's alias, [`Book::block`]
+//!   a user's block, [`Book::prune`] forgets clients long gone (never named or blocked ones); each returns its [`Changes`]. [`Book::clients`] and
 //!   [`Book::detail`] read it. A client now is a [`Client`] (identity, [`Connection`],
 //!   [`Experience`]); its recent history is [`ClientSample`]s. [`vendor`] names the
 //!   organization a MAC address is assigned to; [`classify`] guesses a [`ClientKind`].
@@ -20,7 +20,8 @@
 //!   MA-M, MA-S) is embedded and made by `scripts/oui.py` (D-053).
 //! - **Invariants:** pure and deterministic: no IO, no clock (times come from the builds and
 //!   the facts). Sessions of a client never overlap, and a session's start identifies it. A
-//!   record's alias changes only through [`Book::rename`]; the store keeps it.
+//!   record's alias and block change only through [`Book::rename`] and [`Book::block`]; the
+//!   store keeps them.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-topo`, serde, `miniz_oxide`
 //!   (inflating the vendor table); ts-rs behind the `ts` feature.
 //! - **Tests:** unit tests per module; `tests/` drives a book through builds of scenarios

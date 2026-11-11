@@ -102,7 +102,7 @@ impl SimLink {
                 reason: "the simulated node is down".to_owned(),
             });
         }
-        let world = self.shared.world();
+        let mut world = self.shared.world();
         let mut session = self.shared.session(self.node);
         let now_ms = world.now_ms();
         Ok(match op {
@@ -175,6 +175,7 @@ impl SimLink {
                 json!({"mode": mode})
             }
             "bss" => self.bss(&world, op, args)?,
+            "ban" => self.ban(&mut world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;
                 render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {
@@ -218,6 +219,32 @@ impl SimLink {
         let wireless = disk.tool.files.get("wireless").cloned().unwrap_or_default();
         disk.bss_off = Some((wireless, now_off));
         Ok(json!({"radios": [{"radio": null, "on": kept, "off": dropped}]}))
+    }
+
+    /// `ban`: hostapd's bans on the node's access points (`node-agent/ban.uc`), which the world
+    /// keeps its clients to.
+    fn ban(&self, world: &mut crate::world::World, op: &str, args: &RawValue) -> Result<Value> {
+        #[derive(serde::Deserialize)]
+        struct Entry {
+            addr: uniwrt_core::MacAddr,
+            ms: u32,
+            #[serde(default)]
+            kick: bool,
+        }
+        let bans: Vec<Entry> = field(op, args, "bans")?;
+        let off = lock(&self.shared.nodes[self.node].disk).bss_off();
+        let bsses: Vec<&str> = ["phy0-ap0", "phy1-ap0"]
+            .into_iter()
+            .filter(|ifname| !off.contains(*ifname))
+            .collect();
+        let kicked: Vec<Value> = bans
+            .iter()
+            .filter_map(|b| {
+                let kicked_from = world.ban(self.node, b.addr, b.ms, b.kick)?;
+                Some(json!({"ifname": kicked_from.ap_iface(), "addr": b.addr.to_string()}))
+            })
+            .collect();
+        Ok(json!({"bsses": bsses, "kicked": kicked, "failed": []}))
     }
 
     /// `read_file` of a package in `/etc/config`, which is all the controller reads so.

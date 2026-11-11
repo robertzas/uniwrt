@@ -1,3 +1,4 @@
+import { toaster } from "@kobalte/core/toast";
 import { memoryHistory } from "@solidjs/router";
 import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
@@ -10,6 +11,8 @@ import { client, detail, NOW, session } from "../../test/clients";
 import { summary } from "../../test/fixtures";
 import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
+import { Toaster } from "../../ui/Toast";
+import { kickToast } from "./ClientActions";
 
 const MAC = "f0:18:98:00:00:01";
 let calls: { key: string; body?: unknown }[] = [];
@@ -23,6 +26,12 @@ function stubApi() {
       calls.push({ key, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (key === `PATCH /api/v1/clients/${encodeURIComponent(MAC)}`)
         return Response.json(client(MAC, { alias: "Anna's phone" }));
+      if (key === `POST /api/v1/clients/${encodeURIComponent(MAC)}/kick`)
+        return Response.json({ nodes: 2, from: [{ node: 2, ifname: "phy1-ap0" }], failed: [] });
+      if (key === `PUT /api/v1/clients/${encodeURIComponent(MAC)}/block`)
+        return Response.json(client(MAC, { blocked: NOW }));
+      if (key === `DELETE /api/v1/clients/${encodeURIComponent(MAC)}/block`)
+        return Response.json(client(MAC));
       if (key.startsWith(`GET /api/v1/clients/${encodeURIComponent(MAC)}/sessions`))
         return Response.json([
           session(NOW - 5 * 86_400_000, { end: NOW - 4 * 86_400_000, ended_by: "left" }),
@@ -42,6 +51,7 @@ async function renderAt(path: string, topic: string, message: Record<string, unk
     <QueryClientProvider client={new QueryClient()}>
       <SignedInProviders socket={socket}>
         <Router />
+        <Toaster />
       </SignedInProviders>
     </QueryClientProvider>
   ));
@@ -123,7 +133,11 @@ describe("the clients page", () => {
 });
 
 describe("a client's page", () => {
-  beforeEach(stubApi);
+  beforeEach(() => {
+    stubApi();
+    // Toasts outlive a test's render: the toaster is global.
+    toaster.clear();
+  });
 
   it("shows the connection and score, the timeline and the signal", async () => {
     const user = userEvent.setup();
@@ -132,8 +146,8 @@ describe("a client's page", () => {
       client: detail(),
     });
     expect(await screen.findByRole("heading", { name: "Annas-iPhone" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Kick" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Block" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Kick" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Block" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "Living room" })).toHaveAttribute("href", "/devices/2");
     expect(screen.getByText("Signal to noise")).toBeVisible();
     for (const cap of ["802.11k", "802.11r", "802.11v"])
@@ -208,11 +222,83 @@ describe("a client's page", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("kicks the client for a minute unless told otherwise, and blocks it after asking", async () => {
+    const user = userEvent.setup();
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: detail(),
+    });
+    await user.click(await screen.findByRole("button", { name: "Kick" }));
+    const kick = await screen.findByRole("dialog", { name: "Kick this client" });
+    expect(within(kick).getByRole("button", { name: "1 min" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(within(kick).getByRole("button", { name: "10 min" }));
+    await user.click(within(kick).getByRole("button", { name: "Kick" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        key: `POST /api/v1/clients/${encodeURIComponent(MAC)}/kick`,
+        body: { ban_secs: 600 },
+      }),
+    );
+    expect(await screen.findByText("Kicked from Living room")).toBeVisible();
+    expect(screen.getByText("It's kept off for 10 min.")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Block" }));
+    const block = await screen.findByRole("dialog", { name: "Block Annas-iPhone?" });
+    await user.click(within(block).getByRole("button", { name: "Block" }));
+    await waitFor(() =>
+      expect(calls.map(({ key }) => key)).toContain(
+        `PUT /api/v1/clients/${encodeURIComponent(MAC)}/block`,
+      ),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("shows a blocked client as such and unblocks it", async () => {
+    const user = userEvent.setup();
+    const blocked = detail();
+    blocked.client = client(MAC, { blocked: NOW, online: false });
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: blocked,
+    });
+    const heading = await screen.findByRole("heading", { name: "Annas-iPhone" });
+    expect(within(heading.parentElement as HTMLElement).getByText("Blocked")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Kick" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Unblock" }));
+    await waitFor(() =>
+      expect(calls.map(({ key }) => key)).toContain(
+        `DELETE /api/v1/clients/${encodeURIComponent(MAC)}/block`,
+      ),
+    );
+    expect(await screen.findByText("Unblocked: it can connect again")).toBeVisible();
+  });
+
   it("says so when the client is unknown", async () => {
     await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
       type: "error",
       message: "There is no client",
     });
     expect(await screen.findByText("Client not found")).toBeVisible();
+  });
+});
+
+describe("a kick's toast", () => {
+  const name = (id: number) => (id === 2 ? "Living room" : `#${id}`);
+  it("says when no device manages Wi-Fi, which refused, and where it was kicked from", () => {
+    expect(kickToast({ nodes: 0, from: [], failed: [] }, "60", name)).toMatchObject({
+      title: "No device manages Wi-Fi",
+      tone: "warn",
+    });
+    expect(
+      kickToast({ nodes: 2, from: [], failed: [{ node: 2, error: "refused" }] }, "60", name),
+    ).toEqual({ title: "Not kicked on Living room", description: "refused", tone: "crit" });
+    expect(kickToast({ nodes: 1, from: [], failed: [] }, "0", name)).toEqual({
+      title: "It wasn't connected to a managed access point",
+      description: undefined,
+      tone: "ok",
+    });
   });
 });

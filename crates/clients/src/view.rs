@@ -38,6 +38,8 @@ pub struct Client {
     pub connection: Option<Connection>,
     pub first_seen: Timestamp,
     pub last_seen: Timestamp,
+    /// When a user blocked it (features/wifi.md, Client actions).
+    pub blocked: Option<Timestamp>,
     /// While it is online over Wi-Fi.
     pub experience: Option<Experience>,
 }

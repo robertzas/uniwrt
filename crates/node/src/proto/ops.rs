@@ -287,6 +287,61 @@ pub struct BssRadio {
     pub off: Vec<String>,
 }
 
+/// `ban`: keeps clients off every access point of the node for a while, or lets them back
+/// (`node-agent/ban.uc`; D-084), through hostapd's `del_client` on each BSS: a ban deauthenticates
+/// the client where it is connected and has hostapd refuse it until the ban lapses or the BSS
+/// restarts; a lift ([`BanEntry::ms`] 0) leaves the BSSes it is connected to alone, unless it
+/// kicks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Ban {
+    pub bans: Vec<BanEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BanEntry {
+    /// In lower case, as hostapd writes it.
+    pub addr: String,
+    /// How long, at most [`Ban::MAX_MS`]; 0 lifts it.
+    pub ms: u32,
+    /// Deauthenticates the client wherever it is connected, even with `ms` 0. A ban does
+    /// anyway.
+    pub kick: bool,
+}
+
+impl Ban {
+    /// The longest ban: hostapd's timer takes it in microseconds in an `int`.
+    pub const MAX_MS: u32 = 1_800_000;
+    /// The most entries one request takes.
+    pub const MAX_BANS: usize = 512;
+}
+
+impl Op for Ban {
+    const NAME: &'static str = "ban";
+    type Output = Banned;
+}
+
+/// What hostapd did: the BSSes it acted on, the clients it deauthenticated, and the calls that
+/// failed.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Banned {
+    pub bsses: Vec<String>,
+    pub kicked: Vec<BanKick>,
+    pub failed: Vec<BanFailure>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct BanKick {
+    pub ifname: String,
+    pub addr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct BanFailure {
+    pub ifname: String,
+    pub addr: String,
+    pub error: String,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

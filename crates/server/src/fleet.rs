@@ -15,10 +15,11 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, ClientRecorder, DriftConfig, DriftWatch, Drifts, Engine,
-    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder, LogsConfig,
-    MetricsConfig, MetricsRecorder, Notifications, Notify, NotifyConfig, RecorderConfig, Rf,
-    RfConfig, RfScanner, SchedulesConfig, Snapshots, TopologyHistory, WlanSchedules,
+    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, ClientRecorder, DriftConfig,
+    DriftWatch, Drifts, Engine, EngineConfig, EventRecorder, EventsConfig, HistoryConfig,
+    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, Notifications, Notify, NotifyConfig,
+    RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig, Snapshots, TopologyHistory,
+    WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -56,6 +57,7 @@ pub(crate) struct Fleet {
     /// Drift detection.
     drift: Option<DriftWatch>,
     schedules: Option<WlanSchedules>,
+    bans: Option<ClientBans>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -110,6 +112,7 @@ impl Fleet {
             rf: None,
             drift: None,
             schedules: None,
+            bans: None,
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
@@ -187,6 +190,7 @@ impl Fleet {
             rf: None,
             drift: None,
             schedules: None,
+            bans: None,
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
@@ -235,6 +239,9 @@ impl Fleet {
         }
         if let Some(schedules) = self.schedules {
             schedules.stop().await;
+        }
+        if let Some(bans) = self.bans {
+            bans.stop().await;
         }
         if let Some(drift) = self.drift {
             drift.stop().await;
@@ -321,11 +328,22 @@ impl Fleet {
             Some(jobs.subscribe()),
             SchedulesConfig::default(),
         ));
+        self.bans = Some(ClientBans::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            BansConfig::default(),
+        ));
     }
 
     /// Drift detection's handle, once [`Fleet::record_events`] started it.
     pub(crate) fn drift(&self) -> Option<Drifts> {
         self.drift.as_ref().map(DriftWatch::handle)
+    }
+
+    /// The client bans' handle, once [`Fleet::record_events`] started them.
+    pub(crate) fn bans(&self) -> Option<Bans> {
+        self.bans.as_ref().map(ClientBans::handle)
     }
 
     /// RF insight's handle, once [`Fleet::record_events`] started it.

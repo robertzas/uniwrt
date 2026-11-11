@@ -29,6 +29,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/bootstrap.rs`: First run with a factory-default gateway (features/adoption.md, Path E; D-080), for admins:
 - `src/bootstrap/tests.rs`: The first-run routes over demo mode, whose dial reaches only the simulated nodes.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
+- `src/client_actions.rs`: The client actions, for admins (features/wifi.md, Client actions; D-084): `POST /api/v1/clients/{mac}/kick` deauthenticates a client on every managed access point and keeps it off them for `ban_secs` ([`ClientKick`], answered with a [`KickOutcome`]); `PUT` and `DELETE /api/v1/clients/{mac}/block` block and unblock it (the client's view answers).
+- `src/client_actions/tests.rs`: The client actions on the demo, its gateway managing `wireless`: a kick reaches it and is audited, a block and an unblock show on the client and are audited, and bad requests are refused.
 - `src/clients.rs`: The client routes, with a session (features/observability.md, Clients): `GET /api/v1/clients` is every client the controller knows (the WS topic `clients` keeps it current), `GET /api/v1/clients/{mac}` one client with its last hour of samples and last day of sessions ([`ClientDetail`], the `client:<mac>` topic's snapshot), `GET /api/v1/clients/{mac}/sessions?since=<ms>` its sessions since a time, and `PATCH /api/v1/clients/{mac}` renames it (admins; audited).
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
@@ -112,6 +114,10 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/actor/tests.rs`: Actors over a scripted link, on tokio's paused clock: what they ask the agent, and what they announce.
 - `src/alerts/mod.rs`: Alerting (features/observability.md, Alerts; `uniwrt_events::alerts`): an evaluator fed by the bus (recorded events, metric windows) and by the job runner (maintenance while jobs run), ticked for alerts that resolve with time, its writes stored through [`AlertRepo`] and announced as [`Event::Alerts`]; retention runs beside it.
 - `src/alerts/tests.rs`: The alert engine over a store and an engine without nodes, fed by hand on a manual clock: the built-in rules stored once, an event alert raised and cleared, a metric rule of the user's firing from windows, acknowledgements, a rule disabled, silencing while a job runs, and a restart that resumes what fires.
+- `src/bans/mod.rs`: Client bans (features/wifi.md, Client actions; D-084): the controller keeps blocked clients off every managed access point, and kicked ones for as long as the kick said, through each node's agent (the `ban` op: hostapd's `del_client` with a ban time on every BSS).
+- `src/bans/plan.rs`: What to send a node's agent: pure, over what the controller wants kept off and what the node is believed to hold.
+- `src/bans/task.rs`: The bans' task: which nodes to send what, kicks, and what to announce.
+- `src/bans/tests.rs`: The bans over a store and an engine watching the lab gateway's capture, the `ban` op answered by hand: a block bans the client on the managed node and an unblock lifts it, bans are renewed before they lapse, a kick deauthenticates and answers where from, a node in observe mode is left alone, and a refusal raises a condition that clears once the node takes them.
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
 - `src/clients.rs`: Keeping the clients' book (`uniwrt_clients`; features/observability.md, Clients): restored from the store before the nodes are watched, its records and sessions saved through [`ClientRepo`] as [`Event::Clients`] announces them, and clients long gone (and sessions older than [`RecorderConfig::keep`]) pruned every [`RecorderConfig::prune_every`].
 - `src/config.rs`: The engine's settings.
@@ -398,7 +404,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 - `tests/txn.rs`: Transactions on real OpenWrt (TESTING.md, Agent; D-069): the footprint installs and goes, and a transaction that replaces `system` and stops dnsmasq is confirmed, rolled back on request, at its deadline or at boot, or refused before it changes anything.
-- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point; the `bss` op turns an access point off and on again on both releases.
+- `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point; the `bss` op turns an access point off and on again on both releases, and the `ban` op keeps a client off and lets it back.
 
 ### `uniwrt-notify` (crates/notify)
 
@@ -528,6 +534,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/world/radio.rs`: Radio arithmetic: bands and channels, indoor path loss, and the rates a signal-to-noise ratio buys (MCS tables of 802.11n, ac and ax).
 - `src/world/tests.rs`: The world's dynamics over simulated hours: determinism, roaming, leaving, reboots.
 - `src/world/traffic.rs`: Traffic: what each client downloads and uploads per second (bursty, capped by its link), the retries a weak signal costs, and the counters it moves on its access point's radio, its uplink and the gateway's WAN port.
+- `tests/ban.rs`: The simulated agent's `ban` op (D-084): a banned client is kicked off the node and stays off it while banned (it may go to another access point); a lift kicks nobody, and a kick alone deauthenticates without keeping it off.
 - `tests/bss.rs`: The simulated agent's `bss` op (D-083): a BSS it turns off is down in the `radios` set (netifd still lists it) and its clients are gone from `stations`; turned on, both come back; a phy the node lacks is refused.
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
@@ -651,6 +658,7 @@ UCI, OpenWrt's configuration format (docs/openwrt/REFERENCE.md, UCI syntax): the
 
 ucode modules, embedded in the binary and installed on nodes by hash (`crates/node/src/bundle.rs`). The entry point is `main.uc`.
 
+- `ban.uc`: The `ban` op (features/wifi.md, Client actions; D-084): keeps clients off every access point of the node, or lets them back, through hostapd's `del_client` on each BSS (`hostapd.<ifname>`).
 - `bss.uc`: The `bss` op (features/wifi.md, WLANs; D-083): turns a phy's BSSes off and on again without touching UCI, through hostapd's own `config_set`. hostapd takes the phy's config as netifd wrote it (/var/run/hostapd-<phy>[.<radio>].conf), less the BSSes named off, and adds and removes BSSes to match: the others keep running, the first BSS included (the next one takes its place), and a config without BSSes removes hostapd's interface on the phy (a mesh point there stays).
 - `bus.uc`: ubus calls on one shared connection, with errors mapped to the protocol's codes.
 - `collect.uc`: The collect sets: each gathers the raw sources of one part of the node's facts, which crates/node/src/facts parses.
@@ -682,14 +690,14 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (328 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (332 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
 - `features/auth/`: SignIn.tsx
 - `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
-- `features/clients/`: ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
+- `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts

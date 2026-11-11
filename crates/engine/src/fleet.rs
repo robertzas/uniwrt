@@ -31,6 +31,9 @@ pub trait Fleet: Send + Sync + 'static {
     fn client(&self, mac: MacAddr) -> Option<Detail>;
     /// See [`Engine::rename_client`].
     fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord>;
+    /// See [`Engine::block_client`].
+    fn block_client(&self, mac: MacAddr, blocked: bool, by: Option<String>)
+    -> Option<ClientRecord>;
 }
 
 impl<L: NodeLink> Fleet for Engine<L> {
@@ -64,5 +67,14 @@ impl<L: NodeLink> Fleet for Engine<L> {
 
     fn rename_client(&self, mac: MacAddr, alias: Option<String>) -> Option<ClientRecord> {
         Self::rename_client(self, mac, alias)
+    }
+
+    fn block_client(
+        &self,
+        mac: MacAddr,
+        blocked: bool,
+        by: Option<String>,
+    ) -> Option<ClientRecord> {
+        Self::block_client(self, mac, blocked, by)
     }
 }

@@ -411,6 +411,7 @@ impl Entry {
             connection: self.connection.clone(),
             first_seen: self.record.first_seen,
             last_seen: self.record.last_seen,
+            blocked: self.record.blocked,
             experience: self.experience.clone(),
         }
     }
@@ -458,6 +459,7 @@ fn placeholder() -> Client {
         connection: None,
         first_seen: Timestamp::UNIX_EPOCH,
         last_seen: Timestamp::UNIX_EPOCH,
+        blocked: None,
         experience: None,
     }
 }

@@ -18,7 +18,12 @@ use tokio::{
 use tracing::{Instrument as _, error, info_span};
 use uniwrt_clients::{Book, Changes, Client, Detail};
 use uniwrt_core::{Clock, MacAddr, NodeId};
-use uniwrt_model::{client::ClientRecord, facts::NodeFacts, status::NodeStatus};
+use uniwrt_model::{
+    client::ClientRecord,
+    events::{EventKind, NewEvent},
+    facts::NodeFacts,
+    status::NodeStatus,
+};
 use uniwrt_node::NodeLink;
 use uniwrt_topo::Topology;
 
@@ -260,6 +265,35 @@ impl<L: NodeLink> Engine<L> {
         let ctx = &self.inner.ctx;
         let (record, changes) = ctx.clients().rename(mac, alias)?;
         ctx.publish_clients(changes);
+        Some(record)
+    }
+
+    /// Blocks a client (`blocked`), or unblocks it; returns its record to keep, or `None` for an
+    /// unknown client. [`ClientBans`](crate::ClientBans) keeps a blocked client off the managed
+    /// access points. A change is announced as an event, naming the user `by`.
+    pub fn block_client(
+        &self,
+        mac: MacAddr,
+        blocked: bool,
+        by: Option<String>,
+    ) -> Option<ClientRecord> {
+        let ctx = &self.inner.ctx;
+        let now = ctx.clock.now();
+        let mut book = ctx.clients();
+        let was = book.detail(mac)?.client.blocked;
+        // Blocked again, it keeps the time it was first blocked.
+        let at = if blocked { was.or(Some(now)) } else { None };
+        let (record, changes) = book.block(mac, at)?;
+        drop(book);
+        ctx.publish_clients(changes);
+        if was.is_some() != blocked {
+            let what = if blocked {
+                EventKind::ClientBlocked { by }
+            } else {
+                EventKind::ClientUnblocked { by }
+            };
+            self.note(NewEvent::new(now, what).client(mac));
+        }
         Some(record)
     }
 

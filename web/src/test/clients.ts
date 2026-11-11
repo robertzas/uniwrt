@@ -15,6 +15,7 @@ export function client(mac: string, extra: Partial<Client> = {}): Client {
     vendor: "Apple",
     kind: "phone",
     randomized: false,
+    blocked: null,
     group: null,
     ips: ["192.168.1.40"],
     online: true,

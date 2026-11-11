@@ -17,7 +17,7 @@ impl ClientRepo for Store {
         self.read(|conn| {
             Ok(conn
                 .prepare_cached(
-                    "SELECT mac, alias, hostname, first_seen, last_seen FROM clients ORDER BY mac",
+                    "SELECT mac, alias, hostname, first_seen, last_seen, blocked FROM clients ORDER BY mac",
                 )?
                 .query_map([], |row| {
                     Ok(ClientRecord {
@@ -26,6 +26,7 @@ impl ClientRepo for Store {
                         hostname: row.get(2)?,
                         first_seen: timestamp_column(row, 3)?,
                         last_seen: timestamp_column(row, 4)?,
+                        blocked: row.get::<_, Option<i64>>(5)?.map(Timestamp::from_unix_ms),
                     })
                 })?
                 .collect::<rusqlite::Result<_>>()?)
@@ -46,7 +47,7 @@ impl ClientRepo for Store {
         .await
     }
 
-    async fn save_alias(&self, record: ClientRecord) -> Result<()> {
+    async fn save_choices(&self, record: ClientRecord) -> Result<()> {
         self.write(move |conn| upsert(conn, &record, true)).await
     }
 
@@ -111,14 +112,14 @@ impl ClientRepo for Store {
     async fn prune_clients(&self, before: Timestamp) -> Result<(usize, usize)> {
         self.write(move |conn| {
             let before = before.as_unix_ms();
-            let gone = "SELECT mac FROM clients WHERE alias IS NULL AND last_seen < ?1";
+            let gone = "SELECT mac FROM clients WHERE alias IS NULL AND blocked IS NULL AND last_seen < ?1";
             let sessions = conn
                 .prepare_cached(&format!(
                     "DELETE FROM client_sessions WHERE ended < ?1 OR mac IN ({gone})"
                 ))?
                 .execute([before])?;
             let clients = conn
-                .prepare_cached("DELETE FROM clients WHERE alias IS NULL AND last_seen < ?1")?
+                .prepare_cached("DELETE FROM clients WHERE alias IS NULL AND blocked IS NULL AND last_seen < ?1")?
                 .execute([before])?;
             Ok((clients, sessions))
         })
@@ -127,17 +128,17 @@ impl ClientRepo for Store {
 }
 
 /// Saves a record: a new one whole, an existing one's hostname (when known), the earlier first
-/// and the later last sighting, and its alias only `with_alias`.
-fn upsert(conn: &Connection, record: &ClientRecord, with_alias: bool) -> Result<()> {
-    let alias = if with_alias {
-        "alias = excluded.alias,"
+/// and the later last sighting, and what users chose (its alias and block) only `with_choices`.
+fn upsert(conn: &Connection, record: &ClientRecord, with_choices: bool) -> Result<()> {
+    let choices = if with_choices {
+        "alias = excluded.alias, blocked = excluded.blocked,"
     } else {
         ""
     };
     conn.prepare_cached(&format!(
-        "INSERT INTO clients (mac, alias, hostname, first_seen, last_seen)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT (mac) DO UPDATE SET {alias}
+        "INSERT INTO clients (mac, alias, hostname, first_seen, last_seen, blocked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT (mac) DO UPDATE SET {choices}
          hostname = coalesce(excluded.hostname, clients.hostname),
          first_seen = min(clients.first_seen, excluded.first_seen),
          last_seen = max(clients.last_seen, excluded.last_seen)"
@@ -148,6 +149,7 @@ fn upsert(conn: &Connection, record: &ClientRecord, with_alias: bool) -> Result<
         record.hostname,
         record.first_seen.as_unix_ms(),
         record.last_seen.as_unix_ms(),
+        record.blocked.map(Timestamp::as_unix_ms),
     ])?;
     Ok(())
 }
@@ -201,6 +203,7 @@ mod tests {
             hostname: Some(format!("host{last}")),
             first_seen: ms(seen.0),
             last_seen: ms(seen.1),
+            blocked: None,
         }
     }
 
@@ -219,7 +222,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn records_merge_and_keep_their_alias() {
+    async fn records_merge_and_keep_their_alias_and_block() {
         let (_dir, store, _) = testing::open().await;
         store
             .save_clients(vec![record(1, (100, 200))])
@@ -229,7 +232,7 @@ mod tests {
             alias: Some("Anna's phone".to_owned()),
             ..record(1, (100, 250))
         };
-        store.save_alias(named).await.unwrap();
+        store.save_choices(named).await.unwrap();
         // A later save without the alias keeps it, and the widest sightings.
         let later = ClientRecord {
             hostname: None,
@@ -248,8 +251,21 @@ mod tests {
             }
         );
         assert_eq!(clients[1], record(2, (10, 20)));
-        store.save_alias(record(1, (100, 300))).await.unwrap();
+        let blocked = ClientRecord {
+            blocked: Some(ms(400)),
+            ..record(1, (100, 300))
+        };
+        store.save_choices(blocked.clone()).await.unwrap();
+        assert_eq!(store.clients().await.unwrap()[0], blocked);
+        // Sightings saved later keep the block.
+        store
+            .save_clients(vec![record(1, (100, 500))])
+            .await
+            .unwrap();
+        assert_eq!(store.clients().await.unwrap()[0].blocked, Some(ms(400)));
+        store.save_choices(record(1, (100, 300))).await.unwrap();
         assert_eq!(store.clients().await.unwrap()[0].alias, None);
+        assert_eq!(store.clients().await.unwrap()[0].blocked, None);
     }
 
     #[tokio::test]
@@ -301,9 +317,17 @@ mod tests {
             .await
             .unwrap();
         store
-            .save_alias(ClientRecord {
+            .save_choices(ClientRecord {
                 alias: Some("Kept".to_owned()),
                 ..record(2, (0, 100))
+            })
+            .await
+            .unwrap();
+        // A blocked client is kept too, so its block outlives its absence.
+        store
+            .save_choices(ClientRecord {
+                blocked: Some(ms(50)),
+                ..record(4, (0, 100))
             })
             .await
             .unwrap();
@@ -324,7 +348,7 @@ mod tests {
             .into_iter()
             .map(|client| client.mac)
             .collect();
-        assert_eq!(left, [mac(2), mac(3)]);
+        assert_eq!(left, [mac(2), mac(3), mac(4)]);
         assert_eq!(
             store.latest_sessions().await.unwrap(),
             [session(3, 800, Some(900))]

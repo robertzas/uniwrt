@@ -151,6 +151,30 @@ describe("events in words", () => {
     );
   });
 
+  it("tells kicks, blocks and a device that won't keep blocked clients off", () => {
+    const pixel = { client: "f0:18:98:00:00:01", node: null };
+    expect(
+      describeEvent(event({ kind: "client_kicked", ban_secs: 600, by: "admin" }, pixel), names),
+    ).toEqual({ title: "Pixel was kicked off the Wi-Fi", detail: "By admin · Kept off for 10m" });
+    expect(
+      describeEvent(event({ kind: "client_kicked", ban_secs: 0, by: null }, pixel), names),
+    ).toEqual({ title: "Pixel was kicked off the Wi-Fi" });
+    expect(describeEvent(event({ kind: "client_blocked", by: "admin" }, pixel), names)).toEqual({
+      title: "Pixel was blocked",
+      detail: "By admin",
+    });
+    expect(describeEvent(event({ kind: "client_unblocked", by: null }, pixel), names).title).toBe(
+      "Pixel was unblocked",
+    );
+    expect(describeEvent(event({ kind: "client_bans_failed", error: "refused" }), names)).toEqual({
+      title: "Attic AP: couldn't keep blocked clients off",
+      detail: "refused",
+    });
+    expect(describeEvent(event({ kind: "client_bans_ok" }), names).title).toBe(
+      "Attic AP: keeps blocked clients off again",
+    );
+  });
+
   it("links to the logs around it, on its device", () => {
     const url = new URL(
       logsAround(event({ kind: "node_adopted" }, { last_at: 1_060_000 })),

@@ -368,8 +368,9 @@ pub trait ClientRepo: Send + Sync {
     /// and the earliest first and latest last sighting, keeping the stored alias.
     fn save_clients(&self, records: Vec<ClientRecord>) -> impl Future<Output = Result<()>> + Send;
 
-    /// Saves a record like [`save_clients`](Self::save_clients), with its alias (or none).
-    fn save_alias(&self, record: ClientRecord) -> impl Future<Output = Result<()>> + Send;
+    /// Saves a record like [`save_clients`](Self::save_clients), with what users chose for it:
+    /// its alias and when it was blocked (or none).
+    fn save_choices(&self, record: ClientRecord) -> impl Future<Output = Result<()>> + Send;
 
     /// Saves sessions, each replacing the one of its client with the same start.
     fn save_sessions(

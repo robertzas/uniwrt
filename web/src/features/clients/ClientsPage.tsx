@@ -18,8 +18,8 @@ import { type ClientRow, groupClients } from "./store";
 
 const t = strings.clients;
 
-type Filter = "all" | "wifi" | "wired" | "offline";
-const filters: readonly Filter[] = ["all", "wifi", "wired", "offline"];
+type Filter = "all" | "wifi" | "wired" | "offline" | "blocked";
+const filters: readonly Filter[] = ["all", "wifi", "wired", "offline", "blocked"];
 
 /** The row's client is in the filter, and any of the device's addresses has every word. */
 function matches(row: ClientRow, filter: Filter, words: readonly string[]): boolean {
@@ -28,6 +28,7 @@ function matches(row: ClientRow, filter: Filter, words: readonly string[]): bool
   if (filter === "offline" && client.online) return false;
   if (filter === "wifi" && !(client.online && medium === "wifi")) return false;
   if (filter === "wired" && !(client.online && medium === "wired")) return false;
+  if (filter === "blocked" && client.blocked === null) return false;
   if (words.length === 0) return true;
   return [client, ...row.others].some((member) => {
     const text = [member.alias, member.hostname, member.mac, member.vendor, ...member.ips]

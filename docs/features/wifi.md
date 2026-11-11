@@ -21,6 +21,16 @@ UI: `/wifi` lists the WLANs (security, bands in the band colors, network, device
 
 Packages: 802.11k/v, SAE with FT, and OWE need full `wpad-mbedtls` instead of `wpad-basic-mbedtls`. The controller manages the swap, which briefly drops Wi-Fi, so it happens on the bench, during a maintenance window, or through a ZTP image.
 
+## Client actions [M5.1]
+
+✅ Admins kick and block clients from the client page (D-084). Neither changes configuration: the controller asks hostapd on every node that manages `wireless`, through the agent's `ban` op (hostapd's `del_client` on each BSS, with a ban time). Nodes in observe mode are never touched.
+
+- **Kick:** deauthenticates the client wherever it is connected and keeps it off every managed access point for a time the admin picks (no time, 1 min (the default), 10 min, 1 hour; the API takes up to a day). The answer says where it was kicked from, that it wasn't connected to a managed access point, or that no device manages Wi-Fi. Kicks are kept in the controller's memory.
+- **Block / unblock:** a block is kept with the client's record (`clients.blocked`, migration 0017; blocked clients are never pruned) and lasts until an admin lifts it. It belongs to the address alone: a device with private addresses may come back under a new one. The client page shows a Blocked badge with its time, the clients list marks blocked clients and filters them.
+- **Enforcement** (`uniwrt_engine::ClientBans`): hostapd keeps bans in memory and its timer overflows past about 35 minutes, so the controller sends bans of at most 10 minutes and renews each node's bans within 5 minutes of lapsing (every 30 s it compares). A node that goes offline, a job's end (an apply's `wifi reload` restarts BSSes) and a banned client seen connected to a managed node send every ban again at once (at most every 10 s). A lift is a ban of 0, which skips the BSS the client is connected to (`del_client` would kick it). While the controller is down, bans lapse within 10 minutes.
+- **Events:** `client_kicked` (with the ban and the user), `client_blocked`, `client_unblocked`; `client_bans_failed` raises `node:<id>/client-bans` when a node refuses, cleared by `client_bans_ok`. Kicks, blocks and unblocks are audited (`kick_client`, `block_client`).
+- **API:** `POST v1/clients/{mac}/kick` (`ClientKick`: `ban_secs`, answered with a `KickOutcome`), `PUT`/`DELETE v1/clients/{mac}/block`.
+
 ## Roaming [M5.2]
 
 - **802.11r (Fast Transition):**

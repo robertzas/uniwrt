@@ -103,6 +103,7 @@ impl Book {
             match self.entries.get_mut(&record.mac) {
                 Some(entry) => {
                     entry.record.alias = record.alias;
+                    entry.record.blocked = record.blocked;
                     entry.record.first_seen = entry.record.first_seen.min(record.first_seen);
                 }
                 None => {
@@ -141,6 +142,7 @@ impl Book {
                     hostname: None,
                     first_seen: seen.at,
                     last_seen: seen.at,
+                    blocked: None,
                 };
                 changes.records.push(record.clone());
                 Entry::new(record)
@@ -177,7 +179,31 @@ impl Book {
         Some((record, changes))
     }
 
-    /// Forgets the clients without an alias last seen before `now` less
+    /// Blocks a client from `at`, or unblocks it (`None`); `None` for an unknown client. A
+    /// block is the address's alone: a randomized address's group doesn't share it.
+    pub fn block(
+        &mut self,
+        mac: MacAddr,
+        at: Option<Timestamp>,
+    ) -> Option<(ClientRecord, Changes)> {
+        let entry = self.entries.get_mut(&mac)?;
+        entry.record.blocked = at;
+        let record = entry.record.clone();
+        let mut changes = Changes::default();
+        self.refresh(&BTreeSet::from([mac]), &mut changes);
+        Some((record, changes))
+    }
+
+    /// The blocked clients' addresses.
+    pub fn blocked(&self) -> Vec<MacAddr> {
+        self.entries
+            .iter()
+            .filter(|(_, entry)| entry.record.blocked.is_some())
+            .map(|(mac, _)| *mac)
+            .collect()
+    }
+
+    /// Forgets the clients neither named nor blocked last seen before `now` less
     /// [`BookConfig::forget_after`].
     pub fn prune(&mut self, now: Timestamp) -> Changes {
         let before = now.saturating_sub(self.config.forget_after);
@@ -186,6 +212,7 @@ impl Book {
             let keep = entry.online
                 || entry.session.is_some()
                 || entry.record.alias.is_some()
+                || entry.record.blocked.is_some()
                 || entry.record.last_seen >= before;
             if !keep {
                 changes.removed.push(*mac);

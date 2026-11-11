@@ -251,6 +251,21 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return withDetail(titles.wlanScheduleFailed(node, what.phy), what.error);
     case "wlan_schedule_ok":
       return { title: titles.wlanScheduleOk(node, what.phy) };
+    case "client_kicked": {
+      const ban = what.ban_secs > 0 ? formatDuration(what.ban_secs) : null;
+      return withDetail(
+        titles.clientKicked(client),
+        [what.by && d.by(what.by), ban && d.keptOff(ban)].filter(Boolean).join(" · "),
+      );
+    }
+    case "client_blocked":
+      return withDetail(titles.clientBlocked(client), what.by && d.by(what.by));
+    case "client_unblocked":
+      return withDetail(titles.clientUnblocked(client), what.by && d.by(what.by));
+    case "client_bans_failed":
+      return withDetail(titles.clientBansFailed(node), what.error);
+    case "client_bans_ok":
+      return { title: titles.clientBansOk(node) };
   }
 }
 

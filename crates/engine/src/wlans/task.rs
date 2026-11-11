@@ -284,13 +284,13 @@ where
     }
 }
 
-async fn next_job(jobs: &mut Option<broadcast::Receiver<Arc<Job>>>) -> Option<Arc<Job>> {
+pub(crate) async fn next_job(jobs: &mut Option<broadcast::Receiver<Arc<Job>>>) -> Option<Arc<Job>> {
     let rx = jobs.as_mut()?;
     loop {
         match rx.recv().await {
             Ok(job) => return Some(job),
             Err(RecvError::Lagged(missed)) => {
-                warn!(missed, "WLAN schedules fell behind the jobs");
+                warn!(missed, "fell behind the jobs");
             }
             Err(RecvError::Closed) => {
                 *jobs = None;

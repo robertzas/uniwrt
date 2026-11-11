@@ -104,7 +104,7 @@ pub(crate) async fn patch(
         .fleet()
         .rename_client(mac, alias.clone())
         .ok_or_else(|| unknown(mac))?;
-    api.store().save_alias(record).await?;
+    api.store().save_choices(record).await?;
     api.store()
         .record(AuditEntry {
             at: api.now(),

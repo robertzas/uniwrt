@@ -38,7 +38,10 @@
 //!   hash moved, stores its drift and announces [`Event::Drift`]; [`Drifts`] is the API's
 //!   handle on it (state, acknowledge, mute); [`WlanSchedules`] ([`SchedulesConfig`]) keeps
 //!   the WLANs to their schedules (the saved site's), turning managed nodes' BSSes off and on
-//!   through the agent's `bss` op, and announces the turns and refusals as events (D-083).
+//!   through the agent's `bss` op, and announces the turns and refusals as events (D-083);
+//!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
+//!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
+//!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -74,6 +77,7 @@
 
 mod actor;
 mod alerts;
+mod bans;
 mod bus;
 mod clients;
 mod config;
@@ -98,6 +102,7 @@ mod topology;
 mod wlans;
 
 pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
+pub use bans::{Bans, BansConfig, BansError, ClientBans, KickFailure, Kicked, KickedFrom};
 pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;

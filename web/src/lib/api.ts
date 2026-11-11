@@ -8,6 +8,7 @@ import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
 import type { Client } from "../api/gen/Client";
 import type { ClientDetail } from "../api/gen/ClientDetail";
+import type { ClientKick } from "../api/gen/ClientKick";
 import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
 import type { Credentials } from "../api/gen/Credentials";
@@ -25,6 +26,7 @@ import type { ImportPreview } from "../api/gen/ImportPreview";
 import type { ImportRequest } from "../api/gen/ImportRequest";
 import type { Issue } from "../api/gen/Issue";
 import type { Job } from "../api/gen/Job";
+import type { KickOutcome } from "../api/gen/KickOutcome";
 import type { LogContext } from "../api/gen/LogContext";
 import type { LogFilter } from "../api/gen/LogFilter";
 import type { LogHistogram } from "../api/gen/LogHistogram";
@@ -383,6 +385,14 @@ export const api = {
     /** Gives the client an alias, or takes it away (blank or null); admins only. */
     rename: (mac: string, patch: ClientPatch) =>
       request<Client>(`/clients/${encodeURIComponent(mac)}`, { method: "PATCH", body: patch }),
+    /** Deauthenticates the client on every managed access point, keeping it off a while; admins. */
+    kick: (mac: string, body: ClientKick) =>
+      request<KickOutcome>(`/clients/${encodeURIComponent(mac)}/kick`, { method: "POST", body }),
+    /** Keeps the client off every managed access point until unblocked; admins only. */
+    block: (mac: string) =>
+      request<Client>(`/clients/${encodeURIComponent(mac)}/block`, { method: "PUT" }),
+    unblock: (mac: string) =>
+      request<Client>(`/clients/${encodeURIComponent(mac)}/block`, { method: "DELETE" }),
   },
   /** Stored time series (observability.md, Metrics). */
   metrics: {

@@ -31,7 +31,9 @@
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the clients
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
-//!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`), the metrics (`GET v1/metrics`, an
+//!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
+//!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]) and `PUT`/`DELETE
+//!   v1/clients/{mac}/block`), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
@@ -79,6 +81,7 @@ mod apply;
 pub mod auth;
 mod bootstrap;
 mod client;
+mod client_actions;
 mod clients;
 mod discovered;
 mod drift;
@@ -129,6 +132,7 @@ pub use apply::ApplyBody;
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
 pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
+pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
 pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
@@ -185,6 +189,11 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
+        .route("/v1/clients/{mac}/kick", post(client_actions::kick))
+        .route(
+            "/v1/clients/{mac}/block",
+            put(client_actions::block).delete(client_actions::unblock),
+        )
         .route("/v1/events", get(events::list))
         .route("/v1/alerts", get(alerts::list))
         .route("/v1/alerts/{id}/acknowledge", post(alerts::acknowledge))

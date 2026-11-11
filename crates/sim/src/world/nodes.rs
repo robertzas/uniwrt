@@ -86,6 +86,7 @@ impl World {
             return false;
         }
         self.nodes[node].down_until = Some(self.now_s + REBOOT_S);
+        self.nodes[node].banned.clear();
         for client in &mut self.clients {
             if client
                 .assoc

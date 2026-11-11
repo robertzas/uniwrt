@@ -19,6 +19,8 @@
 mod plan;
 mod task;
 
+pub(crate) use task::next_job;
+
 use std::{sync::Arc, time::Duration};
 
 use tokio::{

@@ -214,6 +214,19 @@ pub enum EventKind {
         to: Attachment,
         fast: bool,
     },
+    /// A user kicked a client off the Wi-Fi, keeping it off every managed access point for
+    /// `ban_secs` (0: it may come back at once).
+    ClientKicked {
+        ban_secs: u32,
+        by: Option<String>,
+    },
+    /// A user blocked a client: the controller keeps it off every managed access point.
+    ClientBlocked {
+        by: Option<String>,
+    },
+    ClientUnblocked {
+        by: Option<String>,
+    },
     /// A device the controller had never seen joined the network.
     NewClient {
         vendor: Option<String>,
@@ -293,6 +306,12 @@ pub enum EventKind {
     WlanScheduleOk {
         phy: String,
     },
+    /// The controller could not keep the blocked and kicked clients off a node's access points
+    /// (raises `client-bans`, cleared once it could; features/wifi.md, Client actions).
+    ClientBansFailed {
+        error: String,
+    },
+    ClientBansOk,
 }
 
 impl EventKind {
@@ -324,14 +343,18 @@ impl EventKind {
             Self::ClientJoined { .. } | Self::ClientLeft { .. } | Self::ClientRoamed { .. } => {
                 (C::Client, L::Info)
             }
-            Self::NewClient { .. } => (C::Client, L::Notice),
-            Self::ChannelChanged { radar: true, .. } | Self::ChannelCongested { .. } => {
-                (C::Wifi, L::Warning)
-            }
-            Self::WlanScheduleFailed { .. } => (C::Wifi, L::Warning),
+            Self::NewClient { .. }
+            | Self::ClientKicked { .. }
+            | Self::ClientBlocked { .. }
+            | Self::ClientUnblocked { .. } => (C::Client, L::Notice),
+            Self::ChannelChanged { radar: true, .. }
+            | Self::ChannelCongested { .. }
+            | Self::WlanScheduleFailed { .. }
+            | Self::ClientBansFailed { .. } => (C::Wifi, L::Warning),
             Self::ChannelChanged { .. }
             | Self::ChannelClear { .. }
-            | Self::WlanScheduleOk { .. } => (C::Wifi, L::Notice),
+            | Self::WlanScheduleOk { .. }
+            | Self::ClientBansOk => (C::Wifi, L::Notice),
             Self::WlanScheduled { .. } => (C::Wifi, L::Info),
         }
     }
@@ -370,6 +393,11 @@ impl EventKind {
             Self::WlanScheduled { .. } => "wlan_scheduled",
             Self::WlanScheduleFailed { .. } => "wlan_schedule_failed",
             Self::WlanScheduleOk { .. } => "wlan_schedule_ok",
+            Self::ClientKicked { .. } => "client_kicked",
+            Self::ClientBlocked { .. } => "client_blocked",
+            Self::ClientUnblocked { .. } => "client_unblocked",
+            Self::ClientBansFailed { .. } => "client_bans_failed",
+            Self::ClientBansOk => "client_bans_ok",
         }
     }
 }

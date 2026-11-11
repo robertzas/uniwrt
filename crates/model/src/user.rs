@@ -55,6 +55,10 @@ pub enum AuditAction {
     Manage,
     /// A user gave a client an alias or took it away (the detail names the client and alias).
     RenameClient,
+    /// A user kicked a client off the Wi-Fi (the detail names it and the ban).
+    KickClient,
+    /// A user blocked or unblocked a client (the detail names it and says which).
+    BlockClient,
     /// A user created, edited, reset or deleted an alert rule (the detail says which and how).
     AlertRule,
     /// A user acknowledged an alert.

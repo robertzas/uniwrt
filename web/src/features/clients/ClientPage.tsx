@@ -1,8 +1,9 @@
 import { useParams } from "@solidjs/router";
-import { ArrowLeft, Ban, BellRing, Info, Pencil, Pin, Users, UserX } from "lucide";
+import { ArrowLeft, Ban, BellRing, Pencil, Pin, ShieldCheck, Users, UserX } from "lucide";
 import { createEffect, createSignal, Match, Show, Switch, useContext } from "solid-js";
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import { clientName, kindIcons } from "../../lib/clients";
+import { formatDateTime } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
@@ -11,7 +12,7 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
-import { Tooltip } from "../../ui/Tooltip";
+import { BlockDialog, KickDialog, unblock } from "./ClientActions";
 import { ClientOverview } from "./ClientOverview";
 import { ClientTimeline } from "./ClientTimeline";
 import { FixIpDialog, ipv4Of } from "./FixIpDialog";
@@ -74,7 +75,10 @@ function Client(props: { detail: ClientDetail }) {
   const session = useContext(SessionContext);
   const [renaming, setRenaming] = createSignal(false);
   const [fixing, setFixing] = createSignal(false);
+  const [kicking, setKicking] = createSignal(false);
+  const [blocking, setBlocking] = createSignal(false);
   const client = () => props.detail.client;
+  const onWifi = () => client().online && client().connection?.medium === "wifi";
   const subtitle = () =>
     [
       client().vendor,
@@ -101,6 +105,13 @@ function Client(props: { detail: ClientDetail }) {
                 <Badge tone="info">{strings.clients.private}</Badge>
               </span>
             </Show>
+            <Show when={client().blocked}>
+              {(since) => (
+                <span title={d.blockedSince(formatDateTime(since()))}>
+                  <Badge tone="crit">{d.blocked}</Badge>
+                </span>
+              )}
+            </Show>
           </div>
           <p class="mt-1 truncate text-fg-muted text-sm">{subtitle()}</p>
         </div>
@@ -121,20 +132,34 @@ function Client(props: { detail: ClientDetail }) {
                 {d.fixIp.action}
               </Button>
             </Show>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={UserX}
+              disabled={!onWifi()}
+              title={onWifi() ? undefined : d.kickOnlyWifi}
+              onClick={() => setKicking(true)}
+            >
+              {d.kick}
+            </Button>
+            <Show
+              when={client().blocked === null}
+              fallback={
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={ShieldCheck}
+                  onClick={() => unblock(client().mac)}
+                >
+                  {d.unblock}
+                </Button>
+              }
+            >
+              <Button size="sm" variant="ghost" icon={Ban} onClick={() => setBlocking(true)}>
+                {d.block}
+              </Button>
+            </Show>
           </Show>
-          <Button size="sm" variant="ghost" icon={UserX} disabled>
-            {d.kick}
-          </Button>
-          <Button size="sm" variant="ghost" icon={Ban} disabled>
-            {d.block}
-          </Button>
-          <Tooltip
-            content={d.actionsNeedManagement}
-            aria-label={d.actionsUnavailable}
-            class="grid size-8 place-items-center rounded-control text-fg-subtle hover:text-fg"
-          >
-            <Icon icon={Info} class="size-4" />
-          </Tooltip>
         </div>
       </header>
       <Tabs defaultValue="overview" aria-label={d.tabs.label}>
@@ -160,6 +185,14 @@ function Client(props: { detail: ClientDetail }) {
       <Show when={fixing()}>
         <FixIpDialog client={client()} onClose={() => setFixing(false)} />
       </Show>
+      <KickDialog open={kicking()} onOpenChange={setKicking} mac={client().mac} />
+      <BlockDialog
+        open={blocking()}
+        onOpenChange={setBlocking}
+        mac={client().mac}
+        name={clientName(client())}
+        randomized={client().randomized}
+      />
       <RenameDialog
         open={renaming()}
         onOpenChange={setRenaming}

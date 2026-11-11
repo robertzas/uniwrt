@@ -1,4 +1,4 @@
-import { Shuffle } from "lucide";
+import { Ban, Shuffle } from "lucide";
 import { createSignal, onSettled, Show } from "solid-js";
 import type { Client } from "../../api/gen/Client";
 import { clientName, kindIcons, scoreTone, signalTone, upstreamName } from "../../lib/clients";
@@ -150,6 +150,12 @@ function ClientCell(props: { row: ClientRow }) {
             <span title={t.privateHint} class="shrink-0 text-fg-subtle">
               <Icon icon={Shuffle} class="size-3.5" />
               <span class="sr-only">{t.private}</span>
+            </span>
+          </Show>
+          <Show when={client().blocked !== null}>
+            <span title={t.blocked} class="shrink-0 text-crit">
+              <Icon icon={Ban} class="size-3.5" />
+              <span class="sr-only">{t.blocked}</span>
             </span>
           </Show>
           <Show when={props.row.others.length > 0}>

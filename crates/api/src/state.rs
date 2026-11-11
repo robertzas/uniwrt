@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, Timestamp};
-use uniwrt_engine::{Alerts, Drifts, Fleet, Notify, Rf};
+use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
@@ -34,6 +34,8 @@ pub struct ApiConfig {
     pub rf: Option<Rf>,
     /// Drift detection, when it runs.
     pub drift: Option<Drifts>,
+    /// The client bans, when they run (kicks).
+    pub bans: Option<Bans>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
     /// A new site's first revision instead of the defaults (demo mode's).
@@ -64,6 +66,7 @@ impl ApiConfig {
             notify: None,
             rf: None,
             drift: None,
+            bans: None,
             vault: None,
             first_site: None,
             password_cost: PasswordCost::default(),
@@ -89,6 +92,7 @@ struct Inner {
     notify: Option<(Notify, Vault)>,
     rf: Option<Rf>,
     drift: Option<Drifts>,
+    bans: Option<Bans>,
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
@@ -126,6 +130,7 @@ impl Api {
                 notify: config.notify,
                 rf: config.rf,
                 drift: config.drift,
+                bans: config.bans,
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
             }),
@@ -233,6 +238,13 @@ impl Api {
             .drift
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("Drift detection is not running".to_owned()))
+    }
+
+    pub(crate) fn bans(&self) -> Result<&Bans, ApiError> {
+        self.inner
+            .bans
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("Client bans are not running".to_owned()))
     }
 
     /// Drift detection's handle, when it runs (the WS hub's `config` topic).

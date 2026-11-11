@@ -29,6 +29,10 @@ group: string | null, ips: Array<string>, online: boolean,
  */
 connection: Connection | null, first_seen: Timestamp, last_seen: Timestamp, 
 /**
+ * When a user blocked it (features/wifi.md, Client actions).
+ */
+blocked: Timestamp | null, 
+/**
  * While it is online over Wi-Fi.
  */
 experience: Experience | null, };

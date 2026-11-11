@@ -2,7 +2,7 @@
 //! SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their
 //! facts show the lab's topology; the gateway pushes its client's comings and goings; and each
 //! node's scan hears the other's access points and mesh point; the `bss` op turns an access point
-//! off and on again on both releases. The
+//! off and on again on both releases, and the `ban` op keeps a client off and lets it back. The
 //! tests run one at a time, since one of them disconnects the client. Ignored by default: `just test-wifi` starts the lab and runs
 //! these with `UNIWRT_LAB_GW` and `UNIWRT_LAB_AP` (`<host:port>`) and `UNIWRT_LAB_PASSWORD`.
 
@@ -27,7 +27,7 @@ use uniwrt_node::{
     AgentEvent, AgentLaunch, Hello, NodeLink as _,
     events::Push,
     facts,
-    proto::ops::{Bss, Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
+    proto::ops::{Ban, BanEntry, Bss, Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
 };
 
 const LONG: Duration = Duration::from_secs(30);
@@ -313,6 +313,86 @@ async fn the_bss_op_turns_one_access_point_off_and_on_again() {
     // a (25.12): the 2g AP; b (24.10): the 5g AP, c's way to the gateway through the mesh.
     bss_off_and_on("UNIWRT_LAB_GW", CLIENT_2G).await;
     bss_off_and_on("UNIWRT_LAB_AP", CLIENT_5G).await;
+}
+
+/// Bans `client` from the lab node in `$var` with the `ban` op, as the controller does (its agent
+/// subscribed to hostapd), then lifts the ban (D-084): banned, it is kicked and stays off every
+/// access point; lifted, it comes back.
+async fn ban_and_lift(var: &str, client: &str) {
+    let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
+    let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let topics = Subscribe {
+        topics: vec![Topic::Hostapd],
+    };
+    link.request(&topics, LONG).await.unwrap();
+    let stations = Collect {
+        sets: vec![Set::Stations],
+    };
+    let here = async || {
+        let mut facts = NodeFacts::default();
+        let collected = link.request(&stations, LONG).await.unwrap();
+        assert_eq!(facts::apply(&collected, &mut facts), []);
+        facts.stations.iter().any(|s| s.mac == mac(client))
+    };
+    assert!(here().await, "{client} isn't on {var}");
+    let ban = |ms| Ban {
+        bans: vec![BanEntry {
+            addr: client.to_owned(),
+            ms,
+            kick: false,
+        }],
+    };
+
+    let banned = link.request(&ban(120_000), LONG).await.unwrap();
+    assert!(banned.failed.is_empty(), "{banned:?}");
+    assert_eq!(banned.kicked.len(), 1, "{banned:?}");
+    assert!(banned.bsses.contains(&banned.kicked[0].ifname));
+    // Long enough for the client to have tried again, and again.
+    for _ in 0..15 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert!(!here().await, "{client} got back onto {var} while banned");
+    }
+
+    let lifted = link.request(&ban(0), LONG).await.unwrap();
+    assert!(
+        lifted.failed.is_empty() && lifted.kicked.is_empty(),
+        "{lifted:?}"
+    );
+    for _ in 0..45 {
+        if here().await {
+            // A lift leaves the BSS the client is on alone.
+            let again = link.request(&ban(0), LONG).await.unwrap();
+            assert!(again.kicked.is_empty(), "{again:?}");
+            assert!(here().await);
+            link.shutdown().await;
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    panic!("{client} did not come back to {var} once its ban was lifted");
+}
+
+#[tokio::test]
+#[ignore = "needs the hwsim lab: just test-wifi"]
+async fn the_ban_op_keeps_a_client_off_until_lifted() {
+    ban_and_lift("UNIWRT_LAB_GW", CLIENT_2G).await;
+    ban_and_lift("UNIWRT_LAB_AP", CLIENT_5G).await;
+    let address = env::var("UNIWRT_LAB_GW").unwrap();
+    let password = env::var("UNIWRT_LAB_PASSWORD").unwrap();
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let too_long = Ban {
+        bans: vec![BanEntry {
+            addr: CLIENT_2G.to_owned(),
+            ms: Ban::MAX_MS + 1,
+            kick: false,
+        }],
+    };
+    let err = link.request(&too_long, LONG).await.unwrap_err();
+    assert!(err.to_string().contains("bad_request"), "{err}");
+    link.shutdown().await;
 }
 
 /// Scans `band` through the lab node in `$var`'s access point on it.

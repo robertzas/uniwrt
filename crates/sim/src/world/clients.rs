@@ -2,6 +2,8 @@
 //! (5 GHz while it is good, roaming only once the current one is clearly worse), traffic, and
 //! renewing leases at half their time.
 
+use uniwrt_core::MacAddr;
+
 use super::{
     Assoc, Counters, Happening, What, World,
     catalog::{ENTRANCE, SPOTS, Standard},
@@ -110,9 +112,43 @@ impl World {
             + client.fading[node][band.index()]
     }
 
-    /// The access point and band client `c` would pick now, with its signal.
+    /// The access point and band client `c` would pick now, with its signal: not one that bans
+    /// it.
     fn best(&self, c: usize) -> Option<(usize, Band, f64)> {
-        self.best_of(c, |_| true)
+        let (mac, now) = (self.clients[c].mac, self.now_ms());
+        self.best_of(c, |node| {
+            self.nodes[node]
+                .banned
+                .get(&mac)
+                .is_none_or(|&until| until <= now)
+        })
+    }
+
+    /// hostapd's `del_client` on every BSS of `node` (the `ban` op): bans `mac` for `ms` (0
+    /// lifts its ban), deauthenticating it if it is connected there and banned or `kick`ed.
+    /// Answers the band it was kicked from.
+    pub(crate) fn ban(&mut self, node: usize, mac: MacAddr, ms: u32, kick: bool) -> Option<Band> {
+        let now = self.now_ms();
+        if ms == 0 {
+            self.nodes[node].banned.remove(&mac);
+        } else {
+            self.nodes[node].banned.insert(mac, now + i64::from(ms));
+        }
+        let c = self.clients.iter().position(|client| client.mac == mac)?;
+        let band = self.clients[c]
+            .assoc
+            .as_ref()
+            .filter(|a| a.node == node)?
+            .band;
+        if ms == 0 && !kick {
+            return None;
+        }
+        self.clients[c].assoc = None;
+        self.clients[c].hold_until = self.now_s + 2 + self.rng.below(4);
+        let mut out = std::mem::take(&mut self.pending);
+        self.disassociated(node, band, mac, false, &mut out);
+        self.pending = out;
+        Some(band)
     }
 
     /// The same among the nodes `pick` allows.

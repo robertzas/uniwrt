@@ -157,6 +157,7 @@ mod tests {
             hostname: None,
             first_seen: Timestamp::from_unix_secs(1_000),
             last_seen,
+            blocked: None,
         };
         store
             .save_clients(vec![

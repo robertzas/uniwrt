@@ -149,12 +149,15 @@ fn a_restored_session_goes_on_or_ends_when_the_client_was_last_seen() {
         hostname: Some("Annas-iPhone".to_owned()),
         first_seen: secs(-1000),
         last_seen: secs(50),
+        blocked: Some(secs(-500)),
     };
     let mut book = Book::new(BookConfig::default());
     let changes = book.restore(vec![record.clone()], vec![session(1, secs(-30), None)]);
     let client = &changes.clients[0];
     assert!(!client.online);
     assert_eq!(client.alias.as_deref(), Some("Anna's phone"));
+    assert_eq!(client.blocked, Some(secs(-500)));
+    assert_eq!(book.blocked(), [phone()]);
     assert_eq!(client.kind, ClientKind::Phone);
     assert_eq!(client.connection.as_ref().unwrap().since, secs(-30));
 
@@ -243,24 +246,35 @@ fn samples_come_every_few_seconds_with_the_retry_rate_in_the_score() {
 }
 
 #[test]
-fn clients_long_gone_are_forgotten_unless_named() {
+fn clients_long_gone_are_forgotten_unless_named_or_blocked() {
     let mut world = World::new();
     world.associate(1, phone(), secs(0));
     world.associate(1, private(9), secs(0));
+    world.associate(1, private(8), secs(0));
     world.build(secs(10));
     world.book.rename(private(9), Some("Kept".to_owned()));
+    let (record, changes) = world.book.block(private(8), Some(secs(15))).unwrap();
+    assert_eq!(record.blocked, Some(secs(15)));
+    assert_eq!(changes.clients[0].blocked, Some(secs(15)));
+    assert_eq!(world.book.block(MacAddr::BROADCAST, None), None);
     world.leave(phone());
     world.leave(private(9));
+    world.leave(private(8));
     world.build(secs(20));
     let month = 30 * 24 * 3600;
     assert_eq!(world.book.prune(secs(month)).removed, []);
     assert_eq!(world.book.prune(secs(month + 11)).removed, [phone()]);
-    assert_eq!(world.book.clients().len(), 1);
+    assert_eq!(world.book.clients().len(), 2);
+    assert_eq!(world.book.blocked(), [private(8)]);
+    let (record, _) = world.book.block(private(8), None).unwrap();
+    assert_eq!(record.blocked, None);
+    assert_eq!(world.book.blocked(), []);
+    world.book.rename(private(8), Some("Kept too".to_owned()));
     let unsaved = world.book.unsaved();
     assert!(unsaved.records.is_empty(), "saved as they went offline");
     assert_eq!(
         unsaved.sessions.len(),
-        1,
-        "the last session of the one kept"
+        2,
+        "the last sessions of the ones kept"
     );
 }
