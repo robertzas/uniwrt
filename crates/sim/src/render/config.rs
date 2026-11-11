@@ -5,7 +5,7 @@
 //! what managing such a fleet changes. Section names and options follow OpenWrt's own, which
 //! uniwrt's render names differently in places.
 
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{collections::BTreeMap, fmt::Write as _, net::Ipv4Addr};
 
 use super::wifi::{MESH_ID, SSID, WIFI_PATH};
 use crate::world::{
@@ -15,6 +15,8 @@ use crate::world::{
 
 /// The demo WLAN's passphrase: the demo's, so not secret.
 pub const PASSPHRASE: &str = "uniwrt-demo-wifi";
+/// A factory-default OpenWrt's LAN address.
+const FACTORY_LAN: Ipv4Addr = Ipv4Addr::new(192, 168, 1, 1);
 /// The demo mesh's key.
 pub const MESH_KEY: &str = "uniwrt-demo-mesh-key";
 
@@ -38,6 +40,95 @@ pub(crate) fn files(world: &World, n: usize) -> BTreeMap<String, String> {
     .into_iter()
     .map(|(name, text)| (name.to_owned(), text))
     .collect()
+}
+
+/// A factory-default gateway's packages (OpenWrt 25.12's first boot): the LAN at 192.168.1.1/24,
+/// DHCP on the untagged WAN port, the radios off with the SSID `OpenWrt`.
+pub(crate) fn factory_files(node: &Node) -> BTreeMap<String, String> {
+    let o = node.mac.octets();
+    let wan = node.model.wan_port;
+    let mut network = format!(
+        "\nconfig interface 'loopback'\n\toption device 'lo'\n\toption proto 'static'\n\
+         \tlist ipaddr '127.0.0.1/8'\n\
+         \nconfig globals 'globals'\n\
+         \toption ula_prefix 'fd{:02x}:{:02x}{:02x}:{:02x}{:02x}::/48'\n\
+         \nconfig device\n\toption name 'br-lan'\n\toption type 'bridge'\n",
+        o[1], o[2], o[3], o[4], o[5],
+    );
+    for port in node.model.lan_ports {
+        let _ = writeln!(network, "\tlist ports '{port}'");
+    }
+    let _ = write!(
+        network,
+        "\nconfig interface 'lan'\n\toption device 'br-lan'\n\toption proto 'static'\n\
+         \tlist ipaddr '{FACTORY_LAN}/24'\n\toption ip6assign '60'\n\
+         \nconfig interface 'wan'\n\toption device '{wan}'\n\toption proto 'dhcp'\n\
+         \nconfig interface 'wan6'\n\toption device '{wan}'\n\toption proto 'dhcpv6'\n"
+    );
+    let mut wireless = String::new();
+    for radio in &node.radios {
+        let index = radio.band.index();
+        let path = if index == 0 {
+            WIFI_PATH.to_owned()
+        } else {
+            format!("{WIFI_PATH}+{index}")
+        };
+        let _ = write!(
+            wireless,
+            "\nconfig wifi-device 'radio{index}'\n\toption type 'mac80211'\n\toption path '{path}'\n\
+             \toption band '{}'\n\toption channel '{}'\n\toption htmode 'HE{}'\n\
+             \toption cell_density '0'\n\toption disabled '1'\n\
+             \nconfig wifi-iface 'default_radio{index}'\n\toption device 'radio{index}'\n\
+             \toption network 'lan'\n\toption mode 'ap'\n\toption ssid 'OpenWrt'\n\
+             \toption encryption 'none'\n",
+            radio.band.uci(),
+            radio.channel,
+            radio.band.width_mhz(),
+        );
+    }
+    [
+        ("system", system(node)),
+        ("network", network),
+        ("wireless", wireless),
+        ("dhcp", DHCP.to_owned()),
+        ("firewall", FIREWALL.to_owned()),
+    ]
+    .into_iter()
+    .map(|(name, text)| (name.to_owned(), text))
+    .collect()
+}
+
+/// The IPv4 addresses of `lan` in a node's `network`, in order: an applied renumbering holds the
+/// new one first, beside the old (D-081).
+pub(crate) fn lan_addresses(files: &BTreeMap<String, String>) -> Vec<Ipv4Addr> {
+    let Some(network) = files
+        .get("network")
+        .and_then(|text| uniwrt_uci::parse("network", text).ok())
+    else {
+        return Vec::new();
+    };
+    network
+        .section("lan")
+        .filter(|lan| lan.kind == "interface" && lan.option("proto") == Some("static"))
+        .and_then(|lan| lan.get("ipaddr"))
+        .map(|value| {
+            value
+                .items()
+                .iter()
+                .filter_map(|item| item.split('/').next()?.parse().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The SSID of the first access point `wireless` names, if it names one.
+pub(crate) fn ssid(files: &BTreeMap<String, String>) -> Option<String> {
+    let wireless = uniwrt_uci::parse("wireless", files.get("wireless")?).ok()?;
+    wireless
+        .sections_of("wifi-iface")
+        .find(|iface| iface.option("mode") == Some("ap") && iface.option("disabled") != Some("1"))
+        .and_then(|iface| iface.option("ssid"))
+        .map(str::to_owned)
 }
 
 /// The `config` set: each file's SHA-256, as `node-agent/collect/config.uc` reports it.

@@ -50,6 +50,7 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
         now_s: 0,
         nodes,
         clients,
+        wide,
         reboot_mean,
         next_reboot,
     };
@@ -124,7 +125,11 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
         mesh: Counters::default(),
     };
     Node {
-        name,
+        name: if gateway && config.factory {
+            "OpenWrt".to_owned()
+        } else {
+            name
+        },
         gateway,
         model,
         release,

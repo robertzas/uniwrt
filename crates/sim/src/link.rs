@@ -73,6 +73,29 @@ impl SimLink {
         }
     }
 
+    /// Whether `password` is root's: the empty one on a factory-default node, which dropbear
+    /// lets in without one.
+    pub fn root_password_is(&self, password: &str) -> bool {
+        lock(&self.shared.nodes[self.node].disk).root_password == password
+    }
+
+    /// The addresses the node answers at: its own and, on the gateway, every address of its
+    /// `lan` (two while a renumbering bridges the old subnet and the new, D-081).
+    pub fn hosts(&self) -> Vec<String> {
+        let world = self.shared.world();
+        let node = &world.nodes[self.node];
+        let mut hosts = vec![node.ip];
+        if node.gateway {
+            let disk = lock(&self.shared.nodes[self.node].disk);
+            for address in render::config::lan_addresses(&disk.tool.files) {
+                if !hosts.contains(&address) {
+                    hosts.push(address);
+                }
+            }
+        }
+        hosts.iter().map(ToString::to_string).collect()
+    }
+
     fn answer(&self, op: &str, args: &RawValue) -> Result<Value> {
         if !self.running() {
             return Err(Error::AgentUnavailable {
@@ -186,14 +209,12 @@ impl SimLink {
                 what: "exec".to_owned(),
             });
         }
-        let world = self.shared.world();
+        let mut world = self.shared.world();
         let mut disk = lock(&self.shared.nodes[self.node].disk);
-        Ok(render::commands::exec(
-            &world.nodes[self.node],
-            request,
-            &mut disk,
-            world.now_ms(),
-        ))
+        let output =
+            render::commands::exec(&world.nodes[self.node], request, &mut disk, world.now_ms());
+        crate::fleet::follow_bounces(&mut world, self.node, &mut disk);
+        Ok(output)
     }
 
     fn running(&self) -> bool {

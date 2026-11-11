@@ -38,6 +38,8 @@ pub(crate) struct World {
     pub(crate) now_s: u64,
     pub(crate) nodes: Vec<Node>,
     pub(crate) clients: Vec<Client>,
+    /// The LAN is a /16 (a fleet too big for a /24).
+    pub(crate) wide: bool,
     /// Mean seconds between reboots of an access point; `None` for none.
     reboot_mean: Option<f64>,
     next_reboot: u64,
@@ -286,6 +288,22 @@ impl World {
         }
         world.opening_walk();
         world
+    }
+
+    /// Moves the LAN to where the gateway's address is `gateway`: every node and client keeps
+    /// its place in the subnet, as hosts that ask for a lease again do (D-081).
+    pub(crate) fn renumber(&mut self, gateway: Ipv4Addr) {
+        let shift = u32::from(gateway).wrapping_sub(u32::from(self.nodes[0].ip));
+        if shift == 0 {
+            return;
+        }
+        let moved = |ip: Ipv4Addr| Ipv4Addr::from(u32::from(ip).wrapping_add(shift));
+        for node in &mut self.nodes {
+            node.ip = moved(node.ip);
+        }
+        for client in &mut self.clients {
+            client.ip = moved(client.ip);
+        }
     }
 
     pub(crate) fn now_ms(&self) -> i64 {

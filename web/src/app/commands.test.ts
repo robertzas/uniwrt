@@ -77,6 +77,18 @@ describe("commands", () => {
     expect(navigate).toHaveBeenCalledWith("/devices?adopt=1");
   });
 
+  it("offers admins the first-run wizard until a gateway is adopted", () => {
+    const navigate = vi.fn();
+    const ids = (devices: ReturnType<typeof summary>[], admin = true) =>
+      appCommands({ navigate, devices, admin }).map((c) => c.id);
+    expect(ids([summary(2, "attic", { role: "ap" })])).toContain("setup:router");
+    expect(ids([summary(1, "gw", { role: "gateway" })])).not.toContain("setup:router");
+    expect(ids([], false)).not.toContain("setup:router");
+    const [command] = filterCommands(appCommands({ navigate, devices: [], admin: true }), "wizard");
+    command?.run();
+    expect(navigate).toHaveBeenCalledWith("/setup");
+  });
+
   it("signs out when the app gives a way to", () => {
     const signOut = vi.fn();
     expect(appCommands({ navigate: vi.fn() }).map((c) => c.id)).not.toContain("account:sign-out");

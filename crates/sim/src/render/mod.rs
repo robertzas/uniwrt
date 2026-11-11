@@ -73,6 +73,10 @@ pub(crate) fn collect(
                 Set::Config => config::hashes(files),
                 Set::Interfaces => net::interfaces(world, node, files),
                 Set::Leases => l2::leases(world, node, files),
+                Set::Radios => {
+                    let ssid = config::ssid(files);
+                    wifi::radios(world, node, ssid.as_deref().unwrap_or(wifi::SSID))
+                }
                 _ => set_of(world, node, set),
             };
             (set.as_str().to_owned(), value)
@@ -93,7 +97,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Leases => l2::leases(world, n, &BTreeMap::new()),
         Set::Neighbors => l2::neighbors(world, n),
         Set::Phys => wifi::phys(),
-        Set::Radios => wifi::radios(world, n),
+        Set::Radios => wifi::radios(world, n, wifi::SSID),
         Set::Stations => wifi::stations(world, n),
         Set::System => system::system(world, node),
     }

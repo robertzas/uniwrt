@@ -122,6 +122,12 @@ impl Tool {
         })
     }
 
+    /// The node's own timer: rolls back an open transaction nobody confirmed in time, whether
+    /// or not anyone asks.
+    pub fn tick(&mut self, now: Now) {
+        self.expire(now);
+    }
+
     /// The open transaction's id, if any.
     pub fn open(&self) -> Option<&str> {
         self.open.as_ref().map(|open| open.id.as_str())

@@ -291,9 +291,11 @@ describe("the dashboard", () => {
     );
   });
 
-  it("welcomes a new install with a way to adopt", async () => {
+  it("welcomes a new install with the wizard, or a way to adopt a running network", async () => {
     await renderDashboard([]);
-    const adopt = await screen.findByRole("link", { name: "Adopt a device" });
+    const setup = await screen.findByRole("link", { name: "Set up your internet router" });
+    expect(setup).toHaveAttribute("href", "/setup");
+    const adopt = screen.getByRole("link", { name: "Adopt an existing network" });
     expect(adopt).toHaveAttribute("href", "/devices?adopt=1");
     expect(screen.getByText("Welcome to uniwrt")).toBeInTheDocument();
   });

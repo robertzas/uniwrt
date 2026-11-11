@@ -1,7 +1,10 @@
 //! Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real
 //! ones, so the real adopt job and discovery run against them. Each node has a dropbear banner,
-//! a host key made at start, and the root password `demo`; it runs what adoption runs through
-//! its [`SimLink`]. Every answer takes about as long as over a LAN, so the wizard shows each
+//! a host key made at start, and the root password `demo` (a factory-default gateway,
+//! `--demo-factory`, has none until adoption sets one); it runs what adoption runs through
+//! its [`SimLink`]. A node answers at the addresses it holds now ([`SimLink::hosts`]), so a
+//! gateway that is renumbered is reached at its old address and its new one while it bridges
+//! them (D-081). Every answer takes about as long as over a LAN, so the wizard shows each
 //! step. Other hosts refuse the connection, as the simulated clients would.
 //!
 //! [`SshDial`]: uniwrt_jobs::SshDial
@@ -17,7 +20,7 @@ use uniwrt_node::{
 use uniwrt_sim::{SimFleet, SimLink};
 
 /// The simulated nodes' root password, as the demo's own login.
-pub(crate) const ROOT_PASSWORD: &str = "demo";
+pub(crate) const ROOT_PASSWORD: &str = uniwrt_sim::ROOT_PASSWORD;
 
 const BANNER: &str = "SSH-2.0-dropbear_2025.88";
 const BANNER_DELAY: Duration = Duration::from_millis(150);
@@ -30,7 +33,6 @@ const BACKUP_DELAY: Duration = Duration::from_millis(1500);
 
 /// One simulated node, as the dial reaches it.
 struct DemoNode {
-    host: String,
     link: SimLink,
     host_key: HostKey,
 }
@@ -43,18 +45,11 @@ pub(crate) struct DemoDial {
 impl DemoDial {
     /// Every node of `sim`, each with a host key of its own.
     pub(crate) fn new(sim: &SimFleet) -> anyhow::Result<Self> {
-        let nodes = sim
-            .nodes()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, node)| Some((node.host, sim.link(index)?)))
-            .map(|(host, link)| {
+        let nodes = (0..sim.nodes().len())
+            .filter_map(|index| sim.link(index))
+            .map(|link| {
                 let host_key = HostKey::parse(&ControllerKey::generate()?.authorized_key()?)?;
-                Ok(DemoNode {
-                    host,
-                    link,
-                    host_key,
-                })
+                Ok(DemoNode { link, host_key })
             })
             .collect::<Result<_>>()?;
         Ok(Self { nodes })
@@ -72,7 +67,9 @@ impl DemoDial {
     }
 
     fn node(&self, host: &str) -> Option<&DemoNode> {
-        self.nodes.iter().find(|node| node.host == host)
+        self.nodes
+            .iter()
+            .find(|node| node.link.hosts().iter().any(|held| held == host))
     }
 
     /// The node at `target` after `delay`, or at once the error of a host without an SSH
@@ -118,7 +115,11 @@ impl Dial for DemoDial {
                 });
             }
             let (accepted, method) = match credential {
-                Credential::Password(password) => (password.as_str() == ROOT_PASSWORD, "password"),
+                // An empty one is the login without a password, which only a factory-default
+                // root accepts.
+                Credential::Password(password) => {
+                    (node.link.root_password_is(password), "password")
+                }
                 Credential::Key(key) => (node.link.trusts(&key.authorized_key()?), "publickey"),
             };
             if !accepted {
@@ -176,11 +177,16 @@ mod tests {
     use uniwrt_model::{
         job::{Job, JobErrorCode, JobState},
         node::NodeMode,
+        site::{
+            SiteConfig,
+            node::{ManagedPackage, NodeConfig},
+            revision::{NewRevision, RevisionKind},
+        },
         status::NodeState,
     };
     use uniwrt_node::{ControllerKey, Target};
     use uniwrt_sim::SimConfig;
-    use uniwrt_store::{MasterKey, NodeRepo as _, Store, Vault};
+    use uniwrt_store::{MasterKey, NodeRepo as _, RevisionRepo as _, Store, Vault, VaultRepo as _};
     use zeroize::Zeroizing;
 
     use super::ROOT_PASSWORD;
@@ -290,6 +296,120 @@ mod tests {
             assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
             assert_eq!(store.node(id).await.unwrap().unwrap().mode, mode);
         }
+
+        jobs.shutdown().await;
+        tokio::time::timeout(Duration::from_secs(5), fleet.stop())
+            .await
+            .unwrap();
+        store.close().await;
+    }
+
+    /// The first-run wizard's path (features/adoption.md, Path E): the factory-default gateway
+    /// is found and adopted without a password, managed, and renumbered to the site's plan.
+    #[tokio::test]
+    async fn a_factory_gateway_is_found_adopted_and_renumbered() {
+        let dir = tempfile::tempdir().unwrap();
+        let clock = Arc::new(SystemClock);
+        let store = Store::open(dir.path().join("uniwrt.db"), clock.clone())
+            .await
+            .unwrap();
+        let key = ControllerKey::generate().unwrap();
+        let fleet = Fleet::demo(&store, &SimConfig::factory(7), &key, clock.clone(), None)
+            .await
+            .unwrap();
+        assert_eq!(store.nodes().await.unwrap().len(), 0, "nothing is adopted");
+        assert!(fleet.first_site().unwrap().is_none());
+        let vault = Vault::open(&store, &MasterKey::generate().unwrap())
+            .await
+            .unwrap();
+        let jobs = fleet
+            .jobs(&store, vault.clone(), &key, clock)
+            .await
+            .unwrap();
+
+        let factory = std::net::Ipv4Addr::new(192, 168, 1, 1);
+        let found = jobs
+            .find_gateways(&[std::net::Ipv4Addr::new(172, 17, 0, 1), factory])
+            .await
+            .unwrap();
+        assert_eq!(found.len(), 1);
+        let gateway = &found[0];
+        assert!(gateway.blank && gateway.model.is_some() && gateway.adopted.is_none());
+        assert_eq!(gateway.hostname.as_deref(), Some("OpenWrt"));
+
+        let request = AdoptRequest {
+            target: gateway.target.clone(),
+            host_key: gateway.host_key.clone(),
+            password: Some(Zeroizing::new(String::new())),
+            remember_password: false,
+            name: None,
+            // The wizard says so: with no internet yet, nothing else tells a gateway.
+            role: Some(uniwrt_model::node::NodeRole::Gateway),
+        };
+        let adopted = finished(&jobs, jobs.adopt(request, None).await.unwrap()).await;
+        assert_eq!(adopted.state, JobState::Succeeded, "{:?}", adopted.error);
+        let id = adopted.node.unwrap();
+        let link = fleet.sim_link("192.168.1.1").unwrap();
+        assert!(!link.root_password_is(""), "root has a password now");
+        let kept = vault
+            .secret(&format!("node/{id}/root_password"))
+            .await
+            .unwrap()
+            .expect("the vault keeps it");
+        assert!(link.root_password_is(std::str::from_utf8(&kept).unwrap()));
+
+        let managed = finished(&jobs, jobs.manage(id, true, None).await.unwrap()).await;
+        assert_eq!(managed.state, JobState::Succeeded, "{:?}", managed.error);
+
+        // The site's defaults put the LAN at 10.0.0.1/24: the gateway bridges, the hosts
+        // (this controller among them) move, and the old address goes.
+        let mut config = SiteConfig::defaults(None);
+        config.nodes.push(NodeConfig {
+            managed: [
+                ManagedPackage::System,
+                ManagedPackage::Network,
+                ManagedPackage::Wireless,
+                ManagedPackage::Dhcp,
+                ManagedPackage::Firewall,
+            ]
+            .into(),
+            ..NodeConfig::new(id)
+        });
+        let revision = store
+            .commit_revision(
+                NewRevision {
+                    base: None,
+                    kind: RevisionKind::Defaults,
+                    restored_from: None,
+                    author_id: None,
+                    author: None,
+                    message: "first run".to_owned(),
+                    config,
+                },
+                Vec::new(),
+            )
+            .await
+            .unwrap();
+        let apply = jobs.apply(revision.id, None).await.unwrap();
+        let apply = tokio::time::timeout(Duration::from_secs(300), async {
+            loop {
+                let job = jobs.job(apply.id).await.unwrap().unwrap();
+                if job.state != JobState::Running {
+                    return job;
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("the apply finishes");
+        assert_eq!(apply.state, JobState::Succeeded, "{:?}", apply.error);
+        assert_eq!(
+            store.node(id).await.unwrap().unwrap().host,
+            "10.0.0.1",
+            "{apply:#?}"
+        );
+        assert_eq!(link.hosts(), ["10.0.0.1"]);
+        assert!(fleet.sim_link("192.168.1.1").is_none());
 
         jobs.shutdown().await;
         tokio::time::timeout(Duration::from_secs(5), fleet.stop())

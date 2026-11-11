@@ -27,7 +27,9 @@ pub(super) fn phys() -> Value {
     PHYS.clone()
 }
 
-pub(super) fn radios(world: &World, n: usize) -> Value {
+/// The radios and their interfaces; `ssid` is the access point's (the node's `wireless` names
+/// it once uniwrt, or the user, configured one).
+pub(super) fn radios(world: &World, n: usize, ssid: &str) -> Value {
     let node = &world.nodes[n];
     let mut wireless = Map::new();
     let mut nl = Vec::new();
@@ -45,7 +47,7 @@ pub(super) fn radios(world: &World, n: usize) -> Value {
         let mut ifaces = vec![json!({
             "section": format!("default_radio{index}"),
             "ifname": band.ap_iface(),
-            "config": {"mode": "ap", "ssid": SSID, "encryption": "sae-mixed", "network": ["lan"], "ieee80211r": true},
+            "config": {"mode": "ap", "ssid": ssid, "encryption": "sae-mixed", "network": ["lan"], "ieee80211r": true},
         })];
         let width = if band.width_mhz() == 80 { 3 } else { 1 };
         let nl_iface = |ifname: &str, iftype: u32, mac: String, ssid: Option<&str>| {
@@ -68,7 +70,7 @@ pub(super) fn radios(world: &World, n: usize) -> Value {
             band.ap_iface(),
             3,
             node.bssid(band).to_string(),
-            Some(SSID),
+            Some(ssid),
         ));
         if band == Band::G5 {
             ifaces.push(json!({

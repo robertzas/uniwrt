@@ -9,7 +9,7 @@ import { type Session, SessionContext } from "../lib/session";
 import { strings } from "../lib/strings";
 import { LiveSocket } from "../lib/ws";
 import { Button } from "../ui/Button";
-import { createAppRouter } from "./routes";
+import { createAppRouter, SETUP_PATH } from "./routes";
 import { Shell } from "./Shell";
 
 const Router = createAppRouter();
@@ -78,6 +78,10 @@ export function Gate() {
                     state={state()}
                     notice={notice()}
                     onSignedIn={(user) => {
+                      // The first admin goes on to set up the router (adoption.md, Path E).
+                      if (state().setup === "open") {
+                        window.history.replaceState(null, "", SETUP_PATH);
+                      }
                       setNotice(undefined);
                       setUser(user);
                     }}
@@ -129,7 +133,17 @@ function SignedIn(props: { user: UserInfo; onSignOut: () => void; onSessionEnded
   return (
     <SessionContext value={session}>
       <LiveContext value={live}>
-        <Router>{(routed) => <Shell>{routed.children}</Shell>}</Router>
+        <Router>
+          {(routed) => (
+            // The first-run wizard is a page of its own, without the shell.
+            <Show
+              when={routed.location.pathname !== SETUP_PATH}
+              fallback={<Loading fallback={<Splash />}>{routed.children}</Loading>}
+            >
+              <Shell>{routed.children}</Shell>
+            </Show>
+          )}
+        </Router>
       </LiveContext>
     </SessionContext>
   );

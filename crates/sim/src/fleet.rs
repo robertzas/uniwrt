@@ -93,7 +93,7 @@ impl SimFleet {
                 pushes: broadcast::channel(PUSH_CAPACITY).0,
                 session: Mutex::new(Session::default()),
                 connection: Mutex::new(Connection::Up),
-                disk: Mutex::new(Disk::of(&world, node)),
+                disk: Mutex::new(Disk::of(&world, node, config.factory)),
             })
             .collect();
         let shared = Arc::new(Shared {
@@ -184,6 +184,8 @@ impl Shared {
                 tool, hand_edit, ..
             } = &mut *disk;
             hand_edit.step(tool, world.now_ms() / 1000);
+            tool.tick(render::commands::now(&world.nodes[node], world.now_ms()));
+            follow_bounces(&mut world, node, &mut disk);
             drop(disk);
             self.connect(&world, node);
             if *lock(&self.nodes[node].connection) == Connection::Up {
@@ -308,6 +310,19 @@ impl Shared {
     fn push(&self, node: usize, event: AgentEvent) {
         // Nobody listening is fine.
         let _ = self.nodes[node].pushes.send(event);
+    }
+}
+
+/// Once the gateway's ports bounced (the tool's `bounce`, or a rollback's), the hosts behind
+/// them asked for a lease again: the LAN is where `lan`'s first address is now (D-081).
+pub(crate) fn follow_bounces(world: &mut World, node: usize, disk: &mut Disk) {
+    let bounces = disk.tool.bounced.len();
+    if !world.nodes[node].gateway || bounces == disk.bounces_followed {
+        return;
+    }
+    disk.bounces_followed = bounces;
+    if let Some(&gateway) = render::config::lan_addresses(&disk.tool.files).first() {
+        world.renumber(gateway);
     }
 }
 

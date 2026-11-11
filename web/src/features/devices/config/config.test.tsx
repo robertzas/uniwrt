@@ -13,6 +13,7 @@ import { openTestSocket, SignedInProviders } from "../../../test/providers";
 import { revisionMeta, siteView } from "../../../test/site";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
+let rootPassword: string | null = null;
 let head = 2;
 
 function manageJob(state: Job["state"], done: number): Job {
@@ -41,6 +42,7 @@ function manageJob(state: Job["state"], done: number): Job {
 beforeEach(() => {
   calls = [];
   head = 2;
+  rootPassword = "abcd-efgh-jkmn-pqrs-tuvw-xyz2";
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -54,6 +56,11 @@ beforeEach(() => {
       }
       if (url === "/api/v1/nodes/1/management") {
         return Response.json(manageJob("running", 0), { status: 202 });
+      }
+      if (url === "/api/v1/nodes/1/root-password/reveal") {
+        return rootPassword === null
+          ? Response.json({ title: "Not found", status: 404 }, { status: 404 })
+          : Response.json({ value: rootPassword });
       }
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
@@ -142,8 +149,31 @@ describe("Device › Config", () => {
     ]);
   });
 
+  it("shows admins the root password the vault keeps, on demand", async () => {
+    const user = userEvent.setup();
+    await renderConfig();
+    await user.click(await screen.findByRole("button", { name: "Show root password" }));
+    const shown = await screen.findByRole("status", { name: "Root password" });
+    expect(shown).toHaveTextContent("abcd-efgh-jkmn-pqrs-tuvw-xyz2");
+    expect(calls).toContainEqual(
+      expect.objectContaining({ method: "POST", url: "/api/v1/nodes/1/root-password/reveal" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("status", { name: "Root password" })).toBeNull();
+  });
+
+  it("says so when the vault keeps no root password", async () => {
+    rootPassword = null;
+    const user = userEvent.setup();
+    await renderConfig();
+    await user.click(await screen.findByRole("button", { name: "Show root password" }));
+    expect(await screen.findByText(/The vault keeps no root password/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show root password" })).toBeNull();
+  });
+
   it("shows viewers the state without the switches", async () => {
     await renderConfig("viewer");
+    expect(screen.queryByRole("button", { name: "Show root password" })).toBeNull();
     expect(await screen.findByText("Only admins can turn management on or off.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Turn management on" })).toBeNull();
     expect(await screen.findByRole("checkbox", { name: "network" })).toBeDisabled();

@@ -63,6 +63,18 @@ export function appCommands(context: CommandContext): Command[] {
       keywords: "add new router access point openwrt ssh discovered",
       run: () => navigate("/devices?adopt=1"),
     },
+    ...(context.admin && context.devices && !context.devices.some((n) => n.role === "gateway")
+      ? [
+          {
+            id: "setup:router",
+            group: p.groups.devices,
+            label: strings.setup.command,
+            icon: Router,
+            keywords: "first run wizard gateway factory openwrt internet wifi bootstrap",
+            run: () => navigate("/setup"),
+          },
+        ]
+      : []),
     ...(context.admin
       ? [
           {

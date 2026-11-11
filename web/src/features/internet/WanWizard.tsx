@@ -1,35 +1,19 @@
 import { useNavigate } from "@solidjs/router";
-import { ExternalLink } from "lucide";
-import { createMemo, createSignal, For, Match, Show, Switch, untrack, useContext } from "solid-js";
-import type { JobId } from "../../api/gen/JobId";
+import { createSignal, For, Match, Show, Switch, untrack, useContext } from "solid-js";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { Preset } from "../../api/gen/Preset";
 import type { SiteView } from "../../api/gen/SiteView";
-import type { WanConfig } from "../../api/gen/WanConfig";
-import { ApiError, api, errorText } from "../../lib/api";
 import { createJobsView } from "../../lib/jobs";
 import { LiveContext } from "../../lib/live";
 import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
-import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
-import { check, comboError, type DraftErrors, errorsOfIssues } from "./check";
-import {
-  type Draft,
-  draftOf,
-  type Field,
-  fallbackOf,
-  fieldsOf,
-  promptedFields,
-  wanOf,
-  withPreset,
-} from "./draft";
 import { IspPicker } from "./IspPicker";
-import { ipv6Result } from "./summary";
 import { TestPanel } from "./TestPanel";
-import { AdvancedFields, FieldGrid } from "./WanFields";
+import { WanSettings } from "./WanSettings";
+import { createWanForm } from "./wanForm";
 
 const w = strings.internet.wizard;
 
@@ -50,118 +34,44 @@ export function WanWizard(props: {
   const live = useContext(LiveContext);
   const navigate = useNavigate();
   const [jobs, addJobs] = createJobsView(live);
-  const current = untrack(() => props.site.config.wan);
   const storedPassword = untrack(() =>
     props.site.secrets.some((s) => s.path === "wan/password" && s.set),
   );
+  const form = createWanForm({
+    current: untrack(() => props.site.config.wan),
+    storedPassword,
+    presets: () => props.presets,
+    jobs,
+    addJobs,
+  });
+  const { draft, preset, job, failure, busy, running } = form;
   const [step, setStep] = createSignal<Step>("isp");
-  const [draft, setDraft] = createSignal<Draft>(draftOf(current));
-  const [errors, setErrors] = createSignal<DraftErrors>({});
-  const [failure, setFailure] = createSignal<string>();
-  const [advanced, setAdvanced] = createSignal(untrack(() => current.preset === null));
-  const [jobId, setJobId] = createSignal<JobId>();
-  const [ipv6Off, setIpv6Off] = createSignal(false);
-  const [busy, setBusy] = createSignal(false);
   const [saved, setSaved] = createSignal<number>();
 
-  const preset = createMemo(() => props.presets.find((p) => p.id === draft().preset));
-  const job = () => {
-    const id = jobId();
-    return id === undefined ? undefined : jobs.byId[id];
-  };
   const testable = () => props.gateway?.mode === "managed";
-  const prompted = createMemo(() => {
-    const p = preset();
-    return p ? promptedFields(p) : [];
-  });
-  const rest = createMemo<Field[]>(() =>
-    fieldsOf(draft()).filter((field) => !prompted().includes(field)),
-  );
-
-  const change = (next: Partial<Draft>) => {
-    setDraft((now) => ({ ...now, ...next }));
-    setErrors({});
-    setFailure(undefined);
-  };
   const pick = (chosen: Preset) => {
-    setDraft((now) => withPreset(now, chosen));
-    setErrors({});
-    setAdvanced(false);
+    form.pick(chosen);
     setStep("settings");
   };
-  /** The form's WAN, or nothing after showing what is wrong. */
-  const valid = (): WanConfig | undefined => {
-    const found = check(draft(), storedPassword);
-    const combo = comboError(draft());
-    setErrors(found);
-    if (Object.keys(found).length > 0 || combo) {
-      if (Object.keys(found).some((field) => !prompted().includes(field as Field))) {
-        setAdvanced(true);
-      }
-      if (combo) setAdvanced(true);
-      setFailure(combo ?? strings.internet.errors.fix);
-      return undefined;
-    }
-    return wanOf(draft(), current);
-  };
-  const refused = (err: unknown) => {
-    if (err instanceof ApiError && err.issues.length > 0) {
-      const { errors: found, other } = errorsOfIssues(err.issues);
-      setErrors(found);
-      setAdvanced(true);
-      setFailure(other[0] ?? strings.internet.errors.fix);
-      setStep("settings");
-    } else {
-      setFailure(errorText(err));
-    }
-  };
-
-  const test = async () => {
-    const wan = valid();
-    if (!wan) return;
-    setBusy(true);
-    setIpv6Off(false);
-    setJobId(undefined);
-    setStep("test");
-    try {
-      const started = await api.wan.test({
-        wan,
-        password: draft().password === "" ? undefined : draft().password,
-        fallback: fallbackOf(preset()),
-      });
-      addJobs([started]);
-      setJobId(started.id);
-    } catch (err) {
-      refused(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const test = () => form.test(() => setStep("test"));
   const save = async () => {
-    const wan = valid();
+    const wan = form.outcome(step() === "test");
     if (!wan) return;
-    const finished = job();
-    const fallback = fallbackOf(preset());
-    if (finished?.state === "succeeded" && step() === "test") {
-      if (ipv6Result(finished) === "sixrd" && fallback) wan.ipv6 = fallback;
-      if (ipv6Result(finished) === "failed" && ipv6Off()) wan.ipv6 = { mode: "off" };
-    }
-    setBusy(true);
+    form.setBusy(true);
     try {
-      const what = preset() ? `${preset()?.name} · ${preset()?.variant}` : strings.internet.custom;
-      const secrets = draft().password === "" ? undefined : { "wan/password": draft().password };
-      const view = await saveSite((config) => ({ ...config, wan }), w.message(what), secrets);
+      const view = await saveSite(
+        (config) => ({ ...config, wan }),
+        w.message(form.label()),
+        form.secrets(),
+      );
       setSaved(view.revision.id);
       setStep("saved");
     } catch (err) {
-      refused(err);
+      if (form.refused(err)) setStep("settings");
     } finally {
-      setBusy(false);
+      form.setBusy(false);
     }
   };
-
-  const running = () => busy() || job()?.state === "running";
 
   return (
     <Dialog
@@ -201,72 +111,12 @@ export function WanWizard(props: {
           </Match>
           <Match when={step() === "settings"}>
             <div class="flex flex-col gap-4">
-              <Show when={preset()} fallback={<p class="font-medium">{strings.internet.custom}</p>}>
-                {(p) => (
-                  <div>
-                    <p class="font-medium">
-                      {p().name} <span class="font-normal text-fg-muted">· {p().variant}</span>
-                    </p>
-                    <Show when={p().notes}>
-                      <p class="mt-1 text-fg-muted text-sm">{p().notes}</p>
-                    </Show>
-                    <Show when={p().ipv6.mode === "auto"}>
-                      <p class="mt-1 text-fg-muted text-sm">{w.auto}</p>
-                    </Show>
-                    <Show when={p().sources.length > 0}>
-                      <p class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                        <span class="text-fg-subtle">{w.sources}</span>
-                        <For each={p().sources}>
-                          {(url) => (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              class="inline-flex items-center gap-1 text-accent hover:underline"
-                            >
-                              {new URL(url).hostname}
-                              <Icon icon={ExternalLink} class="size-3" />
-                            </a>
-                          )}
-                        </For>
-                      </p>
-                    </Show>
-                  </div>
-                )}
-              </Show>
-              <Show when={prompted().length > 0}>
-                <FieldGrid
-                  fields={prompted()}
-                  draft={draft()}
-                  errors={errors()}
-                  storedPassword={storedPassword}
-                  onChange={change}
-                />
-              </Show>
-              <details
-                open={advanced()}
-                onToggle={(event) => setAdvanced(event.currentTarget.open)}
-                class="rounded-control border border-edge"
-              >
-                <summary class="cursor-pointer select-none px-3 py-2 font-medium text-sm">
-                  {w.advanced} <span class="font-normal text-fg-subtle">· {w.advancedHint}</span>
-                </summary>
-                <div class="border-edge border-t p-3">
-                  <AdvancedFields
-                    draft={draft()}
-                    fields={rest()}
-                    errors={errors()}
-                    combo={comboError(draft())}
-                    storedPassword={storedPassword}
-                    onChange={change}
-                  />
-                </div>
-              </details>
+              <WanSettings form={form} storedPassword={storedPassword} />
               <p class="text-fg-muted text-xs">{w.testHint}</p>
             </div>
           </Match>
           <Match when={step() === "test"}>
-            <TestPanel job={job()} ipv6Off={ipv6Off()} onIpv6Off={setIpv6Off} />
+            <TestPanel job={job()} ipv6Off={form.ipv6Off()} onIpv6Off={form.setIpv6Off} />
           </Match>
           <Match when={step() === "saved"}>
             <div class="flex flex-col gap-1">

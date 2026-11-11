@@ -15,11 +15,7 @@ pub(super) const LAN_PREFIX6: &str = "2001:db8:4a:100::";
 
 /// The LAN's prefix length: a /24 while the fleet fits, else a /16.
 pub(super) fn lan_mask(world: &World) -> u8 {
-    if world.nodes[0].ip.octets()[2] == 1 {
-        24
-    } else {
-        16
-    }
+    if world.wide { 16 } else { 24 }
 }
 
 /// The interfaces; the gateway's WAN as the ISP answers its `/etc/config/network` (`files`).

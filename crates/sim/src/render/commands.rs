@@ -16,6 +16,9 @@ use crate::{
     world::{Node, World},
 };
 
+/// Root's password on a node that was set up by hand: the demo's, so not secret.
+pub const ROOT_PASSWORD: &str = "demo";
+
 /// What `sysupgrade -b -` writes: a small backup with harmless settings.
 const BACKUP: &[u8] = include_bytes!("../../data/backup.tar.gz");
 
@@ -24,6 +27,11 @@ const BACKUP: &[u8] = include_bytes!("../../data/backup.tar.gz");
 pub(crate) struct Disk {
     /// The lines of dropbear's `authorized_keys`.
     pub(crate) authorized_keys: Vec<String>,
+    /// Root's password; empty on a factory-default node, where dropbear lets root in without
+    /// one.
+    pub(crate) root_password: String,
+    /// How many of the tool's bounces the LAN has followed ([`crate::link`]).
+    pub(crate) bounces_followed: usize,
     /// The transaction tool, `/etc/config` and the init scripts.
     pub(crate) tool: Tool,
     /// Demo mode's drift, still to come or done.
@@ -37,6 +45,8 @@ impl Default for Disk {
     fn default() -> Self {
         Self {
             authorized_keys: Vec::new(),
+            root_password: ROOT_PASSWORD.to_owned(),
+            bounces_followed: 0,
             tool: Tool::stock(),
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
@@ -45,20 +55,30 @@ impl Default for Disk {
 }
 
 impl Disk {
-    /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]).
-    pub(crate) fn of(world: &World, n: usize) -> Self {
+    /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]); a
+    /// `factory` gateway's is OpenWrt's own, and its root has no password.
+    pub(crate) fn of(world: &World, n: usize, factory: bool) -> Self {
+        let node = &world.nodes[n];
+        let factory = factory && node.gateway;
         let mut tool = Tool::stock();
-        tool.files = super::config::files(world, n);
-        if !world.nodes[n].gateway {
+        tool.files = if factory {
+            super::config::factory_files(node)
+        } else {
+            super::config::files(world, n)
+        };
+        if !node.gateway {
             for service in super::config::AP_OFF {
                 tool.services.insert(service.to_owned(), false);
             }
         }
         Self {
-            authorized_keys: Vec::new(),
+            root_password: if factory {
+                String::new()
+            } else {
+                ROOT_PASSWORD.to_owned()
+            },
             tool,
-            hand_edit: HandEdit::default(),
-            installed: BTreeSet::new(),
+            ..Self::default()
         }
     }
 }
@@ -89,13 +109,18 @@ const PACKAGES: [(&str, &str, bool); 22] = [
     ("wpad-mesh-mbedtls", "2025.08.26~ced4f2b0-r1", true),
 ];
 
-/// Runs `request` on `node`, whose files are on `disk`, at `now_ms` (the world's clock).
-pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: i64) -> ExecOutput {
-    let now = Now {
+/// `node`'s clock at `now_ms` (the world's).
+pub(crate) fn now(node: &Node, now_ms: i64) -> Now {
+    Now {
         uptime_s: u64::try_from((now_ms - node.booted_ms) / 1000).unwrap_or(0),
         unix_s: now_ms / 1000,
         booted_ms: node.booted_ms,
-    };
+    }
+}
+
+/// Runs `request` on `node`, whose files are on `disk`, at `now_ms` (the world's clock).
+pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: i64) -> ExecOutput {
+    let now = now(node, now_ms);
     if let Some(output) = disk.tool.exec(&request.argv, request.stdin.as_deref(), now) {
         return output;
     }
@@ -126,9 +151,15 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         let shaped = crate::line::shaped(files.get("sqm").map(String::as_str), running);
         return ok(crate::line::speed_test(phase, up, shaped, now.uptime_s * 100).into_bytes());
     }
+    if let ["passwd", "root"] = argv.as_slice() {
+        return passwd(request.stdin.as_deref(), &mut disk.root_password);
+    }
     let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
+        ["ubus", "call", "system", "board"] => {
+            ok(super::system::board(node)["board"].to_string().into_bytes())
+        }
         // The controller logs in from host .50 of the LAN.
         ["env"] => {
             let [a, b, c, _] = node.ip.octets();
@@ -211,6 +242,29 @@ fn wan_check(
         (_, true) => ok(Vec::new()),
         (_, false) => failed(4, "wget: download timed out\n".to_owned()),
     })
+}
+
+/// BusyBox's `passwd`: the new password twice on stdin.
+fn passwd(stdin: Option<&[u8]>, password: &mut String) -> ExecOutput {
+    let typed = String::from_utf8_lossy(stdin.unwrap_or_default());
+    let mut lines = typed.lines();
+    match (lines.next(), lines.next()) {
+        (Some(new), Some(again)) if new == again && !new.is_empty() => {
+            new.clone_into(password);
+            ok(b"Changing password for root
+New password: 
+Retype password: 
+                 passwd: password for root changed by root
+"
+            .to_vec())
+        }
+        _ => failed(
+            1,
+            "passwd: passwords don't match
+"
+            .to_owned(),
+        ),
+    }
 }
 
 fn release(node: &Node) -> String {

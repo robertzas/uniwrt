@@ -184,7 +184,12 @@ async fn start_api(
     })
     .await
     .context("cannot start the API")?;
-    if args.demo {
+    if args.demo_factory {
+        info!(
+            "demo mode: a factory-default gateway waits at 192.168.1.1; create the admin in the \
+             web UI, then set the router up"
+        );
+    } else if args.demo {
         api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
         info!(
             "demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}; the last access point \
@@ -206,9 +211,13 @@ async fn start_fleet(
     clock: &Arc<dyn Clock>,
 ) -> anyhow::Result<Fleet> {
     if args.demo {
-        let config = SimConfig {
-            seed: args.demo_seed,
-            ..SimConfig::default()
+        let config = if args.demo_factory {
+            SimConfig::factory(args.demo_seed)
+        } else {
+            SimConfig {
+                seed: args.demo_seed,
+                ..SimConfig::default()
+            }
         };
         info!(
             seed = config.seed,

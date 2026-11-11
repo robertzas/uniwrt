@@ -97,6 +97,11 @@ pub(crate) struct ServeArgs {
     /// The simulation's seed: the same seed gives the same fleet and story.
     #[arg(long, env = "UNIWRT_DEMO_SEED", value_name = "SEED", default_value_t = SimConfig::DEFAULT_SEED, requires = "demo")]
     pub(crate) demo_seed: u64,
+    /// Simulate a factory-default gateway alone (192.168.1.1, root without a password) with
+    /// nothing adopted and no user, so that the first run happens as on a new network: create
+    /// the admin, then set the router up in the wizard.
+    #[arg(long, env = "UNIWRT_DEMO_FACTORY", requires = "demo")]
+    pub(crate) demo_factory: bool,
 }
 
 /// Where the syslog receiver listens, if at all.
@@ -250,6 +255,9 @@ mod tests {
             matches!(cli.command, Some(Command::Serve(args)) if args.demo && args.demo_seed == 7)
         );
         assert!(Cli::try_parse_from(["uniwrt", "--demo-seed", "7"]).is_err());
+        let cli = Cli::try_parse_from(["uniwrt", "--demo", "--demo-factory"]).unwrap();
+        assert!(cli.serve.demo_factory);
+        assert!(Cli::try_parse_from(["uniwrt", "--demo-factory"]).is_err());
     }
 
     #[test]

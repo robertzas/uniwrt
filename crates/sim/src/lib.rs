@@ -27,10 +27,17 @@
 //!   line that bloats unless SQM shapes below it, `line.rs`), and the transaction tool with the node's
 //!   `/etc/config` (OpenWrt's stock packages configured by hand for the simulated network,
 //!   `render/config.rs`) and init scripts ([`txn::Tool`], which the jobs' tests drive too), keeping
-//!   `authorized_keys` and the tool across reboots (an open transaction rolls back at boot); the
+//!   `authorized_keys`, root's password (`demo`; `passwd` changes it) and the tool across
+//!   reboots (an open transaction rolls back at boot); the
 //!   `config` set hashes those files and `read_file` reads them (drift); `stream` and `upload`
 //!   answer `unsupported`. A minute after a node's first confirmed apply, someone edits one of
 //!   the packages it wrote by hand (`hand_edit.rs`), once per node, so the demo shows a drift.
+//! - **A factory-default gateway** ([`SimConfig::factory`]): root has no password and
+//!   `/etc/config` is OpenWrt's own (`render/config.rs`). The LAN follows the gateway's
+//!   `network`: it answers at every address of its `lan` ([`SimLink::hosts`]), and when its
+//!   ports bounce (the tool's `bounce`, or a rollback's) every host asks for a lease again, so
+//!   the nodes, the clients and the controller's own login move to the subnet of `lan`'s first
+//!   address (`World::renumber`, D-081). The access point's SSID is the one `wireless` names.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
 //!   timestamps counted from the clock's now at spawn; it reads no clock, uses no randomness
 //!   but its seeded generator, and iterates in a fixed order. Addresses are documentation or
@@ -66,6 +73,7 @@ pub use brownfield::{Brownfield, brownfield};
 pub use fleet::{SimFleet, SimNode};
 pub use link::SimLink;
 pub use render::{
+    commands::ROOT_PASSWORD,
     config::{MESH_KEY, PASSPHRASE},
     wifi::{MESH_ID, SSID},
 };
@@ -79,10 +87,26 @@ pub struct SimConfig {
     pub clients: usize,
     /// The mean time between reboots of an access point; `None` for none.
     pub reboot_every: Option<Duration>,
+    /// The gateway is a factory-default OpenWrt (features/adoption.md, Path E): 192.168.1.1,
+    /// root without a password, the stock `/etc/config` with an untagged DHCP WAN and its
+    /// radios off, named `OpenWrt`.
+    pub factory: bool,
 }
 
 impl SimConfig {
     pub const DEFAULT_SEED: u64 = 0x7569_6e77_7274;
+
+    /// A factory-default gateway alone, with a dozen clients behind it and no reboots: what
+    /// the first-run wizard sets up.
+    pub fn factory(seed: u64) -> Self {
+        Self {
+            seed,
+            access_points: 0,
+            clients: 12,
+            reboot_every: None,
+            factory: true,
+        }
+    }
 }
 
 impl Default for SimConfig {
@@ -94,6 +118,7 @@ impl Default for SimConfig {
             access_points: 3,
             clients: 30,
             reboot_every: Some(Duration::from_mins(90)),
+            factory: false,
         }
     }
 }

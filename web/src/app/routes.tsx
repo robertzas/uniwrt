@@ -48,6 +48,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
   ),
 };
 
+/** The first-run wizard's page (adoption.md, Path E). */
+export const SETUP_PATH = "/setup";
+
 export const routes: RouteDefinition[] = [
   ...navItems.map((item) => ({
     path: item.path,
@@ -58,6 +61,11 @@ export const routes: RouteDefinition[] = [
     component: lazy(() =>
       import("../features/devices/DevicePage").then((m) => ({ default: m.DevicePage })),
     ),
+  },
+  // The first-run wizard: a full page, which the app shows without its shell.
+  {
+    path: SETUP_PATH,
+    component: lazy(() => import("./setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))),
   },
   {
     path: "/changes",

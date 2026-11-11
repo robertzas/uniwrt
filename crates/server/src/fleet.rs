@@ -114,7 +114,8 @@ impl Fleet {
         })
     }
 
-    /// Simulates the fleet `config` describes, adopting all its nodes but the last into
+    /// Simulates the fleet `config` describes, adopting all its nodes but the last (none of a
+    /// factory-default gateway's fleet) into
     /// `store`, which should be empty (the demo's own), as adoption would: their host keys
     /// pinned and `controller_key` authorized on them, so management and applies reach them.
     /// Syslog is received at `syslog` when given.
@@ -132,7 +133,12 @@ impl Fleet {
         let clients =
             ClientRecorder::start(&engine, store.clone(), RecorderConfig::default()).await;
         let nodes = sim.nodes();
-        let adopted = nodes.len().saturating_sub(DEMO_UNADOPTED).max(1);
+        // A factory-default gateway waits for the first-run wizard.
+        let adopted = if config.factory {
+            0
+        } else {
+            nodes.len().saturating_sub(DEMO_UNADOPTED).max(1)
+        };
         let mut demo_adopted = Vec::with_capacity(adopted);
         for (index, node) in nodes.into_iter().enumerate().take(adopted) {
             let adopted = store
@@ -185,10 +191,11 @@ impl Fleet {
     }
 
     /// Demo mode's first revision: the import of the simulated nodes it adopted (`None` outside
-    /// demo mode).
+    /// demo mode, and when it adopted none).
     pub(crate) fn first_site(&self) -> anyhow::Result<Option<uniwrt_api::FirstSite>> {
         self.sim
             .as_ref()
+            .filter(|_| !self.demo_adopted.is_empty())
             .map(|(sim, _)| crate::demo_site::first_site(&sim.brownfield(), &self.demo_adopted))
             .transpose()
     }

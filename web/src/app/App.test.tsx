@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuthState } from "../api/gen/AuthState";
 import type { UserInfo } from "../api/gen/UserInfo";
 import { FakeWebSocket, stubWebSocket } from "../test/socket";
@@ -41,6 +41,8 @@ function renderGate() {
 }
 
 describe("Gate", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
   it("creates the admin during first-run setup, then shows the app", async () => {
     const fetch = stubServer(authState({ setup: "open", setup_closes_in_s: 540 }));
     const user = userEvent.setup();
@@ -56,7 +58,10 @@ describe("Gate", () => {
 
     await user.type(screen.getByLabelText("Confirm password"), "y");
     await user.click(screen.getByRole("button", { name: "Create account" }));
-    await screen.findByRole("navigation", { name: "Main" });
+    // The first admin goes on to the wizard, a page without the shell.
+    await screen.findByRole("heading", { name: "Set up your internet router" });
+    expect(window.location.pathname).toBe("/setup");
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
     const [, init] = fetch.mock.calls.find(([url]) => url === "/api/v1/auth/setup") ?? [];
     expect(new Headers(init?.headers).get("x-uniwrt-csrf")).toBe("1");
     expect(JSON.parse(String(init?.body))).toEqual({

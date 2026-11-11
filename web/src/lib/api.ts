@@ -18,6 +18,7 @@ import type { DriftTarget } from "../api/gen/DriftTarget";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
+import type { FoundGateways } from "../api/gen/FoundGateways";
 import type { Health } from "../api/gen/Health";
 import type { ImportAccept } from "../api/gen/ImportAccept";
 import type { ImportPreview } from "../api/gen/ImportPreview";
@@ -50,6 +51,7 @@ import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { Purpose } from "../api/gen/Purpose";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
+import type { RevealedSecret } from "../api/gen/RevealedSecret";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
 import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
@@ -253,6 +255,13 @@ export const api = {
     /** Starts the job that turns management on or off (admins); the `jobs` topic follows it. */
     manage: (id: NodeId, enabled: boolean) =>
       request<Job>(`/nodes/${id}/management`, { method: "PUT", body: { enabled } }),
+    /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
+    rootPassword: (id: NodeId) =>
+      request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),
+  },
+  /** First run (adoption.md, Path E): the routers that could be the gateway to set up (admins). */
+  bootstrap: {
+    gateways: (signal?: AbortSignal) => request<FoundGateways>("/bootstrap/gateway", { signal }),
   },
   /** The site's desired state (lifecycle.md, Desired state & revisions). */
   site: {

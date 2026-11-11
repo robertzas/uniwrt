@@ -3,6 +3,7 @@ import { createEffect, createMemo, Show, useContext } from "solid-js";
 import { createClientsView } from "../../lib/clientList";
 import { clientName } from "../../lib/clients";
 import { LiveContext } from "../../lib/live";
+import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { EmptyState } from "../../ui/EmptyState";
 import { createLiveGraph } from "../../viz/topology/graph";
@@ -17,6 +18,9 @@ import { WanCard } from "./WanCard";
 
 const t = strings.dashboard;
 
+const PRIMARY_LINK =
+  "inline-flex h-8 items-center gap-2 rounded-control bg-accent-fill px-3 font-medium text-on-accent text-sm hover:brightness-110";
+
 /**
  * `/`: the network at a glance (features/observability.md, Dashboard): the health header, the
  * internet connection, the topology mini-map, the busiest clients, the Wi-Fi experience, the
@@ -25,6 +29,7 @@ const t = strings.dashboard;
  */
 export function DashboardPage() {
   const live = useContext(LiveContext);
+  const session = useContext(SessionContext);
   const graph = createLiveGraph(live);
   const clients = createClientsView(live);
   const names = createMemo(() => new Map(live.fleet.nodes.map((node) => [node.id, node.name])));
@@ -51,12 +56,23 @@ export function DashboardPage() {
           title={t.welcome.title}
           description={t.welcome.description}
         >
-          <a
-            href="/devices?adopt=1"
-            class="mt-6 inline-flex h-8 items-center gap-2 rounded-control bg-accent-fill px-3 font-medium text-on-accent text-sm hover:brightness-110"
-          >
-            {t.welcome.adopt}
-          </a>
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
+            <Show
+              when={session.user.role === "admin"}
+              fallback={
+                <a href="/devices?adopt=1" class={PRIMARY_LINK}>
+                  {t.welcome.adopt}
+                </a>
+              }
+            >
+              <a href="/setup" class={PRIMARY_LINK}>
+                {t.welcome.setup}
+              </a>
+              <a href="/devices?adopt=1" class="text-accent text-sm hover:underline">
+                {t.welcome.adoptExisting}
+              </a>
+            </Show>
+          </div>
         </EmptyState>
       }
     >
