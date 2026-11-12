@@ -18,7 +18,10 @@ use uniwrt_node::{
 use uniwrt_render::Requirement;
 
 use super::run::Run;
-use crate::{errors::chain, progress::Progress};
+use crate::{
+    errors::{chain, last_line},
+    progress::Progress,
+};
 
 /// How long refreshing the index or installing may take: slow mirrors on slow routers.
 const TIMEOUT: Duration = Duration::from_secs(300);
@@ -56,17 +59,6 @@ fn request(argv: Vec<String>) -> ExecRequest {
     request.timeout = TIMEOUT;
     request.max_output = MAX_OUTPUT;
     request
-}
-
-/// The last line of what a failed command printed, for people.
-fn last_line(output: &[u8]) -> String {
-    String::from_utf8_lossy(output)
-        .lines()
-        .rev()
-        .find(|line| !line.trim().is_empty())
-        .unwrap_or("no output")
-        .trim()
-        .to_owned()
 }
 
 impl Run<'_> {
@@ -214,10 +206,6 @@ mod tests {
                 vec!["/etc/init.d/sqm", "stop"],
                 vec!["/etc/init.d/sqm", "disable"]
             ]
-        );
-        assert_eq!(
-            last_line(b"Installing...\nERROR: unable to select packages\n\n"),
-            "ERROR: unable to select packages"
         );
     }
 }

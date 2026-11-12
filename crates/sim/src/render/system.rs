@@ -85,16 +85,26 @@ pub(super) fn system(world: &World, node: &Node) -> Value {
     })
 }
 
-pub(super) fn capabilities(node: &Node) -> Value {
+/// What the node's `wpad` was built with ([`super::wpad`]): the basic one lacks 802.11v, the
+/// mesh, EAP and WPS (D-085).
+pub(super) fn capabilities(node: &Node, wpad: &str) -> Value {
     let mut software = vec!["batman-adv", "batctl", "iw", "rpcd-mod-iwinfo", "luci"];
     if node.gateway {
         software.extend(["nlbwmon", "iperf3"]);
     }
+    let (hostapd, supplicant) = if wpad == super::wpad::BASIC {
+        (vec!["11r", "acs", "sae", "owe"], vec!["sae", "owe"])
+    } else {
+        (
+            vec!["eap", "11r", "11v", "acs", "sae", "owe", "wps"],
+            vec!["eap", "sae", "owe", "mesh"],
+        )
+    };
     json!({
         "package_managers": [node.release.package_manager],
         "software": software,
-        "hostapd": ["eap", "11r", "acs", "sae", "owe", "wps"],
-        "wpa_supplicant": ["eap", "sae", "owe", "mesh"],
+        "hostapd": hostapd,
+        "wpa_supplicant": supplicant,
         "swconfig": false,
         "dsa": node.gateway,
     })

@@ -340,6 +340,10 @@ impl Fleet {
             Some(jobs.subscribe()),
             BansConfig::default(),
         ));
+        tokio::spawn(crate::recollect::after_swaps(
+            self.engine.clone(),
+            jobs.subscribe(),
+        ));
         self.neighbors = Some(NeighborReports::start(
             &self.engine,
             store.clone(),

@@ -41,6 +41,9 @@ pub(crate) struct Disk {
     pub(crate) hand_edit: HandEdit,
     /// The packages installed from the feeds since the image ([`super::feeds`]).
     pub(crate) installed: BTreeSet<String>,
+    /// The wpad installed ([`super::wpad`]): the mesh one, with 802.11v, on a node set up by
+    /// hand; the image's basic one on a factory gateway, until the wpad swap.
+    pub(crate) wpad: &'static str,
     /// The BSSes the `bss` op turned off, and `/etc/config/wireless` as it was then: a
     /// `wifi reload` (an apply that changes it) brings them back ([`Disk::bss_off`]).
     pub(crate) bss_off: Option<(String, BTreeSet<String>)>,
@@ -59,6 +62,7 @@ impl Default for Disk {
             tool: Tool::stock(),
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
+            wpad: super::wpad::MESH,
             bss_off: None,
             rrm: None,
         }
@@ -109,6 +113,11 @@ impl Disk {
                 ROOT_PASSWORD.to_owned()
             },
             tool,
+            wpad: if factory {
+                super::wpad::BASIC
+            } else {
+                super::wpad::MESH
+            },
             ..Self::default()
         }
     }
@@ -156,6 +165,9 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         return output;
     }
     let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
+    if let Some(output) = super::wpad::exec(&argv, node.release.package_manager, &mut disk.wpad) {
+        return output;
+    }
     if let Some(output) = super::feeds::exec(
         &argv,
         node.release.package_manager,
@@ -215,15 +227,15 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
             "^(Package|Version|Status):",
             "/usr/lib/opkg/status",
         ] if node.release.package_manager == "opkg" => {
-            ok(opkg_status(&disk.installed).into_bytes())
+            ok(opkg_status(&disk.installed, disk.wpad).into_bytes())
         }
         ["grep", "-E", "^[PV]:", "/lib/apk/db/installed"]
             if node.release.package_manager == "apk" =>
         {
-            ok(apk_installed(&disk.installed).into_bytes())
+            ok(apk_installed(&disk.installed, disk.wpad).into_bytes())
         }
         ["cat", "/etc/apk/world"] if node.release.package_manager == "apk" => {
-            ok(apk_world(&disk.installed).into_bytes())
+            ok(apk_world(&disk.installed, disk.wpad).into_bytes())
         }
         ["sysupgrade", "-b", "-"] => ok(BACKUP.to_vec()),
         ["nslookup", name, "127.0.0.1"] if node.gateway => ok(format!(
@@ -311,9 +323,9 @@ fn release(node: &Node) -> String {
     )
 }
 
-fn opkg_status(installed: &BTreeSet<String>) -> String {
+fn opkg_status(installed: &BTreeSet<String>, wpad: &'static str) -> String {
     let mut out = String::new();
-    for (name, version, wanted) in all(installed) {
+    for (name, version, wanted) in all(installed, wpad) {
         let flag = if wanted { "user" } else { "ok" };
         let _ = writeln!(
             out,
@@ -323,26 +335,37 @@ fn opkg_status(installed: &BTreeSet<String>) -> String {
     out
 }
 
-/// The image's packages and those installed since, `(name, version, installed on purpose)`.
-fn all(installed: &BTreeSet<String>) -> impl Iterator<Item = (&str, &str, bool)> {
+/// The image's packages (with the node's wpad) and those installed since, `(name, version,
+/// installed on purpose)`.
+fn all<'a>(
+    installed: &'a BTreeSet<String>,
+    wpad: &'static str,
+) -> impl Iterator<Item = (&'a str, &'a str, bool)> {
     PACKAGES
         .into_iter()
+        .map(move |(name, version, wanted)| {
+            if name == super::wpad::MESH {
+                (wpad, version, wanted)
+            } else {
+                (name, version, wanted)
+            }
+        })
         .chain(installed.iter().filter_map(|name| {
             super::feeds::version(name).map(|version| (name.as_str(), version, true))
         }))
 }
 
-fn apk_installed(installed: &BTreeSet<String>) -> String {
+fn apk_installed(installed: &BTreeSet<String>, wpad: &'static str) -> String {
     let mut out = String::new();
-    for (name, version, _) in all(installed) {
+    for (name, version, _) in all(installed, wpad) {
         let _ = writeln!(out, "P:{name}\nV:{version}");
     }
     out
 }
 
-fn apk_world(installed: &BTreeSet<String>) -> String {
+fn apk_world(installed: &BTreeSet<String>, wpad: &'static str) -> String {
     let mut out = String::new();
-    for (name, _, wanted) in all(installed) {
+    for (name, _, wanted) in all(installed, wpad) {
         if wanted {
             let _ = writeln!(out, "{name}");
         }

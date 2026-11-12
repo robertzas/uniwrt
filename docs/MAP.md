@@ -66,6 +66,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
 - `src/wan.rs`: The WAN wizard's API (features/wan.md; D-075):
 - `src/wan_tests.rs`: The WAN wizard's routes against the simulated fleet, whose ISP serves DHCP on VLAN 201.
+- `src/wpad.rs`: The wpad swap, with an admin's session (D-085, D-089): `POST /api/v1/nodes/{id}/wpad` starts the job that swaps a managed node's basic wpad for the full one, which adds 802.11v.
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
 - `src/ws/message.rs`: What travels over `/api/v1/ws`: the client's [`ClientMessage`] and the server's [`ServerMessage`]s, tagged by `type` and naming the topic as the client spelled it.
 - `src/ws/mod.rs`: The WS hub, `GET /api/v1/ws` with a session (ARCHITECTURE.md, API; D-041).
@@ -270,6 +271,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/wan_test/patch.rs`: The WAN a trial tries: the gateway's own `network` package with only its WAN swapped for the rendered one, so nothing else changes while the test runs (D-075).
 - `src/wan_test/run.rs`: The WAN test's run: one trial on the gateway (two with a 6rd fallback), its live checks, and the rollback every path after an apply ends with.
 - `src/wan_test/tests.rs`: WAN tests over the scripted fleet, against a fake ISP that serves DHCP on VLAN 201 and, when asked, delegates a prefix or answers 6rd.
+- `src/wpad/mod.rs`: The wpad swap (features/wifi.md, Roaming; D-085, D-089): on a managed node, the basic wpad (or the mesh one) gives way to the full one, which adds 802.11v.
+- `src/wpad/tests.rs`: The wpad swap over the scripted node of [`crate::testing`] (24.10, opkg), adopted and managed.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
 ### `uniwrt-metrics` (crates/metrics)
@@ -403,6 +406,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/txn.rs`: Transactions on a node (features/lifecycle.md, Render → diff → apply; D-012, D-069): the commands of the transaction tool, `node-agent/txn/txn`, which managed nodes keep as [`TOOL`], and the [`Footprint`] that enabling management installs (the tool and `/etc/init.d/uniwrt-guard`).
 - `src/txn/current.rs`: What a node holds now, read right before rendering and diffing (features/lifecycle.md, Render → diff → apply): its UCI packages ([`packages`]) and whether its services start at boot ([`services`]).
 - `src/txn/tests.rs`: (no header comment)
+- `src/wpad.rs`: The commands of the wpad swap (D-089): which package replaces which, the commands that download them without changing anything, the one that swaps them on the node by itself, and what it reports.
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
@@ -493,6 +497,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/logging.rs`: Logging: `tracing` to stderr, filtered by `--log` / `UNIWRT_LOG` (`EnvFilter` syntax).
 - `src/main.rs`: The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
 - `src/master_key.rs`: The vault's master key (features/security.md, Secrets vault): from `UNIWRT_MASTER_KEY`, or from its file (`<data dir>/master.key` unless `--master-key-file` says otherwise), which the first run creates with mode 0600.
+- `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT.
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
 - `src/tls/issue/tests.rs`: Certificates checked as a client checks them: webpki, with the CA as the only root.
@@ -530,6 +535,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/system.rs`: The sets `board`, `system` and `capabilities`, shaped as `node-agent/collect/` sends them: ubus `system board` and `system info`, `/etc/openwrt_release`, board.json, thermal zones.
 - `src/render/tests.rs`: Every rendered set and push, through the node crate's parsers: what a simulated node reports must read as a real one's does, and agree with the world.
 - `src/render/wifi.rs`: The sets `radios` (netifd's wireless status, nl80211 interfaces and surveys), `stations` (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim capture's wiphys).
+- `src/render/wpad.rs`: The node's wpad and the wpad swap's commands (D-089).
 - `src/rng.rs`: [`Rng`]: `xoshiro256**` seeded through `SplitMix64`.
 - `src/txn.rs`: The transaction tool as a node runs it (`node-agent/txn/txn`; features/lifecycle.md, Render → diff → apply, D-069), with the node's `/etc/config` files and init scripts: the simulated fleet runs it, and the jobs' tests drive it through their scripted nodes.
 - `src/txn/tests.rs`: The simulated tool answers the node crate's commands as the real one does.
@@ -618,6 +624,7 @@ The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `tests/apply/main.rs`: End-to-end applies (TESTING.md, System; D-070) on scripts/test-system.sh's topology, `isp ═ gw ═ ap`: the controller's apply job reaches the gateway and the AP over a `docker exec` dial ([`dial`]), turns management on (installing the transaction tool and the guard), and applies revisions through the real tool, agent and health checks: a confirmed apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a host behind the gateway.
 - `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
 - `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
+- `tests/wpad.rs`: The wpad swap's commands (D-089) on the hwsim lab (TESTING.md, Wi-Fi lab), as the job runs them: node a (25.12, apk) and node b (24.10, opkg) get the basic wpad first, then the swap downloads both wpads, loses the route to the feeds, and swaps offline.
 
 ### `uniwrt-topo` (crates/topo)
 
@@ -711,7 +718,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
-- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RootPasswordCard.tsx, packages.ts
+- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts

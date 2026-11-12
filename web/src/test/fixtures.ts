@@ -25,6 +25,7 @@ export function summary(id: number, name: string, extra: Partial<NodeSummary> = 
     temperature_c: null,
     clients: 2,
     collected_at: 0,
+    basic_wpad: false,
     ...extra,
   };
 }

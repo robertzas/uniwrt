@@ -30,6 +30,7 @@ use crate::{
     discovery::Discovery,
     manage,
     progress::Progress,
+    wpad,
 };
 
 /// How many job updates a slow subscriber may fall behind before it lags.
@@ -188,6 +189,30 @@ impl Jobs {
             vec![manage::target(node.id)],
             job,
             move |shared, progress| manage::run(shared, node, enable, progress),
+        )
+        .await
+    }
+
+    /// Starts swapping a managed node's basic wpad for the full one (D-089) and returns the job
+    /// as it starts. One job at a time per node.
+    pub async fn wpad(&self, node: NodeId, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let node = self
+            .shared
+            .store
+            .node(node)
+            .await?
+            .ok_or(Error::NoNode(node))?;
+        if node.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(node.id));
+        }
+        let job = wpad::job(&node, by);
+        self.spawn(
+            vec![manage::target(node.id)],
+            job,
+            move |shared, progress| wpad::run(shared, node, progress),
         )
         .await
     }

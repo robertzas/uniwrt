@@ -16,7 +16,8 @@
 //!   supervised connection that reconnects with jittered backoff, installs and restarts the
 //!   agent, and implements [`NodeLink`]); [`txn`] (the transaction tool's commands, the
 //!   [`Footprint`](txn::Footprint) that management installs, and [`txn::current`], the reads of
-//!   a node's packages and services); [`root_password`] (a random root password for a node
+//!   a node's packages and services); [`wpad`] (the commands that swap a node's basic wpad for
+//!   the full one, D-089); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`Error`]. A [`Credential::Password`] that is
 //!   empty logs in with SSH's `none` method first, as factory-default OpenWrt lets root in.
 //! - **Invariants:** every connection checks the host key against its pin; a mismatch is
@@ -54,6 +55,7 @@ pub mod shell;
 mod ssh;
 mod supervisor;
 pub mod txn;
+pub mod wpad;
 
 pub use agent::{Agent, HELLO_TIMEOUT};
 pub use bundle::Bundle;

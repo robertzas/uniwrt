@@ -185,7 +185,16 @@ async fn topics_answer_with_a_snapshot_then_deltas_and_hold_focus() {
     assert_eq!(node["type"], "node_snapshot");
     assert_eq!(node["topic"], topic.as_str());
     assert_eq!(node["node"]["node"]["id"], gateway.get());
-    interests_become(&demo, gateway, Interests { focus: 1, logs: 0 }).await;
+    interests_become(
+        &demo,
+        gateway,
+        Interests {
+            focus: 1,
+            logs: 0,
+            ..Interests::default()
+        },
+    )
+    .await;
 
     until(&mut ws, |message| {
         message["type"] == "fleet_delta" && message["nodes"][0]["status"]["state"] == "online"
@@ -346,7 +355,16 @@ async fn a_logs_topic_follows_what_is_stored() {
     demo.record_logs().await;
     let gateway = demo.ids[0];
     // The recorder has every node's log followed, whoever watches.
-    interests_become(&demo, gateway, Interests { focus: 0, logs: 1 }).await;
+    interests_become(
+        &demo,
+        gateway,
+        Interests {
+            focus: 0,
+            logs: 1,
+            ..Interests::default()
+        },
+    )
+    .await;
     let mut ws = open(&demo).await;
     let topic = format!("logs?node={gateway}&min=info");
     sub(&mut ws, &[&topic]).await;
@@ -371,7 +389,16 @@ async fn a_logs_topic_follows_what_is_stored() {
             .all(|entry| entry["id"].is_number() && entry["via"] == "agent")
     );
     sub(&mut ws, &[]).await;
-    interests_become(&demo, gateway, Interests { focus: 0, logs: 1 }).await;
+    interests_become(
+        &demo,
+        gateway,
+        Interests {
+            focus: 0,
+            logs: 1,
+            ..Interests::default()
+        },
+    )
+    .await;
 }
 
 #[tokio::test]

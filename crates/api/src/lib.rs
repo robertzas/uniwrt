@@ -12,7 +12,8 @@
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
-//!   on or off, a job), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
+//!   on or off, a job), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
+//!   job, D-089), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
 //!   v1/import/preview` ([`ImportPreview`](uniwrt_model::import::ImportPreview)), `POST
 //!   v1/import/accept` ([`ImportAccept`]); see `import`), drift (`GET v1/drift`
@@ -112,6 +113,7 @@ mod topology;
 mod wan;
 #[cfg(test)]
 mod wan_tests;
+mod wpad;
 mod ws;
 
 use axum::{
@@ -175,6 +177,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
         .route("/v1/nodes/{id}/management", put(management::put))
+        .route("/v1/nodes/{id}/wpad", post(wpad::post))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))
         .route("/v1/adopt/batch", post(adopt::batch::adopt))

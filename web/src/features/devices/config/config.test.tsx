@@ -17,14 +17,23 @@ let rootPassword: string | null = null;
 let head = 2;
 
 function manageJob(state: Job["state"], done: number): Job {
+  return stepsJob("manage", ["connect", "install_tool", "record"], state, done);
+}
+
+function stepsJob(
+  kind: Job["kind"],
+  names: Job["steps"][number]["name"][],
+  state: Job["state"],
+  done: number,
+): Job {
   return {
-    id: 9,
-    kind: "manage",
+    id: kind === "wpad" ? 10 : 9,
+    kind,
     target: "gw",
     node: 1,
     revision: null,
     state,
-    steps: (["connect", "install_tool", "record"] as const).map((name, i) => ({
+    steps: names.map((name, i) => ({
       name,
       state: i < done ? "done" : i === done && state === "running" ? "running" : "pending",
       detail: null,
@@ -37,6 +46,27 @@ function manageJob(state: Job["state"], done: number): Job {
     started_at: 1,
     finished_at: state === "running" ? null : 2,
   };
+}
+
+const WPAD_STEPS = ["connect", "check", "fetch", "swap", "verify"] as const;
+
+function wpadJob(state: Job["state"], done: number): Job {
+  return stepsJob("wpad", [...WPAD_STEPS], state, done);
+}
+
+/** The device with a hostapd: managed or not, with 802.11v or not. */
+function withWifi(managed: boolean, wnm: boolean) {
+  const node = detail(facts(1));
+  node.node.mode = managed ? "managed" : "observe";
+  if (node.facts) {
+    node.facts.capabilities = {
+      package_manager: "apk",
+      switch: null,
+      wifi: wnm ? ["11k", "11r", "11v"] : ["11k", "11r"],
+      software: [],
+    };
+  }
+  return node;
 }
 
 beforeEach(() => {
@@ -57,6 +87,8 @@ beforeEach(() => {
       if (url === "/api/v1/nodes/1/management") {
         return Response.json(manageJob("running", 0), { status: 202 });
       }
+      if (url === "/api/v1/nodes/1/wpad")
+        return Response.json(wpadJob("running", 2), { status: 202 });
       if (url === "/api/v1/nodes/1/root-password/reveal") {
         return rootPassword === null
           ? Response.json({ title: "Not found", status: 404 }, { status: 404 })
@@ -123,6 +155,41 @@ describe("Device › Config", () => {
     expect(await screen.findByText("Management is on")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Turn management off" })).toBeEnabled();
     expect(screen.getByText("Holds revision 1; the latest is 2.")).toBeInTheDocument();
+  });
+
+  it("swaps the basic wpad for the full one after asking, and follows the job", async () => {
+    const user = userEvent.setup();
+    const ws = await renderConfig();
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: withWifi(false, false) });
+    expect(await screen.findByText("Basic wpad")).toBeInTheDocument();
+    // Observe mode: nothing to install yet.
+    expect(screen.getByRole("button", { name: "Install the full wpad" })).toBeDisabled();
+    expect(screen.getByText("Turn management on to install the full wpad.")).toBeVisible();
+
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: withWifi(true, false) });
+    const install = screen.getByRole("button", { name: "Install the full wpad" });
+    await waitFor(() => expect(install).toBeEnabled());
+    await user.click(install);
+    const dialog = await screen.findByRole("dialog", { name: "Install the full wpad on gw?" });
+    expect(dialog).toHaveTextContent("Its WLANs get 802.11v at the next apply.");
+    await user.click(within(dialog).getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "POST",
+        url: "/api/v1/nodes/1/wpad",
+        body: undefined,
+      }),
+    );
+    const progress = await screen.findByRole("list", { name: "Installing the full wpad on gw" });
+    expect(progress).toHaveTextContent("Download the packages");
+    expect(progress).toHaveTextContent("Find 802.11v");
+    expect(install).toBeDisabled();
+
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [wpadJob("succeeded", 5)] });
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: withWifi(true, true) });
+    expect(await screen.findByText("The full wpad is installed")).toBeInTheDocument();
+    expect(await screen.findByText("Full wpad")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Install the full wpad" })).toBeNull();
   });
 
   it("saves the chosen packages as the next revision", async () => {

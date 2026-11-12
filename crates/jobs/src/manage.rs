@@ -106,10 +106,22 @@ pub(crate) async fn connect(
     node: &Node,
     progress: &mut Progress,
 ) -> Result<Box<dyn Remote>, JobError> {
+    progress.start(StepName::Connect).await;
+    let remote = login(shared, node).await?;
+    progress
+        .done(Some(format!(
+            "Logged in to {}",
+            Target::new(node.host.clone(), node.port)
+        )))
+        .await;
+    Ok(remote)
+}
+
+/// [`connect`] without a step: logs in again, as a job that lost its login does.
+pub(crate) async fn login(shared: &Shared, node: &Node) -> Result<Box<dyn Remote>, JobError> {
     let Some(dial) = &shared.dial else {
         return Err(internal("no way to reach nodes", &"no dial"));
     };
-    progress.start(StepName::Connect).await;
     let pin = shared
         .store
         .host_key(node.id)
@@ -121,12 +133,9 @@ pub(crate) async fn connect(
         })?;
     let host_key = HostKey::from_pin(&pin).map_err(|err| internal("the pinned host key", &err))?;
     let target = Target::new(node.host.clone(), node.port);
-    let remote = dial
-        .connect(&target, &host_key, &Credential::Key(shared.key.clone()))
+    dial.connect(&target, &host_key, &Credential::Key(shared.key.clone()))
         .await
-        .map_err(|err| connect_error(&err))?;
-    progress.done(Some(format!("Logged in to {target}"))).await;
-    Ok(remote)
+        .map_err(|err| connect_error(&err))
 }
 
 async fn status(remote: &dyn Remote) -> Result<Option<txn::Status>, JobError> {

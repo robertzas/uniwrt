@@ -12,7 +12,7 @@
 # Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture [collect | events]
 #   up       builds the images, starts the lab and writes target/wifi-lab.env (addresses, password)
 #   test     runs crates/node/tests/wifi.rs against a running lab, starting it first if needed,
-#            then crates/system/tests/wifi.rs, which renders a site onto it (and restarts a lab
+#            then crates/system/tests/wpad.rs (the wpad swap) and crates/system/tests/wifi.rs, which renders a site onto it (and restarts a lab
 #            that was up before)
 #   capture  (both parts unless one is named) writes the collect answers of nodes a and b, from a running lab, to
 #            crates/node/fixtures/collect/hwsim-<role>-<release>.json, and a's neighbors set
@@ -280,6 +280,10 @@ test)
   # leaves the lab rendered: a lab that was up before is started again afterwards.
   install_agent uniwrt-wifi-a
   install_agent uniwrt-wifi-b
+  # The wpad swap's commands (crates/system/tests/wpad.rs), before the render: it leaves the
+  # full wpad in place, as the lab has it.
+  cargo nextest run --locked -p uniwrt-system --test wpad --run-ignored only --status-level fail \
+    --hide-progress-bar
   cargo nextest run --locked -p uniwrt-system --test wifi --run-ignored only --status-level fail \
     --hide-progress-bar
   [[ -n $started ]] || up

@@ -82,6 +82,8 @@ pub enum AuditAction {
     WanTest,
     /// A user ran a speed test from the gateway (the detail names the job).
     SpeedTest,
+    /// A user swapped a node's basic wpad for the full one (the detail names the job).
+    Wpad,
 }
 
 /// One audit log entry.

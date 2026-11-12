@@ -234,7 +234,10 @@ async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
 
 /// The names of the packages installed, from the package manager's database (empty without
 /// one uniwrt knows).
-async fn installed(remote: &dyn Remote, facts: &NodeFacts) -> Result<BTreeSet<String>, String> {
+pub(crate) async fn installed(
+    remote: &dyn Remote,
+    facts: &NodeFacts,
+) -> Result<BTreeSet<String>, String> {
     let Some(manager) = facts.capabilities.package_manager else {
         return Ok(BTreeSet::new());
     };

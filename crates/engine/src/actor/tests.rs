@@ -272,6 +272,17 @@ async fn focus_speeds_ticks_up_and_letting_go_slows_them_down() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn recollecting_collects_every_set_again() {
+    let fleet = Fleet::new();
+    let mut script = fleet.node(NODE, true).await;
+    set_up(&mut script).await;
+    assert!(fleet.engine.recollect(NODE));
+    let again = script.call().await;
+    assert_eq!((again.op.as_str(), sets(&again).len()), ("collect", 12));
+    assert!(!fleet.engine.recollect(NodeId::new(9)));
+}
+
+#[tokio::test(start_paused = true)]
 async fn an_agent_without_an_event_loop_is_polled() {
     let fleet = Fleet::new();
     let mut script = fleet.node(NODE, false).await;

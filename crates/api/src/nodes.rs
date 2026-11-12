@@ -13,7 +13,7 @@ use ts_rs::TS;
 use uniwrt_core::{MacAddr, NodeId, Timestamp};
 use uniwrt_engine::NodeView;
 use uniwrt_model::{
-    facts::{NodeFacts, WifiIfaceMode},
+    facts::{NodeFacts, WifiFeature, WifiIfaceMode},
     node::{Node, NodeMode, NodeRole},
     status::{NodeState, NodeStatus, StatusReason},
 };
@@ -47,6 +47,8 @@ pub struct NodeSummary {
     pub clients: Option<u32>,
     /// When the facts were collected.
     pub collected_at: Option<Timestamp>,
+    /// Its hostapd lacks 802.11v: the basic wpad, which the full one replaces (D-089).
+    pub basic_wpad: bool,
 }
 
 /// One node in full: its record, its status and its latest facts.
@@ -90,6 +92,10 @@ impl NodeSummary {
             temperature_c: facts.and_then(|facts| facts.system.temperature_c),
             clients: facts.map(clients),
             collected_at: facts.map(|facts| facts.collected_at),
+            basic_wpad: facts.is_some_and(|facts| {
+                let wifi = &facts.capabilities.wifi;
+                !wifi.is_empty() && !wifi.contains(&WifiFeature::BssTransition)
+            }),
         }
     }
 }

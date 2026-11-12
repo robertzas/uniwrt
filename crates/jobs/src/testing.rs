@@ -49,7 +49,14 @@ pub(crate) struct FakeNode {
     pub(crate) footprint: Mutex<Option<String>>,
     /// The id of the transaction open on the node, if any.
     pub(crate) open_txn: Mutex<Option<String>>,
+    /// A test's own answers, asked first: `None` leaves a command to the node's.
+    pub(crate) script: Mutex<Option<Script>>,
+    /// What the agent collects, when not the capture.
+    pub(crate) collected: Mutex<Option<String>>,
 }
+
+/// A test's answers to commands, by argv.
+pub(crate) type Script = Box<dyn FnMut(&[&str]) -> Option<Result<ExecOutput>> + Send>;
 
 impl FakeNode {
     fn new() -> Arc<Self> {
@@ -63,6 +70,8 @@ impl FakeNode {
             gate: Mutex::default(),
             footprint: Mutex::default(),
             open_txn: Mutex::default(),
+            script: Mutex::default(),
+            collected: Mutex::default(),
         })
     }
 
@@ -208,11 +217,28 @@ pub(crate) struct FakeRemote(pub(crate) Arc<FakeNode>);
 
 impl Remote for FakeRemote {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>> {
-        Box::pin(async move { Ok(self.0.run(&request)) })
+        Box::pin(async move {
+            let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
+            let scripted = self
+                .0
+                .script
+                .lock()
+                .unwrap()
+                .as_mut()
+                .and_then(|script| script(&argv));
+            if let Some(result) = scripted {
+                self.0.commands.lock().unwrap().push(request.argv.clone());
+                return result;
+            }
+            Ok(self.0.run(&request))
+        })
     }
 
     fn collect<'a>(&'a self, _sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
-        Box::pin(async { Ok(serde_json::from_str(COLLECTED).unwrap()) })
+        Box::pin(async {
+            let collected = self.0.collected.lock().unwrap().clone();
+            Ok(serde_json::from_str(collected.as_deref().unwrap_or(COLLECTED)).unwrap())
+        })
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {

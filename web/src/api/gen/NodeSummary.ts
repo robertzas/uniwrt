@@ -34,4 +34,8 @@ clients: number | null,
 /**
  * When the facts were collected.
  */
-collected_at: Timestamp | null, };
+collected_at: Timestamp | null, 
+/**
+ * Its hostapd lacks 802.11v: the basic wpad, which the full one replaces (D-089).
+ */
+basic_wpad: boolean, };

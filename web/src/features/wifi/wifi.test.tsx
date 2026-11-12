@@ -1,8 +1,9 @@
 import { memoryHistory } from "@solidjs/router";
-import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
 import type { SiteSave } from "../../api/gen/SiteSave";
 import { createAppRouter } from "../../app/routes";
@@ -17,11 +18,13 @@ let head = 2;
 let config: SiteConfig;
 /** A refusal the next save answers with, once. */
 let refusal: { path: string; message: string } | undefined;
+let fleet: NodeSummary[];
 
 beforeEach(() => {
   calls = [];
   head = 2;
   refusal = undefined;
+  fleet = [summary(1, "gw", { role: "gateway" }), summary(2, "attic")];
   config = siteConfig();
   config.nodes = [1, 2].map((node) => ({
     node,
@@ -68,7 +71,7 @@ async function renderWifi(role: "admin" | "viewer" = "admin", path = "/wifi") {
       </SignedInProviders>
     </QueryClientProvider>
   ));
-  sendFleet(ws, [summary(1, "gw", { role: "gateway" }), summary(2, "attic")]);
+  sendFleet(ws, fleet);
   ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
   if (path === "/wifi") {
     await waitFor(() =>
@@ -97,6 +100,26 @@ const put = () =>
   calls.filter((c) => c.method === "PUT" && c.url === "/api/v1/site").at(-1)?.body as SiteSave;
 
 describe("Wi-Fi", () => {
+  it("names the devices without 802.11v while a WLAN asks for roaming hints", async () => {
+    await renderWifi();
+    expect(screen.queryByText(/run the basic wpad/)).toBeNull();
+    cleanup();
+    fleet[1] = summary(2, "attic", { basic_wpad: true });
+    await renderWifi();
+    expect(await screen.findByText(/This device runs the basic wpad/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "attic" })).toHaveAttribute(
+      "href",
+      "/devices/2?tab=config",
+    );
+    cleanup();
+    config.wlans = config.wlans.map((wlan) => ({
+      ...wlan,
+      roaming: { ...wlan.roaming, hints: false },
+    }));
+    await renderWifi();
+    expect(screen.queryByText(/run the basic wpad/)).toBeNull();
+  });
+
   it("lists the WLANs with their security, bands, network and clients", async () => {
     config.wlans[0] = {
       ...config.wlans[0],

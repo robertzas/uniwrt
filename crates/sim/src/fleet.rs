@@ -275,8 +275,14 @@ impl Shared {
                 if tick.due_ms <= now_ms {
                     let sets: Vec<Set> = tick.sets.iter().copied().collect();
                     let disk = lock(&self.nodes[node].disk);
-                    let body =
-                        render::collect(world, node, &sets, &disk.tool.files, &disk.bss_off());
+                    let body = render::collect(
+                        world,
+                        node,
+                        &sets,
+                        &disk.tool.files,
+                        &disk.bss_off(),
+                        disk.wpad,
+                    );
                     pushes.push(AgentEvent::Tick(raw(&body)));
                     tick.due_ms = (tick.due_ms + interval as i64).max(now_ms + 1);
                 }

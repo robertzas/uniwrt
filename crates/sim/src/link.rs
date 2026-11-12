@@ -110,7 +110,14 @@ impl SimLink {
             "collect" => {
                 let sets: Vec<Set> = field(op, args, "sets")?;
                 let disk = lock(&self.shared.nodes[self.node].disk);
-                render::collect(&world, self.node, &sets, &disk.tool.files, &disk.bss_off())
+                render::collect(
+                    &world,
+                    self.node,
+                    &sets,
+                    &disk.tool.files,
+                    &disk.bss_off(),
+                    disk.wpad,
+                )
             }
             "read_file" => self.read_file(op, args)?,
             "subscribe" | "unsubscribe" => {

@@ -96,6 +96,9 @@ pub enum JobKind {
     /// Measuring the line from the gateway: its rates, and its latency idle and under load
     /// (features/wan.md, SQM; D-076).
     SpeedTest,
+    /// Swapping a node's basic wpad for the full one, which adds 802.11v (features/wifi.md,
+    /// Roaming; D-085, D-089).
+    Wpad,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -191,6 +194,10 @@ pub enum StepName {
     SixRd,
     /// Roll the gateway back to what it held.
     Rollback,
+    /// Download packages to the node, changing nothing (the wpad swap's, D-089).
+    Fetch,
+    /// Swap the packages in one step that runs on the node by itself (D-089).
+    Swap,
     /// Round trips with the line quiet (the speed test's steps follow, D-076).
     Idle,
     /// The download rate, and round trips while downloading.

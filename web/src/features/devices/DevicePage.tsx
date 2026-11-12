@@ -185,7 +185,7 @@ function Overview(props: {
           <PortsTab node={node()} facts={props.detail.facts} />
         </TabPanel>
         <TabPanel value="config">
-          <ConfigTab node={node()} />
+          <ConfigTab node={node()} facts={props.detail.facts} />
         </TabPanel>
       </Tabs>
     </div>

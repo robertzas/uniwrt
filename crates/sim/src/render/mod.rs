@@ -14,6 +14,7 @@ mod net;
 pub(crate) mod scan;
 mod system;
 pub(crate) mod wifi;
+pub(crate) mod wpad;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -67,6 +68,7 @@ pub(crate) fn collect(
     sets: &[Set],
     files: &BTreeMap<String, String>,
     off: &BTreeSet<String>,
+    wpad: &str,
 ) -> Value {
     let sets: Map<_, _> = sets
         .iter()
@@ -77,6 +79,7 @@ pub(crate) fn collect(
                 Set::Leases => l2::leases(world, node, files),
                 Set::Radios => wifi::radios(world, node, &config::aps(files), off),
                 Set::Stations => wifi::stations(world, node, off),
+                Set::Capabilities => system::capabilities(&world.nodes[node], wpad),
                 _ => set_of(world, node, set),
             };
             (set.as_str().to_owned(), value)
@@ -90,7 +93,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
     match set {
         Set::Batman => batman::batman(world, n),
         Set::Board => system::board(node),
-        Set::Capabilities => system::capabilities(node),
+        Set::Capabilities => system::capabilities(node, wpad::MESH),
         Set::Config => json!({"files": {}}),
         Set::Devices => devices::devices(world, n),
         Set::Interfaces => net::interfaces(world, n, &BTreeMap::new()),

@@ -64,6 +64,13 @@ export function WifiPage() {
     );
   });
 
+  /** The devices whose hostapd lacks 802.11v while a WLAN asks for roaming hints (D-089). */
+  const basicWpad = createMemo(() => {
+    const config = site.data?.config;
+    if (!config?.wlans.some((wlan) => wlan.roaming.hints)) return [];
+    return live.fleet.nodes.filter((node) => node.basic_wpad);
+  });
+
   createEffect(
     () => t.title,
     (title) => {
@@ -90,6 +97,27 @@ export function WifiPage() {
           action={t.devices}
           onAction={() => navigate("/devices")}
         />
+      </Show>
+      <Show when={basicWpad().length > 0}>
+        <div class="flex items-start gap-3 rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-sm">
+          <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
+          <p class="min-w-0 flex-1">
+            {t.basicWpad(basicWpad().length)}{" "}
+            <For each={basicWpad()}>
+              {(node, i) => (
+                <>
+                  {i() > 0 ? ", " : ""}
+                  <a
+                    href={`/devices/${node.id}?tab=config`}
+                    class="font-medium text-accent underline-offset-2 hover:underline"
+                  >
+                    {node.name}
+                  </a>
+                </>
+              )}
+            </For>
+          </p>
+        </div>
       </Show>
       <Card aria-label={t.title}>
         <CardHeader

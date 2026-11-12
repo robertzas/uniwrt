@@ -13,6 +13,8 @@ pub struct Interests {
     pub focus: usize,
     /// Followers of its log.
     pub logs: usize,
+    /// Bumped by [`Engine::recollect`](crate::Engine::recollect): every set is collected again.
+    pub recollect: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

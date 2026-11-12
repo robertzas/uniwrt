@@ -255,6 +255,7 @@ export const strings = {
       apply: (target: string) => `Applying ${target}`,
       wan_test: (target: string) => `Testing the internet connection on ${target}`,
       speed_test: (target: string) => `Measuring the internet speed from ${target}`,
+      wpad: (target: string) => `Installing the full wpad on ${target}`,
     },
     step: {
       connect: "Log in",
@@ -287,6 +288,8 @@ export const strings = {
       idle: "Latency, idle",
       download: "Download",
       upload: "Upload",
+      fetch: "Download the packages",
+      swap: "Swap the wpad",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -301,6 +304,7 @@ export const strings = {
         connect: "Log in to the gateway",
         record: "Grade the line",
       },
+      wpad: { verify: "Find 802.11v" },
     } as Partial<Record<JobKind, Partial<Record<StepName, string>>>>,
     stepState: {
       pending: "Waiting",
@@ -767,6 +771,27 @@ export const strings = {
       done: { on: "Management is on", off: "Management is off" },
       failed: "The device's management didn't change",
     },
+    wpad: {
+      title: "Wi-Fi daemon",
+      full: "Full wpad",
+      fullHint: "Its access points suggest where clients should roam (802.11v).",
+      basic: "Basic wpad",
+      basicHint:
+        "Its access points tell clients their neighbors (802.11k) but can't suggest where to roam (802.11v). The full wpad adds that.",
+      observe: "Turn management on to install the full wpad.",
+      adminOnly: "Only admins install packages on devices.",
+      install: "Install the full wpad",
+      confirm: {
+        title: (name: string) => `Install the full wpad on ${name}?`,
+        body: "uniwrt downloads the full wpad, and a copy of the current one, to the device first: nothing changes unless both arrive. Then the device swaps them by itself, offline. Its Wi-Fi restarts, so its clients reconnect within about 20 seconds, and a mesh access point loses its uplink meanwhile. If the full wpad doesn't install, the device puts the current one back.",
+        after: "Its WLANs get 802.11v at the next apply.",
+        action: "Install",
+      },
+      cancel: "Cancel",
+      done: "The full wpad is installed",
+      doneHint: "Review and apply to turn 802.11v on.",
+      failed: "The full wpad isn't installed",
+    },
     packages: {
       title: "Managed packages",
       description:
@@ -1149,6 +1174,7 @@ export const strings = {
         apply: "applying the configuration",
         wan_test: "testing the internet connection",
         speed_test: "measuring the internet speed",
+        wpad: "installing the full wpad",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,
@@ -2752,6 +2778,8 @@ export const strings = {
     unmanaged: (names: string) =>
       `uniwrt doesn't manage the wireless package on ${names}, so applying leaves the Wi-Fi there as it is.`,
     devices: "Open Devices",
+    basicWpad: (count: number) =>
+      `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, so ${count === 1 ? "its" : "their"} access points can't suggest where clients should roam (802.11v). Install the full wpad from the device's Config tab:`,
     off: "Off",
     hidden: "Hidden",
     security: {

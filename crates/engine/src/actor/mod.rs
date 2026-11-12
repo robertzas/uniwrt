@@ -59,6 +59,8 @@ pub(crate) struct NodeActor<L> {
     facts: Option<Arc<NodeFacts>>,
     health: Health,
     status: Tracker,
+    /// The last [`Interests::recollect`] acted on.
+    recollected: u64,
     /// Sets that pushed events touched, collected again at `refresh_at`.
     refresh: BTreeSet<Set>,
     refresh_at: Option<Instant>,
@@ -100,6 +102,7 @@ impl<L: NodeLink> NodeActor<L> {
     ) -> Self {
         let states = link.state();
         let link_state = states.borrow().clone();
+        let recollected = interests.borrow().recollect;
         Self {
             node,
             pushes: Some(link.events()),
@@ -114,6 +117,7 @@ impl<L: NodeLink> NodeActor<L> {
             jobs: Jobs::default(),
             health: Health::default(),
             status: Tracker::default(),
+            recollected,
             refresh: BTreeSet::new(),
             refresh_at: None,
             stale_from: Instant::now(),
@@ -219,10 +223,22 @@ impl<L: NodeLink> NodeActor<L> {
     }
 
     fn on_interests(&mut self) {
-        let focused = self.interests.borrow_and_update().focus > 0;
+        let interests = *self.interests.borrow_and_update();
+        let focused = interests.focus > 0;
+        let recollect = interests.recollect != self.recollected;
+        self.recollected = interests.recollect;
         let Some(session) = &mut self.session else {
             return;
         };
+        if recollect {
+            let sets: Vec<_> = Set::ALL
+                .into_iter()
+                .filter(|&set| session.caps.has_set(set))
+                .collect();
+            if !sets.is_empty() {
+                self.jobs.push(Job::Collect(sets));
+            }
+        }
         if focused != session.focused {
             session.focused = focused;
             session.plan = self.ctx.config.intervals.plan(focused, &session.caps);

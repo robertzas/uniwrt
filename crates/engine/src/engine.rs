@@ -230,6 +230,20 @@ impl<L: NodeLink> Engine<L> {
         self.interest(node, Kind::Logs)
     }
 
+    /// Collects every set of the node again now, as when its agent starts: a job changed what
+    /// the hourly sets describe (its capabilities after the wpad swap, D-089). False for a node
+    /// the engine doesn't watch.
+    pub fn recollect(&self, node: NodeId) -> bool {
+        let nodes = self.nodes();
+        let Some(entry) = nodes.get(&node) else {
+            return false;
+        };
+        entry
+            .interests
+            .send_modify(|interests| interests.recollect += 1);
+        true
+    }
+
     /// Records `event` with the others, as it is: one the controller found outside the engine
     /// (autotune's drifted SQM rates, D-076).
     pub fn note(&self, event: uniwrt_events::NewEvent) {

@@ -5,7 +5,8 @@
 //!   controller key, a [`Dial`] to reach nodes and a [`Watch`] to start watching them);
 //!   [`Jobs::probe`] reads a node's host key for the user to confirm; [`Jobs::adopt`] starts
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
-//!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::plan`] plans
+//!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::wpad`] swaps a
+//!   managed node's basic wpad for the full one (D-089); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
@@ -26,6 +27,11 @@
 //! - **Management** steps: connect (the controller's key, the pinned host key) → install the
 //!   transaction tool and the guard unless that version is there (or remove them) → record the
 //!   mode. An open transaction on the node fails the job before anything changes.
+//! - **wpad swap** (`wpad/`, D-089): connect → check (an idle transaction tool, a hostapd
+//!   without 802.11v, the wpad installed and its full counterpart, free flash and `/tmp`) →
+//!   fetch (both wpads and `hostapd-common` onto the node, nothing changed) → swap (one offline
+//!   package step that runs on the node by itself and puts the old wpad back when neither is
+//!   left; the job logs in again until it reads the result) → verify (the agent finds 802.11v).
 //! - **Apply** steps (`apply/`): connect (every managed node) → plan (read each node's packages,
 //!   services, facts and DNS at once; render; diff; any refused node stops it) → install (the
 //!   feed packages a configuration needs and a node lacks, D-076) → stage → apply
@@ -84,6 +90,7 @@ mod speed_test;
 #[cfg(test)]
 mod testing;
 mod wan_test;
+mod wpad;
 
 pub use adopt::AdoptRequest;
 pub use apply::ApplyTiming;

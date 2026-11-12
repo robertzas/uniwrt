@@ -48,6 +48,17 @@ pub(crate) fn internal(what: &str, err: &dyn std::fmt::Display) -> JobError {
     }
 }
 
+/// The last line of what a failed command printed, for people.
+pub(crate) fn last_line(output: &[u8]) -> String {
+    String::from_utf8_lossy(output)
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("no output")
+        .trim()
+        .to_owned()
+}
+
 /// The error and its causes, as one line.
 pub(crate) fn chain(err: &uniwrt_node::Error) -> String {
     let mut text = err.to_string();
@@ -69,5 +80,17 @@ pub(crate) fn txn_error(err: &uniwrt_node::Error, what: &str) -> JobError {
             unsupported(format!("{what}: {msg}"))
         }
         _ => node_error(err, what),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_last_line_is_the_last_one_with_words() {
+        assert_eq!(
+            super::last_line(b"Installing...\nERROR: unable to select packages\n\n"),
+            "ERROR: unable to select packages"
+        );
+        assert_eq!(super::last_line(b""), "no output");
     }
 }

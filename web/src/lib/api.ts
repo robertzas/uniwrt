@@ -258,6 +258,8 @@ export const api = {
     /** Starts the job that turns management on or off (admins); the `jobs` topic follows it. */
     manage: (id: NodeId, enabled: boolean) =>
       request<Job>(`/nodes/${id}/management`, { method: "PUT", body: { enabled } }),
+    /** Starts the job that swaps a managed node's basic wpad for the full one (admins, D-089). */
+    wpad: (id: NodeId) => request<Job>(`/nodes/${id}/wpad`, { method: "POST" }),
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
     rootPassword: (id: NodeId) =>
       request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),
