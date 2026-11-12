@@ -21,7 +21,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The releases in the test matrix (TESTING.md); pinned, so a run is reproducible.
+# The releases in the test matrix (TESTING.md); pinned, so a run is reproducible. CI runs one
+# job per release: keep the `system` job's matrix in .github/workflows/ci.yml in line.
 RELEASES=(24.10.8 25.12.6)
 ROLES=(isp gw ap)
 HELPER_IMAGE=openwrt/rootfs:x86-64-25.12.6

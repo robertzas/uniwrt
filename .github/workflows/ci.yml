@@ -267,11 +267,17 @@ jobs:
 
   # Rendered configs on OpenWrt 24.10 and 25.12 (TESTING.md, System): an ISP, a gateway and an
   # AP in rootfs containers linked by veth pairs; uci, fw4 and netifd take what render writes.
+  # One job per release, in parallel: each boots its own topology (scripts/test-system.sh).
   system:
+    name: system (${{ matrix.release }})
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [24.10.8, 25.12.6] # keep in line with RELEASES in scripts/test-system.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -293,8 +299,10 @@ jobs:
       - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
         with:
           tool: cargo-nextest@0.9.150 # keep in line with `just setup`
-      - name: Rendered configs on OpenWrt 24.10 and 25.12
-        run: scripts/test-system.sh
+      - name: Rendered configs on OpenWrt ${{ matrix.release }}
+        run: scripts/test-system.sh "$RELEASE"
+        env:
+          RELEASE: ${{ matrix.release }}
 
   build:
     name: build (${{ matrix.target }})
