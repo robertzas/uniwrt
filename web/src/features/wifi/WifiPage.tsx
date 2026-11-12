@@ -16,9 +16,11 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { JoinDialog } from "./JoinDialog";
+import { SteeringCard } from "./SteeringCard";
 import { clientsOn, onNow, scopeText, warningsOf } from "./summary";
 import { WlanEditor } from "./WlanEditor";
 import { WlanRow } from "./WlanRow";
+import { WpadNote } from "./WpadNote";
 
 const t = strings.wifi;
 
@@ -64,11 +66,13 @@ export function WifiPage() {
     );
   });
 
+  /** The devices whose hostapd lacks 802.11v: the steering card names them (D-090). */
+  const steeringWpad = createMemo(() => live.fleet.nodes.filter((node) => node.basic_wpad));
   /** The devices whose hostapd lacks 802.11v while a WLAN asks for roaming hints (D-089). */
   const basicWpad = createMemo(() => {
     const config = site.data?.config;
     if (!config?.wlans.some((wlan) => wlan.roaming.hints)) return [];
-    return live.fleet.nodes.filter((node) => node.basic_wpad);
+    return steeringWpad();
   });
 
   createEffect(
@@ -98,26 +102,8 @@ export function WifiPage() {
           onAction={() => navigate("/devices")}
         />
       </Show>
-      <Show when={basicWpad().length > 0}>
-        <div class="flex items-start gap-3 rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-sm">
-          <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
-          <p class="min-w-0 flex-1">
-            {t.basicWpad(basicWpad().length)}{" "}
-            <For each={basicWpad()}>
-              {(node, i) => (
-                <>
-                  {i() > 0 ? ", " : ""}
-                  <a
-                    href={`/devices/${node.id}?tab=config`}
-                    class="font-medium text-accent underline-offset-2 hover:underline"
-                  >
-                    {node.name}
-                  </a>
-                </>
-              )}
-            </For>
-          </p>
-        </div>
+      <Show when={basicWpad().length > 0 && site.data?.config.steering.profile === "off"}>
+        <WpadNote text={t.basicWpad(basicWpad().length)} nodes={basicWpad()} />
       </Show>
       <Card aria-label={t.title}>
         <CardHeader
@@ -182,6 +168,9 @@ export function WifiPage() {
           </p>
         </div>
       </Card>
+      <Show when={site.data}>
+        {(view) => <SteeringCard view={view()} admin={admin()} basicWpad={steeringWpad()} />}
+      </Show>
       <Show when={editing()}>
         {(open) => (
           <WlanEditor

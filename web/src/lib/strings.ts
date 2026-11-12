@@ -9,6 +9,25 @@ function list(items: readonly string[]): string {
 }
 
 /** Every user-facing string, kept in one place so the UI is ready for translation (ui.md). */
+/** The site's steering profiles (wifi.md, Steering & balancing: the thresholds of render's table). */
+const STEERING_PROFILES: Record<string, { label: string; text: string }> = {
+  off: { label: "Off", text: "Clients choose their access point and band themselves." },
+  conservative: {
+    label: "Conservative",
+    text: "Asks clients with a strong signal (above -60 dBm for 2 min) to move up a band. Nothing else.",
+  },
+  balanced: {
+    label: "Balanced",
+    text: "Band steering after 1 min above -63 dBm, and a client fading below -75 dBm is sent to an access point 8 dB stronger.",
+  },
+  aggressive: {
+    label: "Aggressive",
+    text: "Band steering after 30 s; clients below -72 dBm move to an access point 5 dB stronger. Refuses clients below -85 dBm and sheds them from channels over 75 % busy.",
+  },
+};
+
+const profileLabel = (profile: string) => STEERING_PROFILES[profile]?.label ?? profile;
+
 export const strings = {
   appName: "uniwrt",
   nav: {
@@ -2780,6 +2799,20 @@ export const strings = {
     devices: "Open Devices",
     basicWpad: (count: number) =>
       `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, so ${count === 1 ? "its" : "their"} access points can't suggest where clients should roam (802.11v). Install the full wpad from the device's Config tab:`,
+    steering: {
+      title: "Steering",
+      description:
+        "usteer moves clients to the better band or access point. One profile for the site; a WLAN can opt out in its Roaming settings.",
+      profiles: STEERING_PROFILES,
+      footnote:
+        "A client that ignores a request to move is disconnected 10 s later, so it reconnects to the better access point. Only clients with 802.11v are asked to change band.",
+      noWlan: "No WLAN takes part: turn Steer clients on in a WLAN's Roaming settings.",
+      basicWpad: (count: number, profile: string) =>
+        `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, without 802.11v: ${profile === "conservative" ? "Conservative steering does nothing there" : "steering can only disconnect clients there to move them"}, and access points can't suggest where to roam. Install the full wpad from the device's Config tab:`,
+      message: (label: string) => `Steering: ${label}`,
+      save: "Save",
+      cancel: "Cancel",
+    },
     off: "Off",
     hidden: "Hidden",
     security: {
@@ -2897,6 +2930,11 @@ export const strings = {
       hints: "Roaming hints (802.11k/v)",
       hintsHint:
         "Access points tell clients their neighbors and suggest better ones. Devices without the full wpad offer the neighbors only.",
+      steer: "Steer clients",
+      steerHint: (profile: string) =>
+        profile === "off"
+          ? "Takes part when the site's steering is on (Steering, on the Wi-Fi page). Turn it off for devices that roam badly, such as smart-home gadgets."
+          : `The site's steering (${profileLabel(profile)}) moves its clients to a better band or access point. Turn it off for devices that roam badly, such as smart-home gadgets.`,
       schedule: "Schedule",
       scheduled: "Only on at certain times",
       scheduledHint: (zone: string) =>

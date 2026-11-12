@@ -327,6 +327,12 @@ export function WlanEditor(props: {
               label={t.hints}
               hint={t.hintsHint}
             />
+            <Checkbox
+              checked={draft().steer}
+              onChange={(steer) => change({ steer })}
+              label={t.steer}
+              hint={t.steerHint(props.view.config.steering.profile)}
+            />
           </section>
           <ScheduleField
             scheduled={draft().scheduled}

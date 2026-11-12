@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/te
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Issue } from "../../api/gen/Issue";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
 import type { SiteSave } from "../../api/gen/SiteSave";
@@ -19,11 +20,14 @@ let config: SiteConfig;
 /** A refusal the next save answers with, once. */
 let refusal: { path: string; message: string } | undefined;
 let fleet: NodeSummary[];
+/** The validation warnings the server's views carry. */
+let issues: Issue[];
 
 beforeEach(() => {
   calls = [];
   head = 2;
   refusal = undefined;
+  issues = [];
   fleet = [summary(1, "gw", { role: "gateway" }), summary(2, "attic")];
   config = siteConfig();
   config.nodes = [1, 2].map((node) => ({
@@ -40,7 +44,8 @@ beforeEach(() => {
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url === "/api/v1/site" && method === "GET") return Response.json(siteView(head, config));
+      if (url === "/api/v1/site" && method === "GET")
+        return Response.json({ ...siteView(head, config), issues });
       if (url === "/api/v1/site" && method === "PUT") {
         if (refusal) {
           const issues = [{ ...refusal, severity: "error" }];
@@ -52,7 +57,7 @@ beforeEach(() => {
         }
         head += 1;
         config = (body as SiteSave).config;
-        return Response.json(siteView(head, config));
+        return Response.json({ ...siteView(head, config), issues });
       }
       if (url === "/api/v1/site/secrets/reveal") return Response.json({ value: "correct horse" });
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
@@ -87,7 +92,7 @@ async function renderWifi(role: "admin" | "viewer" = "admin", path = "/wifi") {
     });
     await screen.findByRole("heading", { name: "Wi-Fi", level: 1 });
   }
-  return history;
+  return { history, ws };
 }
 
 function connection(ssid: string) {
@@ -145,7 +150,7 @@ describe("Wi-Fi", () => {
   it("warns without a country and about devices that don't manage wireless", async () => {
     config.site.country = null;
     config.nodes = config.nodes.filter((node) => node.node === 1);
-    const history = await renderWifi();
+    const { history } = await renderWifi();
     expect(await screen.findByText(/doesn't manage the wireless package on attic/)).toBeVisible();
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Set the country" }));
@@ -205,6 +210,8 @@ describe("Wi-Fi", () => {
     await user.click(within(fast).getByRole("button", { name: "On" }));
     expect(within(editor).getByText(/Some clients fail to join WPA3/)).toBeInTheDocument();
     await user.click(within(editor).getByLabelText("Roaming hints (802.11k/v)"));
+    expect(within(editor).getByText(/Takes part when the site's steering is on/)).toBeVisible();
+    await user.click(within(editor).getByLabelText("Steer clients"));
     await user.click(within(editor).getByRole("button", { name: "Save" }));
     expect(await within(editor).findByText(/Saved as revision 3/)).toBeInTheDocument();
     expect(put().message).toBe("Edit WLAN uniwrt-demo");
@@ -217,8 +224,56 @@ describe("Wi-Fi", () => {
       nodes: { scope: "except", nodes: [2] },
       max_clients: 40,
       schedule: null,
-      roaming: { fast: true, hints: false },
+      roaming: { fast: true, hints: false, steer: false },
     });
+  });
+
+  it("sets the site's steering profile, with what each does and where it falls short", async () => {
+    const user = userEvent.setup();
+    config.wlans = config.wlans.map((wlan) => ({
+      ...wlan,
+      roaming: { ...wlan.roaming, steer: false },
+    }));
+    fleet[1] = summary(2, "attic", { basic_wpad: true });
+    const { ws } = await renderWifi();
+    const card = await screen.findByRole("region", { name: "Steering" });
+    const profiles = within(card).getByRole("group", { name: "Steering" });
+    expect(within(profiles).getByLabelText("Off")).toBeChecked();
+    expect(
+      within(card).getByText(/-75 dBm is sent to an access point 8 dB stronger/),
+    ).toBeVisible();
+    // Steering off: the page's note names the basic wpad, the card doesn't.
+    expect(screen.getByText(/This device runs the basic wpad, so its/)).toBeVisible();
+    expect(within(card).queryByRole("link", { name: "attic" })).toBeNull();
+    await user.click(within(profiles).getByLabelText("Balanced"));
+    // No WLAN steers: the choice says so before it is saved.
+    expect(within(card).getByText(/No WLAN takes part/)).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Cancel" }));
+    expect(within(profiles).getByLabelText("Off")).toBeChecked();
+    expect(within(card).queryByText(/No WLAN takes part/)).toBeNull();
+    await user.click(within(profiles).getByLabelText("Balanced"));
+    issues = [{ path: "steering", severity: "warning", message: "No WLAN takes part in steering" }];
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    expect(await within(card).findByText(/Saved as revision 3/)).toBeInTheDocument();
+    expect(put().message).toBe("Steering: Balanced");
+    expect(put().config.steering).toEqual({ profile: "balanced" });
+    ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
+    // The saved document's warning, and the devices where steering can only disconnect.
+    expect(await within(card).findByText("No WLAN takes part in steering")).toBeVisible();
+    expect(within(card).getByText(/steering can only disconnect clients there/)).toBeVisible();
+    expect(within(card).getByRole("link", { name: "attic" })).toHaveAttribute(
+      "href",
+      "/devices/2?tab=config",
+    );
+    expect(screen.queryByText(/This device runs the basic wpad, so its/)).toBeNull();
+  });
+
+  it("shows the steering profile read-only to viewers", async () => {
+    config.steering = { profile: "conservative" };
+    await renderWifi("viewer");
+    const card = await screen.findByRole("region", { name: "Steering" });
+    expect(within(card).getByLabelText("Conservative")).toBeChecked();
+    expect(within(card).getByLabelText("Aggressive")).toBeDisabled();
   });
 
   it("schedules a WLAN: its days and times, overnight", async () => {
