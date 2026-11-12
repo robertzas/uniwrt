@@ -4,6 +4,7 @@
 //! push events and ticks are in `streams.rs` and re-exported here.
 
 mod btm;
+mod mtu;
 mod rrm;
 mod scan;
 mod streams;
@@ -16,6 +17,7 @@ use serde_json::{Map, Value, value::RawValue};
 use uniwrt_core::Timestamp;
 
 pub use self::btm::{Btm, BtmSent, MboReason, candidate};
+pub use self::mtu::{Mtu, MtuProbe};
 pub use self::rrm::{NeighborReport, OwnReport, Rrm, RrmFailure, RrmState};
 pub use self::scan::{RawBss, RawSurvey, Scan, Scanned};
 pub use self::streams::{

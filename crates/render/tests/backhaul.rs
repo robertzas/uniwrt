@@ -170,3 +170,57 @@ fn cables_the_node_cant_give_the_backhaul_are_refused() {
     );
     assert_snapshot!("backhaul_refused", all);
 }
+
+#[test]
+fn the_gateways_firewall_lets_only_the_probe_in_over_a_cable() {
+    let site = home_site();
+    let facts = gateway_facts();
+    let firewall = |node: (uniwrt_core::NodeId, NodeRole), backhaul: &[Backhaul]| {
+        let rendered = with_backhaul(&site, node, &facts, backhaul).unwrap();
+        rendered.packages[&ManagedPackage::Firewall].clone()
+    };
+    let cables = [
+        cable("lan1", BackhaulStage::Overlay),
+        cable("lan2", BackhaulStage::Exclusive),
+    ];
+    let gateway = firewall((GATEWAY, NodeRole::Gateway), &cables);
+    let zone = gateway
+        .sections_of("zone")
+        .find(|z| z.option("name") == Some("uw_bh"))
+        .unwrap();
+    assert_eq!(
+        zone.get("network").unwrap().items(),
+        ["uw_bh_lan1", "uw_bh_lan2"]
+    );
+    assert_eq!(zone.option("input"), Some("REJECT"));
+    assert_eq!(zone.option("forward"), Some("REJECT"));
+    let rule = gateway
+        .sections_of("rule")
+        .find(|r| r.option("src") == Some("uw_bh"))
+        .unwrap();
+    assert_eq!(rule.option("family"), Some("ipv6"));
+    assert_eq!(
+        rule.get("icmp_type").unwrap().items(),
+        [
+            "echo-request",
+            "echo-reply",
+            "neighbour-solicitation",
+            "neighbour-advertisement"
+        ]
+    );
+    // No forwarding leaves or enters the zone, and without cables there's no zone.
+    assert!(
+        gateway
+            .sections_of("forwarding")
+            .all(|f| f.option("src") != Some("uw_bh") && f.option("dest") != Some("uw_bh"))
+    );
+    let plain = firewall((GATEWAY, NodeRole::Gateway), &[]);
+    assert!(
+        plain
+            .sections_of("zone")
+            .all(|z| z.option("name") != Some("uw_bh"))
+    );
+    // An AP runs no firewall.
+    let ap = firewall((AP, NodeRole::Ap), &cables);
+    assert_eq!(ap.sections_of("zone").count(), 0);
+}

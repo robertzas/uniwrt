@@ -4,7 +4,8 @@
 //!   its [`facts`](Node::facts) from the working tree's agent, its current
 //!   [`packages`](Node::packages), [`apply`](Node::apply) (write, check that `uci` reads back
 //!   what was written, `reload_config`) and netifd's and the bridge's state. [`render_for`]
-//!   renders a [`site`] for a node from what it reports ([`render_with`] from adjusted facts). [`needs`] skips a test on a host
+//!   renders a [`site`] for a node from what it reports ([`render_with`] from adjusted facts,
+//!   [`render_with_backhaul`] with wired backhauls). [`needs`] skips a test on a host
 //!   whose kernel can't do what it needs (8021q, pppoe, nftables), except in CI.
 //! - **Topologies:** `scripts/test-system.sh` links an ISP, a gateway and an AP (wired), and
 //!   `scripts/wifi-lab.sh` the hwsim lab (Wi-Fi and the mesh); each test renders onto them.
@@ -25,7 +26,7 @@ use std::collections::BTreeMap;
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{facts::NodeFacts, node::NodeRole, site::SiteConfig};
-use uniwrt_render::{Rendered, Target, render};
+use uniwrt_render::{Backhaul, Rendered, Target, render};
 use uniwrt_uci::Package;
 
 pub use self::docker::{Node, Run, has_ipv4, ipv4};
@@ -43,6 +44,18 @@ pub fn render_with(
     role: NodeRole,
     facts: &NodeFacts,
 ) -> Rendered {
+    render_with_backhaul(site, node, id, role, facts, &[])
+}
+
+/// [`render_with`] with the wired backhaul's cables at the stages given.
+pub fn render_with_backhaul(
+    site: &SiteConfig,
+    node: &Node,
+    id: NodeId,
+    role: NodeRole,
+    facts: &NodeFacts,
+    backhaul: &[Backhaul],
+) -> Rendered {
     let current: BTreeMap<String, Package> = node.packages();
     render(
         site,
@@ -53,7 +66,7 @@ pub fn render_with(
             facts,
             current: &current,
             controller: None,
-            backhaul: &[],
+            backhaul,
         },
     )
     .unwrap_or_else(|issues| panic!("{}: render refused: {issues:#?}", node.container))

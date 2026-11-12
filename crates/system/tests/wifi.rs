@@ -5,7 +5,12 @@
 //! Then c's 5 GHz uplink fast-roams (802.11r with SAE, D-085) from b to a and back: each
 //! access point reports the station authorized by FT, the keys handed between them under the
 //! rendered key holders. Before that, the agent's `rrm` op gives each 5 GHz access point the
-//! other as its 802.11k neighbor. The test leaves the lab rendered; the script restarts it afterwards.
+//! other as its 802.11k neighbor. The lab's cable `bh0` comes over to the wired backhaul
+//! (D-094; `wifi/backhaul.rs`): a trunk with batman-adv's VLAN beside it at first, then the VLAN
+//! alone. The test leaves the lab rendered; the script restarts it afterwards.
+
+#[path = "wifi/backhaul.rs"]
+mod backhaul;
 
 use std::{
     process::Command,
@@ -15,11 +20,9 @@ use std::{
 
 use serde_json::json;
 use uniwrt_core::{Ipv4Net, MacAddr};
-use uniwrt_model::node::NodeRole;
-use uniwrt_system::{
-    Node, ipv4, render_for, render_with,
-    site::{self, AP, GATEWAY},
-};
+use uniwrt_model::site::SiteConfig;
+use uniwrt_render::BackhaulStage;
+use uniwrt_system::{Node, ipv4, site};
 
 const UP: Duration = Duration::from_secs(90);
 
@@ -211,6 +214,41 @@ fn neighbor_reports(a: &Node, b: &Node) {
     }
 }
 
+/// `node`'s 802.11s peer link is established, batman-adv sees the other node over it and over
+/// the cable, and the bridge carries the networks as rendered.
+fn meshed(site: &SiteConfig, node: &Node) {
+    let context = "iw dev; for i in $(iw dev | awk '/Interface/ { print $2 }'); do iw dev $i station dump; done; batctl meshif bat0 n; logread | tail -n 40";
+    let mesh = || ifaces(node, "mesh point");
+    wait(
+        "the 802.11s peer link",
+        node,
+        || {
+            mesh().iter().any(|mesh| {
+                node.sh(r#"iw dev "$1" station dump"#, &[mesh])
+                    .contains("ESTAB")
+            })
+        },
+        context,
+    );
+    wait(
+        "a batman neighbor over the mesh point",
+        node,
+        || {
+            let neighbors = node.sh("batctl meshif bat0 n -H", &[]);
+            mesh().iter().any(|mesh| neighbors.contains(mesh.as_str()))
+        },
+        context,
+    );
+    // Wi-Fi joins br-lan untagged in its network's VLAN; bat0 is a trunk.
+    for iface in ifaces(node, "AP") {
+        bridged(node, &iface, &["99PU"]);
+    }
+    bridged(node, "bat0", &["1PU", "99"]);
+    // The cable: a trunk, and batman-adv's VLAN beside it.
+    bridged(node, backhaul::PORT, &["1PU", "99"]);
+    backhaul::neighbor_over_cable(site, node);
+}
+
 #[test]
 #[ignore = "needs the hwsim lab"]
 fn rendered_wlans_and_mesh_carry_the_client() {
@@ -225,12 +263,13 @@ fn rendered_wlans_and_mesh_carry_the_client() {
     let lan: Ipv4Net = address.parse().expect("an address/mask");
     let site = site::lab(lan);
 
-    // The lab's gateway has no WAN port: a veth stub stands in for one.
-    a.sh("ip link add eth1 type veth peer name eth1-isp", &[]);
-    let mut facts = a.facts();
-    facts.board.layout.wan = Some("eth1".to_owned());
-    let gateway = render_with(&site, &a, GATEWAY, NodeRole::Gateway, &facts);
-    let ap = render_for(&site, &b, AP, NodeRole::Ap);
+    let (a_facts, b_facts) = backhaul::facts(&a, &b);
+    let (gateway, ap) = backhaul::render(
+        &site,
+        (&a, &a_facts),
+        (&b, &b_facts),
+        BackhaulStage::Overlay,
+    );
     let status = Command::new("docker")
         .args(["network", "disconnect", "bridge", "uniwrt-wifi-b"])
         .status()
@@ -239,30 +278,8 @@ fn rendered_wlans_and_mesh_carry_the_client() {
     a.apply(&gateway);
     b.apply(&ap);
 
-    let mesh_up = "iw dev; for i in $(iw dev | awk '/Interface/ { print $2 }'); do iw dev $i station dump; done; batctl meshif bat0 n; logread | tail -n 40";
     for node in [&a, &b] {
-        wait(
-            "the 802.11s peer link",
-            node,
-            || {
-                ifaces(node, "mesh point").iter().any(|mesh| {
-                    node.sh(r#"iw dev "$1" station dump"#, &[mesh])
-                        .contains("ESTAB")
-                })
-            },
-            mesh_up,
-        );
-        wait(
-            "a batman neighbor",
-            node,
-            || !node.sh("batctl meshif bat0 n -H", &[]).trim().is_empty(),
-            mesh_up,
-        );
-        // Wi-Fi joins br-lan untagged in its network's VLAN; bat0 is a trunk.
-        for iface in ifaces(node, "AP") {
-            bridged(node, &iface, &["99PU"]);
-        }
-        bridged(node, "bat0", &["1PU", "99"]);
+        meshed(&site, node);
     }
 
     // c leases again on both uplinks, the 5 GHz one through b and the mesh.
@@ -324,4 +341,6 @@ fn rendered_wlans_and_mesh_carry_the_client() {
     );
     fast_roam(&c, &iface, station, &a);
     fast_roam(&c, &iface, station, &b);
+
+    backhaul::exclusive(&site, (&a, &a_facts), (&b, &b_facts));
 }

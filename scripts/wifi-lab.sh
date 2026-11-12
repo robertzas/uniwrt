@@ -2,8 +2,9 @@
 # The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a
 # batman-adv mesh, in containers booted with procd. Node a (25.12) is the gateway, with APs on 2g
 # and 5g, a mesh point and DHCP on the mesh. Node b (24.10) meshes with a over Wi-Fi and over a
-# wired backhaul (`bh0`, a veth pair with batman's MTU of 1532). Client c (25.12) joins a's 2g AP
-# and b's 5g AP. Each role's config is in scripts/wifi-lab/<role>/.
+# wired backhaul (`bh0`, a veth pair with batman's MTU of 1532, in a's firewall zone `uw_bh` as
+# render gives it). Client c (25.12) joins a's 2g AP and b's 5g AP. Each role's config is in
+# scripts/wifi-lab/<role>/.
 #
 # The host's kernel provides the radios and batman-adv. Loading them and moving radios into the
 # containers (and linking them) needs root, which a privileged helper container provides (D-035);
@@ -11,7 +12,7 @@
 #
 # Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture [collect | events]
 #   up       builds the images, starts the lab and writes target/wifi-lab.env (addresses, password)
-#   test     runs crates/node/tests/wifi.rs against a running lab, starting it first if needed,
+#   test     runs crates/node/tests/wifi.rs and backhaul.rs against a running lab, starting it first if needed,
 #            then crates/system/tests/wpad.rs (the wpad swap) and crates/system/tests/wifi.rs, which renders a site onto it (and restarts a lab
 #            that was up before)
 #   capture  (both parts unless one is named) writes the collect answers of nodes a and b, from a running lab, to
@@ -93,10 +94,27 @@ READY_GW='mesh=$(iw dev | awk "/Interface/ { i = \$2 } /type mesh point/ { print
   [ -n "$mesh" ] && iw dev "$mesh" station dump | grep -q "mesh plink:.*ESTAB" &&
   [ "$(batctl meshif bat0 n -H | wc -l)" -ge 2 ]'
 
+# Waits until every hwsim radio is back in the host's namespace: containers just removed hand
+# theirs back asynchronously, and moving one that hasn't arrived fails (`iw`: -2).
+radios_home() {
+  local index missing
+  for _ in $(seq 30); do
+    missing=0
+    for index in $(seq 0 $((HWSIM_RADIOS - 1))); do
+      iw phy "$(hwsim_phy "$index")" info >/dev/null 2>&1 || missing=1
+    done
+    ((missing)) || return 0
+    sleep 1
+  done
+  echo "the hwsim radios did not come back from the lab's old containers" >&2
+  exit 1
+}
+
 up() {
   modules
   images
   down_containers
+  radios_home
   local password moves='' role
   declare -A pid
   password="uniwrt-$(od -An -N8 -tx8 /dev/urandom | tr -d ' ')"
@@ -274,7 +292,7 @@ test)
   # shellcheck source=/dev/null # written by `up`
   set -a && source "$ENV_FILE" && set +a
   # One at a time: a test that kicks the client would fail the others' checks that it is there.
-  cargo nextest run --locked -p uniwrt-node --test wifi --run-ignored only --status-level fail \
+  cargo nextest run --locked -p uniwrt-node --test wifi --test backhaul --run-ignored only --status-level fail \
     --hide-progress-bar --test-threads 1 "$@"
   # Then the system harness renders a site onto a and b (crates/system/tests/wifi.rs), which
   # leaves the lab rendered: a lab that was up before is started again afterwards.

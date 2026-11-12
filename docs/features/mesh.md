@@ -18,6 +18,8 @@ Milestones: M2 (read-only telemetry for existing meshes), M5.3 (managed mesh).
 - **Which cables:** a direct cable between two adopted, managed nodes that the topology sees (no client or switch on it), on a trunk port of each, unless the site turns it off (`mesh.wired`) or a port's profile opts out (`backhaul: false`). A swconfig switch's ports can't carry it yet.
 - **How:** batman-adv runs over a VLAN of its own on the cable, `mesh.wired_vlan` (4094 by default; no network may use it): `<port>.<vid>` is the hard interface `uw_bh_<port>`, and the port and the VLAN device take MTU 1532.
 - **Make-before-break:** the apply stages each cable. *Overlay:* the port stays a trunk and the VLAN's hard interface joins `bat0` beside it, so the cable carries the LAN whichever end comes over first (BLA handles the two paths). *Exclusive:* once batman-adv sees the neighbor over the VLAN and the MTU probe passes, the port carries the VLAN alone and leaves the bridge. A cable that fails the probe goes back to a plain trunk.
+- **The probe** (the agent's `mtu` op, D-096): BusyBox's ping of IPv6's all-nodes group on the VLAN device, from its link-local address, with packets of 1532 bytes; it answers the device's MTU and the link-local addresses that replied at that size. A device below 1532 isn't pinged (the kernel would fragment the requests, and they would pass). A pass shows the peer receives 1532 bytes from this end (its reply may come back fragmented), so the apply probes from both ends.
+- **Firewall:** on the gateway the backhauls' interfaces form a zone of their own, `uw_bh` (input and forward rejected, no forwardings), with one rule accepting the probe's ICMPv6 (echo request and reply, neighbour solicitation and advertisement; conntrack doesn't tie a reply to a request sent to a group). batman-adv's frames aren't IP, so the firewall never sees them. APs run no firewall.
 - A node meshing only over cables (no radio for the mesh) still runs `bat0`.
 
 ```
@@ -36,6 +38,25 @@ config interface 'uw_bh_lan1'
 	option proto 'batadv_hardif'
 	option master 'bat0'
 	option device 'lan1.4094'
+
+# firewall, on the gateway
+config zone
+	option name 'uw_bh'
+	list network 'uw_bh_lan1'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config rule
+	option name 'Allow-uw_bh-MTU-probe'
+	option src 'uw_bh'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	list icmp_type 'echo-reply'
+	list icmp_type 'neighbour-solicitation'
+	list icmp_type 'neighbour-advertisement'
+	option family 'ipv6'
+	option target 'ACCEPT'
 ```
 
 ## Backhaul radio selection

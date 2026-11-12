@@ -2,7 +2,9 @@
 //! between two nodes, on the site's backhaul VLAN (`<port>.<vid>`, MTU 1532). An apply stages
 //! it make-before-break: first an overlay, the port still a trunk, so the cable carries the
 //! LAN whichever end comes over first; then the port carries batman-adv's VLAN alone and
-//! leaves the bridge.
+//! leaves the bridge. On the gateway, the backhauls' interfaces form a firewall zone of their
+//! own that accepts only what the agent's MTU probe needs (`ICMPv6` echo and neighbour
+//! discovery); APs run no firewall.
 
 use std::collections::BTreeSet;
 
@@ -15,6 +17,7 @@ use uniwrt_uci::Section;
 
 use crate::{
     Issue,
+    ext::SectionExt,
     plan::{BAT, Net, Plan},
     ports,
 };
@@ -38,6 +41,9 @@ pub enum BackhaulStage {
 
 /// The name of a backhaul's interface starts with this, followed by its port.
 pub const BACKHAUL_PREFIX: &str = "uw_bh_";
+
+/// The gateway's firewall zone of the backhauls' interfaces.
+pub(crate) const BACKHAUL_ZONE: &str = "uw_bh";
 
 /// batman-adv's header needs 32 bytes above the 1500 the bridge carries.
 pub(crate) const MESH_MTU: &str = "1532";
@@ -159,4 +165,42 @@ pub(crate) fn sections(plan: &Plan<'_>) -> Vec<Section> {
             ]
         })
         .collect()
+}
+
+/// The gateway's zone of the backhauls, and the rule that lets the agent's MTU probe through:
+/// its multicast echo requests, the peers' replies (which conntrack doesn't tie to a request
+/// sent to a group) and the neighbour discovery the replies need. batman-adv's own frames
+/// aren't IP, so the firewall never sees them.
+pub(crate) fn firewall(plan: &Plan<'_>) -> Vec<Section> {
+    if plan.backhaul.is_empty() {
+        return Vec::new();
+    }
+    let interfaces: Vec<String> = plan
+        .backhaul
+        .iter()
+        .map(|backhaul| backhaul_interface(&backhaul.port))
+        .collect();
+    vec![
+        Section::anonymous("zone")
+            .with("name", BACKHAUL_ZONE)
+            .list("network", interfaces)
+            .with("input", "REJECT")
+            .with("output", "ACCEPT")
+            .with("forward", "REJECT"),
+        Section::anonymous("rule")
+            .with("name", "Allow-uw_bh-MTU-probe")
+            .with("src", BACKHAUL_ZONE)
+            .with("proto", "icmp")
+            .with(
+                "icmp_type",
+                [
+                    "echo-request",
+                    "echo-reply",
+                    "neighbour-solicitation",
+                    "neighbour-advertisement",
+                ],
+            )
+            .with("family", "ipv6")
+            .with("target", "ACCEPT"),
+    ]
 }

@@ -9,6 +9,7 @@ import { ban } from "./ban.uc";
 import { btm } from "./btm.uc";
 import { bss } from "./bss.uc";
 import { rrm } from "./rrm.uc";
+import * as mtu from "./mtu.uc";
 import * as exec from "./exec.uc";
 import * as logs from "./logs.uc";
 import * as streams from "./streams.uc";
@@ -119,6 +120,20 @@ function scan(args, done, loop) {
 	command(req, done, loop, (r) => scanned(done, r));
 }
 
+// `mtu`: the wired backhaul's probe (mtu.uc), its ping a command.
+function probe(args, done, loop) {
+	let p = mtu.request(args);
+	if (p.err)
+		return done(null, p.err[0], p.err[1]);
+	let finish = (r) => {
+		let a = mtu.answer(p, r);
+		a.err ? done(null, a.err[0], a.err[1]) : done(a.ok);
+	};
+	if (!p.req)
+		return finish(null);
+	command(p.req, done, loop, finish);
+}
+
 function read_file(args, done) {
 	if (type(args.path) != "string" || !length(args.path))
 		return done(null, BAD_REQUEST, "path must be a non-empty string");
@@ -144,7 +159,7 @@ function streaming(op) {
 
 const OPS = {
 	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file, scan: scan, bss: bss,
-	ban: ban, btm: btm, rrm: rrm,
+	ban: ban, btm: btm, rrm: rrm, mtu: probe,
 	subscribe: streaming(streams.subscribe), unsubscribe: streaming(streams.unsubscribe),
 	log_follow: streaming(logs.log_follow), set_interval: streaming(ticks.set_interval),
 };

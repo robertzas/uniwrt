@@ -404,6 +404,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/btm.rs`: `btm`: a BSS transition request to one client, mirrored by `node-agent/btm.uc` (features/wifi.md, Steering & balancing: controller-sent transition requests; D-093).
+- `src/proto/ops/mtu.rs`: `mtu`: the wired backhaul's probe (features/mesh.md, Wired backhaul; D-094), mirrored by `node-agent/mtu.uc`.
 - `src/proto/ops/rrm.rs`: `rrm`: 802.11k neighbor reports, mirrored by `node-agent/rrm.uc` (features/wifi.md, Roaming).
 - `src/proto/ops/scan.rs`: `scan`: a neighbor scan of one radio, mirrored by `node-agent/scan.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
@@ -420,6 +421,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/txn/tests.rs`: (no header comment)
 - `src/wpad.rs`: The commands of the wpad swap (D-089): which package replaces which, the commands that download them without changing anything, the one that swaps them on the node by itself, and what it reports.
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
+- `tests/backhaul.rs`: The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway, whose firewall has the lab's `uw_bh` zone as render gives it) and node b (24.10).
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
 - `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
@@ -643,6 +645,7 @@ The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `tests/steering.rs`: Steering's usteer (D-090) on the hwsim lab: node a (25.12, apk) and node b (24.10, opkg) install usteer from the feeds, take the `usteer` package rendered for the lab site with the Balanced profile, and run it: each reads back the profile's thresholds and the steered SSID (`get_config`), steers its access points of that SSID (`local_info`), and hears the other's over the LAN (`remote_info`), and a's usteer places client c on its access point (`get_client_info`, as the controller's steering reads it).
 - `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
 - `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
+- `tests/wifi/backhaul.rs`: The wired backhaul on the lab's cable (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair between a (25.12) and b (24.10), comes over as the apply stages it.
 - `tests/wpad.rs`: The wpad swap's commands (D-089) on the hwsim lab (TESTING.md, Wi-Fi lab), as the job runs them: node a (25.12, apk) and node b (24.10, opkg) get the basic wpad first, then the swap downloads both wpads, loses the route to the feeds, and swaps offline.
 
 ### `uniwrt-topo` (crates/topo)
@@ -713,6 +716,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
 - `logs.uc`: Following the node's log (`log_follow`; event loop only), pushed as `{"ev":"log",…}` events in batches.
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
+- `mtu.uc`: The `mtu` op (features/mesh.md, Wired backhaul; D-094): whether a cable carries packets of `size` bytes, batman-adv's 1532 on a backhaul's VLAN device (`<port>.<vid>`).
 - `ops.uc`: The agent's operations (`proto::ops`).
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
 - `rrm.uc`: The `rrm` op (features/wifi.md, Roaming): 802.11k neighbor reports.
