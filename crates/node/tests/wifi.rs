@@ -400,8 +400,8 @@ async fn the_ban_op_keeps_a_client_off_until_lifted() {
 
 /// The `btm` op on the lab node in `$var` (D-093): a transition request with the MBO fields,
 /// which hostapd sends (usteer 2022.08's, without them, it refuses: D-091) and `client` answers;
-/// then one saying disconnection is imminent, after which hostapd disconnects the client by
-/// itself, and the client comes back. Requests the op refuses fail before reaching hostapd.
+/// then one with the node's other access points as candidates, saying disconnection is
+/// imminent, after which hostapd disconnects the client by itself, and the client comes back. Requests the op refuses fail before reaching hostapd.
 async fn transition(var: &str, client: &str) {
     let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
     let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
@@ -450,7 +450,13 @@ async fn transition(var: &str, client: &str) {
         reassoc_s: if imminent { 5 } else { 0 },
     };
 
-    let sent = link.request(&request(false), LONG).await.unwrap();
+    // Without candidates the client answers at once; with some it may first scan for them
+    // (on channels its radio can't reach here) and answer late or not at all.
+    let ask = Btm {
+        neighbors: Vec::new(),
+        ..request(false)
+    };
+    let sent = link.request(&ask, LONG).await.unwrap();
     assert_eq!((sent.ifname.as_str(), sent.timer), (iface.as_str(), 0));
     let answer = next_push(&mut pushes, LONG, |push| match push {
         Push::Event(NodeEvent::Steer(steer)) if steer.mac == Some(mac(client)) => Some(steer),
