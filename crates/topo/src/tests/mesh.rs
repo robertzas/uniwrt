@@ -188,3 +188,41 @@ fn translation_tables_place_clients_no_station_list_or_bridge_did() {
         ]
     );
 }
+
+#[test]
+fn a_build_scores_its_mesh_and_finds_the_redundancy() {
+    let topology = topology(&[meshed(1, 2, ""), meshed(2, 1, "mesh")]);
+    let health: Vec<_> = topology
+        .edges
+        .iter()
+        .map(|edge| (edge.medium, edge.score, edge.weakest, edge.critical))
+        .collect();
+    assert_eq!(
+        health,
+        [
+            (
+                Medium::Ethernet,
+                Some(98),
+                Some(crate::LinkFactor::Tq),
+                false
+            ),
+            (
+                Medium::Mesh,
+                Some(70),
+                Some(crate::LinkFactor::Signal),
+                false
+            ),
+        ],
+        "a cable and a mesh link: neither is a single point of failure"
+    );
+    let ap = topology
+        .nodes
+        .iter()
+        .find(|node| node.id == "node:2")
+        .unwrap();
+    assert_eq!(
+        (ap.gateway_hops, ap.wireless_hops, ap.depends_on.as_deref()),
+        (Some(1), Some(1), None),
+        "over batman-adv's best path, the mesh"
+    );
+}

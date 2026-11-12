@@ -58,6 +58,9 @@ fn the_lab_is_two_nodes_meshed_and_wired_with_the_client_at_both() {
     let mesh = edge("node:1~node:2~mesh~5g");
     let ports = (mesh.a_port.as_deref(), mesh.b_port.as_deref());
     assert_eq!(ports, (Some("phy2-mesh0"), Some("phy3-mesh0")));
+    // Scored, and each backs the other up.
+    assert!(wire.score.is_some() && mesh.score.is_some());
+    assert!(!wire.critical && !mesh.critical);
     assert!(mesh.up && mesh.tq.is_some() && mesh.signal_dbm.is_some());
     let node = |id: &str| topology.nodes.iter().find(|node| node.id == id).unwrap();
     assert_eq!(node("node:2").parent.as_deref(), Some("node:1"));

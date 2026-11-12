@@ -1,7 +1,7 @@
 //! The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's
 //! facts or status change (the changes of that moment share one build), kept for readers, and
 //! announced as [`Event::Topology`] when it changed; each build updates the clients' book
-//! ([`Event::Clients`]).
+//! ([`Event::Clients`]). A [`LinkWatch`] sees every build, for the backhaul links' drops.
 
 use std::{
     collections::BTreeMap,
@@ -11,7 +11,7 @@ use std::{
 use tokio::sync::Notify;
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::node::{Node, NodeRole};
-use uniwrt_topo::{Member, Topology};
+use uniwrt_topo::{LinkWatch, Member, Topology};
 
 use crate::{Event, engine::Context};
 
@@ -39,6 +39,8 @@ impl From<&Node> for Identity {
 pub(crate) struct TopologyState {
     current: RwLock<Arc<Topology>>,
     identities: Mutex<BTreeMap<NodeId, Identity>>,
+    /// The backhaul links' drops across builds.
+    watch: Mutex<LinkWatch>,
     changed: Notify,
 }
 
@@ -100,7 +102,13 @@ fn rebuild(ctx: &Context) {
         })
         .collect();
     let previous = ctx.topology.current();
-    let topology = Arc::new(uniwrt_topo::build(&members, Some(&previous)));
+    let mut topology = uniwrt_topo::build(&members, Some(&previous));
+    ctx.topology
+        .watch
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(&mut topology);
+    let topology = Arc::new(topology);
     let changed = topology.nodes != previous.nodes || topology.edges != previous.edges;
     *ctx.topology
         .current

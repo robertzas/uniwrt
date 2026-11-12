@@ -6,6 +6,13 @@
 //!   [`TopoEdge`]s (WAN, Ethernet, mesh and Wi-Fi links, each with its ports, quality, capacity
 //!   and [`Traffic`]). [`Topology::diff`] and [`Topology::apply`] turn one build into the next
 //!   with a [`TopologyDelta`]; [`Topology::for_history`] is what the replay keeps of a build.
+//! - **Health** (features/mesh.md, Telemetry & health; `health/`): every link between nodes,
+//!   switches or peers has a score (0–100, the lowest of its factors: down, flapping, signal,
+//!   TQ, throughput) and its weakest [`LinkFactor`]; every relaying vertex its hops to the
+//!   gateway (and how many over the air) and what it `depends_on`; links that some vertex
+//!   can't lose are `critical` (dominators from the gateways over the links that are up).
+//!   Drops need more than one build: the keeper of the topology shows each build to a
+//!   [`LinkWatch`], which fills in `drops` and scores again.
 //! - **How** (features/observability.md, Topology): a gateway's interfaces with a default route
 //!   (or named `wan*`) link it to the internet; Wi-Fi stations place clients at their access
 //!   point (the most recently active one while a client roams) and link a bridge to its access
@@ -21,6 +28,8 @@
 //!   Every client has one vertex and one edge. Links reported by both ends are one edge; its
 //!   traffic comes from the same end's counters build after build (the gateway's when it is
 //!   one), and its rates from the previous build's reading.
+//!   [`LinkWatch`] keeps only what a drop needs (each backhaul link's last state, and its drops
+//!   in the last [`DROP_WINDOW_MS`]), and starts empty with the controller.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, serde; ts-rs behind the `ts` feature.
 //! - **Tests:** scenarios built in code next to each concept (`tests/`), and the engine's tests
 //!   over the hwsim lab's captures and the simulated fleet (`cargo nextest run -p uniwrt-topo`).
@@ -29,12 +38,14 @@ mod clients;
 mod diff;
 mod fleet;
 mod graph;
+mod health;
 mod history;
 mod links;
 mod mesh;
 mod quality;
 mod tree;
 mod wan;
+mod watch;
 mod wifi;
 mod wired;
 
@@ -53,8 +64,9 @@ use self::{
 pub use self::{
     diff::TopologyDelta,
     fleet::Member,
-    graph::{Medium, TopoEdge, TopoKind, TopoNode, Topology, Traffic},
+    graph::{LinkFactor, Medium, TopoEdge, TopoKind, TopoNode, Topology, Traffic},
     wan::is_wan,
+    watch::{DROP_WINDOW_MS, LinkWatch},
 };
 
 /// The topology of the members' network. `previous` is the last build, for traffic rates.
@@ -99,6 +111,9 @@ fn vertex(member: &Member<'_>) -> TopoNode {
         parent: None,
         uplink: None,
         hops: None,
+        gateway_hops: None,
+        wireless_hops: None,
+        depends_on: None,
     }
 }
 

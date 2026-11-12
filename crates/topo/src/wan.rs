@@ -32,6 +32,9 @@ pub(crate) fn link(graph: &mut Graph, fleet: &Fleet<'_>) {
         parent: None,
         uplink: None,
         hops: None,
+        gateway_hops: None,
+        wireless_hops: None,
+        depends_on: None,
     });
     for (member, node, facts) in fleet.with_facts() {
         if node.role != NodeRole::Gateway {

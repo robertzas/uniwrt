@@ -121,10 +121,10 @@ From the agent (the `batman` set: batctl's JSON queries `mj`, `hj`, `oj`, `nj`, 
 - `batctl gwl` (gateways) and `batctl s` (counters)
 - `iw dev <mesh> station dump`: signal, tx bitrate, expected throughput, peer-link state
 
-Derived health:
-- per-link score: TQ or throughput relative to capacity, signal margin, flapping
-- hop count to the gateway
-- single-point-of-failure detection ("AP3 depends only on AP2")
+Derived health (`uniwrt-topo`'s `health/` and `LinkWatch`, D-099; served in `GET v1/topology` and the WS topic `topology`):
+- **per-link score** (`TopoEdge.score`, 0–100, with its `weakest` factor) for every backhaul link (between nodes, switches or peers): the lowest of down (0), flapping (≥ 2 drops in 30 min: −30 per drop after the first), the weaker end's signal (over the air), batman-adv's TQ, and throughput (log scale, 10 Mbit/s → 0, 300 → 100; a cable only below 100 Mbit/s). `drops` lists when the link went down or vanished while both ends were online, within the window; the engine's `LinkWatch` keeps them across builds (in memory)
+- **hops to the gateway** (`TopoNode.gateway_hops`, and `wireless_hops` of them over the air) along the tree view, a cable through an unmanaged switch counting once
+- **single points of failure** ("AP3 depends only on AP2"): dominators from the gateways over the links that are up give each vertex's `depends_on` (the nearest node, switch or peer it can't lose) and each `critical` link (one some node, switch or peer can't lose); "what if X goes down" is every vertex whose `depends_on` chain reaches X
 - on-demand backhaul throughput tests with iperf3 [M8.3]
 
 Visuals: mesh edges colored by link quality, a best-path tree vs an all-links view, link-history sparklines, and a "what if this node goes down" highlight of articulation points.

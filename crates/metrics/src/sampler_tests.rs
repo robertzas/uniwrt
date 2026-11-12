@@ -144,6 +144,9 @@ fn vertex(id: &str, kind: TopoKind, node: Option<i64>, state: Option<NodeState>)
         parent: None,
         uplink: None,
         hops: None,
+        gateway_hops: None,
+        wireless_hops: None,
+        depends_on: None,
     }
 }
 
@@ -163,6 +166,10 @@ fn edge(a: &str, b: &str, medium: Medium, up: bool) -> TopoEdge {
         capacity_mbps: None,
         quality: None,
         traffic: None,
+        score: None,
+        weakest: None,
+        drops: Vec::new(),
+        critical: false,
     }
 }
 

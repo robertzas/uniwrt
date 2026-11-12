@@ -44,5 +44,14 @@ mod tests {
             .unwrap();
         assert_eq!(node["kind"], "gateway");
         assert_eq!(node["parent"], "internet");
+        // With its health: the gateway is its own, and every link between nodes is scored.
+        assert_eq!(node["gateway_hops"], 0);
+        let edges = topology["edges"].as_array().unwrap();
+        assert!(
+            edges
+                .iter()
+                .filter(|edge| edge["medium"] == "mesh")
+                .all(|edge| edge["score"].is_u64())
+        );
     }
 }

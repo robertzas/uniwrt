@@ -25,6 +25,9 @@ fn vertex(id: &str, kind: TopoKind) -> TopoNode {
         parent: None,
         uplink: None,
         hops: None,
+        gateway_hops: None,
+        wireless_hops: None,
+        depends_on: None,
     }
 }
 
@@ -52,6 +55,10 @@ fn house(ms: i64, signal: i16, bytes: u64) -> Topology {
             down_bps: None,
             up_bps: None,
         }),
+        score: None,
+        weakest: None,
+        drops: Vec::new(),
+        critical: false,
     };
     Topology {
         at: Timestamp::from_unix_ms(ms),

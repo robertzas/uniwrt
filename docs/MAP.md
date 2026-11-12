@@ -666,6 +666,9 @@ The topology: the network graph that the adopted nodes' facts describe.
 - `src/diff.rs`: What changed between two builds, by id: the WS topic sends it instead of the whole graph.
 - `src/fleet.rs`: Who is who: the adopted nodes ([`Member`]s) in build order, the MAC addresses each one owns, the vertex ids, and lookups in a node's facts.
 - `src/graph.rs`: The topology graph: what [`build`](crate::build) returns, the API serves and the WS topic `topology` keeps current.
+- `src/health/mod.rs`: The mesh's health (features/mesh.md, Telemetry & health), worked out on a finished build: each link's score and its weakest factor, each vertex's hops to its gateway, and the single points of failure ([`spof`]).
+- `src/health/spof.rs`: Single points of failure: dominators from the gateways over the links that are up.
+- `src/health/tests.rs`: Health on topologies built by hand: what a build's tree and links look like once finished.
 - `src/history.rs`: What the topology's history keeps of a build, for the replay (features/observability.md, Topology): its shape, states and link quality, without what changes at every build.
 - `src/lib.rs`: The topology: the network graph that the adopted nodes' facts describe.
 - `src/links.rs`: The graph while it is built: vertices by id, and links by key, each merged from every end that reports it.
@@ -678,8 +681,9 @@ The topology: the network graph that the adopted nodes' facts describe.
 - `src/tests/scenario.rs`: Facts built in code, as small as each case needs.
 - `src/tests/wifi.rs`: Wi-Fi clients at their access point, and a bridge at the access point it is a station of.
 - `src/tests/wired.rs`: Wired links from the bridges' forwarding databases: cables, daisy chains, unmanaged switches.
-- `src/tree.rs`: Finishing a build: the tree view (the cheapest path from the roots to every vertex, where batman-adv's best paths, wires and a WAN are cheap and links that are down dear), every edge oriented downstream, and traffic rates against the previous build.
+- `src/tree.rs`: Finishing a build: the tree view (the cheapest path from the roots to every vertex, where batman-adv's best paths, wires and a WAN are cheap and links that are down dear), every edge oriented downstream, traffic rates against the previous build, and the build's health.
 - `src/wan.rs`: The internet and each gateway's links to it: its interfaces with a default route, or named like OpenWrt's WAN (`wan`, `wan6`, `wanb`), one link per device beneath them.
+- `src/watch.rs`: Drops across builds: a backhaul link that goes down, or vanishes, while both its ends are online.
 - `src/wifi.rs`: Wi-Fi: each client at the access point it is associated with (the one it used last, while it roams), and nodes that are another node's stations (a bridge's uplink).
 - `src/wired.rs`: Wired links from the bridges' forwarding databases.
 
@@ -741,7 +745,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (340 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (341 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

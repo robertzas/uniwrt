@@ -1,6 +1,6 @@
 //! Finishing a build: the tree view (the cheapest path from the roots to every vertex, where
 //! batman-adv's best paths, wires and a WAN are cheap and links that are down dear), every edge
-//! oriented downstream, and traffic rates against the previous build.
+//! oriented downstream, traffic rates against the previous build, and the build's health.
 
 use std::{
     cmp::Reverse,
@@ -85,6 +85,10 @@ impl Graph {
                         before.and_then(|(edge, flipped)| Some((edge.traffic.as_ref()?, flipped)));
                     traffic(sample, reversed, before)
                 }),
+                score: None,
+                weakest: None,
+                drops: Vec::new(),
+                critical: false,
             });
         }
         for (id, node) in &mut nodes {
@@ -103,11 +107,13 @@ impl Graph {
                 node.uplink = Some(key.clone());
             }
         }
-        Topology {
+        let mut topology = Topology {
             at,
             nodes: nodes.into_values().collect(),
             edges,
-        }
+        };
+        topology.assess();
+        topology
     }
 }
 

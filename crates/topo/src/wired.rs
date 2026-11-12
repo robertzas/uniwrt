@@ -168,6 +168,9 @@ fn segment<'p>(
         parent: None,
         uplink: None,
         hops: None,
+        gateway_hops: None,
+        wireless_hops: None,
+        depends_on: None,
     });
     for end in ends {
         graph.link(cable([end, (switch.clone(), None)]));

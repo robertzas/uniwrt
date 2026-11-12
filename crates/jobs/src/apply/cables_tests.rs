@@ -42,6 +42,10 @@ fn cable(a: (NodeId, &str), b: (NodeId, &str)) -> TopoEdge {
         capacity_mbps: Some(1000),
         quality: None,
         traffic: None,
+        score: None,
+        weakest: None,
+        drops: Vec::new(),
+        critical: false,
     }
 }
 

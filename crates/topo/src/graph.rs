@@ -47,6 +47,15 @@ pub struct TopoNode {
     /// Its depth in the tree view: 0 for a root (the internet, or a gateway that does not reach
     /// it).
     pub hops: Option<u16>,
+    /// The links from it to its gateway along the tree view, a cable through an unmanaged switch
+    /// counting once; `None` for clients and for what no gateway's tree holds.
+    pub gateway_hops: Option<u16>,
+    /// Of those, the links over the air (a mesh link, or a station's link to its access point).
+    pub wireless_hops: Option<u16>,
+    /// The nearest node, switch or peer (never a gateway) that each of its paths to a gateway
+    /// crosses, over links that are up: what it can't lose. `None` where nothing but the
+    /// gateway is, and where no gateway is reached.
+    pub depends_on: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -94,6 +103,39 @@ pub struct TopoEdge {
     /// 0–100, from the signal or the TQ; `None` where it means nothing (Ethernet).
     pub quality: Option<u8>,
     pub traffic: Option<Traffic>,
+    /// The health of a link between nodes, switches or peers, 0–100: the lowest of its
+    /// factors ([`LinkFactor`]); `None` for the WAN and clients' links.
+    pub score: Option<u8>,
+    /// The factor that sets the score, when it is below 100.
+    pub weakest: Option<LinkFactor>,
+    /// When it went down or vanished while both its ends were online, in the last
+    /// [`DROP_WINDOW_MS`](crate::DROP_WINDOW_MS), oldest first; kept by
+    /// [`LinkWatch`](crate::LinkWatch). Builds stored before it have none (as for
+    /// `critical`).
+    #[serde(default)]
+    pub drops: Vec<Timestamp>,
+    /// Whether a node, switch or peer reaches the gateway only over this link (of the links
+    /// that are up).
+    #[serde(default)]
+    pub critical: bool,
+}
+
+/// What a link's score comes from; each gives 0–100 and the lowest is the score.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum LinkFactor {
+    /// Down: 0.
+    Down,
+    /// Two drops or more in the window: 30 points off for each after the first.
+    Flapping,
+    /// The weaker end's signal, as [`TopoEdge::quality`] scales it.
+    Signal,
+    /// batman-adv's transmit quality.
+    Tq,
+    /// What the link can carry, on a log scale from 10 Mbit/s (0) to 300 (100); a cable only
+    /// below 100 Mbit/s.
+    Throughput,
 }
 
 /// How a link is made.

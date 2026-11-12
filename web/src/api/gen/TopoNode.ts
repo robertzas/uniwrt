@@ -47,4 +47,19 @@ parent: string | null, uplink: string | null,
  * Its depth in the tree view: 0 for a root (the internet, or a gateway that does not reach
  * it).
  */
-hops: number | null, };
+hops: number | null, 
+/**
+ * The links from it to its gateway along the tree view, a cable through an unmanaged switch
+ * counting once; `None` for clients and for what no gateway's tree holds.
+ */
+gateway_hops: number | null, 
+/**
+ * Of those, the links over the air (a mesh link, or a station's link to its access point).
+ */
+wireless_hops: number | null, 
+/**
+ * The nearest node, switch or peer (never a gateway) that each of its paths to a gateway
+ * crosses, over links that are up: what it can't lose. `None` where nothing but the
+ * gateway is, and where no gateway is reached.
+ */
+depends_on: string | null, };

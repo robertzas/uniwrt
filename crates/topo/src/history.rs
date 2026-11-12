@@ -5,12 +5,12 @@ use crate::{TopoEdge, TopoNode, Topology};
 
 /// Signals are kept to this many dB, so that noise does not count as a change.
 const SIGNAL_STEP_DBM: i16 = 2;
-/// Quality is kept to this many points of 100.
+/// Quality and scores are kept to this many points of 100.
 const QUALITY_STEP: u8 = 5;
 
 impl Topology {
-    /// The build without traffic and load, its signals rounded to 2 dB and its quality to 5
-    /// points: two builds of a network that looks the same are then equal.
+    /// The build without traffic and load, its signals rounded to 2 dB and its quality and scores
+    /// to 5 points: two builds of a network that looks the same are then equal.
     #[must_use]
     pub fn for_history(&self) -> Self {
         Self {
@@ -36,6 +36,10 @@ fn edge_for_history(edge: &TopoEdge) -> TopoEdge {
             .quality
             .map(|quality| round_to(i16::from(quality), i16::from(QUALITY_STEP)))
             .and_then(|quality| u8::try_from(quality).ok()),
+        score: edge
+            .score
+            .map(|score| round_to(i16::from(score), i16::from(QUALITY_STEP)))
+            .and_then(|score| u8::try_from(score).ok()),
         traffic: None,
         ..edge.clone()
     }

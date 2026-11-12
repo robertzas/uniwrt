@@ -48,7 +48,7 @@ The graph builder (`topo` crate, pure; D-051) works on these elements:
 **Delivery:** the engine builds the topology 1 s after a node's facts or status change, `GET /api/v1/topology` returns it, and the WS topic `topology` sends it as a snapshot, then as deltas (the vertices and edges new or changed, and the ids gone) against what the client has.
 
 **Views** (M2.2; `/topology?view=tree|rf|clients`):
-- **Tree:** rooted at the internet, following batman best paths (each vertex's `parent`, `uplink` and `hops`), laid out as a tidy tree: the uplinks only, each host's clients grouped into one vertex until expanded.
+- **Tree:** rooted at the internet, following batman best paths (each vertex's `parent`, `uplink` and `hops`; its mesh health, `gateway_hops`, `depends_on` and the links' `score` and `critical`, in mesh.md, Telemetry & health), laid out as a tidy tree: the uplinks only, each host's clients grouped into one vertex until expanded.
 - **RF/mesh:** the nodes, switches and mesh peers (not the internet, nor clients) and every link between them, mesh links colored by quality and labeled with their signal (or batman-adv's TQ).
 - **Clients:** everything, each AP's clients around it; a host's clients collapse into a group and expand again (double-click, or the details panel).
 

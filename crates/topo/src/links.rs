@@ -199,6 +199,9 @@ impl Graph {
             parent: None,
             uplink: None,
             hops: None,
+            gateway_hops: None,
+            wireless_hops: None,
+            depends_on: None,
         });
         id
     }

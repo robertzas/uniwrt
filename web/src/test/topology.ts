@@ -16,6 +16,9 @@ export function vertex(id: string, extra: Partial<TopoNode> = {}): TopoNode {
     parent: null,
     uplink: null,
     hops: null,
+    gateway_hops: null,
+    wireless_hops: null,
+    depends_on: null,
     ...extra,
   };
 }
@@ -36,6 +39,10 @@ export function edge(a: string, b: string, extra: Partial<TopoEdge> = {}): TopoE
     capacity_mbps: null,
     quality: null,
     traffic: null,
+    score: null,
+    weakest: null,
+    drops: [],
+    critical: false,
     ...extra,
   };
 }
