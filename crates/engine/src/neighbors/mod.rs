@@ -9,10 +9,13 @@
 //! in memory only, so every `tick_every` each managed node online and not held by a job gets its
 //! lists again (the agent leaves alone a BSS that holds them); a node whose own reports changed,
 //! a job's end, a node coming or going and a new matrix send the lists that changed at once.
+//! Where usteer steers (D-090), it sets the steered SSIDs' lists itself every second, so those
+//! BSSes are left to it ([`SiteConfig::steers`]).
 //! A node that refuses raises `node:<id>/neighbor-reports`
 //! ([`EventKind::NeighborReportsFailed`]), cleared once it takes them
 //! ([`EventKind::NeighborReportsOk`]).
 //!
+//! [`SiteConfig::steers`]: uniwrt_model::site::SiteConfig::steers
 //! [`EventKind::NeighborReportsFailed`]: uniwrt_model::events::EventKind::NeighborReportsFailed
 //! [`EventKind::NeighborReportsOk`]: uniwrt_model::events::EventKind::NeighborReportsOk
 

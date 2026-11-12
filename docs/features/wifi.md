@@ -48,7 +48,25 @@ Split (D-085): roaming a ✅ (render, keys, the editor, the lab's FT roam) | roa
 
 ## Steering & balancing [M5.2]
 
-- **Phase 1 (default, O-2):** usteer on every AP, configured by the controller through profiles (Off / Conservative / Balanced / Aggressive). Each profile maps to thresholds: minimum SNR, roam scan/trigger SNR, band-steering threshold, load kick. usteer events feed the roaming and steering timeline.
+Split (D-090): a1 ✅ (schema v8, render, import, the neighbor-list handover, the lab) | a2 (the UI: the site's profile on `/wifi`, the editor's opt-out) | b (the steering/roaming timeline).
+
+- ✅ **Phase 1 (D-090, the owner's O-2):** usteer on the access points, set by **one profile for the site** (`SiteConfig.steering.profile`, schema v8): **Off** (the default: nothing changes until an admin picks one), **Conservative**, **Balanced**, **Aggressive**. Each WLAN takes part unless it opts out (`roaming.steer`); usteer tells WLANs apart only by SSID (`ssid_list`), so validation warns when two WLANs of one SSID differ, and when a profile has no WLAN to steer.
+- ✅ **Rendering** (`crates/render/src/usteer.rs`): usteer runs where the profile isn't Off and the node carries a steered WLAN (on, in scope, on a band it has a radio of): the `usteer` package (one anonymous section: `network` the management network, `syslog`, `debug_level 1`, the profile's thresholds, `ssid_list`), the feed package installed by the apply (D-076) and its init script on. Nodes that manage `wireless` manage `usteer` (the v8 migration adds it), so a node that holds the package with steering off keeps its network settings and the service goes off. Every threshold is written, since 24.10's usteer (2022.08) and 25.12's (2025.10) default differently:
+
+  | | Conservative | Balanced | Aggressive |
+  |---|---|---|---|
+  | Band steering (802.11v clients, every / above) | 2 min / -60 dBm | 1 min / -63 dBm | 30 s / -66 dBm |
+  | Roam scan / trigger below | off | -70 / -75 dBm | -67 / -72 dBm |
+  | Target AP stronger by | — | 8 dB | 5 dB |
+  | Minimum signal (refuse, drop after 10 s) | off | off | -85 dBm |
+  | Association steering, load kick | off | off | on, at 75 % channel load |
+
+  A client that ignores a transition request is disconnected 10 s later (usteer's compiled `aggressiveness`, which neither release's init script passes), so it reconnects to the better AP. Without 802.11v on a node, render warns: Conservative does nothing there, the others can only disconnect.
+- ✅ **Neighbor lists:** usteer sets the 802.11k lists of the SSIDs it steers every second (by roam history; nothing turns it off), so the controller's neighbor reports (D-086) leave those BSSes to it (`SiteConfig::steers`) and keep serving the others.
+- ✅ **Import:** a node holding usteer brings the profile its options behave like (kicks or refusals → Aggressive, roam triggers → Balanced, else Conservative) and the WLANs its `ssid_list` names.
+- ✅ **Lab:** a (25.12) and b (24.10) install usteer, run the rendered Balanced package (`get_config` reads back the thresholds and `ssid_list`), steer the lab SSID (`local_info`) and hear each other (`remote_info`); usteer is removed again.
+- **The UI** (a2): the profile on `/wifi` with what each does, and the WLAN editor's opt-out in its Roaming section.
+- **Timeline** (b): usteer's ubus notifications (probe/assoc denials, kicks, BTM requests) and the roams the engine detects, per client and per AP.
 - **Phase 2 (optional):** controller-driven smart steering that uses global history (sticky-client detection) and sends BTM requests through hostapd ubus. Only clients that advertise 11v are steered, and steering simply stops while the controller is offline.
 
 ## RF insight (read-only) [M2.6]

@@ -1,0 +1,14 @@
+---
+source: crates/render/tests/steering.rs
+assertion_line: 76
+expression: usteer(&rendered)
+---
+service: Some(false)
+requires: 
+
+config usteer
+	option network 'lan'
+	option syslog '1'
+	option local_mode '0'
+	option ipv6 '0'
+	option debug_level '1'

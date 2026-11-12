@@ -74,6 +74,7 @@ fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Wireless,
         ManagedPackage::Dhcp,
         ManagedPackage::Firewall,
+        ManagedPackage::Usteer,
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
         ManagedPackage::Upnpd,
@@ -215,6 +216,7 @@ pub fn lab(lan: Ipv4Net) -> SiteConfig {
         roaming: uniwrt_model::site::wireless::Roaming {
             fast: Some(true),
             hints: true,
+            steer: true,
         },
     }];
     site.mesh.enabled = true;

@@ -7,6 +7,7 @@ import type { NodeConfig } from "./NodeConfig";
 import type { RadioPolicy } from "./RadioPolicy";
 import type { Services } from "./Services";
 import type { SiteSettings } from "./SiteSettings";
+import type { Steering } from "./Steering";
 import type { WanConfig } from "./WanConfig";
 import type { Wlan } from "./Wlan";
 
@@ -17,7 +18,11 @@ export type SiteConfig = {
 /**
  * [`SCHEMA_VERSION`] when written by this uniwrt.
  */
-schema: number, site: SiteSettings, addressing: AddressPlan, networks: Array<Network>, wlans: Array<Wlan>, mesh: MeshConfig, radio: RadioPolicy, wan: WanConfig, firewall: FirewallConfig, services: Services, 
+schema: number, site: SiteSettings, addressing: AddressPlan, networks: Array<Network>, wlans: Array<Wlan>, mesh: MeshConfig, radio: RadioPolicy, 
+/**
+ * Off when left out (schema v8, D-090).
+ */
+steering: Steering, wan: WanConfig, firewall: FirewallConfig, services: Services, 
 /**
  * Overrides per adopted node; a node without an entry takes the site's settings.
  */

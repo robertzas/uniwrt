@@ -10,7 +10,7 @@
 //!   still change), render's issues and a confidence score.
 //! - **Method:** the gateway gives the site-wide parts (site settings, networks with their DHCP
 //!   options and IPv6 modes, WAN, firewall, DNS), every node its WLANs, radios, mesh and port
-//!   profiles. Each node is then rendered with the result
+//!   profiles, and the first node holding usteer the steering profile. Each node is then rendered with the result
 //!   and its sections are paired with the rendered ones, by name or by their type's key
 //!   ([`uniwrt_render::raw::key`]), after the renames render's naming needs (`uw_<wlan>_<band>`,
 //!   `uw_mesh`, network ids, zones named by their network). A paired section is the model's:
@@ -44,6 +44,7 @@ mod networks;
 mod ports;
 mod read;
 mod settings;
+mod steering;
 #[cfg(test)]
 mod tests;
 mod uplink;
@@ -135,6 +136,7 @@ pub fn import(
         firewall::import(&mut site, gateway, &mut renames);
     }
     wireless::import(&mut site, sources, &renames, &mut seal);
+    steering::import(&mut site, sources);
     for source in sources {
         let ports = ports::import(&site, source);
         let config = node_config(&mut site, source.node);

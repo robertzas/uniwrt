@@ -288,6 +288,7 @@ fn roaming(security: WlanSecurity, roam: Roam) -> Roaming {
     Roaming {
         fast: (security.needs_passphrase() && roam.fast != usual).then_some(roam.fast),
         hints: roam.hints,
+        steer: true,
     }
 }
 

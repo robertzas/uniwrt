@@ -169,6 +169,31 @@ where
             .collect()
     }
 
+    /// The node's BSSes whose lists usteer sets (every second, D-090): those of the steered
+    /// SSIDs where usteer runs. They are left to it.
+    fn usteer_owns(&self, node: NodeId) -> Vec<String> {
+        let Some((_, site)) = &self.head else {
+            return Vec::new();
+        };
+        let facts = self.engine.node(node).and_then(|view| view.facts);
+        let config = site.nodes.iter().find(|n| n.node == node);
+        let (Some(facts), Some(config)) = (facts, config) else {
+            return Vec::new();
+        };
+        if !site.steers(config, &facts) {
+            return Vec::new();
+        }
+        let ssids = site.steered_ssids();
+        self.nodes.get(&node).map_or_else(Vec::new, |reports| {
+            reports
+                .own
+                .iter()
+                .filter(|r| ssids.contains(&r.ssid.as_str()))
+                .map(|r| r.ifname.clone())
+                .collect()
+        })
+    }
+
     fn busy(&self, node: NodeId) -> bool {
         self.jobs.values().any(|nodes| nodes.contains(&node))
     }
@@ -214,7 +239,9 @@ where
             if self.busy(node) {
                 continue;
             }
-            let wanted = lists.remove(&node).unwrap_or_default();
+            let mut wanted = lists.remove(&node).unwrap_or_default();
+            let usteer = self.usteer_owns(node);
+            wanted.retain(|ifname, _| !usteer.contains(ifname));
             let reports = self.nodes.entry(node).or_default();
             if reports.running {
                 reports.again |= reports.took.as_ref() != Some(&wanted);

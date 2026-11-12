@@ -1,6 +1,7 @@
 //! The neighbor reports over a store and an engine watching two nodes (the lab gateway's
 //! capture), the `rrm` op answered by hand: each managed node's BSS gets the other's as its
-//! neighbor, a node in observe mode is left alone, and a refusal raises a condition that clears
+//! neighbor, a node in observe mode is left alone, so are the steered BSSes where usteer runs,
+//! and a refusal raises a condition that clears
 //! once the node takes its lists.
 
 use std::{
@@ -19,7 +20,10 @@ use uniwrt_model::{
         SiteConfig,
         node::{ManagedPackage, NodeConfig},
         revision::{NewRevision, RevisionKind},
+        steering::SteeringProfile,
+        wireless::{NodeScope, Roaming, Wlan, WlanSecurity},
     },
+    wifi::Band,
 };
 use uniwrt_node::Error;
 use uniwrt_store::{NodeRepo as _, RevisionRepo as _, Store};
@@ -54,6 +58,11 @@ fn own(k: u8) -> Value {
 impl Harness {
     /// Two nodes; the second manages `wireless` only if `both`.
     async fn start(both: bool) -> Self {
+        Self::start_with(both, |_| {}).await
+    }
+
+    /// [`Self::start`] with the site edited first.
+    async fn start_with(both: bool, edit: impl FnOnce(&mut SiteConfig)) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock = Arc::new(ManualClock::new(NOW));
         let store = Store::open(dir.path().join("test.db"), clock.clone())
@@ -78,6 +87,7 @@ impl Harness {
             config.nodes.push(node_config);
             nodes.push(node);
         }
+        edit(&mut config);
         let revision = NewRevision {
             base: None,
             kind: RevisionKind::Defaults,
@@ -184,6 +194,39 @@ async fn each_managed_bss_gets_the_others_of_its_ssid() {
     h.lists(0, &json!({"phy1-ap0": [entry(2)]})).await;
     h.lists(1, &json!({"phy1-ap0": [entry(1)]})).await;
     h.stop().await;
+}
+
+#[tokio::test]
+async fn where_usteer_steers_the_ssid_its_lists_are_left_to_it() {
+    let mut h = Harness::start_with(true, |site| {
+        site.steering.profile = SteeringProfile::Balanced;
+        site.wlans = vec![wlan("home")];
+        site.nodes[0].managed.insert(ManagedPackage::Usteer);
+    })
+    .await;
+    let entry = json!(["02:00:00:00:01:01", "home", "01"]);
+    h.lists(0, &json!({})).await;
+    h.lists(1, &json!({"phy1-ap0": [entry]})).await;
+    h.stop().await;
+}
+
+/// A WPA2 WLAN named `ssid` on 2.4 and 5 GHz everywhere.
+fn wlan(ssid: &str) -> Wlan {
+    Wlan {
+        id: ssid.to_owned(),
+        ssid: ssid.to_owned(),
+        enabled: true,
+        network: "lan".to_owned(),
+        security: WlanSecurity::Wpa2,
+        passphrase: None,
+        bands: vec![Band::G2, Band::G5],
+        nodes: NodeScope::All,
+        hidden: false,
+        isolation: false,
+        max_clients: None,
+        schedule: None,
+        roaming: Roaming::default(),
+    }
 }
 
 #[tokio::test]

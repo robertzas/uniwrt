@@ -43,6 +43,14 @@ pub struct Roaming {
     pub fast: Option<bool>,
     /// 802.11k neighbor reports and 802.11v BSS transition, where the node's hostapd has them.
     pub hints: bool,
+    /// The site's steering ([`super::steering::Steering`]) applies to it: off keeps usteer's hands off its
+    /// clients, such as smart-home devices that roam badly.
+    #[serde(default = "steered")]
+    pub steer: bool,
+}
+
+const fn steered() -> bool {
+    true
 }
 
 impl Default for Roaming {
@@ -50,6 +58,7 @@ impl Default for Roaming {
         Self {
             fast: None,
             hints: true,
+            steer: true,
         }
     }
 }
@@ -212,6 +221,17 @@ pub enum NodeScope {
     All,
     Only(Vec<NodeId>),
     Except(Vec<NodeId>),
+}
+
+impl NodeScope {
+    /// Whether `node` is in it.
+    pub fn holds(&self, node: NodeId) -> bool {
+        match self {
+            Self::All => true,
+            Self::Only(nodes) => nodes.contains(&node),
+            Self::Except(nodes) => !nodes.contains(&node),
+        }
+    }
 }
 
 /// The mesh backhaul: batman-adv over 802.11s and wired uplinks (D-013).

@@ -6,7 +6,8 @@
 //!   holds now. It gives a [`Rendered`]: one [`Package`] per managed package (D-011), the
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
-//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `sqm`, `mwan3`, `upnpd` (the
+//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `usteer` (only with steering
+//!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd` (the
 //!   last three only on the gateway, only with SQM, failover or UPnP on or the node holding
 //!   them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found.
@@ -64,6 +65,7 @@ mod sqm;
 mod switch;
 mod system;
 mod upnp;
+mod usteer;
 mod wan;
 mod wireless;
 
@@ -120,7 +122,7 @@ pub struct Rendered {
     pub packages: BTreeMap<ManagedPackage, Package>,
     /// Init scripts to enable (`true`) or disable, such as `dnsmasq` on an AP.
     pub services: BTreeMap<&'static str, bool>,
-    /// The packages from OpenWrt's feeds the configuration needs on the node (SQM's, mwan3),
+    /// The packages from OpenWrt's feeds the configuration needs on the node (SQM's, usteer),
     /// which an apply installs where they are missing (D-076).
     pub requires: Vec<Requirement>,
     pub warnings: Vec<Issue>,
@@ -174,15 +176,17 @@ pub use self::{
     plan::{BAT, BRIDGE},
     split::{wan_interface, wan_sections, without_wan},
     upnp::LEASE_FILE as UPNP_LEASE_FILE,
+    usteer::thresholds as steering_thresholds,
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 8] = [
+pub const RENDERABLE: [ManagedPackage; 9] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
     ManagedPackage::Dhcp,
     ManagedPackage::Firewall,
+    ManagedPackage::Usteer,
     ManagedPackage::Sqm,
     ManagedPackage::Mwan3,
     ManagedPackage::Upnpd,
@@ -288,6 +292,16 @@ pub fn render(
             ManagedPackage::Firewall => {
                 services.insert("firewall", plan.role == NodeRole::Gateway);
                 firewall::render(&plan)
+            }
+            ManagedPackage::Usteer => {
+                let Some((rendered, on)) = usteer::render(&mut plan, held) else {
+                    continue;
+                };
+                services.insert("usteer", on);
+                if on {
+                    requires.push(usteer::REQUIRES);
+                }
+                rendered
             }
             ManagedPackage::Sqm | ManagedPackage::Mwan3 | ManagedPackage::Upnpd => {
                 let Some(rendered) = feed_package(*package, &plan, held) else {

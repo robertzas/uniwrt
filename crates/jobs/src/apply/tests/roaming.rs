@@ -33,7 +33,11 @@ fn wlan(id: &str, security: WlanSecurity, fast: Option<bool>, passphrase: u8) ->
         isolation: false,
         max_clients: None,
         schedule: None,
-        roaming: Roaming { fast, hints: true },
+        roaming: Roaming {
+            fast,
+            hints: true,
+            steer: true,
+        },
     }
 }
 

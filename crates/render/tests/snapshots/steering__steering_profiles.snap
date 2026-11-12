@@ -1,0 +1,75 @@
+---
+source: crates/render/tests/steering.rs
+assertion_line: 55
+expression: all
+---
+## Off
+service: None
+requires: 
+
+## Conservative
+service: Some(true)
+requires: usteer
+
+config usteer
+	option network 'lan'
+	option syslog '1'
+	option local_mode '0'
+	option ipv6 '0'
+	option debug_level '1'
+	option band_steering_interval '120000'
+	option band_steering_min_snr '-60'
+	option roam_scan_snr '0'
+	option roam_trigger_snr '0'
+	option signal_diff_threshold '0'
+	option min_snr '0'
+	option assoc_steering '0'
+	option load_kick_enabled '0'
+	list ssid_list 'Home'
+	list ssid_list 'Things'
+
+
+## Balanced
+service: Some(true)
+requires: usteer
+
+config usteer
+	option network 'lan'
+	option syslog '1'
+	option local_mode '0'
+	option ipv6 '0'
+	option debug_level '1'
+	option band_steering_interval '60000'
+	option band_steering_min_snr '-63'
+	option roam_scan_snr '-70'
+	option roam_trigger_snr '-75'
+	option signal_diff_threshold '8'
+	option min_snr '0'
+	option assoc_steering '0'
+	option load_kick_enabled '0'
+	list ssid_list 'Home'
+	list ssid_list 'Things'
+
+
+## Aggressive
+service: Some(true)
+requires: usteer
+
+config usteer
+	option network 'lan'
+	option syslog '1'
+	option local_mode '0'
+	option ipv6 '0'
+	option debug_level '1'
+	option band_steering_interval '30000'
+	option band_steering_min_snr '-66'
+	option roam_scan_snr '-67'
+	option roam_trigger_snr '-72'
+	option signal_diff_threshold '5'
+	option min_snr '-85'
+	option min_snr_kick_delay '10000'
+	option assoc_steering '1'
+	option load_kick_enabled '1'
+	option load_kick_threshold '75'
+	list ssid_list 'Home'
+	list ssid_list 'Things'

@@ -12,7 +12,9 @@ use super::{SCHEMA_VERSION, SiteConfig};
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
-const STEPS: &[Step] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7];
+const STEPS: &[Step] = &[
+    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8,
+];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
 /// and it gains the ISP preset, a PCP and an MTU; DHCP gains its client options and PPPoE a
@@ -176,6 +178,40 @@ fn v6_to_v7(value: &mut Value) -> Result<(), String> {
     for wlan in wlans {
         let wlan = wlan.as_object_mut().ok_or("a WLAN is not an object")?;
         wlan.insert("roaming".to_owned(), json!({ "fast": null, "hints": true }));
+    }
+    Ok(())
+}
+
+/// v8 (M5.2, D-090): steering, off; every WLAN takes part once it is on; nodes that manage
+/// `wireless` manage `usteer` too (as `upnpd` came with `firewall`), so turning steering off
+/// again stops it.
+fn v7_to_v8(value: &mut Value) -> Result<(), String> {
+    let site = value
+        .as_object_mut()
+        .ok_or("the document is not an object")?;
+    site.insert("steering".to_owned(), json!({ "profile": "off" }));
+    let wlans = value
+        .get_mut("wlans")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no WLANs")?;
+    for wlan in wlans {
+        let roaming = wlan
+            .get_mut("roaming")
+            .and_then(Value::as_object_mut)
+            .ok_or("a WLAN has no roaming")?;
+        roaming.insert("steer".to_owned(), json!(true));
+    }
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let Some(managed) = node.get_mut("managed").and_then(Value::as_array_mut) else {
+            return Err("a node has no managed packages".to_owned());
+        };
+        if managed.iter().any(|p| p == "wireless") && !managed.iter().any(|p| p == "usteer") {
+            managed.push(json!("usteer"));
+        }
     }
     Ok(())
 }

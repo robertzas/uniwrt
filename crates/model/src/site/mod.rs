@@ -23,6 +23,7 @@ pub mod migrate;
 pub mod network;
 pub mod node;
 pub mod revision;
+pub mod steering;
 pub mod tz;
 pub mod validate;
 pub mod wireless;
@@ -37,11 +38,12 @@ use self::{
     gateway::{Services, WanConfig, WanProto},
     network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
     node::NodeConfig,
+    steering::Steering,
     wireless::{MeshConfig, RadioPolicy, Wlan},
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +57,9 @@ pub struct SiteConfig {
     pub wlans: Vec<Wlan>,
     pub mesh: MeshConfig,
     pub radio: RadioPolicy,
+    /// Off when left out (schema v8, D-090).
+    #[serde(default)]
+    pub steering: Steering,
     pub wan: WanConfig,
     pub firewall: FirewallConfig,
     pub services: Services,
@@ -183,6 +188,7 @@ impl SiteConfig {
             wlans: Vec::new(),
             mesh: MeshConfig::default(),
             radio: RadioPolicy::default(),
+            steering: Steering::default(),
             wan: WanConfig::default(),
             // UPnP on for the main LAN, so consoles and games work from the start (D-079).
             firewall: FirewallConfig {

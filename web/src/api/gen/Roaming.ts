@@ -11,4 +11,9 @@ fast: boolean | null,
 /**
  * 802.11k neighbor reports and 802.11v BSS transition, where the node's hostapd has them.
  */
-hints: boolean, };
+hints: boolean, 
+/**
+ * The site's steering ([`super::steering::Steering`]) applies to it: off keeps usteer's hands off its
+ * clients, such as smart-home devices that roam badly.
+ */
+steer: boolean, };

@@ -7,7 +7,7 @@ use uniwrt_model::{
     facts::{PhyBand, RadioFacts, WifiFeature},
     site::{
         node::RadioOverride,
-        wireless::{Channel, NodeScope, TxPower, Wlan, WlanSecurity},
+        wireless::{Channel, TxPower, Wlan, WlanSecurity},
     },
     wifi::{Band, ChannelWidth, WifiStandard},
 };
@@ -28,7 +28,7 @@ pub(crate) fn render(plan: &mut Plan<'_>) -> Package {
         .site
         .wlans
         .iter()
-        .filter(|wlan| in_scope(&wlan.nodes, plan))
+        .filter(|wlan| wlan.nodes.holds(plan.config.node))
         .collect();
     let mut devices = Vec::new();
     let mut ifaces = Vec::new();
@@ -79,15 +79,6 @@ pub(crate) fn render(plan: &mut Plan<'_>) -> Package {
     package.sections = devices;
     package.sections.append(&mut ifaces);
     package
-}
-
-fn in_scope(scope: &NodeScope, plan: &Plan<'_>) -> bool {
-    let node = plan.config.node;
-    match scope {
-        NodeScope::All => true,
-        NodeScope::Only(nodes) => nodes.contains(&node),
-        NodeScope::Except(nodes) => !nodes.contains(&node),
-    }
 }
 
 const fn band_key(band: Band) -> &'static str {

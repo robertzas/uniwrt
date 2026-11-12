@@ -61,7 +61,7 @@ export function siteConfig(): SiteConfig {
         isolation: false,
         max_clients: null,
         schedule: null,
-        roaming: { fast: null, hints: true },
+        roaming: { fast: null, hints: true, steer: true },
       },
     ],
     mesh: {
@@ -93,6 +93,7 @@ export function siteConfig(): SiteConfig {
         },
       ],
     },
+    steering: { profile: "off" },
     wan: {
       proto: {
         kind: "dhcp",

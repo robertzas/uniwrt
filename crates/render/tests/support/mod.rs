@@ -2,6 +2,8 @@
 //! capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current
 //! ones.
 
+#![allow(dead_code)] // each test binary uses part of it
+
 use std::{collections::BTreeMap, fmt::Write as _, net::Ipv4Addr};
 
 use uniwrt_core::{Ipv4Net, NodeId};
@@ -228,6 +230,7 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Wireless,
         ManagedPackage::Dhcp,
         ManagedPackage::Firewall,
+        ManagedPackage::Usteer,
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
         ManagedPackage::Upnpd,

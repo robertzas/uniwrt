@@ -24,7 +24,7 @@ describe("WLAN drafts", () => {
       max_clients: 30,
       nodes: { scope: "only", nodes: [2, 1] },
       schedule: { spans: [{ days: ["mon", "fri"], from: 420, to: 1320 }] },
-      roaming: { fast: false, hints: false },
+      roaming: { fast: false, hints: false, steer: false },
     };
     const out = wlanOf(draftOf(wlan), wlan, []);
     expect(out.errors).toEqual({});
@@ -40,9 +40,9 @@ describe("WLAN drafts", () => {
     expect(fastRoams("wpa2", "off")).toBe(false);
     expect(fastRoams("owe", "on")).toBe(false);
     const on = wlanOf({ ...draftOf(home()), fast: "on" }, home(), []);
-    expect(on.wlan?.roaming).toEqual({ fast: true, hints: true });
+    expect(on.wlan?.roaming).toEqual({ fast: true, hints: true, steer: true });
     const auto = wlanOf(draftOf(home()), home(), []);
-    expect(auto.wlan?.roaming).toEqual({ fast: null, hints: true });
+    expect(auto.wlan?.roaming).toEqual({ fast: null, hints: true, steer: true });
   });
 
   it("sends a new passphrase as a secret and drops the reference of an open WLAN", () => {

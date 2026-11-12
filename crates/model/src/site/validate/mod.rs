@@ -90,6 +90,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     wireless::wlans(config, nodes, &mut issues);
     wireless::mesh(config, &mut issues);
     wireless::radio(config, &mut issues);
+    wireless::steering(config, &mut issues);
     gateway::wan(config, &mut issues);
     firewall::firewall(config, &mut issues);
     gateway::services(config, &mut issues);

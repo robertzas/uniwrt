@@ -8,6 +8,7 @@ use super::{Issues, names};
 use crate::{
     site::{
         SiteConfig,
+        steering::SteeringProfile,
         wireless::{Channel, NodeScope, Schedule, TxPower, Wlan, WlanSecurity},
     },
     wifi::{Band, ChannelWidth},
@@ -236,5 +237,35 @@ fn band_name(band: Band) -> &'static str {
         Band::G5 => "5 GHz",
         Band::G6 => "6 GHz",
         Band::G60 => "60 GHz",
+    }
+}
+
+/// Steering: usteer tells WLANs apart by SSID only (its `ssid_list`), so WLANs of one SSID
+/// steer alike; a profile with no WLAN to steer does nothing.
+pub(super) fn steering(config: &SiteConfig, issues: &mut Issues) {
+    if config.steering.profile == SteeringProfile::Off {
+        return;
+    }
+    if !config.wlans.iter().any(|w| w.enabled && w.roaming.steer) {
+        issues.warn("steering", "No WLAN takes part in steering");
+    }
+    for (i, wlan) in config.wlans.iter().enumerate() {
+        let other = config.wlans[..i]
+            .iter()
+            .find(|o| o.ssid == wlan.ssid && o.roaming.steer != wlan.roaming.steer);
+        if let Some(other) = other {
+            issues.warn(
+                format!("wlans/{}/roaming", wlan.id),
+                format!(
+                    "WLAN {} has the same SSID and steers {}: usteer steers both or neither",
+                    other.id,
+                    if other.roaming.steer {
+                        "its clients"
+                    } else {
+                        "none"
+                    }
+                ),
+            );
+        }
     }
 }

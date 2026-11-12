@@ -284,6 +284,10 @@ test)
   # full wpad in place, as the lab has it.
   cargo nextest run --locked -p uniwrt-system --test wpad --run-ignored only --status-level fail \
     --hide-progress-bar
+  # Steering's usteer (crates/system/tests/steering.rs), also before the render: it removes
+  # usteer again, which would set the neighbor lists the render's test checks.
+  cargo nextest run --locked -p uniwrt-system --test steering --run-ignored only \
+    --status-level fail --hide-progress-bar
   cargo nextest run --locked -p uniwrt-system --test wifi --run-ignored only --status-level fail \
     --hide-progress-bar
   [[ -n $started ]] || up

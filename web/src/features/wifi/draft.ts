@@ -54,6 +54,8 @@ export interface WlanDraft {
   fast: FastRoaming;
   /** 802.11k and 802.11v. */
   hints: boolean;
+  /** Takes part in the site's steering (D-090). */
+  steer: boolean;
 }
 
 export type FastRoaming = "auto" | "on" | "off";
@@ -98,6 +100,7 @@ export function draftOf(wlan: Wlan): WlanDraft {
       : [newSpan()],
     fast: wlan.roaming.fast === null ? "auto" : wlan.roaming.fast ? "on" : "off",
     hints: wlan.roaming.hints,
+    steer: wlan.roaming.steer,
   };
 }
 
@@ -125,7 +128,7 @@ export function presetWlan(preset: Preset, config: SiteConfig): Wlan {
     isolation: false,
     max_clients: null,
     schedule: null,
-    roaming: { fast: null, hints: true },
+    roaming: { fast: null, hints: true, steer: true },
   };
   if (preset === "guest") {
     return { ...base, network: of("guest") ?? main, security: "owe_transition", isolation: true };
@@ -232,6 +235,7 @@ export function wlanOf(
     roaming: {
       fast: draft.fast === "auto" ? null : draft.fast === "on",
       hints: draft.hints,
+      steer: draft.steer,
     },
   };
   const secrets =

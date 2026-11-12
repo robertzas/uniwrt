@@ -25,6 +25,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v5.json"),
     include_str!("../../fixtures/site/v6.json"),
     include_str!("../../fixtures/site/v7.json"),
+    include_str!("../../fixtures/site/v8.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -625,4 +626,42 @@ fn serde_names() {
         serde_json::to_value(super::revision::RevisionKind::Restore).unwrap(),
         json!("restore")
     );
+}
+
+#[test]
+fn v7_documents_gain_steering_off_with_every_wlan_in_and_usteer_beside_wireless() {
+    use super::{node::ManagedPackage, steering::SteeringProfile};
+    let config = upgrade(fixture(7)).unwrap();
+    assert_eq!(config.steering.profile, SteeringProfile::Off);
+    assert!(config.wlans.iter().all(|w| w.roaming.steer));
+    // The gateway has no `wireless` here, the AP does.
+    assert!(!config.nodes[0].managed.contains(&ManagedPackage::Usteer));
+    assert!(config.nodes[1].managed.contains(&ManagedPackage::Usteer));
+}
+
+#[test]
+fn steering_warns_when_nothing_steers_or_one_ssid_is_split() {
+    use super::steering::SteeringProfile;
+    let none = issues_after(|c| {
+        c.steering.profile = SteeringProfile::Balanced;
+        for wlan in &mut c.wlans {
+            wlan.roaming.steer = false;
+        }
+    });
+    assert!(has(&none, "steering", Severity::Warning));
+    let off = issues_after(|c| {
+        for wlan in &mut c.wlans {
+            wlan.roaming.steer = false;
+        }
+    });
+    assert!(!has(&off, "steering", Severity::Warning));
+    let split = issues_after(|c| {
+        c.steering.profile = SteeringProfile::Conservative;
+        let ssid = c.wlans[0].ssid.clone();
+        c.wlans[1].ssid = ssid;
+        c.wlans[1].roaming.steer = false;
+    });
+    let at = format!("wlans/{}/roaming", sample().wlans[1].id);
+    assert!(has(&split, &at, Severity::Warning));
+    assert!(!has(&split, "steering", Severity::Warning));
 }

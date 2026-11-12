@@ -1,7 +1,7 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM, failover and UPnP need, which brings their init scripts
-//! (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts'
-//! `start`, `stop`, `enable` and `disable`.
+//! update`, then installing what SQM, failover, UPnP and steering need, which brings their init
+//! scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init
+//! scripts' `start`, `stop`, `enable` and `disable`.
 
 use std::collections::BTreeSet;
 
@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 6] = [
+pub(crate) const FEED: [FeedPackage; 7] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -58,6 +58,16 @@ pub(crate) const FEED: [FeedPackage; 6] = [
              config perm_rule\n\toption action 'deny'\n\toption ext_ports '0-65535'\n\
              \toption int_addr '0.0.0.0/0'\n\toption int_ports '0-65535'\n\
              \toption comment 'Default deny'\n",
+        )),
+    ),
+    (
+        "usteer",
+        "2025.10.04~1d6524c6-r1",
+        Some("usteer"),
+        Some((
+            "usteer",
+            "config usteer\n\toption 'network' 'lan'\n\toption 'syslog' '1'\n\
+             \toption local_mode '0'\n\toption 'ipv6' '0'\n\toption 'debug_level' '2'\n",
         )),
     ),
     ("kmod-usb-net-rndis", "6.12.58-r1", None, None),

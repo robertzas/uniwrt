@@ -180,7 +180,7 @@ describe("Wi-Fi", () => {
       isolation: true,
       max_clients: null,
       schedule: null,
-      roaming: { fast: null, hints: true },
+      roaming: { fast: null, hints: true, steer: true },
     });
   });
 
