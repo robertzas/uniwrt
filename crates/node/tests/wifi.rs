@@ -401,7 +401,7 @@ async fn the_ban_op_keeps_a_client_off_until_lifted() {
 /// The `btm` op on the lab node in `$var` (D-093): a transition request with the MBO fields,
 /// which hostapd sends (usteer 2022.08's, without them, it refuses: D-091) and `client` answers;
 /// then one with the node's other access points as candidates, saying disconnection is
-/// imminent, after which hostapd disconnects the client by itself, and the client comes back. Requests the op refuses fail before reaching hostapd.
+/// imminent, after which hostapd disconnects the client by itself, and the client comes back.
 async fn transition(var: &str, client: &str) {
     let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
     let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
@@ -494,21 +494,6 @@ async fn transition(var: &str, client: &str) {
     }
     assert!(back, "{client} did not come back to {var}");
 
-    let absent = Btm {
-        addr: "02:00:00:00:99:99".into(),
-        ..request(false)
-    };
-    let err = link.request(&absent, LONG).await.unwrap_err();
-    assert!(err.to_string().contains("not_found"), "{err}");
-    let no_timer_without_imminent = Btm {
-        kick_ms: 1000,
-        ..request(false)
-    };
-    let err = link
-        .request(&no_timer_without_imminent, LONG)
-        .await
-        .unwrap_err();
-    assert!(err.to_string().contains("bad_request"), "{err}");
     link.shutdown().await;
 }
 
@@ -517,6 +502,32 @@ async fn transition(var: &str, client: &str) {
 async fn the_btm_op_sends_transition_requests_hostapd_takes() {
     transition("UNIWRT_LAB_GW", CLIENT_2G).await;
     transition("UNIWRT_LAB_AP", CLIENT_5G).await;
+    // Requests the op refuses: a client that isn't there, a timer without imminent.
+    let address = env::var("UNIWRT_LAB_GW").unwrap();
+    let password = env::var("UNIWRT_LAB_PASSWORD").unwrap();
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let absent = Btm {
+        addr: "02:00:00:00:99:99".into(),
+        neighbors: Vec::new(),
+        reason: MboReason::Unspecified,
+        imminent: false,
+        kick_ms: 0,
+        reassoc_s: 0,
+    };
+    let err = link.request(&absent, LONG).await.unwrap_err();
+    assert!(err.to_string().contains("not_found"), "{err}");
+    let no_timer_without_imminent = Btm {
+        addr: CLIENT_2G.to_owned(),
+        kick_ms: 1000,
+        ..absent
+    };
+    let err = link
+        .request(&no_timer_without_imminent, LONG)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("bad_request"), "{err}");
+    link.shutdown().await;
 }
 
 /// Scans `band` through the lab node in `$var`'s access point on it.
