@@ -15,7 +15,10 @@
 //!   a minute); traffic, retries and air time follow
 //!   the signal; dnsmasq's leases renew at half time; access points reboot about every
 //!   `reboot_every` and their clients move. The gateway reaches one access point by wire and
-//!   the others over a batman-adv mesh on 5 GHz, multi-hop where that is better.
+//!   the others over a batman-adv mesh on 5 GHz, multi-hop where that is better. A plain cable
+//!   joins the first two access points (`world/cables.rs`): bridged at both ends until an apply
+//!   brings it over to the wired backhaul, it follows each end's `network` (batman-adv on the
+//!   cable's VLAN, the `mtu` op's probe, the port out of the bridge).
 //! - **The agent** (`render/`, `link.rs`, `fleet.rs`): every collect set in the raw shapes of
 //!   `node-agent/collect/`, so the engine parses them with a real node's parsers;
 //!   `subscribe`, `set_interval` and `log_follow` behave as the event-loop agent's (D-036):

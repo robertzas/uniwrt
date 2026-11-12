@@ -16,7 +16,7 @@ use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus, proto::ops::NeighborRepor
 use crate::{
     hand_edit::HandEdit,
     txn::{Now, Tool},
-    world::{Node, World},
+    world::{Node, World, cables::Wiring},
 };
 
 /// Root's password on a node that was set up by hand: the demo's, so not secret.
@@ -50,6 +50,8 @@ pub(crate) struct Disk {
     /// The neighbor lists the `rrm` op set, by interface, with the `wireless` they were set
     /// under: hostapd forgets them when a reload restarts the BSSes ([`Disk::rrm`]).
     pub(crate) rrm: Option<(String, BTreeMap<String, Vec<NeighborReport>>)>,
+    /// `/etc/config/network` as [`Disk::rewired`] last read it.
+    pub(crate) wired_from: Option<String>,
 }
 
 impl Default for Disk {
@@ -65,6 +67,7 @@ impl Default for Disk {
             wpad: super::wpad::MESH,
             bss_off: None,
             rrm: None,
+            wired_from: None,
         }
     }
 }
@@ -97,6 +100,16 @@ impl Disk {
             }
             _ => BTreeMap::new(),
         }
+    }
+
+    /// What `network` does with the ports, once it changed since the last call.
+    pub(crate) fn rewired(&mut self) -> Option<Wiring> {
+        let network = self.tool.files.get("network");
+        if self.wired_from.as_ref() == network && self.wired_from.is_some() {
+            return None;
+        }
+        self.wired_from = Some(network.cloned().unwrap_or_default());
+        Some(Wiring::of(network.map(String::as_str)))
     }
 
     /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]); a

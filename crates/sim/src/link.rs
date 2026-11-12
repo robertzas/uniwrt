@@ -24,6 +24,7 @@ use crate::{
     render,
 };
 
+mod backhaul;
 mod steering;
 
 /// A simulated node's link. Clones share it.
@@ -188,6 +189,7 @@ impl SimLink {
             "rrm" => self.rrm(&world, op, args)?,
             "btm" => self.btm(&mut world, op, args)?,
             "ubus" => self.ubus(&world, op, args)?,
+            "mtu" => self.mtu(&world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;
                 render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {
@@ -352,6 +354,14 @@ fn bad_request(op: &str, msg: &str) -> Error {
     Error::Remote {
         op: op.to_owned(),
         code: "bad_request".to_owned(),
+        msg: msg.to_owned(),
+    }
+}
+
+fn remote(op: &str, code: &str, msg: &str) -> Error {
+    Error::Remote {
+        op: op.to_owned(),
+        code: code.to_owned(),
         msg: msg.to_owned(),
     }
 }

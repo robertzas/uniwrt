@@ -118,20 +118,49 @@ pub(super) fn devices(world: &World, n: usize) -> Value {
         mtu: 65_536,
         ..Dev::new("lo", MacAddr::default(), "", loopback(world, node))
     }];
+    // A port on a cable has a link while the far end is up, and is in the bridge as `network`
+    // says; a VLAN device of it carries batman-adv.
+    let cabled = |dev: Dev, speed: u32| match world.cable_at(n, &dev.name) {
+        Some((to, _)) => {
+            let bridged = node.wiring.bridged.contains(&dev.name);
+            let dev = Dev {
+                mtu: node.wiring.mtu(&dev.name).unwrap_or(1500),
+                master: None,
+                ..dev.port(world.nodes[to].up(), speed)
+            };
+            if bridged { dev.master("br-lan") } else { dev }
+        }
+        None => dev,
+    };
     let lan_devtype = if node.gateway { "dsa" } else { "" };
     for &name in node.model.lan_ports {
         let dev = Dev::new(name, node.mac, lan_devtype, port(name));
-        devs.push(dev.port(wired.contains(&name), 1000).master("br-lan"));
+        devs.push(cabled(
+            dev.port(wired.contains(&name), 1000).master("br-lan"),
+            1000,
+        ));
     }
     let lan = sum(node.model.lan_ports.iter().map(|name| port(name)));
     let wan = node.model.wan_port;
     let uplink =
         Dev::new(wan, node.mac_at(1), "", port(wan)).port(node.gateway || node.wired, 2500);
     devs.push(if node.gateway || !node.wired {
-        uplink
+        cabled(uplink, 2500)
     } else {
         uplink.master("bat0")
     });
+    for vlan in &node.wiring.vlans {
+        let dev = Dev::new(
+            vlan.dev(),
+            node.port_mac(&vlan.port),
+            "vlan",
+            Counters::default(),
+        );
+        devs.push(Dev {
+            mtu: node.wiring.mtu(&vlan.dev()).unwrap_or(1500),
+            ..dev.master("bat0")
+        });
+    }
     if node.gateway {
         devs.push(Dev::new(
             format!("{wan}.{WAN_VLAN}"),

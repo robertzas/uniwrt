@@ -7,6 +7,7 @@
 //! The world is a pure function of its seed and the number of steps: it never reads a clock,
 //! and its own time starts at the `start` it was built with.
 
+pub(crate) mod cables;
 pub(crate) mod catalog;
 pub(crate) mod clients;
 mod layout;
@@ -24,6 +25,7 @@ use std::{
 use uniwrt_core::{MacAddr, Timestamp};
 
 use self::{
+    cables::{Cable, Wiring},
     catalog::{KindSpec, Model, Release},
     radio::{Band, Rate},
 };
@@ -38,6 +40,8 @@ pub(crate) struct World {
     epoch_ms: i64,
     pub(crate) now_s: u64,
     pub(crate) nodes: Vec<Node>,
+    /// Plain cables between nodes ([`cables`]).
+    pub(crate) cables: Vec<Cable>,
     pub(crate) clients: Vec<Client>,
     /// The LAN is a /16 (a fleet too big for a /24).
     pub(crate) wide: bool,
@@ -77,6 +81,8 @@ pub(crate) struct Node {
     /// usteer runs here with a wpad that has 802.11v, so it answers `get_client_info`
     /// ([`steering`]); the fleet sets it from the node's disk.
     pub(crate) steers: bool,
+    /// What its `network` does with its ports ([`cables`]); the fleet sets it from the disk.
+    pub(crate) wiring: Wiring,
 }
 
 impl Node {

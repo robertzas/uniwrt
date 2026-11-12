@@ -44,6 +44,10 @@ pub(crate) const AP_MODEL: Model = Model {
 
 /// The gateway's port that carries the wired backhaul (batman's `batwired`).
 pub(crate) const GATEWAY_BACKHAUL_PORT: &str = "lan5";
+/// The plain cable from the living room's access point's LAN port to the office's uplink (an
+/// access point without batman-adv on its WAN port bridges it), until the controller brings it
+/// over to the wired backhaul ([`super::cables`]).
+pub(crate) const AP_CABLE: [(usize, &str); 2] = [(1, "eth1"), (2, "eth0")];
 /// The ISP's VLAN on the gateway's WAN port (the owner's ISP tags 201).
 pub(crate) const WAN_VLAN: u16 = 201;
 

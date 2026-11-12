@@ -86,8 +86,8 @@ impl SimFleet {
     /// Builds the world `config` describes, starting at `clock`'s now, and runs it on tokio's
     /// clock. Must be called within a tokio runtime.
     pub fn spawn(config: &SimConfig, clock: &dyn Clock) -> Self {
-        let world = World::new(config, clock.now());
-        let nodes = (0..world.nodes.len())
+        let mut world = World::new(config, clock.now());
+        let nodes: Vec<_> = (0..world.nodes.len())
             .map(|node| Channel {
                 state: watch::channel(running(&world, node)).0,
                 pushes: broadcast::channel(PUSH_CAPACITY).0,
@@ -96,6 +96,11 @@ impl SimFleet {
                 disk: Mutex::new(Disk::of(&world, node, config.factory)),
             })
             .collect();
+        for (node, channel) in nodes.iter().enumerate() {
+            if let Some(wiring) = lock(&channel.disk).rewired() {
+                world.nodes[node].wiring = wiring;
+            }
+        }
         let shared = Arc::new(Shared {
             world: Mutex::new(world),
             nodes,
@@ -177,7 +182,11 @@ impl Shared {
     pub(crate) fn step(&self) {
         let mut world = self.world();
         for node in 0..self.nodes.len() {
-            world.nodes[node].steers = lock(&self.nodes[node].disk).steers();
+            let mut disk = lock(&self.nodes[node].disk);
+            world.nodes[node].steers = disk.steers();
+            if let Some(wiring) = disk.rewired() {
+                world.nodes[node].wiring = wiring;
+            }
         }
         let happenings = world.step();
         self.dispatch(&world, &happenings);

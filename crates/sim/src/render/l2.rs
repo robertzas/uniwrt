@@ -141,6 +141,13 @@ pub(super) fn neighbors(world: &World, n: usize) -> Value {
             fdb.push(json!({"dev": port(client, at, n), "master": "br-lan", "lladdr": mac}));
         }
     }
+    // A cable both ends bridge: each learns the other's LAN address on its port.
+    for &port in node.model.lan_ports.iter().chain([&node.model.wan_port]) {
+        if let Some(to) = world.bridged_peer(n, port) {
+            let mac = world.nodes[to].mac.to_string();
+            fdb.push(json!({"dev": port, "master": "br-lan", "lladdr": mac}));
+        }
+    }
     json!({"rtnl": {"neigh": neigh, "fdb": fdb}})
 }
 

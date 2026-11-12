@@ -23,6 +23,7 @@ Milestones: M2 (read-only telemetry for existing meshes), M5.3 (managed mesh).
 - **The probe** (the agent's `mtu` op, D-096): BusyBox's ping of IPv6's all-nodes group on the VLAN device, from its link-local address, with packets of 1532 bytes; it answers the device's MTU and the link-local addresses that replied at that size. A device below 1532 isn't pinged (the kernel would fragment the requests, and they would pass). A pass shows the peer receives 1532 bytes from this end (its reply may come back fragmented), so the apply probes from both ends.
 - **Firewall:** on the gateway the backhauls' interfaces form a zone of their own, `uw_bh` (input and forward rejected, no forwardings), with one rule accepting the probe's ICMPv6 (echo request and reply, neighbour solicitation and advertisement; conntrack doesn't tie a reply to a request sent to a group). batman-adv's frames aren't IP, so the firewall never sees them. APs run no firewall.
 - A node meshing only over cables (no radio for the mesh) still runs `bat0`.
+- **Demo:** the sim's ap-living and ap-office share a plain cable (`eth1` to `eth0`, bridged at both ends): managing both and applying brings it over, probe and all (`crates/server/src/demo_backhaul_tests.rs`). The gateway's link to ap-living runs batman-adv on the bare ports, so it is brownfield and stays as it is.
 
 ```
 config device

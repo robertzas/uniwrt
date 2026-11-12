@@ -4,9 +4,9 @@
 
 use serde_json::{Value, json, value::RawValue};
 use uniwrt_core::MacAddr;
-use uniwrt_node::{Error, Result, proto::ops::code};
+use uniwrt_node::{Result, proto::ops::code};
 
-use super::{SimLink, bad_request, field};
+use super::{SimLink, bad_request, field, remote};
 use crate::{fleet::lock, render, world::World};
 
 /// hostapd's beacon interval: 100 TU.
@@ -52,14 +52,6 @@ impl SimLink {
         world
             .usteer_client_info(self.node, mac)
             .ok_or_else(|| remote(op, code::NOT_FOUND, "Not found"))
-    }
-}
-
-fn remote(op: &str, code: &str, msg: &str) -> Error {
-    Error::Remote {
-        op: op.to_owned(),
-        code: code.to_owned(),
-        msg: msg.to_owned(),
     }
 }
 

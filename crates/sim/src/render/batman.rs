@@ -1,6 +1,7 @@
 //! The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators,
 //! neighbors, gateways, translation tables). Routes follow BATMAN IV: a link's TQ comes from
-//! its signal (a wired link is perfect), and every hop costs the hop penalty.
+//! its signal (a wired link is perfect), and every hop costs the hop penalty. A cable whose ends
+//! both run a hard interface on a VLAN of it is a link too ([`World::cable_links`]).
 
 use serde_json::{Value, json};
 
@@ -8,12 +9,14 @@ use crate::world::{World, catalog::GATEWAY_BACKHAUL_PORT, radio::tq};
 
 const HOP_PENALTY: u32 = 30;
 const MESH_IF: &str = "phy1-mesh0";
+/// The ifindex of a VLAN device on a cable.
+const CABLE_IFINDEX: u32 = 20;
 
 /// A direct link from one node to another: the interface it leaves by, the neighbor's
 /// address on it, and its TQ.
 struct Link {
     to: usize,
-    ifname: &'static str,
+    ifname: String,
     ifindex: u32,
     neigh: String,
     tq: u32,
@@ -33,7 +36,7 @@ fn links(world: &World, from: usize) -> Vec<Link> {
         if tq > 0 {
             links.push(Link {
                 to,
-                ifname: MESH_IF,
+                ifname: MESH_IF.to_owned(),
                 ifindex: 12,
                 neigh: nodes[to].mesh_mac().to_string(),
                 tq,
@@ -49,12 +52,21 @@ fn links(world: &World, from: usize) -> Vec<Link> {
             let neigh = nodes[to].wired_mac();
             links.push(Link {
                 to,
-                ifname,
+                ifname: ifname.to_owned(),
                 ifindex: 7,
                 neigh: neigh.to_string(),
                 tq: 255,
             });
         }
+    }
+    for link in world.cable_links(from) {
+        links.push(Link {
+            to: link.to,
+            ifname: link.dev,
+            ifindex: CABLE_IFINDEX,
+            neigh: link.neigh.to_string(),
+            tq: 255,
+        });
     }
     links
 }
@@ -243,6 +255,10 @@ pub(super) fn batman(world: &World, n: usize) -> Value {
             node.model.wan_port
         };
         hardifs.push(hardif(port, 7, &node.wired_mac().to_string()));
+    }
+    for vlan in &node.wiring.vlans {
+        let mac = node.port_mac(&vlan.port).to_string();
+        hardifs.push(hardif(&vlan.dev(), CABLE_IFINDEX, &mac));
     }
     json!({"bat0": {
         "mesh": {

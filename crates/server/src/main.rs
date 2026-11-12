@@ -18,6 +18,8 @@ mod build_info;
 mod cli;
 mod controller_key;
 mod demo;
+#[cfg(test)]
+mod demo_backhaul_tests;
 mod demo_site;
 mod fleet;
 mod fleet_link;

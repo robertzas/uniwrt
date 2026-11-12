@@ -158,4 +158,6 @@ pub(crate) fn notification(world: &World, happening: &Happening) -> Option<(Topi
 }
 
 #[cfg(test)]
+mod cable_tests;
+#[cfg(test)]
 mod tests;

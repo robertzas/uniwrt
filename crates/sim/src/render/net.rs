@@ -64,6 +64,15 @@ pub(super) fn interfaces(world: &World, n: usize, files: &BTreeMap<String, Strin
         };
         list.push(iface("batwired", "batadv_hardif", port, uptime, json!({})));
     }
+    for vlan in &node.wiring.vlans {
+        list.push(iface(
+            &vlan.name,
+            "batadv_hardif",
+            &vlan.dev(),
+            uptime,
+            json!({}),
+        ));
+    }
     json!({"dump": {"interface": list}})
 }
 

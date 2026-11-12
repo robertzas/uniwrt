@@ -10,8 +10,9 @@ use uniwrt_core::MacAddr;
 
 use super::{
     Client, Counters, Logd, Node, Radio, World,
+    cables::{Cable, Wiring},
     catalog::{
-        AP_MODEL, DECK, GATEWAY_BACKHAUL_PORT, GATEWAY_MODEL, KINDS, KindSpec, NODE_OUI,
+        AP_CABLE, AP_MODEL, DECK, GATEWAY_BACKHAUL_PORT, GATEWAY_MODEL, KINDS, KindSpec, NODE_OUI,
         NODE_PLACES, RELEASES, SPOTS, kind_spec,
     },
     radio::Band,
@@ -27,6 +28,10 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
     let nodes: Vec<_> = (0..=config.access_points)
         .map(|index| node(&mut rng, index, config, epoch_ms, wide))
         .collect();
+    let cables: Vec<_> = (config.access_points >= 2)
+        .then_some(Cable { ends: AP_CABLE })
+        .into_iter()
+        .collect();
     let mut dealt = [0_usize; KINDS.len()];
     let mut clients = Vec::with_capacity(config.clients);
     for index in 0..config.clients {
@@ -38,7 +43,7 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
         let nth = dealt[kind];
         dealt[kind] += 1;
         let ip = lan_ip(base + index, wide);
-        clients.push(client(&mut rng, &nodes, spec, nth, ip, epoch_ms));
+        clients.push(client(&mut rng, &nodes, &cables, spec, nth, ip, epoch_ms));
     }
     let reboot_mean = config.reboot_every.map(|every| every.as_secs_f64());
     let next_reboot = reboot_mean.map_or(u64::MAX, |mean| {
@@ -49,6 +54,7 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
         epoch_ms,
         now_s: 0,
         nodes,
+        cables,
         clients,
         wide,
         reboot_mean,
@@ -153,12 +159,14 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
         logd: Logd::starting_at(500 + rng.below(4000)),
         banned: BTreeMap::new(),
         steers: false,
+        wiring: Wiring::default(),
     }
 }
 
 fn client(
     rng: &mut Rng,
     nodes: &[Node],
+    cables: &[Cable],
     spec: &'static KindSpec,
     nth: usize,
     ip: Ipv4Addr,
@@ -182,14 +190,23 @@ fn client(
     };
     let spot = SPOTS[spec.spots[nth % spec.spots.len()]];
     let pos = (spot.0 + rng.range(-1.5, 1.5), spot.1 + rng.range(-1.5, 1.5));
+    // On the nearest node with a LAN port free of cables.
     let port = spec.wired.then(|| {
-        let nearest = (0..nodes.len())
-            .min_by(|&a, &b| {
-                super::distance(nodes[a].pos, pos).total_cmp(&super::distance(nodes[b].pos, pos))
+        let free = |n: usize| -> Vec<&'static str> {
+            let on_cable = |port: &str| cables.iter().any(|c| c.ends.contains(&(n, port)));
+            let ports = nodes[n].model.lan_ports.iter().copied();
+            ports.filter(|port| !on_cable(port)).collect()
+        };
+        let mut near: Vec<usize> = (0..nodes.len()).collect();
+        near.sort_by(|&a, &b| {
+            super::distance(nodes[a].pos, pos).total_cmp(&super::distance(nodes[b].pos, pos))
+        });
+        near.into_iter()
+            .find_map(|n| {
+                let ports = free(n);
+                (!ports.is_empty()).then(|| (n, ports[nth % ports.len()]))
             })
-            .unwrap_or(0);
-        let ports = nodes[nearest].model.lan_ports;
-        (nearest, ports[nth % ports.len()])
+            .unwrap_or((0, nodes[0].model.lan_ports[0]))
     });
     let [_, _, high, low] = ip.octets();
     Client {
