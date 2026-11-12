@@ -16,7 +16,7 @@ use uniwrt_model::{
     site::{SecretRef, SiteConfig, revision::Revision},
 };
 use uniwrt_node::{
-    Credential, ExecRequest, HostKey, Target,
+    Credential, ExecRequest, HostKey, Target, pkg,
     proto::ops::Set,
     txn::{self, current},
 };
@@ -33,7 +33,6 @@ use super::{
 };
 use crate::{
     Remote,
-    adopt::packages,
     errors::{chain, internal},
     runner::Shared,
 };
@@ -257,7 +256,7 @@ pub(crate) async fn installed(
         return Ok(BTreeSet::new());
     };
     let mut outputs = Vec::new();
-    for argv in packages::commands(manager) {
+    for argv in pkg::inventory(manager) {
         let output = remote
             .exec(ExecRequest::new(argv.iter().copied()))
             .await
@@ -265,7 +264,7 @@ pub(crate) async fn installed(
             .map_err(|err| format!("Cannot read its packages: {}", chain(&err)))?;
         outputs.push(String::from_utf8_lossy(&output.stdout).into_owned());
     }
-    Ok(packages::parse(manager, &outputs)
+    Ok(pkg::parse(manager, &outputs)
         .into_iter()
         .map(|package| package.name)
         .collect())

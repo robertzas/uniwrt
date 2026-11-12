@@ -1,13 +1,43 @@
-//! The installed packages, read from the package manager's database without running it: opkg's
-//! status file, or apk's installed database plus its world file (the packages wanted on
-//! purpose). Only the fields needed are sent, through `grep`.
+//! The package managers (D-100): opkg on OpenWrt 24.10 and before, apk from 25.12. Jobs get
+//! every command on a node's packages from here, so none spells either tool: refreshing the
+//! index ([`update`]), installing ([`install`]), and the installed packages read from the
+//! database without running the manager ([`inventory`], parsed by [`parse`]): opkg's status
+//! file, or apk's installed database plus its world file (the packages wanted on purpose). Only
+//! the fields needed are sent, through `grep`. Detection is the agent's (`capabilities.uc`:
+//! the facts' `package_manager`). The wpad swap's offline commands stay in [`crate::wpad`].
 
 use std::collections::BTreeSet;
 
 use uniwrt_model::{facts::PackageManager, inventory::Package};
 
+/// The manager's command.
+pub fn tool(manager: PackageManager) -> &'static str {
+    match manager {
+        PackageManager::Opkg => "opkg",
+        PackageManager::Apk => "apk",
+    }
+}
+
+/// Refreshes the index from the feeds.
+pub fn update(manager: PackageManager) -> Vec<String> {
+    vec![tool(manager).to_owned(), "update".to_owned()]
+}
+
+/// Installs `packages` from the feeds (refreshed first by [`update`]).
+pub fn install<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<String> {
+    let add = match manager {
+        PackageManager::Opkg => "install",
+        PackageManager::Apk => "add",
+    };
+    [tool(manager), add]
+        .into_iter()
+        .chain(packages.iter().map(AsRef::as_ref))
+        .map(str::to_owned)
+        .collect()
+}
+
 /// The commands whose outputs [`parse`] reads, in order.
-pub(crate) fn commands(manager: PackageManager) -> Vec<Vec<&'static str>> {
+pub fn inventory(manager: PackageManager) -> Vec<Vec<&'static str>> {
     match manager {
         PackageManager::Opkg => vec![vec![
             "grep",
@@ -22,8 +52,8 @@ pub(crate) fn commands(manager: PackageManager) -> Vec<Vec<&'static str>> {
     }
 }
 
-/// The packages in the outputs of [`commands`], sorted by name.
-pub(crate) fn parse(manager: PackageManager, outputs: &[String]) -> Vec<Package> {
+/// The packages in the outputs of [`inventory`], sorted by name.
+pub fn parse(manager: PackageManager, outputs: &[String]) -> Vec<Package> {
     let mut packages = match manager {
         PackageManager::Opkg => opkg(outputs.first().map_or("", String::as_str)),
         PackageManager::Apk => apk(
@@ -110,7 +140,7 @@ fn apk(installed: &str, world: &str) -> Vec<Package> {
 mod tests {
     use uniwrt_model::{facts::PackageManager, inventory::Package};
 
-    use super::parse;
+    use super::{install, parse, update};
 
     fn package(name: &str, version: &str, explicit: bool) -> Package {
         Package {
@@ -118,6 +148,20 @@ mod tests {
             version: version.to_owned(),
             explicit,
         }
+    }
+
+    #[test]
+    fn each_manager_refreshes_and_installs_with_its_own_words() {
+        assert_eq!(update(PackageManager::Apk), ["apk", "update"]);
+        assert_eq!(update(PackageManager::Opkg), ["opkg", "update"]);
+        assert_eq!(
+            install(PackageManager::Apk, &["sqm-scripts", "kmod-sched-cake"]),
+            ["apk", "add", "sqm-scripts", "kmod-sched-cake"]
+        );
+        assert_eq!(
+            install(PackageManager::Opkg, &["mwan3".to_owned()]),
+            ["opkg", "install", "mwan3"]
+        );
     }
 
     #[test]

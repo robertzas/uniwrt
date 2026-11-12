@@ -121,7 +121,7 @@ pub fn fetch(swap: &Swap) -> Vec<Vec<String>> {
         }
         PackageManager::Opkg => {
             commands.extend([
-                argv(&["opkg", "update"]),
+                crate::pkg::update(PackageManager::Opkg),
                 // `opkg download` writes to the current directory, under the feed's file
                 // names, which `--cache` looks for.
                 argv(&["sh", "-c", DOWNLOAD, "sh", DIR, to, from, COMMON]),
@@ -193,12 +193,16 @@ echo "$result" >"$dir/state.new" && mv "$dir/state.new" "$dir/state""#;
 
 /// The command that starts the swap; it answers `started` at once.
 pub fn launch(swap: &Swap) -> Vec<String> {
-    let manager = match swap.manager {
-        PackageManager::Apk => "apk",
-        PackageManager::Opkg => "opkg",
-    };
     argv(&[
-        "sh", "-c", LAUNCH, "sh", SWAP, manager, &swap.from, &swap.to, DIR,
+        "sh",
+        "-c",
+        LAUNCH,
+        "sh",
+        SWAP,
+        crate::pkg::tool(swap.manager),
+        &swap.from,
+        &swap.to,
+        DIR,
     ])
 }
 

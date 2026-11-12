@@ -6,7 +6,6 @@
 
 pub(crate) mod check;
 mod login;
-pub(crate) mod packages;
 #[cfg(test)]
 mod tests;
 
@@ -19,7 +18,7 @@ use uniwrt_model::{
     job::{JobError, JobErrorCode, StepName},
     node::{NewNode, NodeRole},
 };
-use uniwrt_node::{Credential, ExecRequest, HostKey, Target, proto::ops::Set};
+use uniwrt_node::{Credential, ExecRequest, HostKey, Target, pkg, proto::ops::Set};
 use uniwrt_store::{Adoption, NodeRepo as _, VaultRepo as _};
 use zeroize::Zeroizing;
 
@@ -372,13 +371,13 @@ async fn inspect(
     progress.start(StepName::Inventory).await;
     let packages = if let Some(manager) = facts.capabilities.package_manager {
         let mut outputs = Vec::new();
-        for argv in packages::commands(manager) {
+        for argv in pkg::inventory(manager) {
             match text_argv(remote, &argv, "Cannot read the packages").await {
                 Ok(output) => outputs.push(output),
                 Err(err) => notes.push(err.message),
             }
         }
-        packages::parse(manager, &outputs)
+        pkg::parse(manager, &outputs)
     } else {
         notes.push("No package manager found".to_owned());
         Vec::new()

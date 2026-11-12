@@ -232,7 +232,6 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/check.rs`: What adoption checks before it changes anything (features/adoption.md, Path A): the release, the resources the agent needs, and the node's identity; and the role a node seems to have.
 - `src/adopt/login.rs`: How adoption logs in, and root's password on a node that had none (features/adoption.md, Identity, credentials, trust).
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
-- `src/adopt/packages.rs`: The installed packages, read from the package manager's database without running it: opkg's status file, or apk's installed database plus its world file (the packages wanted on purpose).
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
 - `src/apply/address.rs`: Where the controller finds a node once an apply renumbers it (the owner's choice: follow the new address, features/lifecycle.md).
 - `src/apply/backhaul.rs`: The apply's backhaul round (features/mesh.md, Wired backhaul; D-094, D-097): each cable the first round brought over as an overlay is probed from both ends, once batman-adv hears the far end over the cable's VLAN; one that passes carries the mesh alone from then on, one that fails goes back to a plain trunk and is remembered, so later applies leave it so.
@@ -406,6 +405,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/lib.rs`: The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, its embedded bundle and the parsers of what it collects), and the [`NodeLink`] trait through which the engine talks to a node.
 - `src/lines.rs`: Splits a byte stream into lines, bounded in length so a broken peer cannot exhaust memory.
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
+- `src/pkg.rs`: The package managers (D-100): opkg on OpenWrt 24.10 and before, apk from 25.12.
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/btm.rs`: `btm`: a BSS transition request to one client, mirrored by `node-agent/btm.uc` (features/wifi.md, Steering & balancing: controller-sent transition requests; D-093).

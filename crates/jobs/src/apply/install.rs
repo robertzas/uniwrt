@@ -12,7 +12,7 @@ use uniwrt_model::{
     job::{JobError, JobErrorCode, JobNodeState, StepName},
 };
 use uniwrt_node::{
-    ExecRequest,
+    ExecRequest, pkg,
     txn::{self, Footprint},
 };
 use uniwrt_render::Requirement;
@@ -30,13 +30,8 @@ const MAX_OUTPUT: usize = 1 << 20;
 
 /// The commands that install `packages`: refresh the index, then install.
 pub(crate) fn commands(manager: PackageManager, packages: &[Requirement]) -> Vec<Vec<String>> {
-    let (tool, add) = match manager {
-        PackageManager::Opkg => ("opkg", "install"),
-        PackageManager::Apk => ("apk", "add"),
-    };
-    let mut install = vec![tool.to_owned(), add.to_owned()];
-    install.extend(packages.iter().map(|r| r.package.to_owned()));
-    vec![vec![tool.to_owned(), "update".to_owned()], install]
+    let names: Vec<&str> = packages.iter().map(|r| r.package).collect();
+    vec![pkg::update(manager), pkg::install(manager, &names)]
 }
 
 /// The commands that keep a newly installed service off until the transaction starts it.
