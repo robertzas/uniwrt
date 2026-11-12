@@ -10,10 +10,10 @@
 # collects the gateway's and the AP's facts with the working tree's agent, renders sites for
 # them, writes the packages and checks that uci, fw4 and netifd take them, through
 # `docker exec`; crates/system/tests/apply/ drives the controller's apply job onto both (the
-# transaction tool, the agent and the health checks; a confirm, two rollbacks and
-# a renumbering).
+# transaction tool, the agent and the health checks; a confirm, two rollbacks,
+# a renumbering and the cable between them brought over to the wired backhaul).
 #
-# Linking the containers and loading the kernel's 8021q and pppoe modules need root, which a
+# Linking the containers and loading the kernel's 8021q, pppoe and batman-adv modules need root, which a
 # privileged helper container provides, as in the hwsim lab (D-035).
 #
 # Usage: scripts/test-system.sh [release…]          runs the tests on each release (default: both)
@@ -45,6 +45,9 @@ modules() {
   for module in 8021q pppoe; do
     [[ -d /sys/module/$module ]] || host_root "modprobe $module" 2>/dev/null || LACKS+=("$module")
   done
+  # The wired backhaul's apply (crates/system/tests/apply/backhaul.rs) needs batman-adv; the
+  # hwsim lab unloads it on `down` only if its `up` loaded it.
+  [[ -d /sys/module/batman_adv ]] || host_root "modprobe batman-adv" 2>/dev/null || LACKS+=(batman-adv)
   # cake and ifb (SQM's ingress) may be missing from a CI kernel's modules: their test skips
   # there too.
   for module in sch_cake ifb; do

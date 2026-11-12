@@ -1,9 +1,10 @@
 //! A [`Dial`] over `docker exec`: the controller's logins to the harness's containers. A login
 //! goes to the container that holds the target's address now, as SSH would reach it, and must
 //! find the host key the container's dropbear presents. Commands run as their argv, never
-//! through a shell string; collect runs the working tree's agent (`/tmp/uniwrt/agent`, which
-//! scripts/test-system.sh installs). A container can be lost once the transaction tool applied
-//! on it: from then on it answers no login and no command, as a node cut off by its change.
+//! through a shell string; collect and the agent's other ops (`Remote::call`) run the working
+//! tree's agent (`/tmp/uniwrt/agent`, which scripts/test-system.sh installs). A container can
+//! be lost once the transaction tool applied on it: from then on it answers no login and no
+//! command, as a node cut off by its change.
 
 use std::{
     collections::BTreeSet,
@@ -12,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use serde_json::Value;
+use serde_json::{Value, value::RawValue};
 use tokio::{io::AsyncWriteExt as _, process::Command};
 use uniwrt_jobs::{BoxFuture, Dial, Remote};
 use uniwrt_node::{
@@ -211,23 +212,38 @@ impl Remote for DockerRemote {
 
     fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
         Box::pin(async move {
+            let args = serde_json::value::to_raw_value(&serde_json::json!({"sets": sets}))
+                .map_err(|e| Error::Protocol(format!("collect: {e}")))?;
+            let answer = self.call("collect", &args, COLLECT_TIMEOUT).await?;
+            serde_json::from_str(answer.get()).map_err(|e| Error::Protocol(format!("collect: {e}")))
+        })
+    }
+
+    /// One call to the working tree's agent, started for it (`--sync`: one request, one answer).
+    fn call<'a>(
+        &'a self,
+        op: &'static str,
+        args: &'a RawValue,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Box<RawValue>>> {
+        Box::pin(async move {
             if self.dial.lost(&self.container) {
-                return Err(disconnected("collect"));
+                return Err(disconnected(op));
             }
-            let call = serde_json::json!({"id": 1, "op": "collect", "args": {"sets": sets}});
+            let call = format!(r#"{{"id":1,"op":"{op}","args":{}}}"#, args.get());
             let request = ExecRequest::new(["ucode", "/tmp/uniwrt/agent/main.uc", "--sync"])
-                .stdin(call.to_string().into_bytes())
-                .timeout(COLLECT_TIMEOUT);
-            let output = exec(&self.container, &request).await?.check("collect")?;
+                .stdin(call.into_bytes())
+                .timeout(timeout);
+            let output = exec(&self.container, &request).await?.check(op)?;
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let protocol = |why: String| Error::Protocol(format!("collect: {why}"));
+            let protocol = |why: String| Error::Protocol(format!("{op}: {why}"));
             let line = stdout
                 .lines()
                 .last()
                 .ok_or_else(|| protocol("no answer".into()))?;
             let answer: Value = serde_json::from_str(line).map_err(|e| protocol(e.to_string()))?;
             let ok = answer.get("ok").ok_or_else(|| protocol(line.to_owned()))?;
-            serde_json::from_value(ok.clone()).map_err(|e| protocol(e.to_string()))
+            serde_json::value::to_raw_value(ok).map_err(|e| protocol(e.to_string()))
         })
     }
 

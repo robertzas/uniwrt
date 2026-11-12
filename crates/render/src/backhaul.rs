@@ -9,7 +9,7 @@
 use std::collections::BTreeSet;
 
 use uniwrt_model::{
-    facts::{DeviceKind, NodeFacts, Software, SwitchKind},
+    facts::{DeviceKind, NodeFacts, Software, SwitchKind, WifiFeature},
     node::NodeRole,
     site::{SiteConfig, node::NodeConfig},
 };
@@ -177,6 +177,25 @@ pub fn backhaul_ports<'p>(
         .into_iter()
         .filter(|port| node.refusal(port).is_none())
         .collect()
+}
+
+/// Whether the node meshes over a radio as well, as [`render`](crate::render) plans it: the
+/// mesh is on, the node has batman-adv, 802.11s and a radio on the mesh's band that isn't
+/// turned off. Its `bat0` is bridged at every stage of its cables, so a cable's overlay joins
+/// two such nodes' LANs twice, and batman-adv's bridge loop avoidance holds each as a backbone
+/// gateway of the other's LAN for a minute after the cable leaves the bridges (D-098).
+pub fn meshes_over_radio(site: &SiteConfig, target: Target<'_>) -> bool {
+    let caps = &target.facts.capabilities;
+    let default = NodeConfig::new(target.node);
+    let config = site
+        .nodes
+        .iter()
+        .find(|config| config.node == target.node)
+        .unwrap_or(&default);
+    site.mesh.enabled
+        && caps.software.contains(&Software::BatmanAdv)
+        && caps.wifi.contains(&WifiFeature::Mesh)
+        && !plan::mesh_radios(site, config, target.facts).is_empty()
 }
 
 /// The backhauls a node's `network` holds, at the stage each has come to: a port still in the

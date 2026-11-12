@@ -4,7 +4,7 @@
 use uniwrt_core::{JobId, NodeId, Timestamp};
 use uniwrt_model::{
     apply::{BackhaulFailure, CableEnd},
-    facts::{NodeFacts, Software},
+    facts::{NodeFacts, RadioFacts, Software, WifiFeature},
     node::{Node, NodeRole},
     site::SiteConfig,
 };
@@ -166,6 +166,48 @@ fn a_new_cable_comes_over_as_an_overlay_and_is_probed() {
     assert_eq!(found.probes, [[end(A, "lan1"), end(B, "lan2")]]);
     assert!(found.notes[&A][0].contains("node-2"), "{:?}", found.notes);
     assert!(!found.asks.contains_key(&C));
+}
+
+/// A 5 GHz radio, the mesh's band by default, and 802.11s: the node meshes over Wi-Fi too.
+fn with_mesh_radio(facts: &mut NodeFacts) {
+    facts.capabilities.wifi.insert(WifiFeature::Mesh);
+    let radio: RadioFacts = serde_json::from_value(serde_json::json!({
+        "name": "radio1", "phy": "phy1", "band": "5g", "up": true, "disabled": false,
+        "channel": 36, "frequency_mhz": 5180, "center_frequency_mhz": null, "width": null,
+        "standard": null, "tx_power_dbm": null, "noise_dbm": null,
+        "channel_busy_percent": null, "country": null, "ifaces": []
+    }))
+    .unwrap();
+    facts.radios.push(radio);
+}
+
+#[test]
+fn the_review_warns_of_the_pause_between_nodes_that_mesh_over_wi_fi_too() {
+    let site = meshed();
+    let edges = || vec![cable((A, "lan1"), (B, "lan2"))];
+    // B meshes over Wi-Fi, A over the cable alone: A's bat0 joins the bridge only at the switch.
+    let mut fleet = Fleet::new();
+    with_mesh_radio(&mut fleet.nodes[1].1);
+    let found = fleet.find(&site, edges(), &[]);
+    assert!(
+        found
+            .notes
+            .values()
+            .flatten()
+            .all(|n| !n.contains("pauses")),
+        "{:?}",
+        found.notes
+    );
+    // Both mesh over Wi-Fi: bat0 stays bridged at both ends, so the overlay joins the LANs twice.
+    with_mesh_radio(&mut fleet.nodes[0].1);
+    let found = fleet.find(&site, edges(), &[]);
+    for (node, peer) in [(A, "node-2"), (B, "node-1")] {
+        let note = &found.notes[&node][0];
+        assert!(
+            note.contains(&format!("{peer}'s pauses for about a minute")),
+            "{note}"
+        );
+    }
 }
 
 #[test]

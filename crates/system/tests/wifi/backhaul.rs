@@ -3,7 +3,10 @@
 //! first render puts batman-adv on the cable's VLAN beside the networks, the port still a trunk
 //! (overlay); the agent's MTU probe then passes over the VLAN from both ends, the gateway's
 //! firewall letting it in through the `uw_bh` zone; [`exclusive`] renders the cable alone,
-//! out of the bridge, and batman-adv and the probe still go over it.
+//! out of the bridge, and batman-adv and the probe still go over it, and b reaches a's LAN
+//! address within seconds (neither end's batman-adv keeps the other's hosts as its own, D-098).
+
+use std::time::{Duration, Instant};
 
 use uniwrt_model::{facts::NodeFacts, node::NodeRole, site::SiteConfig};
 use uniwrt_node::proto::ops::{Mtu, MtuProbe};
@@ -53,7 +56,7 @@ fn vlan(site: &SiteConfig) -> String {
     format!("{PORT}.{}", site.mesh.wired_vlan)
 }
 
-const CONTEXT: &str = "batctl meshif bat0 n; batctl meshif bat0 if; bridge vlan show; ip -d link show bh0; logread | tail -n 30";
+const CONTEXT: &str = "batctl meshif bat0 n; batctl meshif bat0 if; batctl meshif bat0 bbt; batctl meshif bat0 tl; batctl meshif bat0 tg; cat /sys/class/net/br-lan/address; bridge vlan show; ip -d link show bh0; logread | tail -n 30";
 
 /// Waits until batman-adv sees the other end over the cable's VLAN.
 pub(super) fn neighbor_over_cable(site: &SiteConfig, node: &Node) {
@@ -115,4 +118,45 @@ pub(super) fn exclusive(
         neighbor_over_cable(site, node);
         probe_passes(site, node);
     }
+    lan_path(a, b);
+}
+
+/// How long b may take to reach a's LAN once the cable carries the mesh alone. a and b mesh
+/// over Wi-Fi too, so `bat0` stays bridged and the overlay joins their LANs twice: batman-adv's
+/// bridge loop avoidance keeps each as a backbone gateway of the other's LAN until that times
+/// out (a minute; about 50 s measured), dropping the other's frames meanwhile (D-098). A node
+/// without a mesh radio keeps `bat0` out of the bridge in the overlay and is back within
+/// seconds (`tests/apply/backhaul.rs`).
+const LAN_BACK: Duration = Duration::from_secs(90);
+
+/// b reaches a's LAN device (its link-local address: the lab's LAN serves b no lease) across
+/// `bat0` within [`LAN_BACK`] of the cable going exclusive, and the test prints how long it took.
+fn lan_path(a: &Node, b: &Node) {
+    let device = |node: &Node| {
+        let lan = node.interface("lan").expect("a lan");
+        lan["l3_device"]
+            .as_str()
+            .or_else(|| lan["device"].as_str())
+            .expect("lan's device")
+            .to_owned()
+    };
+    let (a_dev, b_dev) = (device(a), device(b));
+    let link_local = a.sh(
+        "ip -6 addr show dev \"$1\" scope link | awk '/inet6/ { sub(\"/.*\", \"\", $2); print $2; exit }'",
+        &[&a_dev],
+    );
+    let target = format!("{}%{b_dev}", link_local.trim());
+    let start = Instant::now();
+    while !b.run("ping -6 -c 1 -W 1 \"$1\"", &[&target], &[]).ok {
+        assert!(
+            start.elapsed() < LAN_BACK,
+            "b didn't reach {target} within {LAN_BACK:?} of the cable going exclusive:\n{}\n{}",
+            a.sh(CONTEXT, &[]),
+            b.sh(CONTEXT, &[])
+        );
+    }
+    eprintln!(
+        "b reached {target} {:?} after the cable went exclusive",
+        start.elapsed()
+    );
 }

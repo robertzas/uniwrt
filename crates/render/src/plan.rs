@@ -142,8 +142,13 @@ impl<'a> Plan<'a> {
         let backhaul = backhaul::plan(site, target.backhaul, &at, &mut errors);
         claimed.extend(backhaul::exclusive(&backhaul));
         let bat = mesh.is_some() || !backhaul.is_empty();
+        // `bat0` joins the bridge once a radio or a cable carries the LAN over it: while every
+        // cable is still an overlay, the trunk carries it, and bridging `bat0` beside it would
+        // join the two LANs twice, so each end's batman-adv would learn the other's hosts as
+        // its own and keep them after the cable leaves the bridge (D-098).
+        let bridged = mesh.is_some() || backhaul::exclusive(&backhaul).next().is_some();
         let node = (target.role, facts, config);
-        let ports = ports::ports(node, switch, &nets, bat, &claimed);
+        let ports = ports::ports(node, switch, &nets, bridged, &claimed);
         let mgmt = crate::management_network(site).map_or("lan", |n| n.id.as_str());
         warnings.extend(ports::check(
             node,
@@ -428,6 +433,25 @@ pub(crate) const fn mesh_default_channel(band: Band) -> u16 {
     }
 }
 
+/// The node's radios on the mesh's band that aren't turned off: the mesh takes one of them.
+pub(crate) fn mesh_radios<'a>(
+    site: &SiteConfig,
+    config: &NodeConfig,
+    facts: &'a NodeFacts,
+) -> Vec<&'a RadioFacts> {
+    let band = site.mesh.band.unwrap_or(Band::G5);
+    let disabled: BTreeMap<&str, bool> = config
+        .radios
+        .iter()
+        .map(|r| (r.radio.as_str(), r.disabled))
+        .collect();
+    facts
+        .radios
+        .iter()
+        .filter(|r| r.band == band && !disabled.get(r.name.as_str()).copied().unwrap_or(false))
+        .collect()
+}
+
 fn mesh<'a>(
     site: &SiteConfig,
     secrets: &dyn Secrets,
@@ -440,12 +464,16 @@ fn mesh<'a>(
     if !mesh.enabled {
         return None;
     }
+    let band = mesh.band.unwrap_or(Band::G5);
+    let candidates = mesh_radios(site, config, facts);
+    // 802.11s matters only where a radio would carry the mesh: a node without one meshes over
+    // its cables alone (features/mesh.md, Wired backhaul).
     let caps = &facts.capabilities;
     let mut missing = Vec::new();
     if !caps.software.contains(&Software::BatmanAdv) {
         missing.push("batman-adv (kmod-batman-adv)");
     }
-    if !caps.wifi.contains(&WifiFeature::Mesh) {
+    if !candidates.is_empty() && !caps.wifi.contains(&WifiFeature::Mesh) {
         missing.push("802.11s with SAE (the full wpad)");
     }
     if !missing.is_empty() {
@@ -455,17 +483,6 @@ fn mesh<'a>(
         ));
         return None;
     }
-    let band = mesh.band.unwrap_or(Band::G5);
-    let disabled: BTreeMap<&str, bool> = config
-        .radios
-        .iter()
-        .map(|r| (r.radio.as_str(), r.disabled))
-        .collect();
-    let candidates: Vec<&RadioFacts> = facts
-        .radios
-        .iter()
-        .filter(|r| r.band == band && !disabled.get(r.name.as_str()).copied().unwrap_or(false))
-        .collect();
     // The high band's radio of a tri-band node: the one that reaches the highest channel.
     let top = |radio: &RadioFacts| {
         facts

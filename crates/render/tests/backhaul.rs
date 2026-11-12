@@ -95,6 +95,8 @@ fn a_node_without_a_mesh_radio_meshes_over_its_cable() {
     let site = home_site();
     let mut facts = gateway_facts();
     facts.radios.clear();
+    // With no radio to mesh on, 802.11s (the full wpad) doesn't matter.
+    facts.capabilities.wifi.remove(&WifiFeature::Mesh);
     let wired = with_backhaul(
         &site,
         (AP, NodeRole::Ap),
@@ -106,6 +108,20 @@ fn a_node_without_a_mesh_radio_meshes_over_its_cable() {
     assert!(network.section("uw_bh_lan1").is_some());
     assert!(network.section("uw_mesh").is_none());
     assert!(bridge_ports(network).contains(&"bat0".to_owned()));
+    // While the cable is an overlay, the trunk carries the LAN: `bat0` stays out of the bridge,
+    // so the two LANs aren't joined twice (D-098).
+    let overlay = with_backhaul(
+        &site,
+        (AP, NodeRole::Ap),
+        &facts,
+        &[cable("lan1", BackhaulStage::Overlay)],
+    );
+    let network = self::network(&overlay);
+    assert!(network.section("bat0").is_some());
+    assert!(network.section("uw_bh_lan1").is_some());
+    let ports = bridge_ports(network);
+    assert!(ports.contains(&"lan1".to_owned()), "{ports:?}");
+    assert!(!ports.contains(&"bat0".to_owned()), "{ports:?}");
     // Without the cable, the node has no part in the mesh.
     let alone = with_backhaul(&site, (AP, NodeRole::Ap), &facts, &[]);
     assert!(self::network(&alone).section("bat0").is_none());

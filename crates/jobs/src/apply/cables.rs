@@ -14,7 +14,9 @@ use uniwrt_model::{
     node::Node,
     site::SiteConfig,
 };
-use uniwrt_render::{Backhaul, BackhaulStage, Target, backhaul_ports, held_backhauls};
+use uniwrt_render::{
+    Backhaul, BackhaulStage, Target, backhaul_ports, held_backhauls, meshes_over_radio,
+};
 use uniwrt_topo::{Medium, Topology};
 use uniwrt_uci::Package;
 
@@ -61,6 +63,7 @@ pub(crate) fn find(
         .iter()
         .map(|c| (c.node.id, c.network.map(held_backhauls).unwrap_or_default()))
         .collect();
+    let radio = meshing_over_radio(site, candidates);
     let cables = direct(topology, &by_id);
     let eligible = eligible(site, &by_id, &cables, &held);
     let accepts = |end: &CableEnd| {
@@ -95,12 +98,20 @@ pub(crate) fn find(
             }
             ask(&mut found, end, BackhaulStage::Overlay);
             let peer = &by_id[&other.node].node.name;
-            found.notes.entry(end.node).or_default().push(format!(
+            let mut note = format!(
                 "{}'s cable to {peer} ({}) carries the networks and the mesh's VLAN for now; it \
                  carries the mesh alone once both ends pass the MTU probe, or goes back to a \
                  plain trunk",
                 end.port, other.port
-            ));
+            );
+            if radio.contains(&end.node) && radio.contains(&other.node) {
+                note = format!(
+                    "{note}. Both ends mesh over Wi-Fi too: when the cable carries the mesh \
+                     alone, traffic between this node's network and {peer}'s pauses for about \
+                     a minute, until batman-adv lets go of the cable's old path"
+                );
+            }
+            found.notes.entry(end.node).or_default().push(note);
         }
         if !exclusive {
             found.probes.push(ends.clone());
@@ -136,6 +147,27 @@ pub(crate) fn find(
         asks.sort_by(|a, b| a.port.cmp(&b.port));
     }
     found
+}
+
+/// The candidates whose `bat0` stays bridged for a mesh radio: a cable between two of them
+/// pauses the LAN between them for about a minute when it goes exclusive (D-098).
+fn meshing_over_radio(site: &SiteConfig, candidates: &[Candidate<'_>]) -> BTreeSet<NodeId> {
+    let empty = BTreeMap::new();
+    candidates
+        .iter()
+        .filter(|c| {
+            let target = Target {
+                node: c.node.id,
+                role: c.node.role,
+                facts: c.facts,
+                current: &empty,
+                controller: None,
+                backhaul: &[],
+            };
+            meshes_over_radio(site, target)
+        })
+        .map(|c| c.node.id)
+        .collect()
 }
 
 /// The direct cables between two candidates, each once, its ends in order: a port on two links

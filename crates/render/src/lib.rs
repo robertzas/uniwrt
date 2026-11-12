@@ -180,7 +180,7 @@ pub fn uplink_section(name: &str) -> bool {
 pub use self::{
     backhaul::{
         BACKHAUL_PREFIX, Backhaul, BackhaulStage, backhaul_interface, backhaul_ports,
-        held_backhauls,
+        held_backhauls, meshes_over_radio,
     },
     firewall::seeded,
     mesh::MESH_IFACE,

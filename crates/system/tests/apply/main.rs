@@ -4,12 +4,14 @@
 //! guard), and applies revisions through the real tool, agent and health checks: a confirmed
 //! apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a
 //! lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a
-//! host behind the gateway.
+//! host behind the gateway; and the cable between them brought over to the wired backhaul
+//! ([`backhaul`]).
 //!
 //! Each test starts from the same ground: no open transaction, the defaults behind DHCP written
 //! directly (`Node::apply`), the nodes adopted into a new store with that site as revision 1.
 //! The timers are the tool's shortest, so a rollback at a deadline takes seconds, not minutes.
 
+mod backhaul;
 mod dial;
 
 use std::{
@@ -79,6 +81,7 @@ struct Lab {
     store: Store,
     jobs: Jobs,
     dial: DockerDial,
+    vault: Vault,
     moves: Arc<Moves>,
     gw: Node,
     ap: Node,
@@ -208,7 +211,7 @@ async fn lab() -> Lab {
     let jobs = Jobs::start_with(
         JobsConfig {
             store: store.clone(),
-            vault,
+            vault: vault.clone(),
             clock: Arc::new(SystemClock),
             key: ControllerKey::generate().expect("a key"),
             dial: Some(Arc::new(dial.clone())),
@@ -223,6 +226,7 @@ async fn lab() -> Lab {
         store,
         jobs,
         dial,
+        vault,
         moves,
         gw,
         ap,
