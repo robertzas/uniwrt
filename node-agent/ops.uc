@@ -6,6 +6,7 @@
 import * as fs from "fs";
 import * as bus from "./bus.uc";
 import { ban } from "./ban.uc";
+import { btm } from "./btm.uc";
 import { bss } from "./bss.uc";
 import { rrm } from "./rrm.uc";
 import * as exec from "./exec.uc";
@@ -143,7 +144,7 @@ function streaming(op) {
 
 const OPS = {
 	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file, scan: scan, bss: bss,
-	ban: ban, rrm: rrm,
+	ban: ban, btm: btm, rrm: rrm,
 	subscribe: streaming(streams.subscribe), unsubscribe: streaming(streams.unsubscribe),
 	log_follow: streaming(logs.log_follow), set_interval: streaming(ticks.set_interval),
 };

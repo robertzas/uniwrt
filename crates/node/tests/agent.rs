@@ -79,6 +79,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
         hello.caps.ops,
         [
             "ban",
+            "btm",
             "bss",
             "collect",
             "exec",

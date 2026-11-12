@@ -18,7 +18,7 @@ use serde_json::json;
 use tokio::sync::broadcast;
 use uniwrt_core::MacAddr;
 use uniwrt_model::{
-    event::{LeaseChange, NodeEvent, StationChange, StationEvent},
+    event::{LeaseChange, NodeEvent, StationChange, StationEvent, SteerAction},
     facts::{DeviceKind, GatewayMode, NodeFacts, PeerLinkState, WifiIfaceMode},
     rf::Security,
     wifi::{Band, ChannelWidth, WifiStandard},
@@ -27,7 +27,10 @@ use uniwrt_node::{
     AgentEvent, AgentLaunch, Hello, NodeLink as _,
     events::Push,
     facts,
-    proto::ops::{Ban, BanEntry, Bss, Collect, Exec, Scan, Set, Subscribe, Topic, Ubus},
+    proto::ops::{
+        Ban, BanEntry, Bss, Btm, Collect, Exec, MboReason, Rrm, Scan, Set, Subscribe, Topic, Ubus,
+        candidate,
+    },
 };
 
 const LONG: Duration = Duration::from_secs(30);
@@ -393,6 +396,121 @@ async fn the_ban_op_keeps_a_client_off_until_lifted() {
     let err = link.request(&too_long, LONG).await.unwrap_err();
     assert!(err.to_string().contains("bad_request"), "{err}");
     link.shutdown().await;
+}
+
+/// The `btm` op on the lab node in `$var` (D-093): a transition request with the MBO fields,
+/// which hostapd sends (usteer 2022.08's, without them, it refuses: D-091) and `client` answers;
+/// then one saying disconnection is imminent, after which hostapd disconnects the client by
+/// itself, and the client comes back. Requests the op refuses fail before reaching hostapd.
+async fn transition(var: &str, client: &str) {
+    let address = env::var(var).unwrap_or_else(|_| panic!("{var}=<host:port>"));
+    let password = env::var("UNIWRT_LAB_PASSWORD").expect("UNIWRT_LAB_PASSWORD");
+    let (_, node) = adopt_at(&address, &password).await;
+    let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    let topics = Subscribe {
+        topics: vec![Topic::Hostapd],
+    };
+    link.request(&topics, LONG).await.unwrap();
+    let mut pushes = link.events();
+    let stations = Collect {
+        sets: vec![Set::Stations],
+    };
+    let here = async || {
+        let mut facts = NodeFacts::default();
+        let collected = link.request(&stations, LONG).await.unwrap();
+        assert_eq!(facts::apply(&collected, &mut facts), []);
+        facts
+            .stations
+            .iter()
+            .find(|s| s.mac == mac(client))
+            .map(|s| s.iface.clone())
+    };
+    let iface = here()
+        .await
+        .unwrap_or_else(|| panic!("{client} isn't on {var}"));
+    // The node's other access points, as candidates.
+    let own = link.request(&Rrm::default(), LONG).await.unwrap().own;
+    let neighbors: Vec<String> = own
+        .iter()
+        .filter(|bss| bss.ifname != iface)
+        .zip((1..=255).rev())
+        .map(|(bss, preference)| candidate(&bss.nr, preference).unwrap())
+        .collect();
+    assert!(!neighbors.is_empty(), "{var}: {own:?}");
+    let request = |imminent: bool| Btm {
+        addr: client.to_owned(),
+        neighbors: neighbors.clone(),
+        reason: if imminent {
+            MboReason::LowSignal
+        } else {
+            MboReason::PremiumAp
+        },
+        imminent,
+        kick_ms: if imminent { 3000 } else { 0 },
+        reassoc_s: if imminent { 5 } else { 0 },
+    };
+
+    let sent = link.request(&request(false), LONG).await.unwrap();
+    assert_eq!((sent.ifname.as_str(), sent.timer), (iface.as_str(), 0));
+    let answer = next_push(&mut pushes, LONG, |push| match push {
+        Push::Event(NodeEvent::Steer(steer)) if steer.mac == Some(mac(client)) => Some(steer),
+        _ => None,
+    })
+    .await;
+    assert!(
+        matches!(
+            answer.action,
+            SteerAction::TransitionAccepted | SteerAction::TransitionRejected
+        ) && answer.iface == iface,
+        "{answer:?}"
+    );
+
+    let sent = link.request(&request(true), LONG).await.unwrap();
+    // 3 s in beacon intervals of 100 TU.
+    assert_eq!(sent.timer, 30, "{sent:?}");
+    let gone = next_push(&mut pushes, LONG, |push| match push {
+        Push::Event(NodeEvent::Station(s))
+            if s.mac == mac(client) && s.change == StationChange::Disassociated =>
+        {
+            Some(s)
+        }
+        _ => None,
+    })
+    .await;
+    assert_eq!(gone.iface, iface, "{gone:?}");
+    let mut back = false;
+    for _ in 0..90 {
+        if here().await.is_some() {
+            back = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    assert!(back, "{client} did not come back to {var}");
+
+    let absent = Btm {
+        addr: "02:00:00:00:99:99".into(),
+        ..request(false)
+    };
+    let err = link.request(&absent, LONG).await.unwrap_err();
+    assert!(err.to_string().contains("not_found"), "{err}");
+    let no_timer_without_imminent = Btm {
+        kick_ms: 1000,
+        ..request(false)
+    };
+    let err = link
+        .request(&no_timer_without_imminent, LONG)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("bad_request"), "{err}");
+    link.shutdown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs the hwsim lab: just test-wifi"]
+async fn the_btm_op_sends_transition_requests_hostapd_takes() {
+    transition("UNIWRT_LAB_GW", CLIENT_2G).await;
+    transition("UNIWRT_LAB_AP", CLIENT_5G).await;
 }
 
 /// Scans `band` through the lab node in `$var`'s access point on it.

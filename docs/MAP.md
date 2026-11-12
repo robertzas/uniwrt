@@ -399,6 +399,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
+- `src/proto/ops/btm.rs`: `btm`: a BSS transition request to one client, mirrored by `node-agent/btm.uc` (features/wifi.md, Steering & balancing: controller-sent transition requests; D-093).
 - `src/proto/ops/rrm.rs`: `rrm`: 802.11k neighbor reports, mirrored by `node-agent/rrm.uc` (features/wifi.md, Roaming).
 - `src/proto/ops/scan.rs`: `scan`: a neighbor scan of one radio, mirrored by `node-agent/scan.uc`.
 - `src/proto/ops/streams.rs`: The ops that make the agent push ([`AgentEvent`](crate::AgentEvent)s): `subscribe` and `unsubscribe` (ubus notifications), `log_follow` and `set_interval` (ticks), mirrored by `node-agent/streams.uc`, `logs.uc` and `ticks.uc`.
@@ -686,6 +687,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 
 - `ban.uc`: The `ban` op (features/wifi.md, Client actions; D-084): keeps clients off every access point of the node, or lets them back, through hostapd's `del_client` on each BSS (`hostapd.<ifname>`).
 - `bss.uc`: The `bss` op (features/wifi.md, WLANs; D-083): turns a phy's BSSes off and on again without touching UCI, through hostapd's own `config_set`. hostapd takes the phy's config as netifd wrote it (/var/run/hostapd-<phy>[.<radio>].conf), less the BSSes named off, and adds and removes BSSes to match: the others keep running, the first BSS included (the next one takes its place), and a config without BSSes removes hostapd's interface on the phy (a mesh point there stays).
+- `btm.uc`: The `btm` op (features/wifi.md, Steering & balancing: controller-sent transition requests; D-091, D-093): asks one client to move, with an 802.11v BSS transition request from the access point it is connected to (hostapd's `bss_transition_request` on `hostapd.<ifname>`).
 - `bus.uc`: ubus calls on one shared connection, with errors mapped to the protocol's codes.
 - `collect.uc`: The collect sets: each gathers the raw sources of one part of the node's facts, which crates/node/src/facts parses.
 - `collect/batman.uc`: The `batman` set: each batman-adv mesh device as batctl's JSON queries report it: the mesh, its hard interfaces, originators, neighbors, gateways and both translation tables.
