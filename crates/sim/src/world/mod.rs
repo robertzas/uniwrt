@@ -74,8 +74,8 @@ pub(crate) struct Node {
     pub(crate) logd: Logd,
     /// hostapd's bans: each client kept off until a world ms (`ban` op); forgotten at a reboot.
     pub(crate) banned: BTreeMap<MacAddr, i64>,
-    /// usteer runs here with a wpad that has 802.11v, so its access points steer the clients
-    /// that have it too ([`steering`]); the fleet sets it from the node's disk.
+    /// usteer runs here with a wpad that has 802.11v, so it answers `get_client_info`
+    /// ([`steering`]); the fleet sets it from the node's disk.
     pub(crate) steers: bool,
 }
 
@@ -160,7 +160,7 @@ pub(crate) struct Client {
     busy: bool,
     /// No roaming before this second.
     hold_until: u64,
-    /// Roam to this node once at `target` (an access point's steering).
+    /// Roam to this node once at `target` (the opening walk's handover).
     steer: Option<usize>,
     /// After a fast transition the old access point notices the client is gone: (second,
     /// node, band).
@@ -228,7 +228,7 @@ pub(crate) enum What {
         mac: MacAddr,
         band: Band,
     },
-    /// The client answered usteer's BSS transition request: it goes to the BSS `target`.
+    /// The client answered a BSS transition request: it goes to the BSS `target`.
     Steered {
         mac: MacAddr,
         band: Band,

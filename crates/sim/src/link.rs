@@ -24,6 +24,8 @@ use crate::{
     render,
 };
 
+mod steering;
+
 /// A simulated node's link. Clones share it.
 #[derive(Clone)]
 pub struct SimLink {
@@ -184,6 +186,8 @@ impl SimLink {
             "bss" => self.bss(&world, op, args)?,
             "ban" => self.ban(&mut world, op, args)?,
             "rrm" => self.rrm(&world, op, args)?,
+            "btm" => self.btm(&mut world, op, args)?,
+            "ubus" => self.ubus(&world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;
                 render::scan::scan(&world, self.node, &ifname).ok_or_else(|| Error::Remote {

@@ -22,7 +22,7 @@ use uniwrt_node::{
 use super::{collect, log_entries, log_lines, notification};
 use crate::{
     SimConfig,
-    world::{What, World},
+    world::{What, World, radio::Band},
 };
 
 const START: Timestamp = Timestamp::from_unix_ms(1_793_245_539_000);
@@ -158,7 +158,22 @@ fn notifications_and_logs_parse() {
         node.steers = true;
     }
     let (mut stations, mut leases, mut steers) = (0, 0, 0);
-    for _ in 0..1800 {
+    for second in 0..1800 {
+        if second % 300 == 299 {
+            // The controller asks every 802.11v client to move anywhere it can.
+            let everywhere: Vec<_> = (0..world.nodes.len())
+                .flat_map(|n| Band::BOTH.map(|b| world.nodes[n].bssid(b)))
+                .collect();
+            let asked: Vec<_> = world
+                .clients
+                .iter()
+                .filter(|c| c.spec.sae)
+                .filter_map(|c| Some((c.assoc.as_ref()?.node, c.mac)))
+                .collect();
+            for (node, mac) in asked {
+                world.transition(node, mac, &everywhere).unwrap();
+            }
+        }
         for happening in world.step() {
             let Some((_, topic, data)) = notification(&world, &happening) else {
                 assert!(matches!(happening.what, What::Down | What::Up));

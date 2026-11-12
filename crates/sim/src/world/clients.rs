@@ -14,7 +14,7 @@ use super::{
 /// dnsmasq's lease time; clients renew at half of it.
 pub(crate) const LEASE_MS: i64 = 43_200_000;
 /// Below this an access point is not worth joining.
-const JOIN_FLOOR: f64 = -82.0;
+pub(super) const JOIN_FLOOR: f64 = -82.0;
 /// Below this a client loses the access point.
 const LOSS_FLOOR: f64 = -88.0;
 /// A client roams only from a signal below this, to a candidate better by `ROAM_MARGIN`.
@@ -46,9 +46,8 @@ impl World {
     }
 
     /// Sends a walking client across the house as the world starts, from its access point to
-    /// the spot nearest the one farthest from it, where that access point steers it over (as
-    /// usteer would, should its old one still hear it well), so that a roam comes within half
-    /// a minute. Neither is the last node, which demo mode leaves for the user to adopt: the
+    /// the spot nearest the one farthest from it, where it roams to that access point (even
+    /// should its old one still hear it well), so that a roam comes within half a minute. Neither is the last node, which demo mode leaves for the user to adopt: the
     /// demo always has a roam to show, and its tests one to wait for.
     pub(super) fn opening_walk(&mut self) {
         let now = self.now_s;
@@ -293,13 +292,7 @@ impl World {
                     || signal >= ROAM_BELOW
                     || score(to_band, to_signal) < score(band, signal) + ROAM_MARGIN)
         {
-            self.band_steer(c, node, band, signal, out);
             return;
-        }
-        // Where usteer runs, the access point asks first (its roam trigger, the opening walk's
-        // handover): the client goes as asked.
-        if to != node {
-            self.steered(c, current, (to, to_band), out);
         }
         self.roam(c, current, (to, to_band, to_signal), out);
     }

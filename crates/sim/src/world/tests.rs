@@ -201,53 +201,103 @@ fn a_client_roams_soon_after_start() {
     }
 }
 
+/// An 802.11v client connected somewhere, and the access points it could go to, best first.
+fn steerable(world: &World) -> (usize, usize, Vec<MacAddr>) {
+    let c = world
+        .clients
+        .iter()
+        .position(|client| client.spec.sae && client.assoc.is_some())
+        .expect("an 802.11v client connected");
+    let at = world.clients[c].assoc.as_ref().unwrap();
+    let (node, band) = (at.node, at.band);
+    let mut others: Vec<(f64, MacAddr)> = (0..world.nodes.len())
+        .flat_map(|n| Band::BOTH.map(|b| (n, b)))
+        .filter(|&(n, b)| {
+            (n, b) != (node, band) && (b == Band::G2 || world.clients[c].spec.five_ghz)
+        })
+        .map(|(n, b)| (world.client_signal(c, n, b), world.nodes[n].bssid(b)))
+        .collect();
+    others.sort_by(|a, b| b.0.total_cmp(&a.0));
+    (
+        c,
+        node,
+        others.into_iter().map(|(_, bssid)| bssid).collect(),
+    )
+}
+
 #[test]
-fn steering_nodes_move_their_802_11v_clients() {
-    let (mut walks, mut bands) = (0, 0);
-    for seed in 0..6 {
-        let config = SimConfig {
-            seed,
-            reboot_every: None,
-            ..SimConfig::default()
-        };
-        let mut world = World::new(&config, START);
-        for node in &mut world.nodes {
-            node.steers = true;
-        }
-        let happenings = run(&mut world, 4 * 3600);
-        for (i, happening) in happenings.iter().enumerate() {
-            let What::Steered { mac, band, target } = happening.what else {
-                continue;
-            };
-            let spec = world.clients.iter().find(|c| c.mac == mac).unwrap().spec;
-            assert!(spec.ft || spec.sae, "only 802.11v clients are steered");
-            // The client goes where it agreed to: the target BSS authorizes it next.
-            let joined = happenings[i..]
-                .iter()
-                .find_map(|h| match h.what {
-                    What::Authorized { mac: m, band, .. } if m == mac => Some((h.node, band)),
-                    _ => None,
-                })
-                .expect("the steered client joins again");
-            assert_eq!(world.nodes[joined.0].bssid(joined.1), target);
-            if joined.0 == happening.node {
-                assert_eq!((band, joined.1), (Band::G2, Band::G5), "band steering");
-                bands += 1;
-            } else {
-                walks += 1;
+fn a_transition_request_moves_an_802_11v_client_where_asked() {
+    let mut world = World::new(&SimConfig::default(), START);
+    run(&mut world, 60);
+    let (c, node, candidates) = steerable(&world);
+    let mac = world.clients[c].mac;
+    // Not connected there: not sent.
+    let elsewhere = (node + 1) % world.nodes.len();
+    assert!(world.transition(elsewhere, mac, &candidates).is_err());
+    world.transition(node, mac, &candidates).unwrap();
+    let happenings = run(&mut world, 5);
+    let target = happenings
+        .iter()
+        .find_map(|h| match h.what {
+            What::Steered { mac: m, target, .. } if m == mac && h.node == node => Some(target),
+            _ => None,
+        })
+        .expect("the answer is pushed");
+    assert_eq!(target, candidates[0]);
+    // It goes where it agreed to: the target BSS authorizes it.
+    let joined = happenings
+        .iter()
+        .find_map(|h| match h.what {
+            What::Authorized { mac: m, band, .. } if m == mac => {
+                Some(world.nodes[h.node].bssid(band))
             }
-        }
-    }
+            _ => None,
+        })
+        .expect("the steered client joins again");
+    assert_eq!(joined, target);
+}
+
+#[test]
+fn a_client_without_802_11v_ignores_the_request() {
+    let mut world = World::new(&SimConfig::default(), START);
+    run(&mut world, 60);
+    let c = world
+        .clients
+        .iter()
+        .position(|client| !client.spec.sae && client.assoc.is_some())
+        .expect("a client without 802.11v connected");
+    let (mac, node) = (
+        world.clients[c].mac,
+        world.clients[c].assoc.as_ref().unwrap().node,
+    );
+    world.transition(node, mac, &[]).unwrap();
     assert!(
-        walks > 0 && bands > 0,
-        "{walks} steered roams, {bands} band steerings"
+        !run(&mut world, 5)
+            .iter()
+            .any(|h| matches!(h.what, What::Steered { .. }))
     );
 }
 
 #[test]
-fn nodes_without_usteer_steer_nothing() {
+fn usteer_tells_where_it_hears_a_client_and_steers_nothing_itself() {
     let mut world = World::new(&SimConfig::default(), START);
-    let happenings = run(&mut world, 3600);
+    let (c, node, _) = steerable(&world);
+    let mac = world.clients[c].mac;
+    // Where usteer doesn't run, nothing hears the client.
+    assert_eq!(world.usteer_client_info(node, mac), None);
+    for n in &mut world.nodes {
+        n.steers = true;
+    }
+    let info = world.usteer_client_info(node, mac).unwrap();
+    let nodes = info["nodes"].as_object().unwrap();
+    let iface = world.clients[c].assoc.as_ref().unwrap().band.ap_iface();
+    assert_eq!(nodes[&format!("hostapd.{iface}")]["connected"], true);
+    let other = (node + 1) % world.nodes.len();
+    let remote = format!("{}#hostapd.", world.nodes[other].ip);
+    assert!(nodes.keys().any(|name| name.starts_with(&remote)), "{info}");
+    assert!(nodes.values().all(|n| n["signal"].as_i64().unwrap() < 0));
+    // The render turned usteer's own steering off: hours pass without a request.
+    let happenings = run(&mut world, 4 * 3600);
     assert!(
         !happenings
             .iter()
