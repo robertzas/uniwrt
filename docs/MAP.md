@@ -421,7 +421,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/txn/tests.rs`: (no header comment)
 - `src/wpad.rs`: The commands of the wpad swap (D-089): which package replaces which, the commands that download them without changing anything, the one that swaps them on the node by itself, and what it reports.
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
-- `tests/backhaul.rs`: The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway, whose firewall has the lab's `uw_bh` zone as render gives it) and node b (24.10).
+- `tests/backhaul.rs`: The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway) and node b (24.10), in a `uw_bh` zone of each node's firewall, as render gives a gateway's.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
 - `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
