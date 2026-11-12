@@ -43,7 +43,9 @@
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
 //!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
 //!   [`NeighborReports`] ([`NeighborsConfig`]) gives the managed nodes' 802.11k access points
-//!   their neighbor lists through the agent's `rrm` op, ranked by the RF report's matrix.
+//!   their neighbor lists through the agent's `rrm` op, ranked by the RF report's matrix;
+//!   [`ClientSteering`] ([`SteeringConfig`]) decides band steering and roam suggestions on the
+//!   site's steering profile and sends them through the agent's `btm` op (D-093).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -99,6 +101,7 @@ mod roam;
 mod schedule;
 mod snapshots;
 mod status;
+mod steering;
 #[cfg(test)]
 mod testing;
 mod topology;
@@ -118,10 +121,11 @@ pub use interest::{Interest, Interests};
 pub use live::NodeView;
 pub use logs::{LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
-pub use neighbors::{NeighborReports, NeighborsConfig};
+pub use neighbors::{NeighborReports, NeighborsConfig, OwnReports};
 pub use notify::{Notifications, Notify, NotifyConfig, NotifyStopped};
 pub use rf::{Rf, RfConfig, RfError, RfScanner};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
+pub use steering::{ClientSteering, SteeringConfig};
 pub use topology::Identity;
 pub use wlans::{SchedulesConfig, WlanSchedules};

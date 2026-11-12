@@ -240,10 +240,10 @@ describe("Wi-Fi", () => {
     const profiles = within(card).getByRole("group", { name: "Steering" });
     expect(within(profiles).getByLabelText("Off")).toBeChecked();
     expect(
-      within(card).getByText(/-75 dBm is moved to an access point 8 dB stronger/),
+      within(card).getByText(/-75 dBm is asked to an access point heard 8 dB stronger/),
     ).toBeVisible();
-    // What these releases' hostapd does to usteer's requests is said once, under the profiles.
-    expect(within(card).getByText(/hostapd refuses usteer's requests to move/)).toBeVisible();
+    // Who is asked, said once under the profiles.
+    expect(within(card).getByText(/Only clients with 802.11v are asked to move/)).toBeVisible();
     // Steering off: the page's note names the basic wpad, the card doesn't.
     expect(screen.getByText(/This device runs the basic wpad, so its/)).toBeVisible();
     expect(within(card).queryByRole("link", { name: "attic" })).toBeNull();
@@ -260,9 +260,9 @@ describe("Wi-Fi", () => {
     expect(put().message).toBe("Steering: Balanced");
     expect(put().config.steering).toEqual({ profile: "balanced" });
     ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
-    // The saved document's warning, and the devices where steering can only disconnect.
+    // The saved document's warning, and the devices where Balanced does nothing.
     expect(await within(card).findByText("No WLAN takes part in steering")).toBeVisible();
-    expect(within(card).getByText(/steering can only disconnect clients there/)).toBeVisible();
+    expect(within(card).getByText(/steering does nothing there/)).toBeVisible();
     expect(within(card).getByRole("link", { name: "attic" })).toHaveAttribute(
       "href",
       "/devices/2?tab=config",

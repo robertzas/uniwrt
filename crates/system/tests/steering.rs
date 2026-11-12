@@ -2,7 +2,8 @@
 //! install usteer from the feeds, take the `usteer` package rendered for the lab site with the
 //! Balanced profile, and run it: each reads back the profile's thresholds and the steered SSID
 //! (`get_config`), steers its access points of that SSID (`local_info`), and hears the other's
-//! over the LAN (`remote_info`). On a, the working tree's agent, subscribed to `usteer` and
+//! over the LAN (`remote_info`), and a's usteer places client c on its access point
+//! (`get_client_info`, as the controller's steering reads it). On a, the working tree's agent, subscribed to `usteer` and
 //! `hostapd`, pushes what steering does to client c (the steering timeline): a transition
 //! request's answer, and a signal kick under a minimum above c's signal, which takes c from the
 //! disconnect that follows. hostapd refuses a transition request without the MBO fields, as
@@ -83,6 +84,24 @@ done; true"#,
     .lines()
     .next()
     .map(str::to_owned)
+}
+
+/// usteer's view of `CLIENT`, read as the engine's steering reads it (D-093): `node`'s access
+/// point serving it, with its signal.
+fn client_info_places_the_client(node: &Node) {
+    let iface = serving(node).unwrap_or_else(|| panic!("{}: c isn't connected", node.container));
+    let out = node.sh(
+        r#"ubus call usteer get_client_info "$(printf '{"address":"%s"}' "$1")""#,
+        &[CLIENT],
+    );
+    let raw: Box<RawValue> = serde_json::from_str(&out)
+        .unwrap_or_else(|e| panic!("{}: get_client_info: {e}: {out}", node.container));
+    let heard = uniwrt_node::proto::ops::usteer_heard(&raw).expect("usteer's client info");
+    assert!(
+        heard.iter().any(|h| h.host.is_none() && h.iface == iface),
+        "{}: usteer doesn't place c on {iface}: {out}",
+        node.container
+    );
 }
 
 /// A transition request to `CLIENT` at `iface`, towards `node`'s other access points: with the
@@ -241,7 +260,7 @@ fn rendered_usteer_steers_the_lab_ssid_and_hears_the_other_node() {
     for (node, ..) in &nodes {
         let config = ubus(node, "get_config");
         assert_eq!(
-            config["roam_trigger_snr"], -75,
+            config["roam_trigger_snr"], 0,
             "{}: {config}",
             node.container
         );
@@ -281,6 +300,7 @@ fn rendered_usteer_steers_the_lab_ssid_and_hears_the_other_node() {
         }
     }
 
+    client_info_places_the_client(&nodes[0].0);
     steering_is_reported(&nodes[0].0);
 
     for (node, manager, _) in &nodes {

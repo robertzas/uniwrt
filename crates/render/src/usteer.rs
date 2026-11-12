@@ -1,9 +1,9 @@
 //! The `usteer` package (features/wifi.md, Steering & balancing; D-090): usteer on each node
 //! that carries a steered WLAN, set by the site's profile, exchanging what it sees with the
 //! other nodes' over the management network (UDP 16720, which that network's zone accepts).
-//! Every threshold a profile sets is written out, because the releases' usteer defaults differ
-//! (24.10's band-steers every 2 min, 25.12's every 30 s); Conservative is 24.10's stock
-//! behavior. usteer tells WLANs apart only by SSID: its `ssid_list` names the steered ones,
+//! The controller decides band steering and roam suggestions (D-093) and asks usteer where it
+//! hears a client; every option a profile sets is written out, because the releases' usteer
+//! defaults differ (24.10's band-steers every 2 min, 25.12's every 30 s). usteer tells WLANs apart only by SSID: its `ssid_list` names the steered ones,
 //! and it then owns their 802.11k neighbor lists (it sets them every second), which the
 //! controller's neighbor reports leave alone ([`SiteConfig::steers`]). usteer has no switch of
 //! its own: with steering off on a node that holds the package, the package keeps its network
@@ -22,15 +22,18 @@ pub(crate) const REQUIRES: Requirement = Requirement {
     service: Some("usteer"),
 };
 
-/// The thresholds of a profile, as usteer names them: signals in dBm (negative), 0 for off;
-/// intervals in ms. Conservative's are 24.10's usteer defaults.
+/// The thresholds of a profile, as usteer names them: signals in dBm (negative), 0 for off.
+/// The controller sends band steering's and roam suggestions' transition requests itself
+/// (D-093: 24.10's and 25.12's hostapd refuse usteer 2022.08's, which lack the MBO fields), so
+/// usteer's own are off everywhere (`band_steering_interval`, `roam_scan_snr` and
+/// `roam_trigger_snr` 0) and usteer keeps what it does without them: Aggressive's refusals,
+/// minimum signal and load kicks. `signal_diff_threshold` is the margin a better candidate
+/// needs, for association steering (and import tells Balanced by it).
 pub fn thresholds(profile: SteeringProfile) -> &'static [(&'static str, &'static str)] {
     match profile {
         SteeringProfile::Off => &[],
-        // Band steering only: 802.11v clients that stay strong for 2 min are asked up a band.
         SteeringProfile::Conservative => &[
-            ("band_steering_interval", "120000"),
-            ("band_steering_min_snr", "-60"),
+            ("band_steering_interval", "0"),
             ("roam_scan_snr", "0"),
             ("roam_trigger_snr", "0"),
             ("signal_diff_threshold", "0"),
@@ -38,28 +41,22 @@ pub fn thresholds(profile: SteeringProfile) -> &'static [(&'static str, &'static
             ("assoc_steering", "0"),
             ("load_kick_enabled", "0"),
         ],
-        // Also a client fading below -75 dBm is sent to an AP heard 8 dB stronger: usteer
-        // disconnects it 10 s after the request (`roam_kick_delay`), so it reconnects there.
-        // 24.10's and 25.12's hostapd refuse usteer 2022.08's transition requests (no MBO
-        // fields), so only the disconnect happens (features/wifi.md, Steering & balancing).
         SteeringProfile::Balanced => &[
-            ("band_steering_interval", "60000"),
-            ("band_steering_min_snr", "-63"),
-            ("roam_scan_snr", "-70"),
-            ("roam_trigger_snr", "-75"),
+            ("band_steering_interval", "0"),
+            ("roam_scan_snr", "0"),
+            ("roam_trigger_snr", "0"),
             ("signal_diff_threshold", "8"),
             ("min_snr", "0"),
             ("assoc_steering", "0"),
             ("load_kick_enabled", "0"),
         ],
-        // Sooner and on smaller differences; associations below -85 dBm are refused (and
-        // clients that fall below it dropped after 10 s), an AP refuses a client another AP
-        // serves better, and channels busier than 75 % shed clients.
+        // Associations below -85 dBm are refused (and clients that fall below it dropped after
+        // 10 s), an AP refuses a client another AP serves 5 dB better, and channels busier than
+        // 75 % shed clients.
         SteeringProfile::Aggressive => &[
-            ("band_steering_interval", "30000"),
-            ("band_steering_min_snr", "-66"),
-            ("roam_scan_snr", "-67"),
-            ("roam_trigger_snr", "-72"),
+            ("band_steering_interval", "0"),
+            ("roam_scan_snr", "0"),
+            ("roam_trigger_snr", "0"),
             ("signal_diff_threshold", "5"),
             ("min_snr", "-85"),
             ("min_snr_kick_delay", "10000"),
@@ -100,12 +97,12 @@ pub(crate) fn render(plan: &mut Plan<'_>, held: bool) -> Option<(Package, bool)>
             .wifi
             .contains(&WifiFeature::BssTransition);
         if !btm {
-            let message = if profile == SteeringProfile::Conservative {
-                "The node's hostapd has no 802.11v, which band steering needs: Conservative \
-                 steering does nothing there (install the full wpad)"
+            let message = if profile == SteeringProfile::Aggressive {
+                "The node's hostapd has no 802.11v: clients can't be asked to move there, only \
+                 refused or disconnected (install the full wpad)"
             } else {
-                "The node's hostapd has no 802.11v: usteer can only disconnect clients to move \
-                 them (install the full wpad)"
+                "The node's hostapd has no 802.11v, which steering's transition requests need: \
+                 steering does nothing there (install the full wpad)"
             };
             plan.warnings.push(Issue::new("steering", message));
         }

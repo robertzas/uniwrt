@@ -13,7 +13,7 @@ mod netifd;
 mod steer_tests;
 #[cfg(test)]
 mod tests;
-mod usteer;
+pub(crate) mod usteer;
 
 use serde::{Deserialize, de::DeserializeOwned};
 use uniwrt_model::{event::NodeEvent, log::LogEntry};

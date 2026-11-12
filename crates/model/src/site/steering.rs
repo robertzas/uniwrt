@@ -44,6 +44,47 @@ impl SteeringProfile {
         Self::Balanced,
         Self::Aggressive,
     ];
+
+    /// What the controller asks of clients under this profile (D-093); `None` when Off.
+    pub const fn policy(self) -> Option<SteeringPolicy> {
+        match self {
+            Self::Off => None,
+            Self::Conservative => Some(SteeringPolicy {
+                every_s: 120,
+                band_above_dbm: -60,
+                roam_below_dbm: None,
+                margin_db: 0,
+            }),
+            Self::Balanced => Some(SteeringPolicy {
+                every_s: 60,
+                band_above_dbm: -63,
+                roam_below_dbm: Some(-75),
+                margin_db: 8,
+            }),
+            Self::Aggressive => Some(SteeringPolicy {
+                every_s: 30,
+                band_above_dbm: -66,
+                roam_below_dbm: Some(-72),
+                margin_db: 5,
+            }),
+        }
+    }
+}
+
+/// The transition requests the controller sends under a profile (features/wifi.md, Steering &
+/// balancing; D-093), to 802.11v clients of the steered WLANs, each client asked at most once
+/// per `every_s`:
+/// - **band steering**: a client heard above `band_above_dbm` on 2.4 GHz for `every_s` is asked
+///   to its access point's node's 5 or 6 GHz BSSes of its SSID;
+/// - **roam suggestions**: a client below `roam_below_dbm` is asked to the access point usteer
+///   hears it best at, if that is at least `margin_db` stronger (and not below the trigger
+///   itself), and disconnected 10 s later unless it moved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SteeringPolicy {
+    pub every_s: u32,
+    pub band_above_dbm: i16,
+    pub roam_below_dbm: Option<i16>,
+    pub margin_db: i16,
 }
 
 impl SiteConfig {

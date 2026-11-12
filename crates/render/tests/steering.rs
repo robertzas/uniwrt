@@ -106,7 +106,7 @@ fn without_802_11v_steering_warns_what_it_can_still_do() {
         .wifi
         .retain(|f| *f != WifiFeature::BssTransition);
     let mut warnings = BTreeMap::new();
-    for profile in [SteeringProfile::Conservative, SteeringProfile::Balanced] {
+    for profile in [SteeringProfile::Balanced, SteeringProfile::Aggressive] {
         let rendered = ok(run(&steered(profile), AP, NodeRole::Ap, &facts));
         let found: Vec<String> = rendered
             .warnings
@@ -116,6 +116,6 @@ fn without_802_11v_steering_warns_what_it_can_still_do() {
             .collect();
         warnings.insert(format!("{profile:?}"), found);
     }
-    assert!(warnings["Conservative"][0].contains("does nothing"));
-    assert!(warnings["Balanced"][0].contains("only disconnect"));
+    assert!(warnings["Balanced"][0].contains("does nothing"));
+    assert!(warnings["Aggressive"][0].contains("only refused or disconnected"));
 }

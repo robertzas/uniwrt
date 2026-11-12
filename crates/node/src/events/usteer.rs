@@ -76,22 +76,27 @@ fn iface(name: &str) -> &str {
     name.strip_prefix("hostapd.").unwrap_or(name)
 }
 
-/// `192.168.1.2#hostapd.phy1-ap0` (another node's), or `hostapd.phy0-ap0` (this node's).
 fn target(remote: &Remote) -> SteerTarget {
-    let (host, name) = match remote.name.split_once('#') {
-        Some((host, name)) => (host.parse::<IpAddr>().ok(), name),
-        None => (None, remote.name.as_str()),
-    };
+    let (host, iface) = node_name(&remote.name);
     SteerTarget::Usteer {
         host,
-        iface: iface(name).to_owned(),
+        iface: iface.to_owned(),
         signal_dbm: remote.signal.and_then(dbm),
+    }
+}
+
+/// usteer's name of an access point: `192.168.1.2#hostapd.phy1-ap0` (another node's, by the
+/// address its usteer talks from), or `hostapd.phy0-ap0` (this node's).
+pub(crate) fn node_name(name: &str) -> (Option<IpAddr>, &str) {
+    match name.split_once('#') {
+        Some((host, name)) => (host.parse::<IpAddr>().ok(), iface(name)),
+        None => (None, iface(name)),
     }
 }
 
 /// A signal in dBm: usteer sends signed values as blobmsg u32, which a reader may decode as
 /// unsigned.
-fn dbm(value: i64) -> Option<i16> {
+pub(crate) fn dbm(value: i64) -> Option<i16> {
     let value = if value > i64::from(i32::MAX) {
         i64::from(u32::try_from(value).ok()?.cast_signed())
     } else {

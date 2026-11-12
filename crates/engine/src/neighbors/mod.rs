@@ -11,6 +11,8 @@
 //! a job's end, a node coming or going and a new matrix send the lists that changed at once.
 //! Where usteer steers (D-090), it sets the steered SSIDs' lists itself every second, so those
 //! BSSes are left to it ([`SiteConfig::steers`]).
+//! The BSSes' own reports are shared ([`NeighborReports::own_reports`]): client steering gives
+//! them as transition candidates.
 //! A node that refuses raises `node:<id>/neighbor-reports`
 //! ([`EventKind::NeighborReportsFailed`]), cleared once it takes them
 //! ([`EventKind::NeighborReportsOk`]).
@@ -22,14 +24,15 @@
 mod plan;
 mod task;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use tokio::{
-    sync::{broadcast, oneshot},
+    sync::{broadcast, oneshot, watch},
     task::JoinHandle,
 };
+use uniwrt_core::NodeId;
 use uniwrt_model::job::Job;
-use uniwrt_node::NodeLink;
+use uniwrt_node::{NodeLink, proto::ops::OwnReport};
 use uniwrt_store::RevisionRepo;
 
 use crate::Engine;
@@ -57,10 +60,14 @@ impl Default for NeighborsConfig {
     }
 }
 
+/// The 802.11k BSSes of the managed nodes online, each with its own report.
+pub type OwnReports = BTreeMap<NodeId, Vec<OwnReport>>;
+
 /// Keeps the lists until stopped.
 pub struct NeighborReports {
     stop: oneshot::Sender<()>,
     task: JoinHandle<()>,
+    own: watch::Receiver<Arc<OwnReports>>,
 }
 
 impl NeighborReports {
@@ -77,9 +84,15 @@ impl NeighborReports {
     {
         let bus = engine.subscribe();
         let (stop, stopped) = oneshot::channel();
-        let task = task::Task::new(engine.clone(), repo, config);
+        let (own_tx, own) = watch::channel(Arc::default());
+        let task = task::Task::new(engine.clone(), repo, config, own_tx);
         let task = tokio::spawn(task.run(bus, jobs, stopped));
-        Self { stop, task }
+        Self { stop, task, own }
+    }
+
+    /// The BSSes' own reports, as the nodes last gave them.
+    pub fn own_reports(&self) -> watch::Receiver<Arc<OwnReports>> {
+        self.own.clone()
     }
 
     pub async fn stop(self) {

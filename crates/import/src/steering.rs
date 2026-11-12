@@ -1,8 +1,9 @@
 //! Steering (features/wifi.md, Steering & balancing; D-090): a node that holds usteer's package
 //! runs it (installing it enables it), so the site steers with the profile nearest to what the
 //! first such node's options do: Aggressive where it kicks or refuses clients (on load, by
-//! association steering or below a minimum signal), Balanced where it triggers roams, else
-//! Conservative (usteer's defaults band-steer only). Its
+//! association steering or below a minimum signal), Balanced where it triggers roams or asks
+//! a margin of better candidates (the controller's Balanced leaves roam triggers to the engine,
+//! D-093), else Conservative (usteer's defaults band-steer only). Its
 //! `ssid_list`, when it has one, leaves out the WLANs whose SSID it doesn't name. Without
 //! usteer on any node the site keeps the steering it had.
 
@@ -31,7 +32,7 @@ fn nearest(section: &Section) -> SteeringProfile {
     let set = |option: &str| section.option(option).is_some_and(|v| v != "0");
     if set("load_kick_enabled") || set("assoc_steering") || set("min_snr") {
         SteeringProfile::Aggressive
-    } else if set("roam_trigger_snr") || set("roam_scan_snr") {
+    } else if set("roam_trigger_snr") || set("roam_scan_snr") || set("signal_diff_threshold") {
         SteeringProfile::Balanced
     } else {
         SteeringProfile::Conservative

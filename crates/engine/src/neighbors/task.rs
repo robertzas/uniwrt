@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::sync::{
     broadcast::{self, error::RecvError},
-    mpsc, oneshot,
+    mpsc, oneshot, watch,
 };
 use tracing::{debug, warn};
 use uniwrt_core::{JobId, NodeId, RevisionId, Timestamp};
@@ -21,7 +21,7 @@ use uniwrt_node::{
 use uniwrt_store::RevisionRepo;
 
 use super::{
-    NeighborsConfig,
+    NeighborsConfig, OwnReports,
     plan::{self, Bss, Heard},
 };
 use crate::{Engine, Event, wlans::next_job};
@@ -58,6 +58,7 @@ pub(super) struct Task<L, R> {
     heard: Heard,
     nodes: BTreeMap<NodeId, NodeReports>,
     done: (mpsc::Sender<Done>, mpsc::Receiver<Done>),
+    own: watch::Sender<Arc<OwnReports>>,
 }
 
 impl<L, R> Task<L, R>
@@ -65,7 +66,12 @@ where
     L: NodeLink,
     R: RevisionRepo + Clone + 'static,
 {
-    pub(super) fn new(engine: Engine<L>, repo: R, config: NeighborsConfig) -> Self {
+    pub(super) fn new(
+        engine: Engine<L>,
+        repo: R,
+        config: NeighborsConfig,
+        own: watch::Sender<Arc<OwnReports>>,
+    ) -> Self {
         Self {
             engine,
             repo,
@@ -75,7 +81,25 @@ where
             heard: Heard::new(),
             nodes: BTreeMap::new(),
             done: mpsc::channel(32),
+            own,
         }
+    }
+
+    /// Shares the own reports when they changed.
+    fn publish(&self) {
+        let own: OwnReports = self
+            .nodes
+            .iter()
+            .filter(|(_, reports)| !reports.own.is_empty())
+            .map(|(&node, reports)| (node, reports.own.clone()))
+            .collect();
+        self.own.send_if_modified(|shared| {
+            let changed = **shared != own;
+            if changed {
+                *shared = Arc::new(own);
+            }
+            changed
+        });
     }
 
     pub(super) async fn run(
@@ -100,11 +124,13 @@ where
                                 reports.own.clear();
                                 reports.took = None;
                             }
+                            self.publish();
                         }
                         self.compare(false);
                     }
                     Ok(Event::Removed { node }) => {
                         self.nodes.remove(&node);
+                        self.publish();
                         self.compare(false);
                     }
                     Ok(Event::Rf { view }) => {
@@ -338,6 +364,9 @@ where
             }
         }
         let again = std::mem::take(&mut reports.again);
+        if changed {
+            self.publish();
+        }
         if changed || again {
             self.compare(false);
         }

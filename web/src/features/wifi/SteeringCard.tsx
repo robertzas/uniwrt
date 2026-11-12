@@ -17,9 +17,9 @@ const t = strings.wifi.steering;
 const PROFILES: readonly SteeringProfile[] = ["off", "conservative", "balanced", "aggressive"];
 
 /**
- * Client steering (wifi.md, Steering & balancing; D-090): the site's usteer profile, each with
- * what it does, saved as one revision. Names the devices without 802.11v, where steering can
- * only disconnect clients (or, Conservative, does nothing).
+ * Client steering (wifi.md, Steering & balancing; D-090, D-093): the site's profile, each with
+ * what it does, saved as one revision. Names the devices without 802.11v, where steering does
+ * nothing (Aggressive can only refuse or disconnect clients there).
  */
 export function SteeringCard(props: {
   view: SiteView;

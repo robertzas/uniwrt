@@ -14,15 +14,15 @@ const STEERING_PROFILES: Record<string, { label: string; text: string }> = {
   off: { label: "Off", text: "Clients choose their access point and band themselves." },
   conservative: {
     label: "Conservative",
-    text: "Asks clients with a strong signal (above -60 dBm for 2 min) to move up a band. Nothing else, so on OpenWrt 24.10 and 25.12 it changes nothing yet (see below).",
+    text: "Asks clients with a strong signal (above -60 dBm for 2 min) to move up a band. Nothing else.",
   },
   balanced: {
     label: "Balanced",
-    text: "Band steering after 1 min above -63 dBm, and a client fading below -75 dBm is moved to an access point 8 dB stronger: disconnected 10 s after the request, so it reconnects there.",
+    text: "Band steering after 1 min above -63 dBm, and a client fading below -75 dBm is asked to an access point heard 8 dB stronger: disconnected 10 s later if it stays, so it reconnects there.",
   },
   aggressive: {
     label: "Aggressive",
-    text: "Band steering after 30 s; clients below -72 dBm move to an access point 5 dB stronger, disconnected 10 s after the request. Refuses clients below -85 dBm and sheds them from channels over 75 % busy.",
+    text: "Band steering after 30 s; clients below -72 dBm are asked to an access point heard 5 dB stronger, disconnected 10 s later if they stay. Refuses clients below -85 dBm and sheds them from channels over 75 % busy.",
   },
 };
 
@@ -2856,13 +2856,13 @@ export const strings = {
     steering: {
       title: "Steering",
       description:
-        "usteer moves clients to the better band or access point. One profile for the site; a WLAN can opt out in its Roaming settings.",
+        "Moves clients to the better band or access point: the controller asks them, and usteer on the access points tells it where each client is heard. One profile for the site; a WLAN can opt out in its Roaming settings.",
       profiles: STEERING_PROFILES,
       footnote:
-        "Only clients with 802.11v are asked to change band. On OpenWrt 24.10 and 25.12, hostapd refuses usteer's requests to move, so clients move only when refused or disconnected; uniwrt will send these requests itself in a later version.",
+        "Only clients with 802.11v are asked to move, and only while the controller runs; others choose for themselves (Aggressive still refuses and sheds them).",
       noWlan: "No WLAN takes part: turn Steer clients on in a WLAN's Roaming settings.",
       basicWpad: (count: number, profile: string) =>
-        `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, without 802.11v: ${profile === "conservative" ? "Conservative steering does nothing there" : "steering can only disconnect clients there to move them"}, and access points can't suggest where to roam. Install the full wpad from the device's Config tab:`,
+        `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, without 802.11v: ${profile === "aggressive" ? "steering can only refuse or disconnect clients there" : "steering does nothing there"}, and access points can't suggest where to roam. Install the full wpad from the device's Config tab:`,
       message: (label: string) => `Steering: ${label}`,
       save: "Save",
       cancel: "Cancel",

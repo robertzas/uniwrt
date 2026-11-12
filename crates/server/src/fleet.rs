@@ -15,11 +15,12 @@ use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, ClientRecorder, DriftConfig,
-    DriftWatch, Drifts, Engine, EngineConfig, EventRecorder, EventsConfig, HistoryConfig,
-    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
-    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
-    Snapshots, TopologyHistory, WlanSchedules,
+    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, ClientRecorder,
+    ClientSteering, DriftConfig, DriftWatch, Drifts, Engine, EngineConfig, EventRecorder,
+    EventsConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder,
+    NeighborReports, NeighborsConfig, Notifications, Notify, NotifyConfig, RecorderConfig, Rf,
+    RfConfig, RfScanner, SchedulesConfig, Snapshots, SteeringConfig, TopologyHistory,
+    WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -59,6 +60,7 @@ pub(crate) struct Fleet {
     schedules: Option<WlanSchedules>,
     bans: Option<ClientBans>,
     neighbors: Option<NeighborReports>,
+    steering: Option<ClientSteering>,
     syslog: Option<Receiver>,
     /// Demo mode's world, which runs while it lives, and the dial that reaches its nodes.
     sim: Option<(SimFleet, Arc<DemoDial>)>,
@@ -115,6 +117,7 @@ impl Fleet {
             schedules: None,
             bans: None,
             neighbors: None,
+            steering: None,
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
@@ -194,6 +197,7 @@ impl Fleet {
             schedules: None,
             bans: None,
             neighbors: None,
+            steering: None,
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
@@ -245,6 +249,9 @@ impl Fleet {
         }
         if let Some(bans) = self.bans {
             bans.stop().await;
+        }
+        if let Some(steering) = self.steering {
+            steering.stop().await;
         }
         if let Some(neighbors) = self.neighbors {
             neighbors.stop().await;
@@ -344,12 +351,20 @@ impl Fleet {
             self.engine.clone(),
             jobs.subscribe(),
         ));
-        self.neighbors = Some(NeighborReports::start(
+        let neighbors = NeighborReports::start(
             &self.engine,
             store.clone(),
             Some(jobs.subscribe()),
             NeighborsConfig::default(),
+        );
+        self.steering = Some(ClientSteering::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            neighbors.own_reports(),
+            SteeringConfig::default(),
         ));
+        self.neighbors = Some(neighbors);
     }
 
     /// Drift detection's handle, once [`Fleet::record_events`] started it.

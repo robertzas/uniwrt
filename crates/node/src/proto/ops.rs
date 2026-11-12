@@ -7,6 +7,7 @@ mod btm;
 mod rrm;
 mod scan;
 mod streams;
+mod usteer;
 
 use std::{collections::BTreeMap, fmt};
 
@@ -21,6 +22,7 @@ pub use self::streams::{
     LogFollow, LogFollowing, LogMode, Schedule, SetInterval, Subscribe, Subscribed, Topic,
     Unsubscribe,
 };
+pub use self::usteer::{HeardAt, client_info as usteer_client_info, heard as usteer_heard};
 use super::RemoteError;
 
 /// An operation: its name on the wire and the type of its result.
