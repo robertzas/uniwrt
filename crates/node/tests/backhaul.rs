@@ -1,6 +1,6 @@
 //! The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094):
-//! `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway, whose firewall
-//! has the lab's `uw_bh` zone as render gives it) and node b (24.10). Each end finds the other
+//! `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway) and node b
+//! (24.10), in a `uw_bh` zone of each node's firewall, as render gives a gateway's. Each end finds the other
 //! at 1532 bytes; a size above the device's MTU isn't pinged; and once b's end drops to 1500,
 //! the veth drops a's probes and neither end passes. Ignored by default: `just test-wifi` runs
 //! it with the lab's `UNIWRT_LAB_GW`, `UNIWRT_LAB_AP` and `UNIWRT_LAB_PASSWORD`.

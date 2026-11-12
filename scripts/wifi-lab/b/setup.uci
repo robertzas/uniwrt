@@ -23,3 +23,19 @@ set dhcp.lan.ignore=1
 set dhcp.lan.ra=disabled
 set dhcp.lan.dhcpv6=disabled
 add_list firewall.@zone[0].network=mesh
+add firewall zone
+set firewall.@zone[-1].name=uw_bh
+add_list firewall.@zone[-1].network=batwired
+set firewall.@zone[-1].input=REJECT
+set firewall.@zone[-1].output=ACCEPT
+set firewall.@zone[-1].forward=REJECT
+add firewall rule
+set firewall.@rule[-1].name=Allow-uw_bh-MTU-probe
+set firewall.@rule[-1].src=uw_bh
+set firewall.@rule[-1].proto=icmp
+add_list firewall.@rule[-1].icmp_type=echo-request
+add_list firewall.@rule[-1].icmp_type=echo-reply
+add_list firewall.@rule[-1].icmp_type=neighbour-solicitation
+add_list firewall.@rule[-1].icmp_type=neighbour-advertisement
+set firewall.@rule[-1].family=ipv6
+set firewall.@rule[-1].target=ACCEPT

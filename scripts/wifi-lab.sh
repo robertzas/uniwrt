@@ -2,8 +2,8 @@
 # The hwsim lab (TESTING.md, Wi-Fi lab): OpenWrt nodes with virtual radios (mac80211_hwsim) and a
 # batman-adv mesh, in containers booted with procd. Node a (25.12) is the gateway, with APs on 2g
 # and 5g, a mesh point and DHCP on the mesh. Node b (24.10) meshes with a over Wi-Fi and over a
-# wired backhaul (`bh0`, a veth pair with batman's MTU of 1532, in a's firewall zone `uw_bh` as
-# render gives it). Client c (25.12) joins a's 2g AP and b's 5g AP. Each role's config is in
+# wired backhaul (`bh0`, a veth pair with batman's MTU of 1532, in a zone `uw_bh` of each node's
+# firewall, as render gives a gateway's). Client c (25.12) joins a's 2g AP and b's 5g AP. Each role's config is in
 # scripts/wifi-lab/<role>/.
 #
 # The host's kernel provides the radios and batman-adv. Loading them and moving radios into the
