@@ -359,6 +359,11 @@ export const strings = {
         hint: "It is in the device list.",
         action: "Close",
       },
+      identity_mismatch: {
+        title: "This is not the device that called home",
+        hint: "Another board or MAC address answered at its address. Dismiss it from the inbox and let the device call home again.",
+        action: "Close",
+      },
       node_failed: {
         title: "Something failed on the device",
         hint: "Nothing was left half-done there; the details are below. Try again, or check the device.",

@@ -243,6 +243,8 @@ pub enum JobErrorCode {
     Unsupported,
     /// The node is adopted already.
     AlreadyAdopted,
+    /// The node isn't the zero-touch device that called home: another board or MAC (D-102).
+    IdentityMismatch,
     /// A command or the agent failed on the node.
     NodeFailed,
     /// The controller stopped while the job ran.

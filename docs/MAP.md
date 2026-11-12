@@ -60,7 +60,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/site/revisions.rs`: The site's history, with a session (features/lifecycle.md, Desired state & revisions):
 - `src/site/tests.rs`: The site and revisions routes over the demo: the defaults of a new site, saves with secrets sealed in the vault and never sent back, conflicts and invalid documents refused, the history paged and compared, restores, and revealing a secret.
 - `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076):
-- `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal that closes the WS connections.
+- `src/state.rs`: [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the ZTP hello limiter, the setup window and the signal that closes the WS connections.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
@@ -81,6 +81,10 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, nodes and the site's revisions after jobs and saves, the rate of deltas, and closing.
 - `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
+- `src/ztp/hello.rs`: `POST /api/v1/ztp/hello`, without a session (features/adoption.md, Path B; D-102): a ZTP device's call home.
+- `src/ztp/mod.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102):
+- `src/ztp/script.rs`: `GET /api/v1/ztp/script?role=ap|bridge|gateway` (admins; D-102): the first-boot script of a zero-touch image, for the OpenWrt Firmware Selector's "script to run on first boot" or an image builder's `/etc/uci-defaults`.
+- `src/ztp/tests.rs`: Zero-touch provisioning through the router, against the simulated fleet's API: hellos checked, kept, limited and answered; pre-approvals used once; adopting and dismissing from the inbox; the first-boot script.
 
 ### `uniwrt-clients` (crates/clients)
 
@@ -287,6 +291,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/wan_test/tests.rs`: WAN tests over the scripted fleet, against a fake ISP that serves DHCP on VLAN 201 and, when asked, delegates a prefix or answers 6rd.
 - `src/wpad/mod.rs`: The wpad swap (features/wifi.md, Roaming; D-085, D-089): on a managed node, the basic wpad (or the mesh one) gives way to the full one, which adds 802.11v.
 - `src/wpad/tests.rs`: The wpad swap over the scripted node of [`crate::testing`] (24.10, opkg), adopted and managed.
+- `src/ztp.rs`: The first-boot script of zero-touch images, for this controller (features/adoption.md, Path B; D-102): its key, and where a device finds it: `uniwrt.<domain>` (the gateway's record), then the address that record holds, else the one the admin reached it at.
 - `tests/agent.rs`: Adopting real OpenWrt (TESTING.md, Agent): the adopt job over SSH against a container booted with procd, at `UNIWRT_NODE=<host:port>` with the root password in `UNIWRT_NODE_PASSWORD` (`just test-agent`).
 
 ### `uniwrt-metrics` (crates/metrics)
@@ -361,6 +366,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
+- `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC ([`ZtpApproval`]).
 
 ### `uniwrt-node` (crates/node)
 
@@ -428,6 +434,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/txn/current.rs`: What a node holds now, read right before rendering and diffing (features/lifecycle.md, Render → diff → apply): its UCI packages ([`packages`]) and whether its services start at boot ([`services`]).
 - `src/txn/tests.rs`: (no header comment)
 - `src/wpad.rs`: The commands of the wpad swap (D-089): which package replaces which, the commands that download them without changing anything, the one that swaps them on the node by itself, and what it reports.
+- `src/ztp.rs`: The first-boot script of zero-touch images (features/adoption.md, Path B; D-022, D-102): `node-agent/ztp/first-boot.sh` with the controller's values written in.
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
 - `tests/backhaul.rs`: The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway) and node b (24.10), in a `uw_bh` zone of each node's firewall, as render gives a gateway's.
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
@@ -437,6 +444,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/support/mod.rs`: An in-process SSH server for the transport tests: russh on loopback that runs commands with the local `sh` as dropbear does on a node, plus a built-in fake agent (`fake-agent`).
 - `tests/txn.rs`: Transactions on real OpenWrt (TESTING.md, Agent; D-069): the footprint installs and goes, and a transaction that replaces `system` and stops dnsmasq is confirmed, rolled back on request, at its deadline or at boot, or refused before it changes anything.
 - `tests/wifi.rs`: The Wi-Fi and mesh sets on the hwsim lab (TESTING.md, Wi-Fi lab): the bundle, installed over SSH, collects every set on node a (25.12, the gateway) and node b (24.10, an AP), and their facts show the lab's topology; the gateway pushes its client's comings and goings; and each node's scan hears the other's access points and mesh point; the `bss` op turns an access point off and on again on both releases, and the `ban` op keeps a client off and lets it back.
+- `tests/ztp.rs`: The first-boot script of zero-touch images on OpenWrt (features/adoption.md, Path B; D-102), run by `scripts/test-agent.sh` per image (`UNIWRT_ZTP_IMAGE`): a stand-in controller (dnsmasq giving leases and `uniwrt.lan`, uhttpd over TLS answering the hello) and a device booted with the script in `/etc/uci-defaults`, a second network giving it a WAN port.
 
 ### `uniwrt-notify` (crates/notify)
 
@@ -625,6 +633,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/speed.rs`: [`SpeedTestRepo`] on SQLite: the `speed_tests` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
+- `src/repo/ztp.rs`: [`ZtpRepo`] on SQLite: the `ztp_pending` and `ztp_approvals` tables (features/adoption.md, Path B; D-102).
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/vault/backup.rs`: Configuration backups, sealed like secrets: [`Vault::seal_backup`] before they are stored (with the node at adoption, [`Adoption`](crate::Adoption)), [`Vault::open_backup`] to read one back.
@@ -749,7 +758,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (344 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (349 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -801,7 +810,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
 - `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.
-- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test last (it restarts the container).
+- `scripts/test-agent.sh`: Runs the agent tests against OpenWrt booted with procd (TESTING.md, Agent): for each OpenWrt rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs, crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test last (it restarts the container), then crates/node/tests/ztp.rs (a zero-touch first boot).
 - `scripts/test-dropbear.sh`: Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each OpenWrt rootfs image, starts a container with a random root password and one without (factory defaults) and runs crates/node/tests/dropbear.rs against them.
 - `scripts/test-system.sh`: The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `scripts/tz.py`: (no header comment)

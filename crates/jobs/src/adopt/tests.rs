@@ -130,6 +130,52 @@ async fn a_node_that_trusts_the_key_needs_no_password_and_no_change() {
 }
 
 #[tokio::test]
+async fn a_ztp_device_must_be_the_one_that_called_home_and_gets_a_known_password() {
+    let setup = setup(true).await;
+    // The image trusts the controller's key, and its root password is one nobody knows.
+    setup
+        .node
+        .authorized_keys
+        .lock()
+        .unwrap()
+        .push_str(&(setup.key.authorized_key().unwrap() + "\n"));
+    let claim = |board: &str| {
+        let mut request = setup.request(None);
+        request.ztp = Some(crate::ZtpClaim {
+            mac: "1e:09:3b:df:16:4c".parse().unwrap(),
+            board_name: board.to_owned(),
+        });
+        request
+    };
+    let (job, _) = setup.adopt(claim("glinet,gl-mt6000")).await;
+    let error = job.error.unwrap();
+    assert_eq!(error.code, JobErrorCode::IdentityMismatch);
+    assert!(
+        error.message.contains("not the glinet,gl-mt6000"),
+        "{}",
+        error.message
+    );
+    assert_eq!(setup.store.nodes().await.unwrap(), []);
+
+    let (job, _) = setup.adopt(claim("container")).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    let set = job
+        .steps
+        .iter()
+        .find(|step| step.name == StepName::SetPassword)
+        .unwrap();
+    assert_eq!(set.state, StepState::Done);
+    assert!(set.detail.as_deref().unwrap().contains("unknown"));
+    let id = job.node.unwrap();
+    let kept = setup
+        .vault
+        .secret(&format!("node/{id}/root_password"))
+        .await
+        .unwrap();
+    assert!(kept.is_some());
+}
+
+#[tokio::test]
 async fn a_node_without_a_root_password_gets_a_random_one_kept_in_the_vault() {
     for given in [Some(""), None] {
         let setup = setup(true).await;

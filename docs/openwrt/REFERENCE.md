@@ -116,6 +116,17 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 - ⚠️ Unverified on hardware: `ip link set <port> down` on a DSA user port or a plain NIC drops the link partner's carrier (the PHY powers down); the renumbering's port bounce relies on it (D-081).
 - ⚠️ `hostapd -v<feature>` and `wpa_supplicant -v<feature>` exit 0 when the feature is built in (LuCI checks it the same way).
 
+## First boot and HTTPS from a node ✅
+
+Checked on the 24.10.8 and 25.12.6 rootfs (D-102, `crates/node/tests/ztp.rs`):
+
+- uci-defaults run in `boot` (START=10) after `config_generate`, so `network` exists; a service a script enables there doesn't start that boot (procd listed `/etc/rc.d` before): start it too.
+- `uclient-fetch` (libustream-mbedtls, mbedtls 3.6) refuses a CA whose name constraints are critical (`--ca-certificate` then fails as "not signed by a trusted CA"); non-critical ones are ignored. `--post-data` is sent chunked, without `Content-Length`. `--header` works on both.
+- musl fails a whole lookup when the AAAA query is refused (a forwarder without upstream): fetch names with `-4` where only an A record exists.
+- The default dnsmasq has `local '/lan/'`, `domain 'lan'` and rebind protection, so `<name>.lan` from an upstream server never resolves on the node itself: `localuse 0` makes `/tmp/resolv.conf` follow the lease's DNS servers instead.
+- Busybox has `hexdump` but no `base64` or `od`; `jsonfilter`, `jshn`, `dropbearkey`, `passwd` and `px5g` (`selfsigned -newkey ec -pkeyopt ec_paramgen_curve:P-256`) are there. uhttpd's CGI sees only standard headers.
+- In Docker: `/etc/resolv.conf` and `/etc/hostname` are bind mounts (unmount with SYS_ADMIN), and the hostname can't change (`/proc/sys` is read-only).
+
 ## UCI syntax ✅
 
 libuci's parser (`file.c`, strict mode as `uci` and rpcd run it), checked against `uci` of 24.10 and 25.12; `crates/uci` ports it and `crates/uci/fixtures/cases/` holds a case per rule.

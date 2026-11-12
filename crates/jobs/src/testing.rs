@@ -317,6 +317,7 @@ impl Setup {
             remember_password: false,
             name: None,
             role: None,
+            ztp: None,
         }
     }
 

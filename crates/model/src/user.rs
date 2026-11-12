@@ -89,6 +89,9 @@ pub enum AuditAction {
     /// A user forgot a cable's failed backhaul probe, so the next apply probes it again (the
     /// detail names both ends).
     Backhaul,
+    /// A user pre-approved a zero-touch device's MAC, withdrew it, or dismissed a device from
+    /// the inbox (the detail says which; D-102).
+    Ztp,
 }
 
 /// One audit log entry.

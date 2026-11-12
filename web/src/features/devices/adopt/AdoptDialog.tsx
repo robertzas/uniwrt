@@ -123,6 +123,7 @@ function Wizard(props: AdoptDialogProps) {
         void readKey();
         break;
       case "already_adopted":
+      case "identity_mismatch":
         props.onOpenChange(false);
         break;
       case "unreachable":

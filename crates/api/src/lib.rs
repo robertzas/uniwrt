@@ -9,7 +9,8 @@
 //!   included; [`problem`] for errors, [`no_route`] for unknown API paths. The listener sets
 //!   each request's [`Client`].
 //! - **Routes:** public: `GET v1/health`, `GET v1/tls`, `GET v1/tls/ca.crt`, `GET v1/auth`
-//!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
+//!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`, `POST
+//!   v1/ztp/hello` (a ZTP device's call home, rate-limited; see `ztp`); with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
 //!   on or off, a job), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
@@ -28,7 +29,11 @@
 //!   `POST v1/adopt/batch` (one password for several nodes), `GET v1/bootstrap/gateway` (admins:
 //!   the factory-default router to set up at first run, [`FoundGateways`]), `POST
 //!   v1/nodes/{id}/root-password/reveal` (admins, audited), `GET v1/discovered` (unadopted
-//!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
+//!   OpenWrt devices the adopted nodes see), zero-touch provisioning (admins: `GET
+//!   v1/ztp/pending` ([`ZtpInbox`](uniwrt_model::ztp::ZtpInbox)), `DELETE v1/ztp/pending/{mac}`,
+//!   `POST v1/ztp/pending/{mac}/adopt` ([`ZtpAdoptBody`], a job), `PUT` and `DELETE
+//!   v1/ztp/approvals/{mac}` ([`ZtpApprovalBody`]), `GET v1/ztp/script?role=`; D-102),
+//!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the cables
 //!   that failed the wired backhaul's probe (`GET v1/backhaul/failures`, and an admin's
@@ -119,6 +124,7 @@ mod wan;
 mod wan_tests;
 mod wpad;
 mod ws;
+mod ztp;
 
 use axum::{
     Router, middleware,
@@ -167,6 +173,7 @@ pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
 pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
+pub use ztp::{HelloAnswer, ZtpAdoptBody, ZtpApprovalBody};
 
 /// The API's routes, to nest under `/api`.
 pub fn router(api: Api) -> Router {
@@ -247,6 +254,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
         .merge(config_routes())
+        .merge(ztp::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",

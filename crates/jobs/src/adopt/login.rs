@@ -88,6 +88,7 @@ pub(crate) async fn set_password(
     shared: &Shared,
     remote: &dyn Remote,
     mac: MacAddr,
+    blank: bool,
 ) -> Result<String, JobError> {
     let password =
         root_password::generate().map_err(|err| internal("cannot make a root password", &err))?;
@@ -104,7 +105,12 @@ pub(crate) async fn set_password(
         .await
         .and_then(|output| output.check("passwd"))
         .map_err(|err| node_error(&err, "Cannot set the root password"))?;
-    Ok("Root had no password: it has a random one now, kept in the vault".to_owned())
+    Ok(if blank {
+        "Root had no password: it has a random one now, kept in the vault"
+    } else {
+        "Replaced the image's unknown root password with a random one, kept in the vault"
+    }
+    .to_owned())
 }
 
 /// Moves a password [`set_password`] kept for the node with `mac` to node `id`'s name; says

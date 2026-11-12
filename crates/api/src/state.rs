@@ -1,5 +1,5 @@
 //! [`Api`]: what the handlers share: the store, the vault, the engine, the alert engine, the
-//! notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the setup window and the signal
+//! notifications, the clock, the build identity, the HTTPS certificate, the password hasher, the login limiter, the ZTP hello limiter, the setup window and the signal
 //! that closes the WS connections.
 
 use std::{fmt, sync::Arc, time::Duration};
@@ -96,6 +96,8 @@ struct Inner {
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
+    /// ZTP hellos per client (`ztp/hello.rs`).
+    hellos: crate::ztp::hello::HelloLimiter,
     setup: Setup,
     /// True once the server stops: the WS connections close.
     closing: watch::Sender<bool>,
@@ -119,6 +121,7 @@ impl Api {
             inner: Arc::new(Inner {
                 passwords,
                 limiter: LoginLimiter::default(),
+                hellos: crate::ztp::hello::HelloLimiter::default(),
                 setup: Setup::new(has_users, config.setup_window),
                 store: config.store,
                 fleet: config.fleet,
@@ -284,6 +287,10 @@ impl Api {
 
     pub(crate) fn limiter(&self) -> &LoginLimiter {
         &self.inner.limiter
+    }
+
+    pub(crate) fn hellos(&self) -> &crate::ztp::hello::HelloLimiter {
+        &self.inner.hellos
     }
 
     pub(crate) fn setup(&self) -> &Setup {

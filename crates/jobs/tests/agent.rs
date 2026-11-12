@@ -146,6 +146,7 @@ async fn adoption_changes_only_authorized_keys() {
         remember_password: false,
         name: None,
         role: None,
+        ztp: None,
     };
     let mut updates = jobs.subscribe();
     let started = jobs.adopt(request(Some(&password)), None).await.unwrap();

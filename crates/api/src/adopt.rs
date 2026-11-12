@@ -124,6 +124,7 @@ pub(crate) async fn adopt(
         remember_password,
         name: body.name.map(|name| display_name(&name)).transpose()?,
         role: body.role,
+        ztp: None,
     };
     let user = user.user;
     let job = api
@@ -207,7 +208,7 @@ fn target(host: &str, port: u16) -> ApiResult<Target> {
     Ok(Target::new(host, port))
 }
 
-fn display_name(name: &str) -> ApiResult<String> {
+pub(crate) fn display_name(name: &str) -> ApiResult<String> {
     let name = name.trim();
     if name.is_empty()
         || name.chars().count() > MAX_NAME_CHARS

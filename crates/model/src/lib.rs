@@ -30,7 +30,8 @@
 //!   [`speed`] is a speed test from the gateway ([`speed::SpeedTest`]: rates, latency idle and
 //!   under load, the bufferbloat [`speed::Grade`]) and what it suggests for SQM.
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
-//!   ([`discovery::Discovered`]).
+//!   ([`discovery::Discovered`]); [`ztp`] is zero-touch provisioning's hello, pending inbox and
+//!   pre-approvals (D-102).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -65,3 +66,4 @@ pub mod speed;
 pub mod status;
 pub mod user;
 pub mod wifi;
+pub mod ztp;

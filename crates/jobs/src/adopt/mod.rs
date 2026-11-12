@@ -71,6 +71,17 @@ pub struct AdoptRequest {
     pub name: Option<String>,
     /// Its role; inferred from its interfaces when `None`.
     pub role: Option<NodeRole>,
+    /// What a zero-touch device said it is when it called home (D-102): the node must match,
+    /// and root's password, the image's random one that nobody knows, is replaced.
+    pub ztp: Option<ZtpClaim>,
+}
+
+/// A zero-touch device's hello, as far as adoption checks it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZtpClaim {
+    /// One of its MAC addresses.
+    pub mac: uniwrt_core::MacAddr,
+    pub board_name: String,
 }
 
 pub(crate) async fn run(shared: Arc<Shared>, request: AdoptRequest, mut progress: Progress) {
@@ -190,7 +201,7 @@ async fn on_node(
     let (first, login) = login::first(shared, dial.as_ref(), request).await?;
     progress.done(Some(login.detail().to_owned())).await;
 
-    let checked = match check(shared, progress, first.as_ref()).await {
+    let checked = match check(shared, request, progress, first.as_ref()).await {
         Ok(checked) => checked,
         Err(err) => {
             first.close().await;
@@ -208,9 +219,10 @@ async fn on_node(
             return Err(err);
         }
     };
-    if login == Login::Blank {
+    if login == Login::Blank || request.ztp.is_some() {
         progress.start(StepName::SetPassword).await;
-        match login::set_password(shared, remote.as_ref(), checked.mac).await {
+        let blank = login == Login::Blank;
+        match login::set_password(shared, remote.as_ref(), checked.mac, blank).await {
             Ok(detail) => progress.done(Some(detail)).await,
             Err(err) => {
                 remote.close().await;
@@ -238,6 +250,7 @@ struct Checked {
 /// identity, before anything changes on the node.
 async fn check(
     shared: &Shared,
+    request: &AdoptRequest,
     progress: &mut Progress,
     remote: &dyn Remote,
 ) -> Result<Checked, JobError> {
@@ -268,6 +281,9 @@ async fn check(
     let warnings = check::resources(&facts).map_err(unsupported)?;
     let mac = check::identity(&facts)
         .ok_or_else(|| unsupported("Cannot tell the node's MAC address".to_owned()))?;
+    if let Some(claim) = &request.ztp {
+        check::claim(&facts, mac, claim)?;
+    }
     let adopted = shared
         .store
         .nodes()

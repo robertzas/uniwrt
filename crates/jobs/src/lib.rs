@@ -95,8 +95,9 @@ mod speed_test;
 mod testing;
 mod wan_test;
 mod wpad;
+mod ztp;
 
-pub use adopt::AdoptRequest;
+pub use adopt::{AdoptRequest, ZtpClaim};
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};

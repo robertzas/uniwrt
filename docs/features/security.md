@@ -13,7 +13,7 @@ Milestones: M1.6 (TLS, vault), M1.6b (auth and sessions), M3.1 (vault for config
 | Hostile data from clients or nodes (hostnames, SSIDs, DHCP options, log lines) | Treated as untrusted: strict parsing, size limits, no `innerHTML` (Solid escapes by default), a strict CSP |
 | Command injection through config values | Agent ops take argv arrays and JSON, never shell strings; the UCI serializer validates and escapes values |
 | A compromised node feeding bogus telemetry | Everything is validated and bounded; a node can't affect other nodes' config; anomalies raise alerts |
-| A rogue device getting adopted | Adoption needs explicit admin approval (ZTP has no auto-trust); host-key fingerprints are shown |
+| A rogue device getting adopted | Adoption needs explicit admin approval: a click in the ZTP inbox, or a single-use pre-approval of a MAC that expires after 7 days, whose node must match the hello's board and MAC (D-102); host-key fingerprints are shown |
 | Supply-chain compromise | Locked dependencies, cargo-deny, Dependabot, SBOM and provenance attestations, signed images |
 
 ## Controller authentication & sessions
@@ -49,7 +49,7 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 - **The leaf:** ECDSA P-256, 397 days (Apple's limit is 398), server authentication only, served with the CA as its chain. It covers `localhost`, `uniwrt.lan`, the host name and `<host>.lan` (not Docker's 12-digit container IDs), loopback, the HTTPS listen address, the private addresses the host routes from, and `--tls-names` (`UNIWRT_TLS_NAMES`). A daily check reissues it 30 days before expiry, or when its names or its CA change, and swaps it in without a restart. Names the CA may not sign are left out, with a warning: configure them before the first run.
 - **Trust:** `GET /api/v1/tls/ca.crt` downloads the CA (PEM, `application/x-x509-ca-cert`), and `GET /api/v1/tls` shows its SHA-256 fingerprint, which the log also prints at startup, to compare on the device. Trusting it once removes the warnings for good.
 - **rustls** with the ring provider: TLS 1.3 and 1.2 with rustls' safe defaults, ALPN `h2` and `http/1.1`. Handshakes run concurrently, at most 128 at once and 10 s each.
-- **Plain HTTP** (8080) redirects to HTTPS with a 307 (not cached, unlike 308). The exceptions carry only public data or come from a TLS-terminating proxy: the health check (Docker probes it), requests from `--trusted-proxies` (`UNIWRT_TRUSTED_PROXIES`, networks; they get the whole application), and later the ZTP hello endpoint.
+- **Plain HTTP** (8080) redirects to HTTPS with a 307 (not cached, unlike 308). The exceptions carry only public data or come from a TLS-terminating proxy: the health check (Docker probes it), requests from `--trusted-proxies` (`UNIWRT_TRUSTED_PROXIES`, networks; they get the whole application). The ZTP hello is not one: devices send it over HTTPS without checking the certificate, since OpenWrt's mbedtls refuses the CA's critical name constraints, and it carries only public data (D-102).
 - **No HSTS** while the certificate comes from the local CA: on a device that does not trust it, HSTS would make the warning impossible to click through. Custom certificate upload and ACME DNS-01 are in the backlog; HSTS comes with them.
 
 ## Secrets vault

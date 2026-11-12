@@ -24,6 +24,7 @@ mod sessions;
 mod speed;
 mod topology;
 mod users;
+mod ztp;
 
 use uniwrt_core::{
     AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RuleId, ScanId,
@@ -53,6 +54,7 @@ use uniwrt_model::{
 use zeroize::Zeroizing;
 
 pub use adoption::Adoption;
+pub use ztp::ZtpRepo;
 
 use crate::{Result, SealedSecret};
 

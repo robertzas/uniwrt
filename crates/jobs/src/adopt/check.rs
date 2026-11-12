@@ -120,6 +120,31 @@ pub(super) fn identity(facts: &NodeFacts) -> Option<MacAddr> {
     })
 }
 
+/// Whether the node is the zero-touch device that called home (D-102): the same board, and
+/// the MAC it gave is its identity or one of its devices'. The hello is unauthenticated, so this
+/// only catches a different device at the hello's address, not one built to lie.
+pub(super) fn claim(
+    facts: &NodeFacts,
+    identity: MacAddr,
+    claim: &super::ZtpClaim,
+) -> Result<(), uniwrt_model::job::JobError> {
+    let mac = identity == claim.mac
+        || facts
+            .devices
+            .iter()
+            .any(|device| device.mac == Some(claim.mac));
+    if mac && facts.board.board_name == claim.board_name {
+        return Ok(());
+    }
+    Err(uniwrt_model::job::JobError {
+        code: uniwrt_model::job::JobErrorCode::IdentityMismatch,
+        message: format!(
+            "The node at this address is a {} ({identity}), not the {} ({}) that called home",
+            facts.board.board_name, claim.board_name, claim.mac
+        ),
+    })
+}
+
 /// A node with an upstream on a WAN-like interface is a gateway; any other is an access point.
 pub(super) fn role(facts: &NodeFacts) -> NodeRole {
     let upstream = facts.interfaces.iter().any(|interface| {
@@ -229,6 +254,37 @@ mod tests {
             ipv6_gateway: None,
             dns_servers: Vec::new(),
             errors: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_ztp_claim_needs_the_board_and_one_of_the_macs() {
+        let mut facts = NodeFacts {
+            devices: vec![
+                device("eth0", DeviceKind::Ethernet, "94:83:c4:00:00:01"),
+                device("br-lan", DeviceKind::Bridge, "94:83:c4:00:00:03"),
+            ],
+            ..NodeFacts::default()
+        };
+        facts.board.board_name = "glinet,gl-mt6000".to_owned();
+        let identity = "94:83:c4:00:00:09".parse().unwrap();
+        let claim = |mac: &str, board: &str| super::super::ZtpClaim {
+            mac: mac.parse().unwrap(),
+            board_name: board.to_owned(),
+        };
+        for mac in ["94:83:c4:00:00:09", "94:83:c4:00:00:03"] {
+            assert_eq!(
+                super::claim(&facts, identity, &claim(mac, "glinet,gl-mt6000")),
+                Ok(())
+            );
+        }
+        for (mac, board) in [
+            ("94:83:c4:00:00:07", "glinet,gl-mt6000"),
+            ("94:83:c4:00:00:03", "glinet,gl-mt3000"),
+        ] {
+            let err = super::claim(&facts, identity, &claim(mac, board)).unwrap_err();
+            assert_eq!(err.code, uniwrt_model::job::JobErrorCode::IdentityMismatch);
+            assert!(err.message.contains("not the"), "{}", err.message);
         }
     }
 

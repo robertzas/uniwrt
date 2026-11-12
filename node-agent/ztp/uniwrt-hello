@@ -1,0 +1,73 @@
+#!/bin/sh
+# Calls the uniwrt controller home until it adopts this device (features/adoption.md, Path B):
+# a hello every minute, backing off to 5 minutes while no controller answers.
+# shellcheck source=/dev/null # written by the first-boot script
+. /etc/uniwrt/ztp.conf
+# shellcheck source=/dev/null # OpenWrt's
+. /usr/share/libubox/jshn.sh
+
+identity() {
+	mac=$(jsonfilter -q -i /etc/board.json -e '@.system.label_macaddr')
+	[ -n "$mac" ] || mac=$(cat /sys/class/net/br-lan/address 2>/dev/null)
+	[ -n "$mac" ] || mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
+	printf '%s' "$mac" | tr 'A-F' 'a-f'
+}
+
+hello() {
+	key=$(dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key 2>/dev/null |
+		sed -n 's/^\(ssh-ed25519 [A-Za-z0-9+\/=]*\).*/\1/p')
+	[ -n "$key" ] || return 1
+	board=$(ubus call system board) || return 1
+	board_name='' model='' hostname='' version=''
+	json_load "$board"
+	json_get_var board_name board_name
+	json_get_var model model
+	json_get_var hostname hostname
+	json_select release
+	json_get_var version version
+	json_init
+	json_add_string mac "$(identity)"
+	json_add_string board_name "$board_name"
+	json_add_string model "$model"
+	json_add_string hostname "$hostname"
+	json_add_string release "$version"
+	json_add_string host_key "$key"
+	[ -z "$ROLE" ] || json_add_string role "$ROLE"
+	body=$(json_dump)
+	for url in $URLS; do
+		# IPv4 for names: uniwrt.<domain> has an A record only, and musl fails a lookup whose
+		# AAAA query a forwarding server refuses.
+		case $url in
+		https://\[*) family=-6 ;;
+		*) family=-4 ;;
+		esac
+		# No certificate check: OpenWrt's mbedtls refuses the controller's CA (its name
+		# constraints), and the hello is public data (D-102).
+		if answer=$(uclient-fetch "$family" -q -T 15 --no-check-certificate -O - \
+			--header='X-Uniwrt-Csrf: 1' --header='Content-Type: application/json' \
+			--post-data="$body" "$url/api/v1/ztp/hello" 2>/dev/null); then
+			printf '%s' "$answer"
+			return 0
+		fi
+	done
+	return 1
+}
+
+wait=5
+while :; do
+	if answer=$(hello); then
+		case "$answer" in
+		*'"adopted"'*)
+			logger -t uniwrt-hello "adopted: calling home no more"
+			/etc/init.d/uniwrt-hello disable
+			rm -f /etc/init.d/uniwrt-hello /etc/uniwrt/ztp.conf "$0"
+			exit 0
+			;;
+		esac
+		wait=60
+	else
+		wait=$((wait * 2))
+		[ "$wait" -le 300 ] || wait=300
+	fi
+	sleep "$wait"
+done

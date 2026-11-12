@@ -24,7 +24,7 @@ The firewall on factory-default OpenWrt rejects input on WAN, so a fresh device 
 5. It starts watching the node (the ephemeral agent in `/tmp`), and live telemetry begins. The node shows an **Observed** badge. Its role is the one the user gave, or a gateway if a WAN-like interface (`wan*`, PPP, cellular) is up with a default route, otherwise an access point.
 6. Later, "Manage this node" triggers a brownfield import (M3.5) and a review of the rendered diff, which should be empty or nearly so. The node then becomes **Managed**, one package at a time (network, wireless, …).
 
-Each adoption is a job (`GET /api/v1/jobs/{id}`, the WS topic `jobs`): its steps (connect, check, install key, log in with the key, set a root password (skipped where root has one), inventory, backup, record, watch) with their state and detail, and on failure a code the UI acts on (`unreachable`, `host_key_mismatch`, `auth_rejected`, `unsupported`, `already_adopted`, `node_failed`, `interrupted`, `internal`). Jobs are history: a controller restart fails the ones that were running (D-042).
+Each adoption is a job (`GET /api/v1/jobs/{id}`, the WS topic `jobs`): its steps (connect, check, install key, log in with the key, set a root password (skipped where root has one), inventory, backup, record, watch) with their state and detail, and on failure a code the UI acts on (`unreachable`, `host_key_mismatch`, `auth_rejected`, `unsupported`, `already_adopted`, `identity_mismatch` (a ZTP device that isn't the one that called home, Path B), `node_failed`, `interrupted`, `internal`). Jobs are history: a controller restart fails the ones that were running (D-042).
 
 The wizard shows the steps live, then "Open the device" (or "Adopt another"). A failure is explained by its code, with the action that fits: `auth_rejected` returns to the password (cleared), `unreachable` and `unsupported` to the address, `host_key_mismatch` reads the key again for a new confirmation, `already_adopted` only closes, and the rest retry. Closing the dialog leaves the job running; the device appears in the list when it is recorded.
 
@@ -32,15 +32,19 @@ Batch mode (M1.7b, D-044): once the gateway is adopted, the other nodes appear u
 
 ## Path B: zero-touch image (recommended for new devices) [M5.4]
 
-1. Devices → Add new device: search for the model in OpenWrt's profile catalog, pick a role, and uniwrt asks ASU for a build: target, profile and version, the role's package set, and a first-boot `uci-defaults` script.
+1. Devices → Add new device: search for the model in OpenWrt's profile catalog, pick a role, and uniwrt asks ASU for a build: target, profile and version, the role's package set, and a first-boot `uci-defaults` script (ASU: M5.4 b3). Until then, `GET /api/v1/ztp/script?role=ap|bridge|gateway` (admins, M5.4 b1) downloads the script (`99-uniwrt`) for the OpenWrt Firmware Selector's "Script to run on first boot (uci-defaults)" or an image builder's `files/etc/uci-defaults/`.
 2. The user flashes the image (vendor web UI, TFTP or OpenWrt sysupgrade), following model-specific instructions linked from OpenWrt's Table of Hardware.
-3. The first-boot script **contains no secrets** (D-022). It:
-   - turns the LAN into a DHCP client on all bridged ports, with no DHCP server, so the device is safe to plug in anywhere;
+3. The first-boot script (`node-agent/ztp/first-boot.sh`, with the controller's values written in by `uniwrt_node::ztp`) **contains no secrets** (D-022). It:
+   - turns the LAN into a DHCP client on all bridged ports, with no DHCP server (DHCPv4, DHCPv6 and RA off), so the device is safe to plug in anywhere; an AP or a bridge also joins its WAN port to the bridge, as its first apply would, so any port reaches the controller; the device resolves names through its lease's DNS server (`localuse 0`: its own dnsmasq keeps `.lan` local and drops private answers);
    - keeps Wi-Fi off;
-   - installs the controller's **public** key;
+   - installs the controller's **public** key, and gives root a random password that never leaves the device, so nobody logs in without the key (SSH or LuCI);
    - sets the hostname to `uniwrt-<last 4 MAC hex>`;
-   - calls home with `POST /api/v1/ztp/hello` (board, MAC, host-key fingerprint) to `uniwrt.lan`, falling back to the controller's literal IP, retrying with backoff.
-4. The device appears in the **Pending adoption** inbox. The owner clicks Adopt, or pre-approves the device by MAC. The controller connects over SSH and pushes secrets (root password, mesh key, Wi-Fi) and the full config as a transaction.
+   - installs and starts `uniwrt-hello` (`node-agent/ztp/uniwrt-hello`, a procd service), which calls home with `POST /api/v1/ztp/hello` (MAC, board, model, hostname, release, its ed25519 host key, the role its image was built for) to `uniwrt.<domain>`, then the controller's address: the gateway's `uniwrt` record, else the IP the admin downloaded the script from; on the HTTPS port the admin used. It sends one a minute, backing off to 5 minutes while no controller answers, and removes itself once answered `adopted`. Names go over IPv4 (musl fails a lookup whose AAAA query a forwarder refuses). There is no certificate check: OpenWrt's mbedtls refuses the controller's CA (its critical name constraints), and the hello is public data (D-102).
+4. **The pending adoption inbox** (`GET /api/v1/ztp/pending`, admins): each device by MAC, with its latest hello, the address it came from, its host key's fingerprint and its latest adoption job. The hello is unauthenticated, so it is checked (a unicast MAC, an OpenSSH host key, short printable strings, a 4 KiB body), limited to 20 per 10 minutes per client (IPv6: per /64), and the inbox keeps the 64 most recently seen devices. A hello from an adopted node's MAC is answered `adopted`; one while its job runs, `adopting`.
+   - The owner clicks Adopt (`POST /api/v1/ztp/pending/{mac}/adopt`, with an optional name and role; a job), or dismisses it (`DELETE /api/v1/ztp/pending/{mac}`; it comes back at its next hello).
+   - Or **pre-approves the device by MAC** before it calls home (`PUT /api/v1/ztp/approvals/{mac}`, with an optional name and role; `DELETE` withdraws it): its first hello uses the approval up and starts the adoption. Approvals are single-use and expire after 7 days (D-102). A failed adoption leaves the device in the inbox.
+   - The adoption is Path A's job with the controller's key (the image trusts it) and the host key from the hello pinned. Before anything changes, the node must be the hello's board, and the hello's MAC must be its identity or one of its devices' (`identity_mismatch` otherwise). Root's password, the image's unknown one, is replaced with one the vault keeps. Approvals, withdrawals, dismissals (`ztp`) and adoptions (`adopt`, by the approver for a pre-approval) are audited.
+   - Later (M5.4 b2): the inbox in the UI, and the controller pushing secrets (root password, mesh key, Wi-Fi) and the full config as a transaction.
 5. For wireless-only placement, adopt the device once on the bench over a cable. After it has the mesh credentials, place it anywhere within mesh range.
 
 Why no secrets: ASU is a public build service, and build requests and results may be cached on third-party servers.
@@ -103,7 +107,7 @@ Future roles: `switch` (an OpenWrt managed switch) and secondary gateways (multi
 - **Probes:** every candidate address gets a TCP connection to port 22 that reads the SSH banner (no handshake). Dropbear servers, and hosts named `OpenWrt` or `uniwrt-*`, also have their host key read (a handshake that stops at the key). A probe never tries to log in. At most 4 probes run at once, and each result holds for 10 minutes. Demo mode probes the simulated nodes (below).
 - **Reported:** dropbear servers, hosts with those names (even when unreachable), and every mesh originator none of whose devices is reported, as a node with no known address.
 
-Later sources: LLDP neighbors and ZTP hellos (M5.4).
+Later sources: LLDP neighbors. ZTP hellos have their own inbox (Path B).
 
 ## Demo mode (D-048)
 

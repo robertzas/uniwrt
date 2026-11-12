@@ -37,6 +37,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0017_client_blocks",
     "0018_client_wifi",
     "0019_backhaul_failures",
+    "0020_ztp",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

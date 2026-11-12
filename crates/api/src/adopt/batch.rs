@@ -115,6 +115,7 @@ pub(crate) async fn adopt(
                 .transpose()
                 .map_err(numbered)?,
             role: node.role,
+            ztp: None,
             target,
         });
     }

@@ -278,6 +278,7 @@ mod tests {
             remember_password: false,
             name: None,
             role: None,
+            ztp: None,
         };
 
         let rejected = jobs.adopt(request("root"), None).await.unwrap();
@@ -316,6 +317,20 @@ mod tests {
         store.close().await;
     }
 
+    /// Adopting the factory gateway the first run found, as the wizard does.
+    fn factory_gateway(gateway: &uniwrt_jobs::bootstrap::FoundGateway) -> AdoptRequest {
+        AdoptRequest {
+            target: gateway.target.clone(),
+            host_key: gateway.host_key.clone(),
+            password: Some(Zeroizing::new(String::new())),
+            remember_password: false,
+            name: None,
+            // The wizard says so: with no internet yet, nothing else tells a gateway.
+            role: Some(uniwrt_model::node::NodeRole::Gateway),
+            ztp: None,
+        }
+    }
+
     /// The first-run wizard's path (features/adoption.md, Path E): the factory-default gateway
     /// is found and adopted without a password, managed, and renumbered to the site's plan.
     #[tokio::test]
@@ -349,15 +364,7 @@ mod tests {
         assert!(gateway.blank && gateway.model.is_some() && gateway.adopted.is_none());
         assert_eq!(gateway.hostname.as_deref(), Some("OpenWrt"));
 
-        let request = AdoptRequest {
-            target: gateway.target.clone(),
-            host_key: gateway.host_key.clone(),
-            password: Some(Zeroizing::new(String::new())),
-            remember_password: false,
-            name: None,
-            // The wizard says so: with no internet yet, nothing else tells a gateway.
-            role: Some(uniwrt_model::node::NodeRole::Gateway),
-        };
+        let request = factory_gateway(gateway);
         let adopted = finished(&jobs, jobs.adopt(request, None).await.unwrap()).await;
         assert_eq!(adopted.state, JobState::Succeeded, "{:?}", adopted.error);
         let id = adopted.node.unwrap();

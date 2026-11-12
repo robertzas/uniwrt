@@ -3,7 +3,7 @@
 # rootfs image, boots a container with a random root password and runs crates/node/tests/agent.rs,
 # crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then
 # crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test
-# last (it restarts the container).
+# last (it restarts the container), then crates/node/tests/ztp.rs (a zero-touch first boot).
 # Usage: scripts/test-agent.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -64,4 +64,7 @@ for image in "${images[@]}"; do
   done
   docker rm -f "$container" >/dev/null
   container=''
+  # The zero-touch first boot (D-102): its own containers and networks, removed after.
+  UNIWRT_ZTP_IMAGE="$image" cargo nextest run --locked -p uniwrt-node --test ztp --run-ignored only \
+    --status-level fail --hide-progress-bar
 done
