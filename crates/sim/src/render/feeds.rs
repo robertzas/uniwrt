@@ -177,6 +177,26 @@ mod tests {
             &mut tool
         )));
         assert_eq!(tool.services.get("sqm"), Some(&false));
+        assert!(ok(exec(
+            &["apk", "add", "usteer"],
+            "apk",
+            &mut installed,
+            &mut tool
+        )));
+        let mut disk = super::super::commands::Disk {
+            installed: installed.clone(),
+            tool: tool.clone(),
+            ..super::super::commands::Disk::default()
+        };
+        assert!(
+            disk.steers(),
+            "usteer runs where it is installed and enabled"
+        );
+        disk.wpad = super::super::wpad::BASIC;
+        assert!(!disk.steers(), "the basic wpad has no 802.11v");
+        disk.wpad = super::super::wpad::MESH;
+        disk.tool.services.insert("usteer".to_owned(), false);
+        assert!(!disk.steers(), "a disabled usteer steers nothing");
         let unknown = exec(&["apk", "add", "nope"], "apk", &mut installed, &mut tool).unwrap();
         assert!(!unknown.status.success());
         assert!(

@@ -152,6 +152,7 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
         ports,
         logd: Logd::starting_at(500 + rng.below(4000)),
         banned: BTreeMap::new(),
+        steers: false,
     }
 }
 

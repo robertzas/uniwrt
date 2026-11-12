@@ -553,6 +553,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/world/mod.rs`: [`World`]: the simulated house.
 - `src/world/nodes.rs`: The nodes' second: reboots (an access point goes down and boots again, its clients move to the others), drifting load, memory and temperature, the radios' noise and air time, and the routine lines of their logs.
 - `src/world/radio.rs`: Radio arithmetic: bands and channels, indoor path loss, and the rates a signal-to-noise ratio buys (MCS tables of 802.11n, ac and ax).
+- `src/world/steering.rs`: Client steering as usteer does it on a node where it runs ([`Node::steers`], set from the node's disk): it asks an 802.11v client to move with a BSS transition request, and the client agrees, which hostapd pushes as `bss-transition-response` (features/wifi.md, Steering & balancing).
 - `src/world/tests.rs`: The world's dynamics over simulated hours: determinism, roaming, leaving, reboots.
 - `src/world/traffic.rs`: Traffic: what each client downloads and uploads per second (bursty, capped by its link), the retries a weak signal costs, and the counters it moves on its access point's radio, its uplink and the gateway's WAN port.
 - `tests/ban.rs`: The simulated agent's `ban` op (D-084): a banned client is kicked off the node and stays off it while banned (it may go to another access point); a lift kicks nobody, and a kick alone deauthenticates without keeping it off.
@@ -725,7 +726,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
-- `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, status.tsx
+- `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
 - `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
@@ -743,7 +744,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/site/`: SiteTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `features/wifi/`: JoinDialog.tsx, ScheduleField.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, summary.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts

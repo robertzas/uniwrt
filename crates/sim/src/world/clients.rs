@@ -106,7 +106,7 @@ impl World {
     }
 
     /// The signal an access point hears from client `c` now.
-    fn client_signal(&self, c: usize, node: usize, band: Band) -> f64 {
+    pub(super) fn client_signal(&self, c: usize, node: usize, band: Band) -> f64 {
         let client = &self.clients[c];
         self.signal_at(node, band, client.pos, client.spec.tx_offset)
             + client.fading[node][band.index()]
@@ -293,8 +293,28 @@ impl World {
                     || signal >= ROAM_BELOW
                     || score(to_band, to_signal) < score(band, signal) + ROAM_MARGIN)
         {
+            self.band_steer(c, node, band, signal, out);
             return;
         }
+        // Where usteer runs, the access point asks first (its roam trigger, the opening walk's
+        // handover): the client goes as asked.
+        if to != node {
+            self.steered(c, current, (to, to_band), out);
+        }
+        self.roam(c, current, (to, to_band, to_signal), out);
+    }
+
+    /// Client `c` moves from the access point `from` to `to` (with its signal there): over
+    /// 802.11r to another node where it can, else it leaves and joins again.
+    pub(super) fn roam(
+        &mut self,
+        c: usize,
+        from: (usize, Band),
+        (to, to_band, to_signal): (usize, Band, f64),
+        out: &mut Vec<Happening>,
+    ) {
+        let now = self.now_s;
+        let (node, band) = from;
         let client = &self.clients[c];
         let (mac, ft, sae) = (client.mac, client.spec.ft && to != node, client.spec.sae);
         if ft {

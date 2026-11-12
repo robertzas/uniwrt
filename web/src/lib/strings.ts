@@ -638,6 +638,9 @@ export const strings = {
       session: (where: string, start: string, duration: string) =>
         `${where}, from ${start} for ${duration}`,
       columns: { place: "Connected to", start: "From", duration: "For", end: "Ended" },
+      steering: "Steering",
+      steeringMore: (n: number) => `${n.toLocaleString()} more on the events page`,
+      mark: (at: string, title: string) => `${at}: ${title}`,
     },
     signal: {
       title: "Signal",
@@ -677,6 +680,11 @@ export const strings = {
     back: "All devices",
     logs: "Logs",
     events: "Events",
+    steering: {
+      title: "Steering",
+      description: "Clients this access point steered in the last 24 hours",
+      more: (n: number) => `${n.toLocaleString()} more on the events page`,
+    },
     loading: "Loading the device",
     notFound: {
       title: "Device not found",
@@ -1049,6 +1057,13 @@ export const strings = {
   },
   events: {
     title: "Events",
+    /** What steering came to, counted (lib/steering.ts). */
+    steerOutcome: {
+      moved: (n: number) => `${n.toLocaleString()} moved`,
+      declined: (n: number) => `${n.toLocaleString()} declined`,
+      refused: (n: number) => `${n.toLocaleString()} turned away`,
+      kicked: (n: number) => `${n.toLocaleString()} disconnected`,
+    },
     loading: "Reading the events",
     failed: "The events could not be read.",
     retry: "Try again",
@@ -1146,6 +1161,8 @@ export const strings = {
         node === null ? `${client} joined the network` : `${client} joined ${node}`,
       clientLeft: (client: string, node: string | null) =>
         node === null ? `${client} left the network` : `${client} left ${node}`,
+      clientSwitched: (client: string, node: string) =>
+        `${client} switched access points on ${node}`,
       clientRoamed: (client: string, from: string, to: string) =>
         `${client} roamed from ${from} to ${to}`,
       clientSteered: {

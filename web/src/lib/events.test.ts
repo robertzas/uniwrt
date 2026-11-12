@@ -56,6 +56,19 @@ describe("events in words", () => {
       title: "Pixel roamed from Gateway to Attic AP",
       detail: "Fast transition (802.11r)",
     });
+    const switched = event(
+      {
+        kind: "client_roamed",
+        from: { node: 2, iface: "phy0-ap0" },
+        to: { node: 2, iface: "phy1-ap0" },
+        fast: false,
+      },
+      { client: "f0:18:98:00:00:01" },
+    );
+    expect(describeEvent(switched, names)).toEqual({
+      title: "Pixel switched access points on Attic AP",
+      detail: "phy0-ap0 → phy1-ap0",
+    });
     const steered = (what: Partial<Extract<EventRecord["what"], { kind: "client_steered" }>>) =>
       describeEvent(
         event(

@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, time::Duration};
 
 use uniwrt_core::{MacAddr, Timestamp};
 
-use super::{Happening, What, World};
+use super::{Band, Happening, What, World};
 use crate::{SimConfig, render};
 
 const START: Timestamp = Timestamp::from_unix_ms(1_793_245_539_000);
@@ -199,4 +199,58 @@ fn a_client_roams_soon_after_start() {
         });
         assert!(roamed.is_some(), "seed {seed}: no roam within 45 s");
     }
+}
+
+#[test]
+fn steering_nodes_move_their_802_11v_clients() {
+    let (mut walks, mut bands) = (0, 0);
+    for seed in 0..6 {
+        let config = SimConfig {
+            seed,
+            reboot_every: None,
+            ..SimConfig::default()
+        };
+        let mut world = World::new(&config, START);
+        for node in &mut world.nodes {
+            node.steers = true;
+        }
+        let happenings = run(&mut world, 4 * 3600);
+        for (i, happening) in happenings.iter().enumerate() {
+            let What::Steered { mac, band, target } = happening.what else {
+                continue;
+            };
+            let spec = world.clients.iter().find(|c| c.mac == mac).unwrap().spec;
+            assert!(spec.ft || spec.sae, "only 802.11v clients are steered");
+            // The client goes where it agreed to: the target BSS authorizes it next.
+            let joined = happenings[i..]
+                .iter()
+                .find_map(|h| match h.what {
+                    What::Authorized { mac: m, band, .. } if m == mac => Some((h.node, band)),
+                    _ => None,
+                })
+                .expect("the steered client joins again");
+            assert_eq!(world.nodes[joined.0].bssid(joined.1), target);
+            if joined.0 == happening.node {
+                assert_eq!((band, joined.1), (Band::G2, Band::G5), "band steering");
+                bands += 1;
+            } else {
+                walks += 1;
+            }
+        }
+    }
+    assert!(
+        walks > 0 && bands > 0,
+        "{walks} steered roams, {bands} band steerings"
+    );
+}
+
+#[test]
+fn nodes_without_usteer_steer_nothing() {
+    let mut world = World::new(&SimConfig::default(), START);
+    let happenings = run(&mut world, 3600);
+    assert!(
+        !happenings
+            .iter()
+            .any(|h| matches!(h.what, What::Steered { .. }))
+    );
 }

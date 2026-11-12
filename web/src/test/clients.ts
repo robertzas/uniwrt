@@ -2,6 +2,8 @@ import type { Client } from "../api/gen/Client";
 import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientSample } from "../api/gen/ClientSample";
 import type { ClientSession } from "../api/gen/ClientSession";
+import type { EventRecord } from "../api/gen/EventRecord";
+import type { Steered } from "../lib/steering";
 
 /* Made-up clients for tests: a phone on node 2's 5 GHz AP, unless `extra` says otherwise. */
 
@@ -101,5 +103,37 @@ export function detail(mac = "f0:18:98:00:00:01"): ClientDetail {
       }),
       session(NOW - 3_600_000),
     ],
+  };
+}
+
+/** A steering event at node 2's 5 GHz AP: by default the client agreed to move to node 1. */
+export function steered(
+  at: number,
+  what: Partial<Steered["what"]> = {},
+  extra: Partial<Omit<EventRecord, "what">> = {},
+): Steered {
+  return {
+    id: at,
+    at,
+    last_at: at,
+    count: 1,
+    level: "info",
+    category: "client",
+    node: 2,
+    client: "f0:18:98:00:00:01",
+    condition: null,
+    what: {
+      kind: "client_steered",
+      action: "transition_accepted",
+      iface: "phy1-ap0",
+      reason: null,
+      signal_dbm: null,
+      min_signal_dbm: null,
+      to: { node: 1, iface: "phy1-ap0" },
+      to_signal_dbm: null,
+      status: null,
+      ...what,
+    },
+    ...extra,
   };
 }

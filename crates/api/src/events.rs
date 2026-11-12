@@ -3,8 +3,8 @@
 //! - `GET /api/v1/events?<filter>&before=<time>:<id>&limit=<n>`: recorded events, newest first,
 //!   a page at a time ([`EventPage`]; `next` is the cursor of the following page).
 //!
-//! A filter is `categories=<name,…>&min=<level>&nodes=<id,…>&clients=<mac,…>&from=<ms>&
-//! to=<ms>`, every part optional ([`EventFilter`]).
+//! A filter is `categories=<name,…>&kinds=<name,…>&min=<level>&nodes=<id,…>&clients=<mac,…>&
+//! from=<ms>&to=<ms>`, every part optional ([`EventFilter`]).
 
 use axum::{
     Json,
@@ -34,6 +34,7 @@ pub struct EventPage {
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct EventsQuery {
     categories: Option<String>,
+    kinds: Option<String>,
     min: Option<String>,
     nodes: Option<String>,
     clients: Option<String>,
@@ -86,6 +87,10 @@ fn filter(query: &EventsQuery) -> ApiResult<EventFilter> {
     .iter()
     .filter_map(|name| EventCategory::parse(name))
     .collect();
+    // A kind is a name such as `client_steered`; one no event has matches nothing.
+    let kinds = parse_all(query.kinds.as_deref(), "event kinds", &|name| {
+        (1..=40).contains(&name.len()) && name.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    })?;
     let node = |id: &str| id.parse::<i64>().ok().filter(|id| *id > 0).map(NodeId::new);
     let nodes = parse_all(query.nodes.as_deref(), "node IDs", &|id| node(id).is_some())?
         .iter()
@@ -110,6 +115,7 @@ fn filter(query: &EventsQuery) -> ApiResult<EventFilter> {
         .transpose()?;
     Ok(EventFilter {
         categories,
+        kinds,
         min,
         nodes,
         clients,
@@ -191,6 +197,13 @@ mod tests {
         assert_eq!(ours, ["node_adopted", "client_left", "wan_down"]);
         let body = get(format!("/v1/events?categories=wan,client&nodes={gw},{ap}")).await;
         assert_eq!(kinds(&body), ["client_left", "wan_down"]);
+        let body = get(format!(
+            "/v1/events?kinds=wan_down,client_left&nodes={gw},{ap}"
+        ))
+        .await;
+        assert_eq!(kinds(&body), ["client_left", "wan_down"]);
+        let body = get(format!("/v1/events?kinds=client_left&nodes={gw}")).await;
+        assert_eq!(kinds(&body), Vec::<&str>::new());
         let body = get("/v1/events?min=critical&categories=wan".into()).await;
         assert_eq!(kinds(&body), ["wan_down"]);
         let body = get(format!("/v1/events?clients={phone}")).await;
@@ -202,6 +215,7 @@ mod tests {
         assert_eq!(kinds(&body), ["client_left"]);
         for bad in [
             "/v1/events?categories=weather",
+            "/v1/events?kinds=Client-Left",
             "/v1/events?min=loud",
             "/v1/events?nodes=x",
             "/v1/events?clients=nope",

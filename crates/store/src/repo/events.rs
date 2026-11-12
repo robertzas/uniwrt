@@ -191,6 +191,7 @@ impl From<&EventFilter> for Where {
     fn from(filter: &EventFilter) -> Self {
         let mut sql = Self::default();
         sql.any("category", filter.categories.iter().map(enum_text));
+        sql.any("kind", filter.kinds.iter().cloned());
         if let Some(min) = filter.min {
             sql.push("level <= ?", [i64::from(min.code())]);
         }

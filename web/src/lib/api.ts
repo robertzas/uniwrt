@@ -193,6 +193,8 @@ export function logParams(filter: LogFilter): URLSearchParams {
 /** Which events to read, as `GET v1/events` takes them (`model::events::EventFilter`). */
 export interface EventFilter {
   categories: EventCategory[];
+  /** Of these kinds only, such as `client_steered` (none: every kind). */
+  kinds?: string[];
   /** The least that matters to include: `warning` keeps warnings and critical ones. */
   min: EventLevel | null;
   nodes: number[];
@@ -208,6 +210,7 @@ export function eventParams(filter: EventFilter): URLSearchParams {
     if (values.length > 0) params.set(name, values.join(","));
   };
   list("categories", filter.categories);
+  list("kinds", filter.kinds ?? []);
   list("nodes", filter.nodes);
   list("clients", filter.clients);
   if (filter.min !== null) params.set("min", filter.min);

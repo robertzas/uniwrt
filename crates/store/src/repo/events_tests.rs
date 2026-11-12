@@ -128,6 +128,11 @@ async fn filters_and_pages() {
         ..EventFilter::default()
     };
     assert_eq!(read(clients).await, [at(4), at(2)]);
+    let offline = EventFilter {
+        kinds: vec!["node_offline".to_owned()],
+        ..EventFilter::default()
+    };
+    assert_eq!(read(offline).await, [at(3), at(1)]);
     let ap = EventFilter {
         nodes: vec![AP],
         ..EventFilter::default()

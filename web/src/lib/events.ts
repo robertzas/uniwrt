@@ -208,11 +208,14 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       const connected = duration(what.connected_ms);
       return withDetail(titles.clientLeft(client, placed), connected && d.connectedFor(connected));
     }
-    case "client_roamed":
-      return withDetail(
-        titles.clientRoamed(client, names.node(what.from.node), names.node(what.to.node)),
-        what.fast ? d.fast : `${what.from.iface} → ${what.to.iface}`,
-      );
+    case "client_roamed": {
+      // Within one node: another band or network (band steering, say).
+      const title =
+        what.from.node === what.to.node
+          ? titles.clientSwitched(client, names.node(what.to.node))
+          : titles.clientRoamed(client, names.node(what.from.node), names.node(what.to.node));
+      return withDetail(title, what.fast ? d.fast : `${what.from.iface} → ${what.to.iface}`);
+    }
     case "client_steered": {
       const who = client || titles.aClient;
       const to = what.to === null ? null : names.node(what.to.node);
@@ -327,6 +330,7 @@ export function admits(filter: EventFilter, event: EventRecord): boolean {
   const rank = (level: EventLevel) => LEVELS.indexOf(level);
   return (
     (filter.categories.length === 0 || filter.categories.includes(event.category)) &&
+    (!filter.kinds?.length || filter.kinds.includes(event.what.kind)) &&
     (filter.min === null || rank(event.level) <= rank(filter.min)) &&
     (filter.nodes.length === 0 || (event.node !== null && filter.nodes.includes(event.node))) &&
     (filter.clients.length === 0 ||

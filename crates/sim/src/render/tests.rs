@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde_json::{Value, value::to_raw_value};
 use uniwrt_core::Timestamp;
 use uniwrt_model::{
-    event::{LeaseChange, NodeEvent, StationChange},
+    event::{LeaseChange, NodeEvent, StationChange, SteerAction, SteerTarget},
     facts::{DeviceKind, NodeFacts},
 };
 use uniwrt_node::{
@@ -154,7 +154,10 @@ fn the_far_access_point_routes_through_a_nearer_one() {
 #[test]
 fn notifications_and_logs_parse() {
     let mut world = world();
-    let (mut stations, mut leases) = (0, 0);
+    for node in &mut world.nodes {
+        node.steers = true;
+    }
+    let (mut stations, mut leases, mut steers) = (0, 0, 0);
     for _ in 0..1800 {
         for happening in world.step() {
             let Some((_, topic, data)) = notification(&world, &happening) else {
@@ -177,13 +180,19 @@ fn notifications_and_logs_parse() {
                     assert_eq!(lease.change, LeaseChange::Acked);
                     leases += 1;
                 }
+                Some(Push::Event(NodeEvent::Steer(steer))) => {
+                    assert_eq!(steer.action, SteerAction::TransitionAccepted);
+                    assert!(steer.mac.is_some());
+                    assert!(matches!(steer.target, Some(SteerTarget::Bssid { .. })));
+                    steers += 1;
+                }
                 other => panic!("unexpected {other:?}"),
             }
         }
     }
     assert!(
-        stations > 20 && leases > 2,
-        "{stations} station and {leases} lease events"
+        stations > 20 && leases > 2 && steers > 0,
+        "{stations} station, {leases} lease and {steers} steering events"
     );
 
     let records: Vec<_> = world.nodes[0].logd.records.iter().collect();

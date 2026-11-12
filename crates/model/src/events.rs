@@ -559,6 +559,8 @@ impl EventRecord {
 #[serde(default)]
 pub struct EventFilter {
     pub categories: Vec<EventCategory>,
+    /// Of these kinds ([`EventKind::name`], such as `client_steered`).
+    pub kinds: Vec<String>,
     /// The least that matters to include: `warning` keeps warnings and critical ones.
     pub min: Option<EventLevel>,
     pub nodes: Vec<NodeId>,
@@ -571,6 +573,7 @@ pub struct EventFilter {
 impl EventFilter {
     pub fn admits(&self, event: &EventRecord) -> bool {
         (self.categories.is_empty() || self.categories.contains(&event.category))
+            && (self.kinds.is_empty() || self.kinds.iter().any(|kind| kind == event.what.name()))
             && self.min.is_none_or(|min| event.level <= min)
             && (self.nodes.is_empty() || event.node.is_some_and(|n| self.nodes.contains(&n)))
             && (self.clients.is_empty() || event.client.is_some_and(|c| self.clients.contains(&c)))
@@ -659,6 +662,14 @@ mod tests {
         }));
         assert!(!filter(EventFilter {
             categories: vec![EventCategory::Wan],
+            ..EventFilter::default()
+        }));
+        assert!(!filter(EventFilter {
+            kinds: vec!["client_steered".to_owned()],
+            ..EventFilter::default()
+        }));
+        assert!(filter(EventFilter {
+            kinds: vec!["client_steered".to_owned(), "node_offline".to_owned()],
             ..EventFilter::default()
         }));
         assert!(!filter(EventFilter {

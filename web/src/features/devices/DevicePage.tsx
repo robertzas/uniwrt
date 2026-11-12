@@ -20,6 +20,7 @@ import { ConfigTab } from "./config/ConfigTab";
 import { DeviceCharts } from "./DeviceCharts";
 import { PortsTab } from "./ports/PortsTab";
 import { RadiosCard } from "./RadiosCard";
+import { SteeringCard } from "./SteeringCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
 
 const d = strings.device;
@@ -177,6 +178,9 @@ function Overview(props: {
                 </div>
                 <DeviceCharts id={props.detail.node.id} facts={facts()} />
                 <ClientsCard facts={facts()} leases={props.leases} />
+                <Show when={facts().radios.length > 0}>
+                  <SteeringCard node={props.detail.node.id} leases={props.leases} />
+                </Show>
               </>
             )}
           </Show>

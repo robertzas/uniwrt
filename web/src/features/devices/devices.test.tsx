@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
+import { steered } from "../../test/clients";
 import { detail, facts, summary } from "../../test/fixtures";
 import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
@@ -220,11 +221,21 @@ describe("Devices", () => {
 
   it("names an access point's clients from the gateway's leases", async () => {
     const gateway = detail(wirelessFacts());
-    const fetch = vi.fn(async (url: string) =>
-      url === "/api/v1/nodes/1"
-        ? Response.json(gateway)
-        : Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" }),
-    );
+    const fetch = vi.fn(async (url: string) => {
+      if (url === "/api/v1/nodes/1") return Response.json(gateway);
+      if (url.startsWith("/api/v1/events?"))
+        return Response.json({
+          events: [
+            steered(
+              Date.now() - 60_000,
+              { action: "signal_kick", signal_dbm: -84, min_signal_dbm: -80, to: null },
+              { client: "aa:00:00:00:00:01" },
+            ),
+          ],
+          next: null,
+        });
+      return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
+    });
     vi.stubGlobal("fetch", fetch);
     const { ws } = renderAt("/devices/2");
     sendFleet(ws, [summary(1, "gw", { role: "gateway" }), summary(2, "attic")]);
@@ -235,6 +246,16 @@ describe("Devices", () => {
     const clients = await screen.findByRole("table", { name: "Wi-Fi clients" });
     await waitFor(() => expect(clients).toHaveTextContent("laptop"));
     expect(fetch).toHaveBeenCalledWith("/api/v1/nodes/1", expect.anything());
+    // What it steered, its clients named by the leases too.
+    const steering = await screen.findByRole("region", { name: "Steering" });
+    expect(steering).toHaveTextContent("1 disconnected");
+    expect(
+      within(steering).getByRole("link", { name: "attic disconnected laptop (weak signal)" }),
+    ).toHaveAttribute("href", "/clients/aa%3A00%3A00%3A00%3A00%3A01");
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/api\/v1\/events\?kinds=client_steered&nodes=2&from=\d+&limit=200$/),
+      expect.anything(),
+    );
     // The gateway's topic stays unsubscribed: its focus is not held.
     expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "config", "jobs", "node:2"] });
   });

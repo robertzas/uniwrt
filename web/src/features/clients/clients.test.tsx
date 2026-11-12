@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "../../api/gen/Client";
 import type { ServerMessage } from "../../api/gen/ServerMessage";
 import { createAppRouter } from "../../app/routes";
-import { client, detail, NOW, session } from "../../test/clients";
+import { client, detail, NOW, session, steered } from "../../test/clients";
 import { summary } from "../../test/fixtures";
 import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
@@ -37,6 +37,24 @@ function stubApi() {
           session(NOW - 5 * 86_400_000, { end: NOW - 4 * 86_400_000, ended_by: "left" }),
         ]);
       if (key.startsWith("GET /api/v1/metrics?")) return Response.json(metricsAnswer(url));
+      if (key.startsWith("GET /api/v1/events?"))
+        return Response.json({
+          events: [
+            steered(Date.now() - 60_000),
+            steered(
+              Date.now() - 120_000,
+              {
+                action: "assoc_denied",
+                reason: "low_signal",
+                signal_dbm: -80,
+                min_signal_dbm: -75,
+                to: null,
+              },
+              { id: 2, count: 3, level: "notice" },
+            ),
+          ],
+          next: null,
+        });
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );
@@ -161,6 +179,18 @@ describe("a client's page", () => {
     expect(within(lanes).getByText("Roamed")).toBeVisible();
     expect(within(lanes).getByText("Ongoing")).toBeVisible();
     expect(screen.getAllByText("Gateway · Home · 2.4 GHz")).toHaveLength(2);
+    // Steering: marks on the access point's lane, and in words under the lanes.
+    const steering = await screen.findByRole("region", { name: "Steering" });
+    expect(steering).toHaveTextContent("1 moved · 3 turned away");
+    expect(steering).toHaveTextContent("Annas-iPhone agreed to move from Living room to Gateway");
+    expect(steering).toHaveTextContent(
+      "Living room turned Annas-iPhone away · Signal -80 dBm, under -75 dBm",
+    );
+    expect(screen.getAllByRole("img", { name: /agreed to move from Living room/ })).toHaveLength(1);
+    const read = calls.find(({ key }) => key.startsWith("GET /api/v1/events?"))?.key ?? "";
+    const params = new URL(read.slice(4), "http://test").searchParams;
+    expect(params.get("kinds")).toBe("client_steered");
+    expect(params.get("clients")).toBe(MAC);
     await user.click(screen.getByRole("button", { name: "7 days" }));
     // The table renders again with the week's sessions.
     expect(await screen.findByText("Left")).toBeVisible();

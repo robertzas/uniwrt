@@ -176,6 +176,9 @@ impl Shared {
     /// One second of the world, and what the agents push about it.
     pub(crate) fn step(&self) {
         let mut world = self.world();
+        for node in 0..self.nodes.len() {
+            world.nodes[node].steers = lock(&self.nodes[node].disk).steers();
+        }
         let happenings = world.step();
         self.dispatch(&world, &happenings);
         for node in 0..self.nodes.len() {

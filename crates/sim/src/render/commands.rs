@@ -80,6 +80,15 @@ impl Disk {
         }
     }
 
+    /// Whether usteer steers clients here: it is installed with its config and enabled, and
+    /// the wpad has 802.11v (not the basic one), so hostapd can send its requests.
+    pub(crate) fn steers(&self) -> bool {
+        self.installed.contains("usteer")
+            && self.tool.files.contains_key("usteer")
+            && self.tool.services.get("usteer") == Some(&true)
+            && self.wpad != super::wpad::BASIC
+    }
+
     /// The neighbor lists hostapd holds: those set since `wireless` last changed.
     pub(crate) fn rrm(&self) -> BTreeMap<String, Vec<NeighborReport>> {
         match &self.rrm {

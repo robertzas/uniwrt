@@ -138,6 +138,16 @@ pub(crate) fn notification(world: &World, happening: &Happening) -> Option<(Topi
             "disassoc",
             json!({"address": mac.to_string(), "ifname": band.ap_iface()}),
         ),
+        // ucode reads hostapd's u8 status as a boolean: `false` is 0, accepted.
+        What::Steered { mac, band, target } => hostapd(
+            "bss-transition-response",
+            json!({
+                "address": mac.to_string(),
+                "ifname": band.ap_iface(),
+                "status-code": false,
+                "target-bssid": target.to_string(),
+            }),
+        ),
         What::Lease { mac, ip, name } => Some((
             Topic::Dhcp,
             "dnsmasq.dhcp.ack".to_owned(),

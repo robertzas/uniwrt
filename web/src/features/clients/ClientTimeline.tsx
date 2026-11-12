@@ -2,9 +2,17 @@ import { createEffect, createMemo, createSignal, For, Show, useContext } from "s
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import type { ClientSession } from "../../api/gen/ClientSession";
 import { api } from "../../lib/api";
-import { upstreamName } from "../../lib/clients";
+import { clientName, upstreamName } from "../../lib/clients";
+import { describeEvent, type Names } from "../../lib/events";
 import { formatDateTime, formatDuration, formatTime } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
+import {
+  createSteering,
+  outcomeCounts,
+  outcomeOf,
+  outcomeTones,
+  type Steered,
+} from "../../lib/steering";
 import { strings } from "../../lib/strings";
 import { Card, CardHeader } from "../../ui/Card";
 import { Segmented } from "../../ui/Segmented";
@@ -18,6 +26,9 @@ const bands = strings.device.radios.band;
 type Range = "day" | "week";
 const RANGE_MS: Record<Range, number> = { day: 86_400_000, week: 7 * 86_400_000 };
 
+/** Steering events listed under the lanes; the rest are on the events page. */
+const STEERING_SHOWN = 10;
+
 /** A place's lane: its key, label and sessions. */
 interface Lane {
   key: string;
@@ -28,6 +39,14 @@ interface Lane {
 export function placeKey(session: ClientSession): string {
   return `${session.node ?? "-"}|${session.port ?? ""}|${session.medium}`;
 }
+
+/** The lane of the access point (a node's BSS) a steering event happened at. */
+export function steerKey(event: Steered): string {
+  return `${event.node ?? "-"}|${event.what.iface}|wifi`;
+}
+
+/** A steering event in words: its title, and the detail after it. */
+type Marked = { event: Steered; text: string };
 
 /** One lane per place, in the order the client first went there. */
 export function lanesOf(
@@ -55,7 +74,8 @@ export function lanesOf(
 
 /**
  * The Timeline tab: where the client connected and when, as a lane per access point (or port),
- * over the last day (live) or week (fetched), then each session.
+ * over the last day (live) or week (fetched), with marks where access points steered it (D-091),
+ * then the steering in words and each session.
  */
 export function ClientTimeline(props: { detail: ClientDetail }) {
   const live = useContext(LiveContext);
@@ -78,6 +98,31 @@ export function ClientTimeline(props: { detail: ClientDetail }) {
   );
   const nodeName = (id: number) =>
     live.fleet.nodes.find((node) => node.id === id)?.name ?? `#${id}`;
+  const steering = createSteering(() => ({
+    nodes: [],
+    clients: [props.detail.client.mac],
+    spanMs: RANGE_MS[range()],
+  }));
+  const names: Names = {
+    node: nodeName,
+    client: () => clientName(props.detail.client),
+    pattern: () => undefined,
+  };
+  const marked = createMemo(() =>
+    steering().map((event): Marked => {
+      const described = describeEvent(event, names);
+      const text = described.detail ? `${described.title} · ${described.detail}` : described.title;
+      return { event, text };
+    }),
+  );
+  const marks = createMemo(() => {
+    const byLane = new Map<string, Marked[]>();
+    for (const mark of marked()) {
+      const key = steerKey(mark.event);
+      byLane.set(key, [...(byLane.get(key) ?? []), mark]);
+    }
+    return byLane;
+  });
   const sessions = createMemo(() => {
     if (range() === "day") return props.detail.sessions;
     const fetched = week();
@@ -118,7 +163,17 @@ export function ClientTimeline(props: { detail: ClientDetail }) {
           when={lanes().length > 0}
           fallback={<p class="px-4 py-10 text-center text-fg-subtle text-sm">{t.empty}</p>}
         >
-          <Swimlanes lanes={lanes()} from={from()} to={now()} range={range()} now={now()} />
+          <Swimlanes
+            lanes={lanes()}
+            marks={marks()}
+            from={from()}
+            to={now()}
+            range={range()}
+            now={now()}
+          />
+          <Show when={marked().length > 0}>
+            <SteeringList marked={marked()} mac={props.detail.client.mac} />
+          </Show>
           <SessionTable sessions={shown()} lanes={lanes()} now={now()} />
         </Show>
       </Show>
@@ -126,7 +181,14 @@ export function ClientTimeline(props: { detail: ClientDetail }) {
   );
 }
 
-function Swimlanes(props: { lanes: Lane[]; from: number; to: number; range: Range; now: number }) {
+function Swimlanes(props: {
+  lanes: Lane[];
+  marks: Map<string, Marked[]>;
+  from: number;
+  to: number;
+  range: Range;
+  now: number;
+}) {
   const span = () => props.to - props.from;
   const pct = (ms: number) => `${(Math.min(Math.max(ms - props.from, 0), span()) / span()) * 100}%`;
   const ticks = () => {
@@ -176,6 +238,23 @@ function Swimlanes(props: { lanes: Lane[]; from: number; to: number; range: Rang
                     );
                   }}
                 </For>
+                <For each={props.marks.get(lane.key) ?? []}>
+                  {(mark) => {
+                    const label = () => t.mark(formatDateTime(mark.event.at), mark.text);
+                    return (
+                      <span
+                        role="img"
+                        aria-label={label()}
+                        title={label()}
+                        class={[
+                          "-translate-x-1/2 absolute inset-y-0 w-1 rounded-full ring-1 ring-surface",
+                          outcomeTones[outcomeOf[mark.event.what.action]],
+                        ]}
+                        style={{ left: pct(mark.event.at) }}
+                      />
+                    );
+                  }}
+                </For>
               </div>
             </div>
           )}
@@ -194,6 +273,51 @@ function Swimlanes(props: { lanes: Lane[]; from: number; to: number; range: Rang
         </div>
       </div>
     </div>
+  );
+}
+
+/** The steering in words, newest first: a dot of its outcome, when, and what happened. */
+function SteeringList(props: { marked: Marked[]; mac: string }) {
+  const steered = () => props.marked.map((mark) => mark.event);
+  const summary = () =>
+    outcomeCounts(steered())
+      .map(([outcome, n]) => strings.events.steerOutcome[outcome](n))
+      .join(" · ");
+  const more = () => props.marked.length - STEERING_SHOWN;
+  return (
+    <section aria-label={t.steering} class="flex flex-col gap-2 border-edge border-t px-4 py-3">
+      <h3 class="font-medium text-sm">
+        {t.steering}
+        <span class="font-normal text-fg-muted"> · {summary()}</span>
+      </h3>
+      <ul class="flex flex-col gap-1 text-sm">
+        <For each={props.marked.slice(0, STEERING_SHOWN)}>
+          {(mark) => (
+            <li class="flex items-baseline gap-3">
+              <span
+                aria-hidden="true"
+                class={[
+                  "size-2 shrink-0 self-center rounded-full",
+                  outcomeTones[outcomeOf[mark.event.what.action]],
+                ]}
+              />
+              <span class="min-w-36 shrink-0 whitespace-nowrap text-fg-subtle tabular-nums">
+                {formatDateTime(mark.event.at)}
+              </span>
+              <span class="min-w-0">{mark.text}</span>
+            </li>
+          )}
+        </For>
+      </ul>
+      <Show when={more() > 0}>
+        <a
+          href={`/insights/events?clients=${encodeURIComponent(props.mac)}&categories=client`}
+          class="self-start text-accent text-sm hover:underline"
+        >
+          {t.steeringMore(more())}
+        </a>
+      </Show>
+    </section>
   );
 }
 

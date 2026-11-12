@@ -12,6 +12,7 @@ pub(crate) mod clients;
 mod layout;
 mod nodes;
 pub(crate) mod radio;
+mod steering;
 mod traffic;
 
 use std::{
@@ -73,6 +74,9 @@ pub(crate) struct Node {
     pub(crate) logd: Logd,
     /// hostapd's bans: each client kept off until a world ms (`ban` op); forgotten at a reboot.
     pub(crate) banned: BTreeMap<MacAddr, i64>,
+    /// usteer runs here with a wpad that has 802.11v, so its access points steer the clients
+    /// that have it too ([`steering`]); the fleet sets it from the node's disk.
+    pub(crate) steers: bool,
 }
 
 impl Node {
@@ -223,6 +227,12 @@ pub(crate) enum What {
     Disassoc {
         mac: MacAddr,
         band: Band,
+    },
+    /// The client answered usteer's BSS transition request: it goes to the BSS `target`.
+    Steered {
+        mac: MacAddr,
+        band: Band,
+        target: MacAddr,
     },
     /// dnsmasq acked a lease.
     Lease {
