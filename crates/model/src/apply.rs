@@ -196,7 +196,7 @@ pub struct CableEnd {
 /// A cable between two nodes that failed the wired backhaul's probe (features/mesh.md, Wired
 /// backhaul; D-097): later applies leave it a trunk while the same two ports face each other.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct BackhaulFailure {
     /// Its ends, in order.
     pub ends: [CableEnd; 2],

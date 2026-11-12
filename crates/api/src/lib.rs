@@ -30,7 +30,9 @@
 //!   v1/nodes/{id}/root-password/reveal` (admins, audited), `GET v1/discovered` (unadopted
 //!   OpenWrt devices the adopted nodes see), `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
-//!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the clients
+//!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the cables
+//!   that failed the wired backhaul's probe (`GET v1/backhaul/failures`, and an admin's
+//!   `DELETE v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}`; see `backhaul`), the clients
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]) and `PUT`/`DELETE
@@ -80,6 +82,7 @@ mod adopt;
 mod alerts;
 mod apply;
 pub mod auth;
+mod backhaul;
 mod bootstrap;
 mod client;
 mod client_actions;
@@ -241,6 +244,11 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
         .merge(config_routes())
+        .route("/v1/backhaul/failures", get(backhaul::list))
+        .route(
+            "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",
+            delete(backhaul::forget),
+        )
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))

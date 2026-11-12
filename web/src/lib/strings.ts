@@ -765,7 +765,51 @@ export const strings = {
       radio: (band: string, name: string) => `${band} · ${name}`,
       empty: "History appears here a minute after the device first reports.",
     },
-    tabs: { overview: "Overview", ports: "Ports", config: "Config" },
+    tabs: { overview: "Overview", ports: "Ports", mesh: "Mesh", config: "Config" },
+    mesh: {
+      waiting: "Waiting for the topology.",
+      absent: "The topology doesn't show this device yet. It appears once the device reports.",
+      path: {
+        title: "Path to the gateway",
+        description: "How it reaches the gateway, and what reaches the gateway through it",
+        gateway: "This is the gateway",
+        unreached: "Doesn't reach a gateway",
+        dependsOn: "Depends on",
+        redundant: "Only the gateway",
+        ifDown: "If it goes down",
+        lost: "Lose the gateway with it",
+      },
+      links: {
+        title: "Mesh links",
+        description: "Its links to other devices, weakest first",
+        empty:
+          "No links to other devices: it doesn't mesh, and no cable to another device is seen.",
+        label: "Mesh links",
+        peer: "To",
+        link: "Link",
+        health: "Health",
+        drops: "Drops (30 min)",
+        history: "Quality (24 h)",
+        historyOf: (peer: string) => `Quality of the link to ${peer}, last 24 hours`,
+        noDrops: "None",
+        tq: (percent: string) => `TQ ${percent}`,
+      },
+      stranded: (port: string) =>
+        `${port} carries only the mesh backhaul, but no device answers on it: whatever is plugged in there gets no LAN. Applies keep it so in case the other end comes back; if it is gone for good, take the port off the backhaul.`,
+      failures: {
+        title: "Failed cables",
+        description:
+          "Cables that failed the backhaul's probe stay plain trunks. Forget one to have the next apply probe it again.",
+        label: "Failed cables",
+        cable: "Cable",
+        why: "Why",
+        when: "When",
+        forget: "Forget",
+        forgetLabel: (port: string, peer: string) =>
+          `Forget the failed probe of ${port} to ${peer}`,
+        forgotten: "Forgotten: the next apply probes the cable again.",
+      },
+    },
     management: {
       title: "Management",
       observe:

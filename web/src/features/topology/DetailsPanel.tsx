@@ -18,7 +18,13 @@ import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import type { Graph } from "../../viz/topology/graph";
-import { canGoDown, type Impact, impactOf } from "../../viz/topology/health";
+import {
+  canGoDown,
+  type Impact,
+  impactOf,
+  scoreClass,
+  weakestFactor,
+} from "../../viz/topology/health";
 import type { Scene, SceneLink, SceneVertex } from "../../viz/topology/scene";
 
 const t = strings.topology;
@@ -343,14 +349,10 @@ function Traffic(props: { edge: TopoEdge }) {
   );
 }
 
-/** What holds a link's score back, worth naming below 90. */
+/** What holds a link's score back, in words, worth naming below 90. */
 function weakestText(edge: TopoEdge): string | null {
-  return edge.weakest && (edge.score ?? 100) < 90 ? d.weakest[edge.weakest] : null;
-}
-
-/** A score's tone: poor below 40, fair below 70. */
-function scoreClass(score: number): string {
-  return score < 40 ? "text-crit" : score < 70 ? "text-warn" : "";
+  const factor = weakestFactor(edge);
+  return factor && d.weakest[factor];
 }
 
 function LinkDetails(props: DetailsProps & { link: SceneLink }) {

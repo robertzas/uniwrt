@@ -1,3 +1,4 @@
+import type { LinkFactor } from "../../api/gen/LinkFactor";
 import type { TopoEdge } from "../../api/gen/TopoEdge";
 import type { Graph } from "./graph";
 import type { Scene } from "./scene";
@@ -90,4 +91,14 @@ export function impactEmphasis(scene: Scene, impact: Impact): Emphasis {
 /** The link's health, 0–100: its score where the server gives one, else its quality. */
 export function linkHealth(edge: TopoEdge): number | null {
   return edge.score ?? edge.quality;
+}
+
+/** What holds a link's score back, worth naming below 90. */
+export function weakestFactor(edge: TopoEdge): LinkFactor | null {
+  return edge.weakest && (edge.score ?? 100) < 90 ? edge.weakest : null;
+}
+
+/** A score's text color: poor below 40, fair below 70. */
+export function scoreClass(score: number): string {
+  return score < 40 ? "text-crit" : score < 70 ? "text-warn" : "";
 }

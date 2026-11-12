@@ -26,6 +26,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/session.rs`: Login sessions: a random 256-bit token in the `__Host-uniwrt-session` cookie (`HttpOnly`, Secure, SameSite=Strict, the whole site), stored only as its SHA-256.
 - `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
+- `src/backhaul.rs`: The cables that failed the wired backhaul's probe (features/mesh.md, Wired backhaul; D-097): `GET /api/v1/backhaul/failures` lists them ([`BackhaulFailure`]); an admin's `DELETE /api/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}` forgets one, in either order of its ends, so the next apply probes it again (audited; 404 when the cable has none).
 - `src/bootstrap.rs`: First run with a factory-default gateway (features/adoption.md, Path E; D-080), for admins:
 - `src/bootstrap/tests.rs`: The first-run routes over demo mode, whose dial reaches only the simulated nodes.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
@@ -745,7 +746,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (341 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (343 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -757,6 +758,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
 - `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
+- `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts

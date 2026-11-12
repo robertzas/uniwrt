@@ -4,8 +4,10 @@ import type { AlertRecord } from "../api/gen/AlertRecord";
 import type { ApplyBody } from "../api/gen/ApplyBody";
 import type { ApplyPlan } from "../api/gen/ApplyPlan";
 import type { AuthState } from "../api/gen/AuthState";
+import type { BackhaulFailure } from "../api/gen/BackhaulFailure";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
+import type { CableEnd } from "../api/gen/CableEnd";
 import type { Client } from "../api/gen/Client";
 import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientKick } from "../api/gen/ClientKick";
@@ -541,6 +543,16 @@ export const api = {
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),
+  /** Cables that failed the wired backhaul's probe (D-097); forgetting one (admins) has the next apply probe it again. */
+  backhaul: {
+    failures: (signal?: AbortSignal) =>
+      request<BackhaulFailure[]>("/backhaul/failures", { signal }),
+    forget: ([a, b]: readonly [CableEnd, CableEnd]) =>
+      request<void>(
+        `/backhaul/failures/${a.node}/${encodeURIComponent(a.port)}/${b.node}/${encodeURIComponent(b.port)}`,
+        { method: "DELETE" },
+      ),
+  },
   /** The live topology comes over the WS topic `topology`; these serve its replay and layout. */
   topology: {
     /** How far back the replay goes, and when the topology changed. */

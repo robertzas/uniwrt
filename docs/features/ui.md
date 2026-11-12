@@ -39,7 +39,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
   - top bar: site health pill, search, pending changes, notifications, user menu
   - **⌘K command palette:** navigate, find any client/device/MAC/IP, run actions ("reboot AP2", "optimize channels")
   - keyboard shortcuts, toasts, breadcrumbs
-- **Device page tabs:** Overview · Radios · Ports · Clients · Mesh · Config · Logs · Tools · Terminal (Overview, Ports and Config so far, in the URL as `?tab=`).
+- **Device page tabs:** Overview · Radios · Ports · Clients · Mesh · Config · Logs · Tools · Terminal (Overview, Ports, Mesh and Config so far, in the URL as `?tab=`).
 - **Client page tabs:** Overview · Timeline · Signal (M2.3) · Traffic (M2.4) · Doctor (M8).
 
 ## Interaction patterns
