@@ -93,11 +93,15 @@ beforeEach(() => {
   );
 });
 
+/** The page's query client, to wait for its reads to settle. */
+let queries: QueryClient;
+
 async function renderSecurity(role: "admin" | "viewer" = "admin") {
   const { socket, ws } = openTestSocket();
   const Router = createAppRouter(memoryHistory("/security"));
+  queries = new QueryClient();
   render(() => (
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queries}>
       <SignedInProviders socket={socket} role={role}>
         <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
       </SignedInProviders>
@@ -212,6 +216,9 @@ describe("Security", () => {
     // The dialog is gone before the typing starts: closing, it gives the focus back to its
     // trigger, which on a busy runner can happen mid-word and take the rest of it.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // No read is pending: while one is (the gateway's node, on a busy runner), Solid holds the
+    // draft's writes, so the input resets to the draft after every keystroke (CI on ddcc152).
+    await waitFor(() => expect(queries.isFetching()).toBe(0));
     await user.click(within(card).getAllByRole("button", { name: "Edit" })[0] as HTMLElement);
     const host = within(card).getByLabelText("Host address");
     await user.type(host, "192.168.1.1");
