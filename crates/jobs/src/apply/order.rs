@@ -11,12 +11,10 @@ use uniwrt_model::{
     node::{Node, NodeRole},
     status::NodeState,
 };
-use uniwrt_topo::{Member, TopoKind, build};
+use uniwrt_topo::{Member, TopoKind, Topology, build};
 
-/// Hops from the gateway to each node the topology connects to it, counting the nodes on the
-/// way: links run between nodes and through inferred switches, which cost nothing (a node
-/// behind one is as near as one on the gateway's port), never through clients or the internet.
-pub(crate) fn hops(nodes: &[(&Node, &NodeFacts)]) -> BTreeMap<NodeId, u32> {
+/// The topology the nodes' facts describe.
+pub(crate) fn topology(nodes: &[(&Node, &NodeFacts)]) -> Topology {
     let members: Vec<Member<'_>> = nodes
         .iter()
         .map(|(node, facts)| Member {
@@ -27,7 +25,13 @@ pub(crate) fn hops(nodes: &[(&Node, &NodeFacts)]) -> BTreeMap<NodeId, u32> {
             facts: Some(facts),
         })
         .collect();
-    let topology = build(&members, None);
+    build(&members, None)
+}
+
+/// Hops from the gateway to each node the topology connects to it, counting the nodes on the
+/// way: links run between nodes and through inferred switches, which cost nothing (a node
+/// behind one is as near as one on the gateway's port), never through clients or the internet.
+pub(crate) fn hops(topology: &Topology) -> BTreeMap<NodeId, u32> {
     // The vertices a path may cross, with the node each one is (`None` for a switch).
     let infrastructure: BTreeMap<&str, Option<NodeId>> = topology
         .nodes

@@ -109,16 +109,7 @@ impl<'a> Plan<'a> {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
         let tagged: BTreeSet<u16> = site.networks.iter().filter_map(|n| n.vlan).collect();
-        let free = |taken: &BTreeSet<u16>| (1..4095).find(|vid| !taken.contains(vid));
-        let untagged_vid = free(&tagged).unwrap_or(1);
-        let nets: Vec<Net<'a>> = site
-            .networks
-            .iter()
-            .map(|network| Net {
-                network,
-                vid: network.vlan.unwrap_or(untagged_vid),
-            })
-            .collect();
+        let nets = nets(site);
         let switch = match facts.capabilities.switch {
             Some(SwitchKind::Swconfig) => match &layout.switch {
                 Some(switch) if switch.lan_cpu.is_some() => Some(switch),
@@ -350,7 +341,26 @@ fn uplink(
 /// The ports with another job than the bridge's: the device of a raw interface (a wired
 /// batman-adv link, a VLAN of its own), and the backup line's. Bridging them too would take
 /// them from that job.
-fn claimed<'a>(site: &'a SiteConfig, config: &'a NodeConfig, backup: bool) -> BTreeSet<&'a str> {
+/// The networks, in document order, with their VLAN on the bridge: the untagged one takes the
+/// lowest VLAN ID no network is tagged with.
+pub(crate) fn nets(site: &SiteConfig) -> Vec<Net<'_>> {
+    let tagged: BTreeSet<u16> = site.networks.iter().filter_map(|n| n.vlan).collect();
+    let untagged_vid = (1..4095).find(|vid| !tagged.contains(vid)).unwrap_or(1);
+    site.networks
+        .iter()
+        .map(|network| Net {
+            network,
+            vid: network.vlan.unwrap_or(untagged_vid),
+        })
+        .collect()
+}
+
+/// The ports a raw interface of the node's or the gateway's backup line (`backup`) takes.
+pub(crate) fn claimed<'a>(
+    site: &'a SiteConfig,
+    config: &'a NodeConfig,
+    backup: bool,
+) -> BTreeSet<&'a str> {
     let mut claimed: BTreeSet<&str> = config
         .raw
         .iter()

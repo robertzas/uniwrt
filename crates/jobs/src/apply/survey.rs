@@ -9,7 +9,7 @@ use std::{
 
 use futures_util::future::join_all;
 use uniwrt_model::{
-    apply::{ApplyPlan, PlanAction},
+    apply::{ApplyPlan, CableEnd, PlanAction, PlanIssue},
     facts::NodeFacts,
     job::{JobError, JobErrorCode},
     node::{Node, NodeMode, NodeRole},
@@ -20,11 +20,13 @@ use uniwrt_node::{
     proto::ops::Set,
     txn::{self, current},
 };
-use uniwrt_render::Secrets;
-use uniwrt_store::{DriftRepo as _, HostKeyRepo as _, VaultRepo as _};
+use uniwrt_render::{Backhaul, Secrets};
+use uniwrt_store::{BackhaulRepo as _, DriftRepo as _, HostKeyRepo as _, VaultRepo as _};
+use uniwrt_uci::Package;
 use zeroize::Zeroizing;
 
 use super::{
+    cables,
     health::{self, Health},
     order,
     plan::{self, Part, Report},
@@ -72,6 +74,8 @@ pub(crate) struct Member {
     pub(crate) baseline: Health,
     pub(crate) part: Part,
     pub(crate) reading: Reading,
+    /// The cables batman-adv runs over, at the stage its part brings them to.
+    pub(crate) backhaul: Vec<Backhaul>,
 }
 
 /// The plan, the members that carry it out, in its order, and the vault's values the later
@@ -80,6 +84,8 @@ pub(crate) struct Survey {
     pub(crate) plan: ApplyPlan,
     pub(crate) members: Vec<Member>,
     pub(crate) secrets: VaultSecrets,
+    /// The cables the backhaul round probes ([`cables`]).
+    pub(crate) probes: Vec<[CableEnd; 2]>,
 }
 
 /// Logs in to `node` at `host` with the controller's key, against its pinned host key.
@@ -144,9 +150,10 @@ pub(crate) struct Reading {
 }
 
 impl Reading {
-    /// The report a part is planned from, for `node`.
-    pub(crate) fn report<'a>(&'a self, node: &'a Node) -> Report<'a> {
+    /// The report a part is planned from, for `node` with its `backhaul`.
+    pub(crate) fn report<'a>(&'a self, node: &'a Node, backhaul: &'a [Backhaul]) -> Report<'a> {
         Report {
+            backhaul,
             node,
             facts: &self.facts,
             files: &self.files,
@@ -392,13 +399,21 @@ pub(crate) async fn plan_all(
         .drifts()
         .await
         .map_err(|err| internal("reading the drift", &err))?;
+    let failures = shared
+        .store
+        .backhaul_failures()
+        .await
+        .map_err(|err| internal("reading the wired backhaul's failures", &err))?;
     let readings = join_all(logins.iter().map(|login| read(shared, login))).await;
-    let read: Vec<(&Node, &NodeFacts)> = logins
+    let read: Vec<(&Node, &Reading)> = logins
         .iter()
         .zip(&readings)
-        .filter_map(|(login, reading)| Some((&login.node, &reading.as_ref().ok()?.facts)))
+        .filter_map(|(login, reading)| Some((&login.node, reading.as_ref().ok()?)))
         .collect();
-    let hops = order::hops(&read);
+    let facts: Vec<(&Node, &NodeFacts)> = read.iter().map(|(n, r)| (*n, &r.facts)).collect();
+    let topology = order::topology(&facts);
+    let hops = order::hops(&topology);
+    let mut found = find_cables(site, &read, &topology, &failures);
     let mut plans = Vec::new();
     let mut members = Vec::new();
     for (login, reading) in logins.into_iter().zip(readings) {
@@ -410,7 +425,21 @@ pub(crate) async fn plan_all(
                 continue;
             }
         };
-        let mut part = plan::plan(site, &secrets, &reading.report(&login.node), &shared.timing);
+        let backhaul = found.asks.remove(&login.node.id).unwrap_or_default();
+        let mut part = plan::plan(
+            site,
+            &secrets,
+            &reading.report(&login.node, &backhaul),
+            &shared.timing,
+        );
+        if part.plan.action != PlanAction::Refused {
+            for note in found.notes.remove(&login.node.id).unwrap_or_default() {
+                part.plan.warnings.push(PlanIssue {
+                    path: "mesh/wired".to_owned(),
+                    message: note,
+                });
+            }
+        }
         part.plan.hops = hops.get(&login.node.id).copied();
         part.plan.drift = drifts
             .iter()
@@ -423,6 +452,7 @@ pub(crate) async fn plan_all(
             login,
             part,
             reading,
+            backhaul,
         });
     }
     for (node, why) in failed {
@@ -449,7 +479,34 @@ pub(crate) async fn plan_all(
         },
         members,
         secrets,
+        probes: found.probes,
     })
+}
+
+/// The cables the apply brings over ([`cables::find`]), from what the nodes read hold.
+fn find_cables(
+    site: &SiteConfig,
+    read: &[(&Node, &Reading)],
+    topology: &uniwrt_topo::Topology,
+    failures: &[uniwrt_model::apply::BackhaulFailure],
+) -> cables::Cables {
+    let networks: Vec<Option<Package>> = read
+        .iter()
+        .map(|(_, reading)| match reading.files.get("network") {
+            Some(Some(text)) => uniwrt_uci::parse("network", text).ok(),
+            _ => None,
+        })
+        .collect();
+    let candidates: Vec<cables::Candidate<'_>> = read
+        .iter()
+        .zip(&networks)
+        .map(|((node, reading), network)| cables::Candidate {
+            node,
+            facts: &reading.facts,
+            network: network.as_ref(),
+        })
+        .collect();
+    cables::find(site, topology, &candidates, failures)
 }
 
 /// Splits nodes into the managed ones and those in observe mode.

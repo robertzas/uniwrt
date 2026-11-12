@@ -296,6 +296,7 @@ export const strings = {
       confirm: "Confirm",
       settle: "Drop the old address",
       wan: "Change the WAN",
+      backhaul: "Bring the cables over to the mesh",
       link: "Link on the WAN port",
       address: "Get an address",
       gateway: "Reach the ISP's gateway",

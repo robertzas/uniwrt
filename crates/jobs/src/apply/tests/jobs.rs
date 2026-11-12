@@ -62,10 +62,13 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
         (job.kind, job.revision),
         (JobKind::Apply, Some(fleet.head().await.meta.id))
     );
-    // Nothing to install, and this controller's network stays; the gateway, managed for the
-    // first time, changes its WAN last.
+    // Nothing to install, this controller's network stays and no cable comes over; the
+    // gateway, managed for the first time, changes its WAN last.
     assert!(states(&job).iter().all(|(name, state)| *state
-        == if matches!(name, StepName::Install | StepName::Settle) {
+        == if matches!(
+            name,
+            StepName::Install | StepName::Settle | StepName::Backhaul
+        ) {
             StepState::Skipped
         } else {
             StepState::Done
@@ -152,7 +155,8 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
             StepName::Verify,
             StepName::Confirm,
             StepName::Settle,
-            StepName::Wan
+            StepName::Wan,
+            StepName::Backhaul
         ]
     );
 }

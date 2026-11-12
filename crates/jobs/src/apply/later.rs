@@ -2,7 +2,8 @@
 //! Make-before-break): its ports bounce once the bridge is applied, so the hosts behind them ask
 //! for a lease on the new subnet; then each later [`Round`] runs as a step of its own, planned
 //! again from what the gateway holds then: dropping the old address once this controller comes
-//! from the new subnet, and the WAN's change last. A failure there rolls back that transaction
+//! from the new subnet, and the WAN's change last; then the wired backhaul's round on every node
+//! with a cable brought over ([`super::backhaul`]). A failure there rolls back that transaction
 //! alone, and the apply ends partial.
 
 use std::time::Duration;
@@ -65,35 +66,48 @@ impl Run<'_> {
         progress.done(Some(summary)).await;
 
         let mut ran = Vec::new();
-        while let Some(i) = self
+        while let Some(round) = self
             .lives
             .iter()
-            .position(|live| !live.part.next.is_empty())
+            .filter_map(|live| live.part.next.first().copied())
+            .min()
         {
-            let round = self.lives[i].part.next[0];
             ran.push(round);
             progress.start(round.step()).await;
             self.txn = TxnId::new(format!("{}-{}", self.base, round.suffix()))
                 .map_err(|err| crate::errors::internal("naming the transaction", &err))?;
-            for (j, live) in self.lives.iter_mut().enumerate() {
-                live.active = j == i;
+            for live in &mut self.lives {
+                live.active = live.part.next.first() == Some(&round);
                 live.moves = false;
                 live.confirmed = false;
                 live.deadline = None;
             }
-            let (id, name) = (self.lives[i].node.id, self.lives[i].node.name.clone());
-            if let Err(why) = self.replan(i, round).await {
-                progress.node(id, JobNodeState::Failed, &why).await;
-                let err = failed(JobErrorCode::NodeFailed, format!("{name}: {why}"));
-                return Err(later(round, &err));
+            let group = self.active();
+            let probed = if round == Round::Backhaul {
+                Some(self.probe_cables(progress).await)
+            } else {
+                None
+            };
+            for &i in &group {
+                let (id, name) = (self.lives[i].node.id, self.lives[i].node.name.clone());
+                if let Err(why) = self.replan(i, round).await {
+                    progress.node(id, JobNodeState::Failed, &why).await;
+                    let err = failed(JobErrorCode::NodeFailed, format!("{name}: {why}"));
+                    return Err(later(round, &err));
+                }
+                let live = &mut self.lives[i];
+                if live.part.plan.action != PlanAction::Change {
+                    // Nothing left after all: it holds the revision.
+                    live.holds = Holds::Revision;
+                    live.held = live.part.held.clone();
+                    live.part.next.clear();
+                    live.active = false;
+                }
             }
-            if self.lives[i].part.plan.action != PlanAction::Change {
-                // Nothing left after all: it holds the revision.
-                self.lives[i].holds = Holds::Revision;
-                self.lives[i].part.next.clear();
-                progress
-                    .done(Some("Nothing left to apply".to_owned()))
-                    .await;
+            if self.active().is_empty() {
+                let mut done = probed.unwrap_or_default();
+                done.push("Nothing left to apply".to_owned());
+                progress.done(Some(done.join(". "))).await;
                 continue;
             }
             let result = async {
@@ -104,7 +118,11 @@ impl Run<'_> {
             }
             .await;
             match result {
-                Ok(summary) => progress.done(Some(summary)).await,
+                Ok(summary) => {
+                    let mut done = probed.unwrap_or_default();
+                    done.push(summary);
+                    progress.done(Some(done.join(". "))).await;
+                }
                 Err(err) => return Err(later(round, &err)),
             }
         }
@@ -119,6 +137,11 @@ impl Run<'_> {
         if !ran.contains(&Round::Wan) {
             progress
                 .skip(StepName::Wan, "The WAN doesn't change among other things")
+                .await;
+        }
+        if !ran.contains(&Round::Backhaul) {
+            progress
+                .skip(StepName::Backhaul, "No cable between nodes to bring over")
                 .await;
         }
         Ok(())
@@ -141,7 +164,7 @@ impl Run<'_> {
         let part = plan::plan(
             self.site,
             &self.secrets,
-            &live.reading.report(&node),
+            &live.reading.report(&node, &live.backhaul),
             &self.shared.timing,
         );
         if part.plan.action == PlanAction::Refused {

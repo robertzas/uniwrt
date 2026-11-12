@@ -24,7 +24,8 @@ use uniwrt_model::{
 };
 use uniwrt_node::txn::current::ServiceState;
 use uniwrt_render::{
-    Issue, RENDERABLE, Requirement, Secrets, Target, render, uplink_section, without_wan,
+    Backhaul, BackhaulStage, Issue, RENDERABLE, Requirement, Secrets, Target, render,
+    uplink_section, without_wan,
 };
 use uniwrt_uci::Package;
 
@@ -46,6 +47,9 @@ pub(crate) struct Report<'a> {
     pub(crate) installed: Result<&'a BTreeSet<String>, &'a String>,
     /// The controller's address as the gateway sees it, for the `uniwrt` record.
     pub(crate) controller: Option<std::net::IpAddr>,
+    /// The cables to other nodes batman-adv runs over, at their stage this transaction
+    /// ([`super::cables`]); an overlay has the backhaul round probe it.
+    pub(crate) backhaul: &'a [Backhaul],
 }
 
 /// One node's part, as the job carries it out.
@@ -170,7 +174,7 @@ pub(crate) fn plan(
         facts: report.facts,
         current: &current,
         controller: report.controller,
-        backhaul: &[],
+        backhaul: report.backhaul,
     };
     let rendered = match render(site, secrets, target) {
         Ok(rendered) => rendered,
@@ -229,8 +233,20 @@ pub(crate) fn plan(
     } else {
         PlanAction::Change
     };
-    if part.plan.action != PlanAction::Change {
+    if part.plan.action == PlanAction::Refused {
         part.next.clear();
+    } else {
+        if part.plan.action != PlanAction::Change {
+            // The later rounds have nothing to apply; the backhaul round still probes.
+            part.next.clear();
+        }
+        if report
+            .backhaul
+            .iter()
+            .any(|b| b.stage == BackhaulStage::Overlay)
+        {
+            part.next.push(Round::Backhaul);
+        }
     }
     part
 }

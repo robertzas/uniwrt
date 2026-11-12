@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use serde_json::value::RawValue;
 use uniwrt_core::{ManualClock, NodeId, Timestamp};
 use uniwrt_model::{
     job::{Job, JobState},
@@ -66,6 +67,8 @@ pub(crate) struct FakeNode {
     /// The address the controller's host takes when the node's ports bounce (and loses when a
     /// rollback bounces them again); `None` for a host that keeps its address.
     pub(crate) renews_to: Mutex<Option<&'static str>>,
+    /// The MTU its backhauls' VLAN devices take, which the agent's `mtu` op reports.
+    pub(crate) mtu: Mutex<u32>,
     /// The tool's commands run on every node, as `<node's first address> <command>`.
     journal: Arc<Mutex<Vec<String>>>,
 }
@@ -87,6 +90,7 @@ impl FakeNode {
             collect_hook: Mutex::default(),
             exec_hook: Mutex::default(),
             renews_to: Mutex::default(),
+            mtu: Mutex::new(1532),
             journal,
         })
     }
@@ -241,6 +245,44 @@ impl Remote for FakeRemote {
                 hook(&self.0.tool.lock().unwrap(), &mut collected);
             }
             Ok(serde_json::from_value(collected).unwrap())
+        })
+    }
+
+    /// The agent's `mtu`: a VLAN device the node's `network` holds answers at its MTU, a peer
+    /// replying when the size fits.
+    fn call<'a>(
+        &'a self,
+        op: &'static str,
+        args: &'a RawValue,
+        _timeout: Duration,
+    ) -> BoxFuture<'a, Result<Box<RawValue>>> {
+        Box::pin(async move {
+            if self.0.down.load(Ordering::SeqCst) || op != "mtu" {
+                return Err(Error::Disconnected {
+                    what: op.to_owned(),
+                });
+            }
+            let args: serde_json::Value = serde_json::from_str(args.get()).unwrap();
+            let (dev, size) = (
+                args["dev"].as_str().unwrap(),
+                args["size"].as_u64().unwrap(),
+            );
+            let network = self.0.file("network").unwrap_or_default();
+            if !network.contains(&format!("'{dev}'")) {
+                return Err(Error::Remote {
+                    op: op.to_owned(),
+                    code: "not_found".to_owned(),
+                    msg: format!("no device {dev}"),
+                });
+            }
+            let mtu = *self.0.mtu.lock().unwrap();
+            let peers: &[&str] = if u64::from(mtu) >= size {
+                &["fe80::2"]
+            } else {
+                &[]
+            };
+            let answer = serde_json::json!({"dev": dev, "size": size, "mtu": mtu, "peers": peers});
+            Ok(serde_json::value::to_raw_value(&answer).unwrap())
         })
     }
 

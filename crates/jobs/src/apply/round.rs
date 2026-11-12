@@ -2,7 +2,7 @@
 //! Make-before-break), planned (pure): the first becomes the bridge when the network this
 //! controller sits on moves (the old address beside the new one, short leases, the ports to
 //! bounce), and leaves the WAN out when it changes among other things; a [`Round`] names each
-//! transaction that follows.
+//! transaction that follows, the wired backhaul's last.
 
 use std::collections::BTreeMap;
 
@@ -21,6 +21,9 @@ pub(crate) enum Round {
     Settle,
     /// The WAN's change, deferred from the transactions before.
     Wan,
+    /// The cables brought over as overlays: each carries the mesh alone once both ends pass
+    /// the probe, or goes back to a trunk (D-097). Every node with such a cable takes part.
+    Backhaul,
 }
 
 impl Round {
@@ -28,6 +31,7 @@ impl Round {
         match self {
             Self::Settle => StepName::Settle,
             Self::Wan => StepName::Wan,
+            Self::Backhaul => StepName::Backhaul,
         }
     }
 
@@ -36,6 +40,7 @@ impl Round {
         match self {
             Self::Settle => "settle",
             Self::Wan => "wan",
+            Self::Backhaul => "backhaul",
         }
     }
 
@@ -44,6 +49,7 @@ impl Round {
         match self {
             Self::Settle => "Dropping the old address",
             Self::Wan => "The WAN's change",
+            Self::Backhaul => "Bringing the cables over to the wired backhaul",
         }
     }
 }

@@ -178,6 +178,9 @@ pub enum StepName {
     Settle,
     /// Apply the WAN's change last, in its own transaction (D-081).
     Wan,
+    /// Bring the cables between nodes over to the wired backhaul once both ends pass the probe,
+    /// or back to trunks (D-097).
+    Backhaul,
     /// The WAN port has a link (the connectivity test's steps follow, `uniwrt_isp::Step`).
     Link,
     /// A DHCP lease, a PPP session, the static address or the DS-Lite tunnel.

@@ -12,6 +12,7 @@ use std::{collections::BTreeMap, fmt::Write as _, time::Duration};
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 use uniwrt_model::{
+    apply::{CableEnd, PlanAction},
     job::{JobError, JobErrorCode, JobNodeState},
     node::Node,
     site::SiteConfig,
@@ -20,6 +21,7 @@ use uniwrt_node::{
     HostKey,
     txn::{self, TxnId, code},
 };
+use uniwrt_render::Backhaul;
 
 use super::{
     health::Health,
@@ -64,24 +66,33 @@ pub(crate) struct Live {
     pub(crate) holds: Holds,
     /// Its managed packages as it holds them after its last confirmed transaction.
     pub(crate) held: BTreeMap<String, String>,
+    /// The cables batman-adv runs over, at the stage its part brings them to.
+    pub(crate) backhaul: Vec<Backhaul>,
 }
 
 impl From<Member> for Live {
     fn from(member: Member) -> Self {
+        // A node with nothing to change before the backhaul round sits the first rounds out.
+        let first = member.part.plan.action == PlanAction::Change || member.part.follows();
         Self {
             host: member.login.node.host.clone(),
             node: member.login.node,
             host_key: member.login.host_key,
             remote: Some(member.login.remote),
-            part: member.part,
             reading: member.reading,
             baseline: member.baseline,
             deadline: None,
             confirmed: false,
-            active: true,
+            active: first,
             moves: false,
-            holds: Holds::Before,
-            held: BTreeMap::new(),
+            holds: if first { Holds::Before } else { Holds::Part },
+            held: if first {
+                BTreeMap::new()
+            } else {
+                member.part.held.clone()
+            },
+            backhaul: member.backhaul,
+            part: member.part,
         }
     }
 }
@@ -189,6 +200,8 @@ pub(crate) struct Run<'a> {
     /// The first round's id, which the later rounds' derive from.
     pub(super) base: String,
     pub(crate) lives: Vec<Live>,
+    /// The cables the backhaul round probes.
+    pub(super) probes: Vec<[CableEnd; 2]>,
 }
 
 pub(super) fn failed(code: JobErrorCode, message: String) -> JobError {
@@ -202,6 +215,7 @@ impl<'a> Run<'a> {
         secrets: VaultSecrets,
         txn: TxnId,
         lives: Vec<Live>,
+        probes: Vec<[CableEnd; 2]>,
     ) -> Self {
         Self {
             shared,
@@ -210,6 +224,7 @@ impl<'a> Run<'a> {
             base: txn.as_str().to_owned(),
             txn,
             lives,
+            probes,
         }
     }
 
@@ -504,6 +519,9 @@ fn staged(part: &Part) -> String {
     }
     if part.next.contains(&Round::Wan) {
         text.push_str("; the WAN's change goes last");
+    }
+    if part.next.contains(&Round::Backhaul) {
+        text.push_str("; its cables to other nodes are probed next");
     }
     text
 }

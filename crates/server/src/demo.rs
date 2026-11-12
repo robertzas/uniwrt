@@ -163,6 +163,18 @@ impl Remote for DemoRemote {
         })
     }
 
+    fn call<'a>(
+        &'a self,
+        op: &'static str,
+        args: &'a serde_json::value::RawValue,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Box<serde_json::value::RawValue>>> {
+        Box::pin(async move {
+            tokio::time::sleep(EXEC_DELAY).await;
+            self.0.call(op, args, timeout).await
+        })
+    }
+
     fn close(&self) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }

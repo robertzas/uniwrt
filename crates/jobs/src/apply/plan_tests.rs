@@ -97,6 +97,7 @@ fn part(site: &SiteConfig, node: &Node, files: &BTreeMap<String, Option<String>>
             services: &stock_services(),
             installed: Ok(&BTreeSet::new()),
             controller: None,
+            backhaul: &[],
         },
         &ApplyTiming::default(),
     )
@@ -151,6 +152,7 @@ fn a_new_node_gets_every_package_and_then_holds_them() {
             services: &off,
             installed: Ok(&BTreeSet::new()),
             controller: None,
+            backhaul: &[],
         },
         &ApplyTiming::default(),
     );
@@ -279,6 +281,7 @@ fn a_gateway_with_sqm_installs_its_packages_first() {
                 services: &stock_services(),
                 installed: Ok(installed),
                 controller: None,
+                backhaul: &[],
             },
             &ApplyTiming::default(),
         )

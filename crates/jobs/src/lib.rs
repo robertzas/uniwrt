@@ -36,8 +36,10 @@
 //!   services, facts and DNS at once; render; diff; any refused node stops it) → install (the
 //!   feed packages a configuration needs and a node lacks, D-076) → stage → apply
 //!   (leaves → gateway, dead-man timers armed) → verify (all at once, over new logins at the
-//!   address each moves to, health against the baseline) → confirm → record (the revision each
-//!   node holds; renumbered nodes moved and watched again). A failure before a confirm rolls
+//!   address each moves to, health against the baseline) → confirm → settle and wan (the
+//!   gateway's later transactions, D-081) → backhaul (the cables between nodes probed, then
+//!   exclusive or trunks again, D-097) → record (the revision each node holds; renumbered nodes
+//!   moved and watched again). A failure before a confirm rolls
 //!   every applied node back; a later lost confirm is a partial apply. It holds every managed
 //!   node's key.
 //! - **WAN test** (`wan_test/`): connect (the gateway) → plan (the latest revision with the WAN

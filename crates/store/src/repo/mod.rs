@@ -5,6 +5,7 @@ mod adoption;
 mod alerts;
 mod applies;
 mod audit;
+mod backhaul;
 mod clients;
 mod drift;
 mod events;
@@ -33,7 +34,7 @@ use uniwrt_model::{
         Acknowledgement, AlertFilter, AlertRecord, AlertRule, AlertWrite, MaintenanceWindow,
         NewWindow, RuleSpec,
     },
-    apply::{Applied, AppliedRevision},
+    apply::{Applied, AppliedRevision, BackhaulFailure, CableEnd},
     client::{ClientRecord, ClientSession},
     drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
@@ -64,6 +65,25 @@ pub trait ApplyRepo: Send + Sync {
 
     /// The revision each node holds, by node id.
     fn applied_revisions(&self) -> impl Future<Output = Result<Vec<AppliedRevision>>> + Send;
+}
+
+/// Cables that failed the wired backhaul's probe (features/mesh.md, Wired backhaul; D-097), one
+/// per cable whichever end names it first.
+pub trait BackhaulRepo: Send + Sync {
+    /// Records the cable's failure, replacing an earlier one of the same cable.
+    fn record_backhaul_failure(
+        &self,
+        failure: BackhaulFailure,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Every failed cable.
+    fn backhaul_failures(&self) -> impl Future<Output = Result<Vec<BackhaulFailure>>> + Send;
+
+    /// Forgets the cable's failure, so the next apply probes it again; whether it had one.
+    fn forget_backhaul_failure(
+        &self,
+        ends: [CableEnd; 2],
+    ) -> impl Future<Output = Result<bool>> + Send;
 }
 
 /// Drift (features/lifecycle.md, Drift): what the controller confirmed on each node, the

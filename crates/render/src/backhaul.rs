@@ -9,16 +9,16 @@
 use std::collections::BTreeSet;
 
 use uniwrt_model::{
-    facts::{NodeFacts, Software},
+    facts::{DeviceKind, NodeFacts, Software, SwitchKind},
     node::NodeRole,
     site::{SiteConfig, node::NodeConfig},
 };
-use uniwrt_uci::Section;
+use uniwrt_uci::{Package, Section, Value};
 
 use crate::{
-    Issue,
+    Issue, Target,
     ext::SectionExt,
-    plan::{BAT, Net, Plan},
+    plan::{self, BAT, Net, Plan},
     ports,
 };
 
@@ -90,20 +90,32 @@ pub(crate) fn plan<'a>(
     {
         return Vec::new();
     }
-    let layout = &node.facts.board.layout;
-    let trunk = ports::carried(None, node.nets);
     let mut taken = BTreeSet::new();
     let mut planned = Vec::new();
     for backhaul in asked {
-        let port = backhaul.port.as_str();
-        if !taken.insert(port) {
+        if !taken.insert(backhaul.port.as_str()) {
             continue;
         }
-        let known = layout.lan.iter().any(|lan| lan == port)
-            || layout.wan.as_deref() == Some(port)
-            || node.facts.devices.iter().any(|device| device.name == port);
-        let profile = ports::profile(node.config, port);
-        let problem = if node.swconfig {
+        match node.refusal(&backhaul.port) {
+            Some(problem) => errors.push(Issue::new("node", problem)),
+            None => planned.push(backhaul),
+        }
+    }
+    planned
+}
+
+impl Node<'_, '_> {
+    /// Why `port` can't carry a wired backhaul, if it can't.
+    fn refusal(&self, port: &str) -> Option<String> {
+        let layout = &self.facts.board.layout;
+        let known =
+            layout.lan.iter().any(|lan| lan == port)
+                || layout.wan.as_deref() == Some(port)
+                || self.facts.devices.iter().any(|device| {
+                    device.name == port && matches!(device.kind, DeviceKind::Ethernet)
+                });
+        let profile = ports::profile(self.config, port);
+        if self.swconfig {
             Some(format!(
                 "{port} is a port of a swconfig switch, which can't carry the wired backhaul yet"
             ))
@@ -111,25 +123,94 @@ pub(crate) fn plan<'a>(
             Some(format!(
                 "The node has no port {port} for the wired backhaul"
             ))
-        } else if node.role == NodeRole::Gateway && layout.wan.as_deref() == Some(port) {
+        } else if self.role == NodeRole::Gateway && layout.wan.as_deref() == Some(port) {
             Some(format!("{port} is the gateway's WAN port"))
-        } else if node.claimed.contains(port) {
+        } else if self.claimed.contains(port) {
             Some(format!("{port} already has another job"))
         } else if profile.is_some_and(|p| !p.backhaul) {
             Some(format!("{port} is kept out of the wired backhaul"))
-        } else if profile.is_some_and(|p| ports::carried(Some(p), node.nets) != trunk) {
+        } else if profile
+            .is_some_and(|p| ports::carried(Some(p), self.nets) != ports::carried(None, self.nets))
+        {
             Some(format!(
                 "{port} isn't a trunk, so it can't carry the wired backhaul"
             ))
         } else {
             None
-        };
-        match problem {
-            Some(problem) => errors.push(Issue::new("node", problem)),
-            None => planned.push(backhaul),
         }
     }
-    planned
+}
+
+/// Which of `ports` the node can carry a wired backhaul on, as [`render`](crate::render) checks
+/// them: none while the mesh or its wired links are off, or the node lacks batman-adv. The
+/// apply asks only for these, so that a cable it finds never refuses a node.
+pub fn backhaul_ports<'p>(
+    site: &SiteConfig,
+    target: Target<'_>,
+    ports: impl IntoIterator<Item = &'p str>,
+) -> BTreeSet<&'p str> {
+    let facts = target.facts;
+    if !site.mesh.enabled
+        || !site.mesh.wired
+        || !facts.capabilities.software.contains(&Software::BatmanAdv)
+    {
+        return BTreeSet::new();
+    }
+    let default = NodeConfig::new(target.node);
+    let config = site
+        .nodes
+        .iter()
+        .find(|config| config.node == target.node)
+        .unwrap_or(&default);
+    let nets = plan::nets(site);
+    // A backup line's port counts as taken whether or not it renders.
+    let claimed = plan::claimed(site, config, target.role == NodeRole::Gateway);
+    let node = Node {
+        role: target.role,
+        facts,
+        config,
+        swconfig: facts.capabilities.switch == Some(SwitchKind::Swconfig),
+        claimed: &claimed,
+        nets: &nets,
+    };
+    ports
+        .into_iter()
+        .filter(|port| node.refusal(port).is_none())
+        .collect()
+}
+
+/// The backhauls a node's `network` holds, at the stage each has come to: a port still in the
+/// bridge is an overlay. The VLAN they run on may differ from the site's now.
+pub fn held_backhauls(network: &Package) -> Vec<Backhaul> {
+    let bridged: BTreeSet<&str> = network
+        .sections_of("device")
+        .filter(|section| section.option("name") == Some(plan::BRIDGE))
+        .filter_map(|section| section.get("ports").map(Value::items))
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    network
+        .sections_of("interface")
+        .filter(|section| {
+            section
+                .name
+                .as_deref()
+                .is_some_and(|name| name.starts_with(BACKHAUL_PREFIX))
+                && section.option("proto") == Some("batadv_hardif")
+        })
+        .filter_map(|section| {
+            let (port, vid) = section.option("device")?.rsplit_once('.')?;
+            vid.parse::<u16>().ok()?;
+            Some(Backhaul {
+                port: port.to_owned(),
+                stage: if bridged.contains(port) {
+                    BackhaulStage::Overlay
+                } else {
+                    BackhaulStage::Exclusive
+                },
+            })
+        })
+        .collect()
 }
 
 /// The ports the backhaul takes out of the bridge.

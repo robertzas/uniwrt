@@ -3,11 +3,13 @@
 
 use std::{pin::Pin, time::Duration};
 
+use serde_json::value::RawValue;
+
 use tokio::sync::{OnceCell, broadcast};
 use uniwrt_node::{
     Agent, AgentLaunch, Credential, ExecOutput, ExecRequest, HELLO_TIMEOUT, HostKey, Result,
     Session, SshConfig, Target,
-    proto::ops::{Collect, Collected, Op as _, Set},
+    proto::ops::{Collect, Collected, Op, Set},
 };
 
 /// A boxed future, so that the traits stay dyn-compatible.
@@ -44,8 +46,39 @@ pub trait Remote: Send + Sync {
     /// The collect `sets`, from the agent, which starts on first use (installed into `/tmp`).
     fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>>;
 
+    /// The agent's answer to `op` (one of `uniwrt_node::proto::ops`), within `timeout`; the
+    /// agent starts as for [`Remote::collect`]. Logins that can't reach an agent answer
+    /// [`uniwrt_node::Error::Protocol`].
+    fn call<'a>(
+        &'a self,
+        op: &'static str,
+        args: &'a RawValue,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Box<RawValue>>> {
+        let _ = (args, timeout);
+        Box::pin(async move {
+            Err(uniwrt_node::Error::Protocol(format!(
+                "this login can't call the agent's {op}"
+            )))
+        })
+    }
+
     /// Logs out; the agent, if started, exits with it.
     fn close(&self) -> BoxFuture<'_, ()>;
+}
+
+/// `op`'s answer over `remote`, within `timeout`.
+pub(crate) async fn request<O: Op>(
+    remote: &dyn Remote,
+    op: &O,
+    timeout: Duration,
+) -> Result<O::Output> {
+    let args = serde_json::value::to_raw_value(op)
+        .map_err(|err| uniwrt_node::Error::Protocol(err.to_string()))?;
+    let answer = remote.call(O::NAME, &args, timeout).await?;
+    serde_json::from_str(answer.get()).map_err(|err| {
+        uniwrt_node::Error::Protocol(format!("unexpected answer to {}: {err}", O::NAME))
+    })
 }
 
 /// [`Dial`] over SSH.
@@ -86,6 +119,21 @@ struct SshRemote {
     agent: OnceCell<Agent>,
 }
 
+impl SshRemote {
+    /// The agent, started on first use.
+    async fn agent(&self) -> Result<&Agent> {
+        self.agent
+            .get_or_try_init(|| async {
+                // Nothing listens for pushes: the agent only answers here.
+                let events = broadcast::channel(1).0;
+                AgentLaunch::Bundle
+                    .start(&self.session, &events, HELLO_TIMEOUT)
+                    .await
+            })
+            .await
+    }
+}
+
 impl Remote for SshRemote {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>> {
         Box::pin(async move { self.session.exec(&request).await })
@@ -93,25 +141,28 @@ impl Remote for SshRemote {
 
     fn collect<'a>(&'a self, sets: &'a [Set]) -> BoxFuture<'a, Result<Collected>> {
         Box::pin(async move {
-            let agent = self
-                .agent
-                .get_or_try_init(|| async {
-                    // Nothing listens for pushes: the agent only answers here.
-                    let events = broadcast::channel(1).0;
-                    AgentLaunch::Bundle
-                        .start(&self.session, &events, HELLO_TIMEOUT)
-                        .await
-                })
-                .await?;
             let args = serde_json::value::to_raw_value(&Collect {
                 sets: sets.to_vec(),
             })
             .map_err(|err| uniwrt_node::Error::Protocol(err.to_string()))?;
-            let answer = agent.call(Collect::NAME, &args, COLLECT_TIMEOUT).await?;
+            let answer = self
+                .agent()
+                .await?
+                .call(Collect::NAME, &args, COLLECT_TIMEOUT)
+                .await?;
             serde_json::from_str(answer.get()).map_err(|err| {
                 uniwrt_node::Error::Protocol(format!("unexpected answer to collect: {err}"))
             })
         })
+    }
+
+    fn call<'a>(
+        &'a self,
+        op: &'static str,
+        args: &'a RawValue,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Box<RawValue>>> {
+        Box::pin(async move { self.agent().await?.call(op, args, timeout).await })
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {

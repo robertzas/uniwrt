@@ -184,3 +184,32 @@ pub struct AppliedNode {
     /// packages it held before and no longer manages are forgotten.
     pub packages: std::collections::BTreeMap<String, String>,
 }
+
+/// One end of a cable between two nodes: a node's Ethernet port.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct CableEnd {
+    pub node: NodeId,
+    pub port: String,
+}
+
+/// A cable between two nodes that failed the wired backhaul's probe (features/mesh.md, Wired
+/// backhaul; D-097): later applies leave it a trunk while the same two ports face each other.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct BackhaulFailure {
+    /// Its ends, in order.
+    pub ends: [CableEnd; 2],
+    /// The apply that probed it.
+    pub job: JobId,
+    pub at: Timestamp,
+    /// What the probe found, in words.
+    pub why: String,
+}
+
+impl BackhaulFailure {
+    /// Whether it is the cable between `a` and `b`, in either order.
+    pub fn is(&self, a: &CableEnd, b: &CableEnd) -> bool {
+        (&self.ends[0], &self.ends[1]) == (a, b) || (&self.ends[0], &self.ends[1]) == (b, a)
+    }
+}

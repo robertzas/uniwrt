@@ -18,7 +18,9 @@ use uniwrt_model::{
         node::{ManagedPackage, PortConfig, TaggedNetworks},
     },
 };
-use uniwrt_render::{Backhaul, BackhaulStage, Issue, Rendered, Target, render};
+use uniwrt_render::{
+    Backhaul, BackhaulStage, Issue, Rendered, Target, backhaul_ports, held_backhauls, render,
+};
 use uniwrt_uci::Package;
 
 use support::*;
@@ -223,4 +225,81 @@ fn the_gateways_firewall_lets_only_the_probe_in_over_a_cable() {
     // An AP runs no firewall.
     let ap = firewall((AP, NodeRole::Ap), &cables);
     assert_eq!(ap.sections_of("zone").count(), 0);
+}
+
+#[test]
+fn the_apply_asks_only_for_the_ports_render_accepts() {
+    let facts = gateway_facts();
+    let mut site = home_site();
+    for config in &mut site.nodes {
+        config.ports = vec![PortConfig {
+            port: "lan2".to_owned(),
+            native: Some("lan".to_owned()),
+            tagged: TaggedNetworks::All,
+            backhaul: false,
+        }];
+    }
+    let current = stock();
+    let target = |node, role| Target {
+        node,
+        role,
+        facts: &facts,
+        current: &current,
+        controller: None,
+        backhaul: &[],
+    };
+    let ports = ["eth1", "lan1", "lan2", "lan9"];
+    let eligible = |site: &SiteConfig, node, role| {
+        backhaul_ports(site, target(node, role), ports)
+            .into_iter()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(eligible(&site, GATEWAY, NodeRole::Gateway), ["lan1"]);
+    assert_eq!(eligible(&site, AP, NodeRole::Ap), ["eth1", "lan1"]);
+    // Every port it accepts renders.
+    let asked: Vec<Backhaul> = eligible(&site, AP, NodeRole::Ap)
+        .into_iter()
+        .map(|port| cable(port, BackhaulStage::Overlay))
+        .collect();
+    network(&with_backhaul(&site, (AP, NodeRole::Ap), &facts, &asked));
+    let mut off = site.clone();
+    off.mesh.wired = false;
+    assert_eq!(eligible(&off, AP, NodeRole::Ap), Vec::<&str>::new());
+    let mut bare = facts.clone();
+    bare.capabilities.software.remove(&Software::BatmanAdv);
+    assert!(
+        backhaul_ports(
+            &site,
+            Target {
+                facts: &bare,
+                ..target(AP, NodeRole::Ap)
+            },
+            ports
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn a_nodes_network_tells_how_far_each_cable_came() {
+    let current = stock();
+    let site = home_site();
+    let facts = gateway_facts();
+    let rendered = with_backhaul(
+        &site,
+        (AP, NodeRole::Ap),
+        &facts,
+        &[
+            cable("lan1", BackhaulStage::Overlay),
+            cable("eth1", BackhaulStage::Exclusive),
+        ],
+    );
+    assert_eq!(
+        held_backhauls(network(&rendered)),
+        [
+            cable("lan1", BackhaulStage::Overlay),
+            cable("eth1", BackhaulStage::Exclusive),
+        ]
+    );
+    assert_eq!(held_backhauls(&current["network"]), []);
 }

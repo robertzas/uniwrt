@@ -53,6 +53,7 @@ impl Held {
                 services: &self.services,
                 installed: Ok(&BTreeSet::new()),
                 controller: controller.parse().ok(),
+                backhaul: &[],
             },
             &ApplyTiming::default(),
         );
