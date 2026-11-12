@@ -191,15 +191,6 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes/{id}/management", put(management::put))
         .route("/v1/nodes/{id}/role", put(node_role::put))
         .route("/v1/nodes/{id}/wpad", post(wpad::post))
-        .route("/v1/adopt/probe", post(adopt::probe))
-        .route("/v1/adopt", post(adopt::adopt))
-        .route("/v1/adopt/batch", post(adopt::batch::adopt))
-        .route("/v1/bootstrap/gateway", get(bootstrap::gateway))
-        .route(
-            "/v1/nodes/{id}/root-password/reveal",
-            post(bootstrap::reveal_root_password),
-        )
-        .route("/v1/discovered", get(discovered::list))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
         .route("/v1/clients", get(clients::list))
@@ -254,6 +245,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
         .merge(config_routes())
+        .merge(adoption_routes())
         .merge(ztp::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
@@ -278,6 +270,21 @@ pub fn router(api: Api) -> Router {
         .layer(middleware::from_fn(security::csrf))
         .layer(middleware::map_response(security::no_store))
         .with_state(api)
+}
+
+/// Adoption: probes, adoptions one at a time or in a batch, the first run's gateway and its
+/// root password, and discovery.
+fn adoption_routes() -> Router<Api> {
+    Router::new()
+        .route("/v1/adopt/probe", post(adopt::probe))
+        .route("/v1/adopt", post(adopt::adopt))
+        .route("/v1/adopt/batch", post(adopt::batch::adopt))
+        .route("/v1/bootstrap/gateway", get(bootstrap::gateway))
+        .route(
+            "/v1/nodes/{id}/root-password/reveal",
+            post(bootstrap::reveal_root_password),
+        )
+        .route("/v1/discovered", get(discovered::list))
 }
 
 /// The site's configuration: its document and history, applies, import, drift, and the WAN
