@@ -14,4 +14,9 @@ port: string,
 /**
  * The network it carries untagged, which untagged frames join; `None` carries none.
  */
-native: string | null, tagged: TaggedNetworks, };
+native: string | null, tagged: TaggedNetworks, 
+/**
+ * Whether batman-adv may take the port over when it is a cable between two nodes (wired
+ * backhaul, features/mesh.md; D-094): only a trunk qualifies, so `false` keeps one a trunk.
+ */
+backhaul: boolean, };

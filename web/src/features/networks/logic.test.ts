@@ -138,7 +138,14 @@ describe("the network editor's draft", () => {
         hostname: null,
         managed: [],
         radios: [],
-        ports: [{ port: "lan1", native: null, tagged: { kind: "only", networks: ["iot"] } }],
+        ports: [
+          {
+            port: "lan1",
+            native: null,
+            tagged: { kind: "only", networks: ["iot"] },
+            backhaul: true,
+          },
+        ],
         raw: [],
       },
     ];

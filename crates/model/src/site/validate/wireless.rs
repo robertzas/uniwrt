@@ -174,6 +174,21 @@ pub(super) fn mesh(config: &SiteConfig, issues: &mut Issues) {
     if mesh.band == Some(Band::G60) {
         issues.error("mesh/band", "60 GHz is not supported");
     }
+    if !(1..=4094).contains(&mesh.wired_vlan) {
+        issues.error("mesh/wired_vlan", "A VLAN ID is 1 to 4094");
+    } else if let Some(network) = config
+        .networks
+        .iter()
+        .find(|n| n.vlan == Some(mesh.wired_vlan))
+    {
+        issues.error(
+            "mesh/wired_vlan",
+            format!(
+                "{} uses VLAN {}, which the wired backhaul takes",
+                network.name, mesh.wired_vlan
+            ),
+        );
+    }
 }
 
 pub(super) fn radio(config: &SiteConfig, issues: &mut Issues) {

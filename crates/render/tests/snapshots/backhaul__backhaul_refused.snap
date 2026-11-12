@@ -1,0 +1,18 @@
+---
+source: crates/render/tests/backhaul.rs
+expression: all
+---
+## gateway
+errors:
+  node: eth1 is the gateway's WAN port
+  node: lan2 is kept out of the wired backhaul
+  node: lan3 isn't a trunk, so it can't carry the wired backhaul
+  node: The node has no port lan9 for the wired backhaul
+
+## swconfig
+errors:
+  node: switch0:1 is a port of a swconfig switch, which can't carry the wired backhaul yet
+
+## wired off
+errors:
+  mesh/wired: A wired backhaul was asked for while the mesh's wired links are off

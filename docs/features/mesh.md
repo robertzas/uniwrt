@@ -7,10 +7,36 @@ Milestones: M2 (read-only telemetry for existing meshes), M5.3 (managed mesh).
 
 - **A layer-2 mesh built on batman-adv.** It runs over **802.11s** mesh-point interfaces (`mode mesh`, `mesh_fwding 0` so batman does the routing, encrypted with SAE using a controller-generated key). It also runs over **wired uplinks** (Ethernet hard interfaces) wherever an MTU of at least 1532 is possible. The result is automatic failover between wired and wireless links, without loops.
 - **Fallback** when a wired link can't take MTU 1532: bridge it as a plain trunk and enable **Bridge Loop Avoidance**.
+- **Wired backhaul** (D-094): see below.
 - **Every network spans the mesh:** `bat0` is a trunk of `br-lan`, carrying the untagged network untagged and the VLANs tagged (D-067).
 - **Gateway:** batman `gw_mode server`, with bandwidth advertised from the WAN speed. APs use `gw_mode client` only when there are several gateways; otherwise it is off. DHCP stays central on the gateway.
-- **Routing algorithm:** BATMAN_IV by default (the most proven); BATMAN_V optional (throughput metric). This is open decision O-3.
+- **Routing algorithm:** BATMAN_V for new sites (the throughput metric, D-095); BATMAN_IV stays selectable, and stored sites keep theirs.
 - **Rendered options:** `bridge_loop_avoidance 1`, `distributed_arp_table 1`, `multicast_mode 1`, `hop_penalty` (higher on wireless), `orig_interval 1000`, `aggregated_ogms 1`, `fragmentation 1`, and `ap_isolation` on guest networks.
+
+## Wired backhaul (M5.3, D-094)
+
+- **Which cables:** a direct cable between two adopted, managed nodes that the topology sees (no client or switch on it), on a trunk port of each, unless the site turns it off (`mesh.wired`) or a port's profile opts out (`backhaul: false`). A swconfig switch's ports can't carry it yet.
+- **How:** batman-adv runs over a VLAN of its own on the cable, `mesh.wired_vlan` (4094 by default; no network may use it): `<port>.<vid>` is the hard interface `uw_bh_<port>`, and the port and the VLAN device take MTU 1532.
+- **Make-before-break:** the apply stages each cable. *Overlay:* the port stays a trunk and the VLAN's hard interface joins `bat0` beside it, so the cable carries the LAN whichever end comes over first (BLA handles the two paths). *Exclusive:* once batman-adv sees the neighbor over the VLAN and the MTU probe passes, the port carries the VLAN alone and leaves the bridge. A cable that fails the probe goes back to a plain trunk.
+- A node meshing only over cables (no radio for the mesh) still runs `bat0`.
+
+```
+config device
+	option name 'lan1'
+	option mtu '1532'
+
+config device
+	option type '8021q'
+	option ifname 'lan1'
+	option vid '4094'
+	option name 'lan1.4094'
+	option mtu '1532'
+
+config interface 'uw_bh_lan1'
+	option proto 'batadv_hardif'
+	option master 'bat0'
+	option device 'lan1.4094'
+```
 
 ## Backhaul radio selection
 
@@ -52,7 +78,7 @@ config interface 'bat0'
 
 `bat0` and the LAN ports join `br-lan` as trunks. Exact option names are verified against each target OpenWrt version in the system harness (M3.3b).
 
-What M3.3 renders (`crates/render`, D-067): `bat0` as above (`gw_mode server` on the gateway, `off` on APs; `ap_isolation` when the untagged network isolates), the `uw_mesh` hard interface (MTU 1532), and the `uw_mesh` mesh point on the mesh radio, which needs batman-adv and hostapd's 802.11s (`mesh`) on the node. The mesh's band is the configured one, else 5 GHz; a node with two radios of that band gives the mesh the one that reaches the highest channel and keeps its WLANs off it. Every peer needs one channel, so the mesh radio takes the band's fixed channel, else a default (1, 36 or 37) with a warning; a radio override can't move it. Wired links stay plain trunks with Bridge Loop Avoidance; batman over wired hard interfaces, backhaul selection and rotation come with M5.3.
+What M3.3 renders (`crates/render`, D-067): `bat0` as above (`gw_mode server` on the gateway, `off` on APs; `ap_isolation` when the untagged network isolates), the `uw_mesh` hard interface (MTU 1532), and the `uw_mesh` mesh point on the mesh radio, which needs batman-adv and hostapd's 802.11s (`mesh`) on the node. The mesh's band is the configured one, else 5 GHz; a node with two radios of that band gives the mesh the one that reaches the highest channel and keeps its WLANs off it. Every peer needs one channel, so the mesh radio takes the band's fixed channel, else a default (1, 36 or 37) with a warning; a radio override can't move it. Wired links stay plain trunks with Bridge Loop Avoidance unless the apply stages them as a wired backhaul (above, M5.3); backhaul radio selection and key rotation are not rendered yet.
 
 ## Mesh lifecycle operations
 

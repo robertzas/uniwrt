@@ -70,6 +70,8 @@ export function siteConfig(): SiteConfig {
       key: "config/00000000000000000000000000000002",
       band: "5g",
       routing: "batman_iv",
+      wired: true,
+      wired_vlan: 4094,
     },
     radio: {
       bands: [

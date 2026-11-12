@@ -457,6 +457,7 @@ pub(crate) fn lan_site(swconfig: bool) -> SiteConfig {
         port: port.to_owned(),
         native: native.map(str::to_owned),
         tagged,
+        backhaul: true,
     };
     for config in &mut site.nodes {
         config.ports = vec![
@@ -538,6 +539,7 @@ pub(crate) fn run_on(
             facts,
             current,
             controller: None,
+            backhaul: &[],
         },
     )
 }

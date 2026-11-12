@@ -76,7 +76,7 @@ describe("Device › Ports", () => {
     const put = calls.find((c) => c.method === "PUT")?.body as SiteSave;
     expect(put.message).toBe("Ports of gw");
     expect(put.config.nodes[0]?.ports).toEqual([
-      { port: "lan2", native: "iot", tagged: { kind: "none" } },
+      { port: "lan2", native: "iot", tagged: { kind: "none" }, backhaul: true },
     ]);
   });
 });

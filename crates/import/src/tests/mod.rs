@@ -130,6 +130,7 @@ pub(crate) fn rendered(import: &Import, found: &Found) -> BTreeMap<String, Packa
             facts: &found.facts,
             current: &found.packages,
             controller: uniwrt_render::held_controller(&found.packages),
+            backhaul: &[],
         },
     )
     .expect("the import renders");

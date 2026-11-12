@@ -18,4 +18,12 @@ key: SecretRef | null,
 /**
  * The band the mesh points use; `None` picks per node (features/mesh.md).
  */
-band: Band | null, routing: MeshRouting, };
+band: Band | null, routing: MeshRouting, 
+/**
+ * batman-adv over the cables between nodes too (wired backhaul, D-094).
+ */
+wired: boolean, 
+/**
+ * The VLAN batman-adv's frames take on such a cable, which no network may use.
+ */
+wired_vlan: number, };

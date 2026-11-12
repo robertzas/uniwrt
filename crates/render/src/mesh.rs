@@ -1,22 +1,22 @@
 //! The mesh backhaul (features/mesh.md, D-013): batman-adv's `bat0` in the `network` package,
 //! a bridge trunk like the Ethernet ports, and an 802.11s mesh point as its hard interface in
-//! `wireless`. Wired links stay plain trunks with Bridge Loop Avoidance on; batman over wired
-//! hard interfaces and backhaul selection come with the managed mesh (M5.3).
+//! `wireless`, and the wired backhaul's hard interfaces ([`backhaul`](crate::backhaul)). Other
+//! wired links stay plain trunks, with Bridge Loop Avoidance on.
 
 use uniwrt_model::{node::NodeRole, site::wireless::MeshRouting};
 use uniwrt_uci::Section;
 
 use crate::{
+    backhaul::{self, MESH_MTU},
     ext::SectionExt,
     plan::{BAT, Plan},
 };
 
-/// The interface, and the wifi-iface, of the mesh point.
 /// The mesh point's interface, in `network` and `wireless`.
 pub const MESH_IFACE: &str = "uw_mesh";
 
 pub(crate) fn interfaces(plan: &Plan<'_>) -> Vec<Section> {
-    if plan.mesh.is_none() {
+    if !plan.bat {
         return Vec::new();
     }
     let routing = match plan.site.mesh.routing {
@@ -34,7 +34,7 @@ pub(crate) fn interfaces(plan: &Plan<'_>) -> Vec<Section> {
         .nets
         .iter()
         .any(|net| !net.tagged() && net.network.isolation);
-    vec![
+    let mut sections = vec![
         Section::named("interface", BAT)
             .with("proto", "batadv")
             .with("routing_algo", routing)
@@ -46,12 +46,17 @@ pub(crate) fn interfaces(plan: &Plan<'_>) -> Vec<Section> {
             .with("fragmentation", "1")
             .with("gw_mode", gw_mode)
             .flag("ap_isolation", isolated),
-        Section::named("interface", MESH_IFACE)
-            .with("proto", "batadv_hardif")
-            .with("master", BAT)
-            // batman's header needs 32 bytes above the 1500 the bridge carries.
-            .with("mtu", "1532"),
-    ]
+    ];
+    if plan.mesh.is_some() {
+        sections.push(
+            Section::named("interface", MESH_IFACE)
+                .with("proto", "batadv_hardif")
+                .with("master", BAT)
+                .with("mtu", MESH_MTU),
+        );
+    }
+    sections.extend(backhaul::sections(plan));
+    sections
 }
 
 /// The 802.11s mesh point on the mesh radio.

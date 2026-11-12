@@ -26,6 +26,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v6.json"),
     include_str!("../../fixtures/site/v7.json"),
     include_str!("../../fixtures/site/v8.json"),
+    include_str!("../../fixtures/site/v9.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -534,6 +535,14 @@ fn wireless_rules() {
     let issues =
         issues_after(|c| c.wlans[1].nodes = super::wireless::NodeScope::Only(vec![NodeId::new(9)]));
     assert!(has(&issues, "wlans/things/nodes", Severity::Warning));
+}
+
+#[test]
+fn the_wired_backhaul_needs_a_vlan_of_its_own() {
+    let taken = issues_after(|c| c.mesh.wired_vlan = c.networks[1].vlan.unwrap());
+    assert!(has(&taken, "mesh/wired_vlan", Severity::Error), "{taken:?}");
+    let out_of_range = issues_after(|c| c.mesh.wired_vlan = 4095);
+    assert!(has(&out_of_range, "mesh/wired_vlan", Severity::Error));
 }
 
 #[test]

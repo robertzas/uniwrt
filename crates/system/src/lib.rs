@@ -53,6 +53,7 @@ pub fn render_with(
             facts,
             current: &current,
             controller: None,
+            backhaul: &[],
         },
     )
     .unwrap_or_else(|issues| panic!("{}: render refused: {issues:#?}", node.container))

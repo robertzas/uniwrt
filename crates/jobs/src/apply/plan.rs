@@ -170,6 +170,7 @@ pub(crate) fn plan(
         facts: report.facts,
         current: &current,
         controller: report.controller,
+        backhaul: &[],
     };
     let rendered = match render(site, secrets, target) {
         Ok(rendered) => rendered,

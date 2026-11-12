@@ -1,10 +1,12 @@
 //! What every package's renderer shares, worked out once per node: the VLAN each network has
-//! on the bridge, the bridge's ports, the WAN's device, the mesh radio, and the issues found.
+//! on the bridge, the bridge's ports, the WAN's device, the mesh radio and the wired backhaul,
+//! and the issues found.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     Issue, Secrets, Target,
+    backhaul::{self, Backhaul},
     ports::{self, Port},
 };
 use uniwrt_model::{
@@ -45,6 +47,10 @@ pub(crate) struct Plan<'a> {
     /// The gateway's backup line, with failover on.
     pub backup: Option<crate::failover::Backup>,
     pub mesh: Option<Mesh<'a>>,
+    /// The cables batman-adv runs over.
+    pub backhaul: Vec<&'a Backhaul>,
+    /// The node runs `bat0`: for its mesh radio, its backhaul or both.
+    pub bat: bool,
     /// The controller's address as the gateway sees it ([`Target::controller`]).
     pub controller: Option<std::net::IpAddr>,
     /// The network that carries an AP's own address: the management network, else the
@@ -133,9 +139,20 @@ impl<'a> Plan<'a> {
             }
             _ => None,
         };
-        let claimed = claimed(site, config, backup.is_some());
+        let mut claimed = claimed(site, config, backup.is_some());
+        let at = backhaul::Node {
+            role: target.role,
+            facts,
+            config,
+            swconfig: switch.is_some(),
+            claimed: &claimed,
+            nets: &nets,
+        };
+        let backhaul = backhaul::plan(site, target.backhaul, &at, &mut errors);
+        claimed.extend(backhaul::exclusive(&backhaul));
+        let bat = mesh.is_some() || !backhaul.is_empty();
         let node = (target.role, facts, config);
-        let ports = ports::ports(node, switch, &nets, mesh.is_some(), &claimed);
+        let ports = ports::ports(node, switch, &nets, bat, &claimed);
         let mgmt = crate::management_network(site).map_or("lan", |n| n.id.as_str());
         warnings.extend(ports::check(
             node,
@@ -144,30 +161,17 @@ impl<'a> Plan<'a> {
             nets.iter().find(|net| net.id() == mgmt),
             &nets,
         ));
-        if ports.is_empty() && mesh.is_none() {
+        if ports.is_empty() && !bat {
             errors.push(Issue::new(
                 "node",
                 "The node's board.json names no LAN port",
             ));
         }
-        let wan = if target.role == NodeRole::Gateway {
-            wan(site, facts, switch, &nets, &mut errors)
+        let (wan, wan_password) = if target.role == NodeRole::Gateway {
+            let at = (site, secrets, facts, switch);
+            uplink(at, &nets, &mut errors, &mut warnings)
         } else {
-            None
-        };
-        if site.wan.pcp.is_some_and(|pcp| pcp > 0)
-            && wan.as_ref().is_some_and(|w| w.vlan_device.is_none())
-        {
-            warnings.push(Issue::new(
-                "wan/pcp",
-                "The gateway's switch tags the ISP's VLAN, so the priority isn't set",
-            ));
-        }
-        let wan_password = match &site.wan.proto {
-            WanProto::Pppoe { password, .. } if target.role == NodeRole::Gateway => {
-                pppoe_password(password.as_ref(), secrets, &mut errors)
-            }
-            _ => None,
+            (None, None)
         };
         if target.role == NodeRole::Gateway {
             errors.extend(upstream_overlaps(site, facts));
@@ -189,6 +193,8 @@ impl<'a> Plan<'a> {
             wan_password,
             backup,
             mesh,
+            backhaul,
+            bat,
             controller: target.controller,
             mgmt,
             errors,
@@ -315,6 +321,30 @@ fn wan(
             switch_vlan: None,
         },
     })
+}
+
+/// The gateway's uplink device, and the PPPoE password it logs in with.
+fn uplink(
+    at: (&SiteConfig, &dyn Secrets, &NodeFacts, Option<&SwitchLayout>),
+    nets: &[Net<'_>],
+    errors: &mut Vec<Issue>,
+    warnings: &mut Vec<Issue>,
+) -> (Option<Wan>, Option<String>) {
+    let (site, secrets, facts, switch) = at;
+    let wan = wan(site, facts, switch, nets, errors);
+    if site.wan.pcp.is_some_and(|pcp| pcp > 0)
+        && wan.as_ref().is_some_and(|w| w.vlan_device.is_none())
+    {
+        warnings.push(Issue::new(
+            "wan/pcp",
+            "The gateway's switch tags the ISP's VLAN, so the priority isn't set",
+        ));
+    }
+    let password = match &site.wan.proto {
+        WanProto::Pppoe { password, .. } => pppoe_password(password.as_ref(), secrets, errors),
+        _ => None,
+    };
+    (wan, password)
 }
 
 /// The ports with another job than the bridge's: the device of a raw interface (a wired

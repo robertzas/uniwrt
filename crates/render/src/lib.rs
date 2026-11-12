@@ -48,6 +48,7 @@ use uniwrt_model::{
 };
 use uniwrt_uci::Package;
 
+mod backhaul;
 mod dhcp;
 mod ext;
 mod failover;
@@ -100,6 +101,9 @@ pub struct Target<'a> {
     /// The controller's address as the gateway sees it: inside a network's subnet, the
     /// gateway's dnsmasq resolves `uniwrt.<domain>` to it.
     pub controller: Option<IpAddr>,
+    /// The cables to other nodes that batman-adv runs over, as the apply stages them
+    /// (features/mesh.md, Wired backhaul); empty for none.
+    pub backhaul: &'a [Backhaul],
 }
 
 /// The controller's address that the node's `uniwrt` record holds (in `current`'s `dhcp`):
@@ -164,13 +168,17 @@ pub fn management_network(site: &SiteConfig) -> Option<&Network> {
 }
 
 /// Whether a rendered section carries a node's uplink, the WAN (`wan`, `wan6`, `wan_6`) or the
-/// mesh (`bat0`, `uw_mesh`): changing one takes longer to settle (a new lease, PPPoE, the mesh
+/// mesh (`bat0`, `uw_mesh`, a wired backhaul's `uw_bh_<port>`): changing one takes longer to settle (a new lease, PPPoE, the mesh
 /// meeting its neighbors again), so its transaction gets a longer timer.
 pub fn uplink_section(name: &str) -> bool {
-    name.starts_with("wan") || name == plan::BAT || name == mesh::MESH_IFACE
+    name.starts_with("wan")
+        || name == plan::BAT
+        || name == mesh::MESH_IFACE
+        || name.starts_with(BACKHAUL_PREFIX)
 }
 
 pub use self::{
+    backhaul::{BACKHAUL_PREFIX, Backhaul, BackhaulStage, backhaul_interface},
     firewall::seeded,
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},

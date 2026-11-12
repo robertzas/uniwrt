@@ -35,6 +35,7 @@ fn profile(port: &str, native: Option<&str>, tagged: TaggedNetworks) -> PortConf
         port: port.to_owned(),
         native: native.map(str::to_owned),
         tagged,
+        backhaul: true,
     }
 }
 

@@ -46,6 +46,8 @@ export interface PortDraft {
   native: string;
   tagged: "all" | "none" | "only";
   only: string[];
+  /** Whether batman-adv may take the port over when it joins two nodes (D-094). */
+  backhaul: boolean;
 }
 
 /** The site's untagged network, which a trunk carries untagged. */
@@ -55,17 +57,18 @@ export function untaggedOf(networks: readonly Network[]): string {
 
 /** The profile's draft; a port without one is a trunk. */
 export function portDraft(profile: PortConfig | undefined, untagged: string): PortDraft {
-  if (!profile) return { native: untagged, tagged: "all", only: [] };
+  if (!profile) return { native: untagged, tagged: "all", only: [], backhaul: true };
   return {
     native: profile.native ?? "",
     tagged: profile.tagged.kind,
     only: profile.tagged.kind === "only" ? [...profile.tagged.networks] : [],
+    backhaul: profile.backhaul,
   };
 }
 
-/** The draft's profile, or `null` for a trunk (no profile). */
+/** The draft's profile, or `null` for a trunk the backhaul may take (no profile). */
 export function profileOf(port: string, draft: PortDraft, untagged: string): PortConfig | null {
-  if (draft.native === untagged && draft.tagged === "all") return null;
+  if (draft.native === untagged && draft.tagged === "all" && draft.backhaul) return null;
   return {
     port,
     native: draft.native === "" ? null : draft.native,
@@ -73,6 +76,7 @@ export function profileOf(port: string, draft: PortDraft, untagged: string): Por
       draft.tagged === "only"
         ? { kind: "only", networks: draft.only.filter((id) => id !== draft.native) }
         : { kind: draft.tagged },
+    backhaul: draft.backhaul,
   };
 }
 

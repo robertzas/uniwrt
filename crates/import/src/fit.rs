@@ -257,6 +257,7 @@ fn trial(
             facts: source.facts,
             current: source.packages,
             controller: uniwrt_render::held_controller(source.packages),
+            backhaul: &[],
         },
     )
 }

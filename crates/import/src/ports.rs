@@ -82,6 +82,7 @@ pub(crate) fn import(site: &SiteConfig, source: &Source<'_>) -> Vec<PortConfig> 
                 port,
                 native,
                 tagged,
+                backhaul: true,
             })
         })
         .collect()

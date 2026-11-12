@@ -246,7 +246,14 @@ pub struct MeshConfig {
     /// The band the mesh points use; `None` picks per node (features/mesh.md).
     pub band: Option<Band>,
     pub routing: MeshRouting,
+    /// batman-adv over the cables between nodes too (wired backhaul, D-094).
+    pub wired: bool,
+    /// The VLAN batman-adv's frames take on such a cable, which no network may use.
+    pub wired_vlan: u16,
 }
+
+/// The VLAN of the wired backhaul unless the site says otherwise.
+pub const WIRED_VLAN: u16 = 4094;
 
 impl Default for MeshConfig {
     fn default() -> Self {
@@ -255,12 +262,14 @@ impl Default for MeshConfig {
             mesh_id: "uniwrt-mesh".to_owned(),
             key: None,
             band: None,
-            routing: MeshRouting::BatmanIv,
+            routing: MeshRouting::BatmanV,
+            wired: true,
+            wired_vlan: WIRED_VLAN,
         }
     }
 }
 
-/// batman-adv's routing algorithm (O-3).
+/// batman-adv's routing algorithm (D-095: `BATMAN_V` for new sites).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]

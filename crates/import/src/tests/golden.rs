@@ -47,6 +47,7 @@ fn round_trip_from(
                     facts,
                     current: &current,
                     controller,
+                    backhaul: &[],
                 },
             )
             .expect("the golden site renders");
@@ -318,6 +319,7 @@ fn a_queue_set_up_by_hand_is_renamed() {
             facts: &facts,
             current: &current,
             controller: None,
+            backhaul: &[],
         },
     )
     .unwrap();

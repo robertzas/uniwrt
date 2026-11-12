@@ -514,6 +514,7 @@ fn run_from(
             facts,
             current: &stock(),
             controller: Some(controller.parse().unwrap()),
+            backhaul: &[],
         },
     )
 }
@@ -554,6 +555,7 @@ fn port_profiles_warn_about_ports_they_cant_shape() {
         port: port.to_owned(),
         native: Some("iot".to_owned()),
         tagged: TaggedNetworks::None,
+        backhaul: true,
     };
     for config in &mut site.nodes {
         config.ports = vec![profile("eth1"), profile("lan9"), profile("lan1")];

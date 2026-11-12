@@ -23,7 +23,9 @@ describe("port profiles", () => {
     const device = (name: string, carrier: boolean, speed: number | null) =>
       ({ name, carrier, speed_mbps: speed }) as NodeFacts["devices"][number];
     node.devices = [device("lan1", true, 1000), device("lan2", false, null)];
-    expect(portsOf(node, [{ port: "lan9", native: null, tagged: { kind: "none" } }])).toEqual([
+    expect(
+      portsOf(node, [{ port: "lan9", native: null, tagged: { kind: "none" }, backhaul: true }]),
+    ).toEqual([
       { port: "lan1", present: true, link: { carrier: true, speed: 1000 } },
       { port: "lan2", present: true, link: { carrier: false, speed: null } },
       { port: "lan9", present: false },
@@ -49,32 +51,46 @@ describe("port profiles", () => {
     const trunk = portDraft(undefined, untagged);
     expect(profileOf("lan1", trunk, untagged)).toBeNull();
     expect(carriesOf(trunk, untagged, networks)).toBe("Trunk");
-    const access = { native: "iot", tagged: "none" as const, only: [] };
+    // A trunk kept out of the wired backhaul needs a profile to say so.
+    expect(profileOf("lan1", { ...trunk, backhaul: false }, untagged)).toEqual({
+      port: "lan1",
+      native: "lan",
+      tagged: { kind: "all" },
+      backhaul: false,
+    });
+    const access = { native: "iot", tagged: "none" as const, only: [], backhaul: true };
     expect(profileOf("lan1", access, untagged)).toEqual({
       port: "lan1",
       native: "iot",
       tagged: { kind: "none" },
+      backhaul: true,
     });
     expect(carriesOf(access, untagged, networks)).toBe("Access: IoT");
-    const some = { native: "iot", tagged: "only" as const, only: ["iot", "guest"] };
+    const some = { native: "iot", tagged: "only" as const, only: ["iot", "guest"], backhaul: true };
     expect(profileOf("lan1", some, untagged)?.tagged).toEqual({
       kind: "only",
       networks: ["guest"],
     });
     expect(carriesOf(some, untagged, networks)).toBe("Custom");
-    expect(carriesOf({ native: "", tagged: "none", only: [] }, untagged, networks)).toBe(
-      "Carries nothing",
-    );
+    expect(
+      carriesOf({ native: "", tagged: "none", only: [], backhaul: true }, untagged, networks),
+    ).toBe("Carries nothing");
     const profile = profileOf("lan1", some, untagged);
     expect(profile && portDraft(profile, untagged)).toEqual({
       native: "iot",
       tagged: "only",
       only: ["guest"],
+      backhaul: true,
     });
   });
 
   it("saves profiles on the node's entry, adding one when it has none", () => {
-    const profile = { port: "lan1", native: "iot", tagged: { kind: "none" as const } };
+    const profile = {
+      port: "lan1",
+      native: "iot",
+      tagged: { kind: "none" as const },
+      backhaul: true,
+    };
     const added = withPorts(siteConfig(), 3, [profile]);
     expect(added.nodes).toEqual([
       { node: 3, hostname: null, managed: [], radios: [], ports: [profile], raw: [] },

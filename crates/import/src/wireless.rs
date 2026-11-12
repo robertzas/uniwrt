@@ -330,6 +330,7 @@ fn mesh(sources: &[Source<'_>], seal: &mut dyn FnMut(&str) -> SecretRef) -> Opti
                     Some("BATMAN_V") => MeshRouting::BatmanV,
                     _ => MeshRouting::BatmanIv,
                 },
+                ..MeshConfig::default()
             });
         }
     }

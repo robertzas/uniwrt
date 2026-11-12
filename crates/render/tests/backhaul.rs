@@ -1,0 +1,172 @@
+//! The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the
+//! backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node
+//! can't give it.
+
+// Tests and their fixtures may panic on what they set up.
+#![allow(clippy::unwrap_used)]
+
+mod support;
+
+use std::fmt::Write as _;
+
+use insta::assert_snapshot;
+use uniwrt_model::{
+    facts::{NodeFacts, Software, WifiFeature},
+    node::NodeRole,
+    site::{
+        SiteConfig,
+        node::{ManagedPackage, PortConfig, TaggedNetworks},
+    },
+};
+use uniwrt_render::{Backhaul, BackhaulStage, Issue, Rendered, Target, render};
+use uniwrt_uci::Package;
+
+use support::*;
+
+fn cable(port: &str, stage: BackhaulStage) -> Backhaul {
+    Backhaul {
+        port: port.to_owned(),
+        stage,
+    }
+}
+
+fn with_backhaul(
+    site: &SiteConfig,
+    node: (uniwrt_core::NodeId, NodeRole),
+    facts: &NodeFacts,
+    backhaul: &[Backhaul],
+) -> Result<Rendered, Vec<Issue>> {
+    render(
+        site,
+        &secrets(),
+        Target {
+            node: node.0,
+            role: node.1,
+            facts,
+            current: &stock(),
+            controller: None,
+            backhaul,
+        },
+    )
+}
+
+fn network(rendered: &Result<Rendered, Vec<Issue>>) -> &Package {
+    let rendered = rendered
+        .as_ref()
+        .unwrap_or_else(|issues| panic!("{issues:?}"));
+    &rendered.packages[&ManagedPackage::Network]
+}
+
+/// The bridge's ports, as the `network` package lists them.
+fn bridge_ports(network: &Package) -> Vec<String> {
+    network
+        .sections_of("device")
+        .find(|d| d.option("name") == Some("br-lan"))
+        .and_then(|d| d.get("ports"))
+        .map(|ports| ports.items().to_vec())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_cable_comes_over_beside_the_networks_then_alone() {
+    let site = home_site();
+    let facts = gateway_facts();
+    let rendered = with_backhaul(
+        &site,
+        (AP, NodeRole::Ap),
+        &facts,
+        &[
+            cable("lan1", BackhaulStage::Overlay),
+            cable("eth1", BackhaulStage::Exclusive),
+        ],
+    );
+    let network = network(&rendered);
+    let ports = bridge_ports(network);
+    assert!(ports.contains(&"lan1".to_owned()), "{ports:?}");
+    assert!(!ports.contains(&"eth1".to_owned()), "{ports:?}");
+    assert!(ports.contains(&"bat0".to_owned()), "{ports:?}");
+    assert_snapshot!("backhaul_overlay_and_exclusive", network.to_file());
+}
+
+#[test]
+fn a_node_without_a_mesh_radio_meshes_over_its_cable() {
+    let site = home_site();
+    let mut facts = gateway_facts();
+    facts.radios.clear();
+    let wired = with_backhaul(
+        &site,
+        (AP, NodeRole::Ap),
+        &facts,
+        &[cable("lan1", BackhaulStage::Exclusive)],
+    );
+    let network = network(&wired);
+    assert!(network.section("bat0").is_some());
+    assert!(network.section("uw_bh_lan1").is_some());
+    assert!(network.section("uw_mesh").is_none());
+    assert!(bridge_ports(network).contains(&"bat0".to_owned()));
+    // Without the cable, the node has no part in the mesh.
+    let alone = with_backhaul(&site, (AP, NodeRole::Ap), &facts, &[]);
+    assert!(self::network(&alone).section("bat0").is_none());
+}
+
+#[test]
+fn cables_the_node_cant_give_the_backhaul_are_refused() {
+    let facts = gateway_facts();
+    let mut site = home_site();
+    let profile = |port: &str, native: Option<&str>, backhaul: bool| PortConfig {
+        port: port.to_owned(),
+        native: native.map(str::to_owned),
+        tagged: TaggedNetworks::All,
+        backhaul,
+    };
+    for config in &mut site.nodes {
+        config.ports = vec![
+            profile("lan2", Some("lan"), false),
+            profile("lan3", Some("iot"), true),
+        ];
+    }
+    let asked = [
+        cable("eth1", BackhaulStage::Overlay),
+        cable("lan2", BackhaulStage::Overlay),
+        cable("lan3", BackhaulStage::Overlay),
+        cable("lan9", BackhaulStage::Overlay),
+    ];
+    let mut all = String::new();
+    let _ = writeln!(
+        all,
+        "## gateway\n{}",
+        show(&with_backhaul(
+            &site,
+            (GATEWAY, NodeRole::Gateway),
+            &facts,
+            &asked
+        ))
+    );
+    let swconfig = home_site();
+    let mut meshing = swconfig_facts();
+    meshing.capabilities.software.insert(Software::BatmanAdv);
+    meshing.capabilities.wifi.insert(WifiFeature::Mesh);
+    let _ = writeln!(
+        all,
+        "## swconfig\n{}",
+        show(&with_backhaul(
+            &swconfig,
+            (AP, NodeRole::Ap),
+            &meshing,
+            &[cable("switch0:1", BackhaulStage::Overlay)],
+        ))
+    );
+    let mut off = home_site();
+    off.mesh.wired = false;
+    let _ = writeln!(
+        all,
+        "## wired off\n{}",
+        show(&with_backhaul(
+            &off,
+            (AP, NodeRole::Ap),
+            &facts,
+            &[cable("lan1", BackhaulStage::Overlay)],
+        ))
+    );
+    assert_snapshot!("backhaul_refused", all);
+}

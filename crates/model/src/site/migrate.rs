@@ -13,7 +13,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
-    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8,
+    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -211,6 +211,32 @@ fn v7_to_v8(value: &mut Value) -> Result<(), String> {
         };
         if managed.iter().any(|p| p == "wireless") && !managed.iter().any(|p| p == "usteer") {
             managed.push(json!("usteer"));
+        }
+    }
+    Ok(())
+}
+
+/// v9 (M5.3, D-094): the mesh runs over the cables between nodes too, on VLAN 4094, and every
+/// port profile lets it; the routing algorithm stays the one stored (D-095 changes new sites').
+fn v8_to_v9(value: &mut Value) -> Result<(), String> {
+    let mesh = value
+        .get_mut("mesh")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no mesh")?;
+    mesh.insert("wired".to_owned(), json!(true));
+    mesh.insert("wired_vlan".to_owned(), json!(4094));
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let ports = node
+            .get_mut("ports")
+            .and_then(Value::as_array_mut)
+            .ok_or("a node has no ports")?;
+        for port in ports {
+            let port = port.as_object_mut().ok_or("a port is not an object")?;
+            port.insert("backhaul".to_owned(), json!(true));
         }
     }
     Ok(())
