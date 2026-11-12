@@ -1,6 +1,7 @@
 import { Cable, Globe, Network, RadioReceiver, RadioTower, Router, Wifi } from "lucide";
 import { createEffect, createMemo, onSettled, untrack } from "solid-js";
 import { watchTheme } from "../theme";
+import type { Emphasis } from "./health";
 import { createLayoutClient, type LayoutClient } from "./layout/client";
 import type { LayoutPositions } from "./layout/force";
 import { type Point, treeLayout } from "./layout/tree";
@@ -45,6 +46,8 @@ export function TopologyCanvas(props: {
   scene: Scene;
   pins?: Record<string, Point>;
   selected?: string | null;
+  /** A what-if or the weak spots, stressed over the selection. */
+  emphasis?: Emphasis | null;
   flows: boolean;
   label: string;
   fixed?: boolean;
@@ -66,6 +69,7 @@ export function TopologyCanvas(props: {
   let pins: Record<string, Point> = {};
   let selected: string | null = null;
   let flows = false;
+  let emphasis: Emphasis | null = null;
 
   /** The scene, but only anew when its shape changes: that is all the layout needs of it. */
   const layoutScene = createMemo(() => ({ shape: shapeOf(props.scene), scene: props.scene }), {
@@ -139,6 +143,7 @@ export function TopologyCanvas(props: {
     view.setPinned(new Set(Object.keys(pins)));
     view.setSelected(selected);
     view.setFlows(flows);
+    view.setEmphasis(emphasis);
     if (scene) view.setScene(scene);
     if (shaped) layOut(shaped);
     view.fit();
@@ -185,6 +190,13 @@ export function TopologyCanvas(props: {
     (value) => {
       selected = value;
       renderer?.setSelected(value);
+    },
+  );
+  createEffect(
+    () => props.emphasis ?? null,
+    (value) => {
+      emphasis = value;
+      renderer?.setEmphasis(value);
     },
   );
   createEffect(

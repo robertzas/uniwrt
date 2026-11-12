@@ -1,3 +1,4 @@
+import { type Emphasis, linkHealth } from "../health";
 import type { Point } from "../layout/tree";
 import type { Scene, SceneLink, SceneVertex, VertexKind } from "../scene";
 import { type Camera, flowOf, linkWidth, particleAt, toScreen } from "./geometry";
@@ -16,6 +17,8 @@ export interface Frame {
   selected: string | null;
   hovered: string | null;
   pinned: ReadonlySet<string>;
+  /** A what-if or the weak spots, stressed over the selection. */
+  emphasis: Emphasis | null;
   /** The animation clock, for flow particles. */
   seconds: number;
   /** Draw flow particles (not under reduced motion, nor in a replay, which has no traffic). */
@@ -30,8 +33,22 @@ function truncate(text: string): string {
   return text.length > MAX_LABEL ? `${text.slice(0, MAX_LABEL - 1)}…` : text;
 }
 
-/** What stays bright while something is selected: it, its links and their other ends. */
-function focusOf(scene: Scene, selected: string | null): Set<string> | undefined {
+/**
+ * What stays bright: under a what-if, the vertex gone, what it cuts off and the links among
+ * them; else, while something is selected, it, its links and their other ends.
+ */
+function focusOf(
+  scene: Scene,
+  selected: string | null,
+  emphasis: Emphasis | null,
+): Set<string> | undefined {
+  if (emphasis?.kind === "impact") {
+    const focus = new Set([emphasis.gone, ...emphasis.lost]);
+    for (const link of scene.links) {
+      if (focus.has(link.source) && focus.has(link.target)) focus.add(link.id);
+    }
+    return focus;
+  }
   if (!selected) return undefined;
   const focus = new Set([selected]);
   for (const link of scene.links) {
@@ -42,12 +59,14 @@ function focusOf(scene: Scene, selected: string | null): Set<string> | undefined
   return focus;
 }
 
-function linkColor(palette: Palette, link: SceneLink): string {
+/** Down in red; else its health on the ramp, but a sound cable stays neutral. */
+export function linkColor(palette: Palette, link: SceneLink): string {
   const edge = link.edge;
   if (!edge) return palette.edgeStrong;
   if (!edge.up) return palette.crit;
-  if (edge.quality !== null) return palette.link[qualityStep(edge.quality)];
-  return palette.edgeStrong;
+  const health = linkHealth(edge);
+  if (health === null || (edge.medium === "ethernet" && health >= 100)) return palette.edgeStrong;
+  return palette.link[qualityStep(health)];
 }
 
 /** On screen, a vertex grows and shrinks with the zoom, but never below a dot. */
@@ -58,7 +77,8 @@ function screenRadius(vertex: SceneVertex, camera: Camera): number {
 export function drawFrame(ctx: CanvasRenderingContext2D, frame: Frame) {
   const { scene, palette, camera } = frame;
   ctx.clearRect(0, 0, frame.width, frame.height);
-  const focus = focusOf(scene, frame.selected);
+  const focus = focusOf(scene, frame.selected, frame.emphasis);
+  const weak = frame.emphasis?.kind === "weak";
   const screen = new Map<string, Point>();
   for (const vertex of scene.vertices) {
     const position = frame.positions.get(vertex.id);
@@ -73,6 +93,16 @@ export function drawFrame(ctx: CanvasRenderingContext2D, frame: Frame) {
     if (!a || !b) continue;
     ctx.globalAlpha = alphaOf(link.id);
     const width = linkWidth(link.edge);
+    if (weak && link.edge?.critical) {
+      ctx.strokeStyle = palette.warn;
+      ctx.lineWidth = width + 7;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.globalAlpha = alphaOf(link.id);
+    }
     if (frame.selected === link.id) {
       ctx.strokeStyle = palette.accent;
       ctx.lineWidth = width + 5;
@@ -207,6 +237,33 @@ function drawVertex(ctx: CanvasRenderingContext2D, frame: Frame, vertex: SceneVe
     ctx.strokeStyle = palette.canvas;
     ctx.lineWidth = 1.5;
     ctx.stroke();
+  }
+
+  const emphasis = frame.emphasis;
+  const risk =
+    emphasis?.kind === "weak"
+      ? emphasis.vertices.has(vertex.id) && palette.warn
+      : emphasis?.kind === "impact" &&
+        (emphasis.gone === vertex.id || emphasis.lost.has(vertex.id)) &&
+        palette.crit;
+  if (risk) {
+    // The vertex gone is crossed out; what it cuts off, and the weak spots, are ringed.
+    circle(r + (node?.state ? 16 : 9));
+    ctx.strokeStyle = risk;
+    ctx.lineWidth = 2;
+    ctx.setLineDash(emphasis?.kind === "impact" && emphasis.gone !== vertex.id ? [] : [4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (emphasis?.kind === "impact" && emphasis.gone === vertex.id) {
+      const d = r * 0.75;
+      ctx.beginPath();
+      ctx.moveTo(p.x - d, p.y - d);
+      ctx.lineTo(p.x + d, p.y + d);
+      ctx.moveTo(p.x + d, p.y - d);
+      ctx.lineTo(p.x - d, p.y + d);
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
   }
 
   const marked =

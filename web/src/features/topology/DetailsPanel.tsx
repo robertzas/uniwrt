@@ -1,6 +1,6 @@
 import type { JSX } from "@solidjs/web";
-import { ExternalLink, PinOff, Users, X } from "lucide";
-import { For, Match, Show, Switch } from "solid-js";
+import { ExternalLink, PinOff, ShieldAlert, Undo2, Unplug, Users, X } from "lucide";
+import { createMemo, For, Match, Show, Switch } from "solid-js";
 import type { NodeState } from "../../api/gen/NodeState";
 import type { TopoEdge } from "../../api/gen/TopoEdge";
 import type { TopoNode } from "../../api/gen/TopoNode";
@@ -10,12 +10,15 @@ import {
   formatDbm,
   formatPercent,
   formatRate,
+  formatTime,
   NONE,
 } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
+import type { Graph } from "../../viz/topology/graph";
+import { canGoDown, type Impact, impactOf } from "../../viz/topology/health";
 import type { Scene, SceneLink, SceneVertex } from "../../viz/topology/scene";
 
 const t = strings.topology;
@@ -27,7 +30,15 @@ const stateTone: Record<NodeState, Tone> = { online: "ok", degraded: "warn", off
 
 export interface DetailsProps {
   scene: Scene;
+  graph: Graph | undefined;
   selected: string;
+  /** The single points of failure. */
+  spofs: ReadonlySet<string>;
+  /** Whether the map shows what the selected vertex's loss cuts off. */
+  showingImpact: boolean;
+  onImpact: (on: boolean) => void;
+  /** Selects another vertex, as it is. */
+  onGo: (id: string) => void;
   pinned: boolean;
   /** Whether the selected vertex's clients are grouped; `undefined` when it has none to group. */
   grouped: boolean | undefined;
@@ -104,8 +115,14 @@ function Row(props: { label: string; children: JSX.Element; mono?: boolean }) {
   );
 }
 
-function linkOf(scene: Scene, id: string): SceneLink | undefined {
-  return scene.links.find((link) => link.target === id && link.edge !== null);
+/** The link a vertex hangs from in the tree view, whether this view draws it or not. */
+function uplinkOf(props: DetailsProps, node: TopoNode): TopoEdge | undefined {
+  const tree = node.uplink ? props.graph?.edges.get(node.uplink) : undefined;
+  return (
+    tree ??
+    props.scene.links.find((link) => link.target === node.id && link.edge)?.edge ??
+    undefined
+  );
 }
 
 function mediumText(edge: TopoEdge): string {
@@ -115,11 +132,23 @@ function mediumText(edge: TopoEdge): string {
 
 function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
   const node = () => props.vertex.node;
+  /** What its loss cuts off, where asking means anything. */
+  const impact = createMemo(() => {
+    const graph = props.graph;
+    return graph && canGoDown(graph, props.vertex.id)
+      ? impactOf(graph, props.vertex.id)
+      : undefined;
+  });
   return (
     <>
       <Header kind={t.kind[props.vertex.kind]} title={props.vertex.label} onClose={props.onClose}>
         <Show when={node()?.state}>
           {(state) => <Badge tone={stateTone[state()]}>{strings.devices.state[state()]}</Badge>}
+        </Show>
+        <Show when={props.spofs.has(props.vertex.id)}>
+          <Badge tone="warn" icon={ShieldAlert}>
+            {d.spof}
+          </Badge>
         </Show>
         <Show when={props.pinned}>
           <Badge tone="info">{d.pinned}</Badge>
@@ -127,13 +156,14 @@ function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
       </Header>
       <div class="min-h-0 flex-1 overflow-y-auto">
         <Show when={node()} fallback={<ClusterMembers {...props} />}>
-          {(n) => <NodeRows {...props} node={n()} />}
+          {(n) => <NodeRows {...props} node={n()} impact={impact()} />}
         </Show>
       </div>
       <Show
         when={
           props.pinned ||
           props.grouped !== undefined ||
+          (impact()?.lost.size ?? 0) > 0 ||
           node()?.node != null ||
           (props.vertex.kind === "client" && node()?.mac)
         }
@@ -161,6 +191,16 @@ function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
               </a>
             )}
           </Show>
+          <Show when={(impact()?.lost.size ?? 0) > 0}>
+            <Button
+              size="sm"
+              icon={props.showingImpact ? Undo2 : Unplug}
+              aria-pressed={props.showingImpact ? "true" : "false"}
+              onClick={() => props.onImpact(!props.showingImpact)}
+            >
+              {props.showingImpact ? d.hideImpact : d.showImpact}
+            </Button>
+          </Show>
           <Show when={props.grouped !== undefined}>
             <Button size="sm" icon={Users} onClick={() => props.onToggleGroup()}>
               {props.grouped ? d.expand : d.collapse}
@@ -177,8 +217,10 @@ function VertexDetails(props: DetailsProps & { vertex: SceneVertex }) {
   );
 }
 
-function NodeRows(props: DetailsProps & { vertex: SceneVertex; node: TopoNode }) {
-  const uplink = () => linkOf(props.scene, props.node.id);
+function NodeRows(
+  props: DetailsProps & { vertex: SceneVertex; node: TopoNode; impact: Impact | undefined },
+) {
+  const uplink = () => uplinkOf(props, props.node);
   return (
     <Rows>
       <Show when={props.vertex.kind === "client" && props.vertex.host}>
@@ -202,7 +244,7 @@ function NodeRows(props: DetailsProps & { vertex: SceneVertex; node: TopoNode })
       <Show when={props.node.memory_percent !== null}>
         <Row label={d.memory}>{formatPercent(props.node.memory_percent)}</Row>
       </Show>
-      <Show when={uplink()?.edge}>
+      <Show when={uplink()}>
         {(edge) => (
           <>
             <Show when={props.vertex.kind !== "client"}>
@@ -219,8 +261,33 @@ function NodeRows(props: DetailsProps & { vertex: SceneVertex; node: TopoNode })
           </>
         )}
       </Show>
-      <Show when={props.node.hops !== null && props.vertex.kind !== "client"}>
-        <Row label={d.hops}>{props.node.hops}</Row>
+      <Show
+        when={props.node.gateway_hops !== null && props.node.gateway_hops > 0}
+        fallback={
+          <Show when={props.node.hops !== null && props.vertex.kind !== "client"}>
+            <Row label={d.hops}>{props.node.hops}</Row>
+          </Show>
+        }
+      >
+        <Row label={d.gatewayHops}>
+          {d.hopCount(props.node.gateway_hops ?? 0, props.node.wireless_hops)}
+        </Row>
+      </Show>
+      <Show when={props.node.depends_on}>
+        {(id) => (
+          <Row label={d.dependsOn}>
+            <button
+              type="button"
+              class="rounded-control text-accent hover:underline"
+              onClick={() => props.onGo(id())}
+            >
+              {props.labelOf(id())}
+            </button>
+          </Row>
+        )}
+      </Show>
+      <Show when={props.impact}>
+        {(lost) => <Row label={d.ifDown}>{d.impact(lost().devices, lost().clients)}</Row>}
       </Show>
     </Rows>
   );
@@ -276,6 +343,16 @@ function Traffic(props: { edge: TopoEdge }) {
   );
 }
 
+/** What holds a link's score back, worth naming below 90. */
+function weakestText(edge: TopoEdge): string | null {
+  return edge.weakest && (edge.score ?? 100) < 90 ? d.weakest[edge.weakest] : null;
+}
+
+/** A score's tone: poor below 40, fair below 70. */
+function scoreClass(score: number): string {
+  return score < 40 ? "text-crit" : score < 70 ? "text-warn" : "";
+}
+
 function LinkDetails(props: DetailsProps & { link: SceneLink }) {
   // `link()` only matches links that have an edge.
   const edge = () => props.link.edge as TopoEdge;
@@ -291,6 +368,13 @@ function LinkDetails(props: DetailsProps & { link: SceneLink }) {
         onClose={props.onClose}
       >
         <Badge tone={edge().up ? "ok" : "crit"}>{edge().up ? d.up : d.down}</Badge>
+        <Show when={edge().critical}>
+          <span title={d.criticalHint}>
+            <Badge tone="warn" icon={ShieldAlert}>
+              {d.critical}
+            </Badge>
+          </span>
+        </Show>
       </Header>
       <div class="min-h-0 flex-1 overflow-y-auto">
         <Rows>
@@ -308,8 +392,24 @@ function LinkDetails(props: DetailsProps & { link: SceneLink }) {
           <Show when={edge().tq !== null}>
             <Row label={d.tq}>{formatPercent(((edge().tq ?? 0) / 255) * 100)}</Row>
           </Show>
-          <Show when={edge().quality !== null}>
-            <Row label={d.quality}>{edge().quality} / 100</Row>
+          <Show
+            when={edge().score !== null}
+            fallback={
+              <Show when={edge().quality !== null}>
+                <Row label={d.quality}>{edge().quality} / 100</Row>
+              </Show>
+            }
+          >
+            <Row label={d.health}>
+              <span class={scoreClass(edge().score ?? 0)}>
+                {d.score(edge().score ?? 0, weakestText(edge()))}
+              </span>
+            </Row>
+          </Show>
+          <Show when={edge().drops.at(-1)} keyed>
+            {(last) => (
+              <Row label={d.drops}>{d.dropCount(edge().drops.length, formatTime(last))}</Row>
+            )}
           </Show>
           <Show when={edge().capacity_mbps !== null}>
             <Row label={d.capacity}>{formatRate((edge().capacity_mbps ?? 0) * 1000)}</Row>

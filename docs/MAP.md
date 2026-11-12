@@ -776,7 +776,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
-- `viz/topology/`: TopologyCanvas.tsx, graph.ts, scene.ts
+- `viz/topology/`: TopologyCanvas.tsx, graph.ts, health.ts, scene.ts
 - `viz/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts
 - `viz/topology/render/`: draw.ts, geometry.ts, icons.ts, palette.ts, renderer.ts
 

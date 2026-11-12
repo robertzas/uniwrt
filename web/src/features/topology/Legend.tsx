@@ -35,6 +35,14 @@ export function Legend() {
           <span class="h-0 w-6 border-crit border-t-2 border-dashed" />
           {l.down}
         </li>
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-6 rounded-full bg-warn/40" />
+          {l.weak}
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="ms-1.5 me-1.5 size-3 rounded-full border-2 border-crit" />
+          {l.lost}
+        </li>
       </ul>
       <div>
         <p class="mb-1.5 font-medium text-fg-muted">{l.bands}</p>

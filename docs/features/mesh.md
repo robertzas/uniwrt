@@ -127,7 +127,7 @@ Derived health (`uniwrt-topo`'s `health/` and `LinkWatch`, D-099; served in `GET
 - **single points of failure** ("AP3 depends only on AP2"): dominators from the gateways over the links that are up give each vertex's `depends_on` (the nearest node, switch or peer it can't lose) and each `critical` link (one some node, switch or peer can't lose); "what if X goes down" is every vertex whose `depends_on` chain reaches X
 - on-demand backhaul throughput tests with iperf3 [M8.3]
 
-Visuals: mesh edges colored by link quality, a best-path tree vs an all-links view, link-history sparklines, and a "what if this node goes down" highlight of articulation points.
+Visuals (M5.3 health c1, observability.md's Topology): links colored by their score, a best-path tree vs an all-links view, the details panel's health rows, **Weak spots** (the single points of failure and critical links) and **Show what goes down** (a node's loss and what it cuts off). Still to come: the device page's mesh card with link-history sparklines (health c2).
 
 ## Existing meshes (observe mode)
 

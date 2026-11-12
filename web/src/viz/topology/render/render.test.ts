@@ -1,9 +1,10 @@
 import { Router, Wifi } from "lucide";
 import { describe, expect, it } from "vitest";
-import { house } from "../../../test/topology";
+import { edge, house } from "../../../test/topology";
 import { graphOf } from "../graph";
 import type { Point } from "../layout/tree";
 import { buildScene } from "../scene";
+import { linkColor } from "./draw";
 import {
   easeCamera,
   easePositions,
@@ -17,7 +18,7 @@ import {
   zoomAt,
 } from "./geometry";
 import { iconPathData } from "./icons";
-import { qualityStep } from "./palette";
+import { type Palette, qualityStep } from "./palette";
 
 describe("the camera", () => {
   it("fits every point inside the view, centred", () => {
@@ -120,5 +121,29 @@ describe("easing", () => {
     expect(eased).toEqual({ camera: { x: 20, y: 0, k: 1.2 }, moving: true });
     const settled = easeCamera({ x: 100, y: 0, k: 2 }, { x: 100.01, y: 0, k: 2 }, 0.2);
     expect(settled.moving).toBe(false);
+  });
+});
+
+describe("a link's color", () => {
+  const palette = {
+    edgeStrong: "gray",
+    crit: "red",
+    link: ["l0", "l1", "l2", "l3", "l4"],
+  } as unknown as Palette;
+  const color = (extra: Parameters<typeof edge>[2]) => {
+    const e = edge("a", "b", extra);
+    return linkColor(palette, { id: e.id, source: "a", target: "b", medium: e.medium, edge: e });
+  };
+
+  it("follows the score, else the quality, and is red when down", () => {
+    expect(color({ medium: "mesh", score: 30, quality: 90 })).toBe("l1");
+    expect(color({ medium: "wifi", quality: 90 })).toBe("l4");
+    expect(color({ medium: "mesh", score: 100, up: false })).toBe("red");
+  });
+
+  it("leaves a sound cable neutral, but not a slow or flapping one", () => {
+    expect(color({ score: 100 })).toBe("gray");
+    expect(color({})).toBe("gray");
+    expect(color({ score: 45, weakest: "throughput" })).toBe("l2");
   });
 });

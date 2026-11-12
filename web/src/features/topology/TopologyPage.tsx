@@ -1,5 +1,15 @@
 import { useSearchParams } from "@solidjs/router";
-import { History, Info, Maximize, Network, PinOff, ZoomIn, ZoomOut } from "lucide";
+import {
+  History,
+  Info,
+  Maximize,
+  Network,
+  PinOff,
+  ShieldAlert,
+  ShieldCheck,
+  ZoomIn,
+  ZoomOut,
+} from "lucide";
 import { createEffect, createMemo, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
@@ -9,10 +19,13 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { showToast } from "../../ui/Toast";
 import { createLiveGraph } from "../../viz/topology/graph";
+import { articulations, type Emphasis, impactEmphasis, impactOf } from "../../viz/topology/health";
 import type { Point } from "../../viz/topology/layout/tree";
 import {
   buildScene,
   clusterId,
+  type Scene,
+  type SceneLink,
   sceneCounts,
   type ViewKind,
   vertexLabel,
@@ -28,6 +41,13 @@ import { ViewSwitch } from "./ViewSwitch";
 const t = strings.topology;
 
 type Toggles = Record<ViewKind, ReadonlySet<string>>;
+
+/** A link between nodes, switches or peers (a client's link is listed with the client). */
+function backhaul(scene: Scene, link: SceneLink): boolean {
+  if (!link.edge) return false;
+  const ends = [scene.byId.get(link.source)?.kind, scene.byId.get(link.target)?.kind];
+  return !ends.includes("client") && !ends.includes("cluster");
+}
 
 /**
  * `/topology`: the live map of the network (features/observability.md, Topology), in the view
@@ -48,6 +68,10 @@ export function TopologyPage() {
   });
   const [pins, setPins] = createSignal<Record<string, Point>>({});
   const [legend, setLegend] = createSignal(false);
+  /** Whether the single points of failure are stressed. */
+  const [weak, setWeak] = createSignal(false);
+  /** The vertex whose loss the map shows, while it stays selected. */
+  const [whatIf, setWhatIf] = createSignal<string | null>(null);
   let controls: CanvasControls | undefined;
 
   onSettled(() => {
@@ -75,6 +99,21 @@ export function TopologyPage() {
       clustered: grouped,
       nodeName: (node) => (node.node === null ? undefined : names().get(node.node)),
     });
+  });
+  const spofs = createMemo(() => {
+    const current = graph();
+    return current ? articulations(current) : new Set<string>();
+  });
+  const impact = createMemo(() => {
+    const id = whatIf();
+    const current = graph();
+    return id && current && id === selected() ? impactOf(current, id) : undefined;
+  });
+  const emphasis = createMemo((): Emphasis | null => {
+    const current = scene();
+    const lost = impact();
+    if (current && lost) return impactEmphasis(current, lost);
+    return weak() ? { kind: "weak", vertices: spofs() } : null;
   });
   const counts = createMemo(() => {
     const current = graph();
@@ -134,6 +173,20 @@ export function TopologyPage() {
             {t.replay.replaying}
           </Badge>
         </Show>
+        <Show when={weak() && graph()}>
+          <Show
+            when={spofs().size > 0}
+            fallback={
+              <Badge tone="ok" icon={ShieldCheck}>
+                {t.weak.none}
+              </Badge>
+            }
+          >
+            <Badge tone="warn" icon={ShieldAlert}>
+              {t.weak.count(spofs().size)}
+            </Badge>
+          </Show>
+        </Show>
         <div class="ms-auto flex flex-wrap items-center gap-2">
           <ViewSwitch
             value={view()}
@@ -169,6 +222,15 @@ export function TopologyPage() {
                 {t.toolbar.unpinAll}
               </Button>
             </Show>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={ShieldAlert}
+              aria-label={t.toolbar.weakSpots}
+              title={t.toolbar.weakSpots}
+              aria-pressed={weak() ? "true" : "false"}
+              onClick={() => setWeak((on) => !on)}
+            />
             <Button
               variant="ghost"
               size="sm"
@@ -217,11 +279,29 @@ export function TopologyPage() {
                     </li>
                   )}
                 </For>
+                <For each={current().links.filter((link) => backhaul(current(), link))}>
+                  {(link) => (
+                    <li>
+                      <button
+                        type="button"
+                        onFocus={() => setSelected(link.id)}
+                        onClick={() => setSelected(link.id)}
+                      >
+                        {t.linkItem(
+                          labelOf(link.source),
+                          labelOf(link.target),
+                          t.medium[link.medium],
+                        )}
+                      </button>
+                    </li>
+                  )}
+                </For>
               </ul>
               <TopologyCanvas
                 scene={current()}
                 pins={pins()}
                 selected={selected()}
+                emphasis={emphasis()}
                 flows={!replaying()}
                 label={t.canvas(counts().devices, counts().clients)}
                 onSelect={setSelected}
@@ -238,11 +318,19 @@ export function TopologyPage() {
                 {(id) => (
                   <DetailsPanel
                     scene={current()}
+                    graph={graph()}
                     selected={id()}
+                    spofs={spofs()}
+                    showingImpact={impact() !== undefined}
+                    onImpact={(on) => setWhatIf(on ? id() : null)}
+                    onGo={setSelected}
                     pinned={view() !== "tree" && id() in pins()}
                     grouped={hostOf(id()) === undefined ? undefined : grouped(hostOf(id()) ?? "")}
                     labelOf={labelOf}
-                    onClose={() => setSelected(null)}
+                    onClose={() => {
+                      setSelected(null);
+                      setWhatIf(null);
+                    }}
                     onSelect={(member) => {
                       const host = hostOf(id());
                       if (host && grouped(host)) toggleGroup(host);

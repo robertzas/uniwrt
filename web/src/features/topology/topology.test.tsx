@@ -7,7 +7,7 @@ import type { Topology } from "../../api/gen/Topology";
 import { createAppRouter } from "../../app/routes";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
-import { house } from "../../test/topology";
+import { chain, house } from "../../test/topology";
 
 let calls: string[] = [];
 
@@ -89,6 +89,57 @@ describe("the topology page", () => {
 
     await user.click(within(client).getByRole("button", { name: "Close details" }));
     expect(screen.queryByRole("region", { name: "Details" })).not.toBeInTheDocument();
+  });
+
+  it("tells each link's health, what a node depends on and what goes with it", async () => {
+    const user = userEvent.setup();
+    await renderAt("/topology", chain());
+    const list = await screen.findByRole("list", { name: "Devices and clients on the map" });
+
+    await user.click(within(list).getByRole("button", { name: "ap3, Access point" }));
+    let details = screen.getByRole("region", { name: "Details" });
+    expect(within(details).getByText("2 hops, 2 over the air")).toBeInTheDocument();
+    expect(within(details).getByText("1 client lose the gateway")).toBeInTheDocument();
+    // What it depends on is one click away.
+    await user.click(within(details).getByRole("button", { name: "Living room" }));
+    details = screen.getByRole("region", { name: "Details" });
+    expect(within(details).getByRole("heading", { name: "Living room" })).toBeInTheDocument();
+    expect(within(details).getByText("Single point of failure")).toBeInTheDocument();
+    expect(within(details).getByText("1 hop, 1 over the air")).toBeInTheDocument();
+    expect(
+      within(details).getByText("1 device and 3 clients lose the gateway"),
+    ).toBeInTheDocument();
+    const show = within(details).getByRole("button", { name: "Show what goes down" });
+    await user.click(show);
+    expect(within(details).getByRole("button", { name: "Back to the map" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await user.click(within(list).getByRole("button", { name: "Gateway, Gateway" }));
+    expect(
+      within(screen.getByRole("region", { name: "Details" })).queryByRole("button", {
+        name: "Show what goes down",
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Weak spots" }));
+    expect(screen.getByText("1 single point of failure")).toBeInTheDocument();
+  });
+
+  it("details a link's score, drops and whether it is critical", async () => {
+    const user = userEvent.setup();
+    await renderAt("/topology", chain());
+    const list = await screen.findByRole("list", { name: "Devices and clients on the map" });
+    await user.click(
+      within(list).getByRole("button", { name: "Gateway to Living room, Mesh link" }),
+    );
+    const details = screen.getByRole("region", { name: "Details" });
+    expect(within(details).getByText("Critical link")).toBeInTheDocument();
+    expect(within(details).getByText("55 / 100, limited by signal")).toHaveClass("text-warn");
+    expect(within(details).getByText(/^2, last at /)).toBeInTheDocument();
+    // Clients' links aren't listed: their client is.
+    expect(within(list).queryByRole("button", { name: /phone to|to phone/ })).toBeNull();
   });
 
   it("switches views in the URL and unpins a pinned device", async () => {

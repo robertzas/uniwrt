@@ -1,3 +1,4 @@
+import type { Emphasis } from "../health";
 import type { Point } from "../layout/tree";
 import type { Scene, VertexKind } from "../scene";
 import { drawFrame } from "./draw";
@@ -71,6 +72,7 @@ export class TopologyRenderer {
   #hovered: string | null = null;
   #pinned: ReadonlySet<string> = new Set();
   #flows = false;
+  #emphasis: Emphasis | null = null;
   #draggable = false;
   #reducedMotion = false;
   #gesture: Gesture | undefined;
@@ -156,6 +158,11 @@ export class TopologyRenderer {
 
   setPinned(pinned: ReadonlySet<string>) {
     this.#pinned = pinned;
+    this.#request();
+  }
+
+  setEmphasis(emphasis: Emphasis | null) {
+    this.#emphasis = emphasis;
     this.#request();
   }
 
@@ -262,6 +269,7 @@ export class TopologyRenderer {
       selected: this.#selected,
       hovered: this.#hovered,
       pinned: this.#pinned,
+      emphasis: this.#emphasis,
       seconds: (performance.now() - this.#clock) / 1000,
       flows,
     });

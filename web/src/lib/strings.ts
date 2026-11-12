@@ -1774,6 +1774,7 @@ export const strings = {
     canvas: (devices: number, clients: number) =>
       `Network map: ${devices} ${devices === 1 ? "device" : "devices"} and ${clients} ${clients === 1 ? "client" : "clients"}`,
     list: "Devices and clients on the map",
+    linkItem: (a: string, b: string, medium: string) => `${a} to ${b}, ${medium} link`,
     kind: {
       internet: "Internet",
       gateway: "Gateway",
@@ -1793,7 +1794,12 @@ export const strings = {
       zoomOut: "Zoom out",
       unpinAll: "Unpin all",
       legend: "Legend",
+      weakSpots: "Weak spots",
       hint: "Drag a device to pin it. Double-click a group to show its clients.",
+    },
+    weak: {
+      none: "No single point of failure",
+      count: (count: number) => `${count} single ${count === 1 ? "point" : "points"} of failure`,
     },
     details: {
       label: "Details",
@@ -1830,6 +1836,39 @@ export const strings = {
       expand: "Show clients",
       collapse: "Group clients",
       more: (count: number) => `and ${count} more`,
+      gatewayHops: "To the gateway",
+      hopCount: (hops: number, wireless: number | null) =>
+        `${hops} ${hops === 1 ? "hop" : "hops"}${
+          wireless === null ? "" : wireless === 0 ? ", all wired" : `, ${wireless} over the air`
+        }`,
+      dependsOn: "Depends on",
+      ifDown: "If it goes down",
+      impact: (devices: number, clients: number) => {
+        const parts = [
+          devices > 0 && `${devices} ${devices === 1 ? "device" : "devices"}`,
+          clients > 0 && `${clients} ${clients === 1 ? "client" : "clients"}`,
+        ].filter(Boolean);
+        return parts.length === 0
+          ? "Nothing else loses the gateway"
+          : `${parts.join(" and ")} lose the gateway`;
+      },
+      showImpact: "Show what goes down",
+      hideImpact: "Back to the map",
+      spof: "Single point of failure",
+      critical: "Critical link",
+      criticalHint: "Something reaches the gateway only over this link.",
+      health: "Health",
+      score: (score: number, weakest: string | null) =>
+        weakest ? `${score} / 100, limited by ${weakest}` : `${score} / 100`,
+      weakest: {
+        down: "being down",
+        flapping: "drops",
+        signal: "signal",
+        tq: "transmit quality",
+        throughput: "throughput",
+      },
+      drops: "Drops (30 min)",
+      dropCount: (count: number, last: string) => `${count}, last at ${last}`,
     },
     replay: {
       label: "Replay the last 24 hours",
@@ -1841,7 +1880,7 @@ export const strings = {
       replaying: "Replaying",
     },
     legend: {
-      quality: "Link quality",
+      quality: "Link health",
       poor: "Poor",
       excellent: "Excellent",
       wired: "Wired",
@@ -1849,6 +1888,8 @@ export const strings = {
       bands: "Clients by band",
       health: "Ring: status and CPU",
       flows: "Dots flow with the traffic",
+      weak: "Weak spot: a link or device others can't lose",
+      lost: "Cut off if the crossed device goes down",
     },
     pinFailed: "Cannot save the position",
   },

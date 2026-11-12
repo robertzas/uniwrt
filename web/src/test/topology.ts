@@ -114,3 +114,44 @@ export function house(): Topology {
     ],
   };
 }
+
+/**
+ * The house with health: a third access point (`ap3`) meshed to the access point only, so the
+ * access point is a single point of failure and its link to the gateway critical, scored 55 by
+ * its signal after two drops; a client on `ap3`.
+ */
+export function chain(): Topology {
+  const base = house();
+  const nodes = base.nodes.map((node) =>
+    node.id === "node:2" ? { ...node, gateway_hops: 1, wireless_hops: 1 } : node,
+  );
+  const edges = base.edges.map((link) =>
+    link.id === "node:1~node:2"
+      ? { ...link, score: 55, weakest: "signal" as const, drops: [400, 900], critical: true }
+      : link,
+  );
+  return {
+    at: base.at,
+    nodes: [
+      ...nodes,
+      vertex("node:3", {
+        kind: "ap",
+        node: 3,
+        name: "ap3",
+        state: "online",
+        parent: "node:2",
+        uplink: "node:2~node:3",
+        hops: 3,
+        gateway_hops: 2,
+        wireless_hops: 2,
+        depends_on: "node:2",
+      }),
+      vertex("client:aa:00:00:00:00:04", { parent: "node:3", hops: 4 }),
+    ],
+    edges: [
+      ...edges,
+      edge("node:2", "node:3", { medium: "mesh", band: "5g", score: 100, critical: true }),
+      edge("node:3", "client:aa:00:00:00:00:04", { medium: "wifi", band: "5g" }),
+    ],
+  };
+}
