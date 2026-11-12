@@ -13,7 +13,7 @@ import {
   wlanOf,
 } from "./draft";
 import { qrPath } from "./JoinDialog";
-import { daysText, isOn, localTime, onNow, scopeText, spanText } from "./summary";
+import { daysText, isOn, localTime, onNow, scopeText, spanText, wiredVlanError } from "./summary";
 
 const home = (): Wlan => siteConfig().wlans[0] as Wlan;
 
@@ -210,5 +210,18 @@ describe("WLAN summaries", () => {
     expect(localTime("Mars/Olympus", at)).toBeUndefined();
     expect(onNow(night, "Europe/Berlin", at)).toBe(true);
     expect(onNow(night, "America/New_York", at)).toBe(false);
+  });
+});
+
+describe("The mesh's wired backhaul VLAN", () => {
+  it("is 1 to 4094 and no network's", () => {
+    const lan = siteConfig().networks[0];
+    if (!lan) throw new Error("no LAN");
+    const networks = [{ ...lan, name: "IoT", vlan: 30 }];
+    expect(wiredVlanError("4094", networks)).toBeUndefined();
+    expect(wiredVlanError("", networks)).toBe("A VLAN ID is 1 to 4094");
+    expect(wiredVlanError("4095", networks)).toBe("A VLAN ID is 1 to 4094");
+    expect(wiredVlanError("1.5", networks)).toBe("A VLAN ID is 1 to 4094");
+    expect(wiredVlanError(" 30 ", networks)).toBe("IoT uses this VLAN: choose another");
   });
 });

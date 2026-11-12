@@ -69,7 +69,12 @@ export function MeshTab(props: { node: Node; facts: NodeFacts | null }) {
             class="flex items-start gap-2 rounded-control border border-warn/40 bg-warn/10 px-3 py-2 text-sm"
           >
             <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
-            {t.stranded(port)}
+            <span class="min-w-0 flex-1">
+              {t.stranded(port)}{" "}
+              <a href={`/devices/${props.node.id}?tab=ports`} class="text-accent hover:underline">
+                {t.openPorts}
+              </a>
+            </span>
           </p>
         )}
       </For>

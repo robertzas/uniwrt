@@ -55,9 +55,11 @@ pub fn network(config: &SiteConfig, purpose: Purpose, vlan: Option<u16>) -> Opti
 }
 
 /// The usual VLAN of a purpose (`iot` 30, `guest` 40, `mgmt` 99, others from 50 in tens), or
-/// when taken the next free one after it.
+/// when taken the next free one after it. The wired backhaul's VLAN is never free (D-094).
 pub fn free_vlan(config: &SiteConfig, purpose: Purpose) -> Option<u16> {
-    let taken = |vid: u16| config.networks.iter().any(|n| n.vlan == Some(vid));
+    let taken = |vid: u16| {
+        vid == config.mesh.wired_vlan || config.networks.iter().any(|n| n.vlan == Some(vid))
+    };
     let usual: &[u16] = match purpose {
         Purpose::Iot => &[30],
         Purpose::Guest => &[40],

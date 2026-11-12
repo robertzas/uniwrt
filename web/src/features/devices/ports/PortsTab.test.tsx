@@ -13,6 +13,8 @@ import { revisionMeta, siteConfig, siteView } from "../../../test/site";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
 let head = 2;
+/** The config the last save stored, which later reads return. */
+let stored: SiteConfig | undefined;
 
 /** The demo's site with an IoT network on VLAN 30, the node managing `network`. */
 function config(): SiteConfig {
@@ -29,6 +31,7 @@ function config(): SiteConfig {
 beforeEach(() => {
   calls = [];
   head = 2;
+  stored = undefined;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -36,10 +39,11 @@ beforeEach(() => {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
       if (url === "/api/v1/site" && method === "GET")
-        return Response.json(siteView(head, config()));
+        return Response.json(siteView(head, stored ?? config()));
       if (url === "/api/v1/site" && method === "PUT") {
         head += 1;
-        return Response.json(siteView(head, (body as SiteSave).config));
+        stored = (body as SiteSave).config;
+        return Response.json(siteView(head, stored));
       }
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
@@ -71,12 +75,23 @@ describe("Device › Ports", () => {
     await user.click(within(card).getByRole("button", { name: "Edit" }));
     await user.selectOptions(within(card).getByLabelText("Untagged lan2"), "iot");
     await user.click(within(lan2).getByRole("button", { name: "None" }));
+    expect(within(lan2).getByLabelText("Mesh backhaul on lan2")).toBeChecked();
+    const lan1 = within(card).getByRole("row", { name: "lan1" });
+    await user.click(within(lan1).getByLabelText("Mesh backhaul on lan1"));
     await user.click(within(card).getByRole("button", { name: "Save" }));
     expect(await within(card).findByText(/Saved as revision 3/)).toBeInTheDocument();
     const put = calls.find((c) => c.method === "PUT")?.body as SiteSave;
     expect(put.message).toBe("Ports of gw");
     expect(put.config.nodes[0]?.ports).toEqual([
+      { port: "lan1", native: "lan", tagged: { kind: "all" }, backhaul: false },
       { port: "lan2", native: "iot", tagged: { kind: "none" }, backhaul: true },
     ]);
+    // The saved profile shows the opt-out.
+    ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
+    const reads = () => calls.filter((c) => c.method === "GET" && c.url === "/api/v1/site");
+    await waitFor(() => expect(reads().length).toBeGreaterThan(2));
+    const saved = await within(card).findByRole("row", { name: "lan1" });
+    expect(await within(saved).findByText("Opted out")).toBeInTheDocument();
+    expect(within(card).getByText(/batman-adv may take it over/)).toBeInTheDocument();
   });
 });

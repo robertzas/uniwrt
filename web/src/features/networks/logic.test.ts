@@ -84,6 +84,9 @@ describe("the network editor's draft", () => {
     });
     const untagged = { ...draftOf(iot()), vlan: "" };
     expect(networkOf(untagged, lan(), false).errors.vlan).toMatch(/Default is untagged already/);
+    const backhaul = { ...draftOf(iot()), vlan: "4094" };
+    expect(networkOf(backhaul, lan(), false, 4094).errors.vlan).toMatch(/wired backhaul takes/);
+    expect(networkOf(backhaul, lan(), false).errors.vlan).toBeUndefined();
     const holding = { ...draftOf(iot()), start: "10.0.30.1" };
     expect(networkOf(holding, lan(), false).errors.start).toBe(
       "The pool holds the gateway's address",

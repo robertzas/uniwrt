@@ -129,6 +129,8 @@ export function networkOf(
   draft: NetworkDraft,
   others: readonly Network[],
   isNew: boolean,
+  /** The mesh's wired backhaul VLAN, which no network may use (D-094), while the mesh is on. */
+  backhaulVlan?: number,
 ): { network?: Network; errors: DraftErrors } {
   const errors: DraftErrors = {};
   const id = draft.id.trim();
@@ -144,6 +146,7 @@ export function networkOf(
   }
   const vlan = draft.vlan.trim() === "" ? null : Number(draft.vlan.trim());
   if (vlan !== null && !(Number.isInteger(vlan) && vlan >= 1 && vlan <= 4094)) errors.vlan = e.vlan;
+  else if (vlan !== null && vlan === backhaulVlan) errors.vlan = e.vlanBackhaul;
   else {
     const taken = others.find((n) => n.vlan === vlan);
     if (taken) errors.vlan = vlan === null ? e.untaggedTaken(taken.name) : e.vlanTaken(taken.name);

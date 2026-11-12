@@ -16,6 +16,7 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { JoinDialog } from "./JoinDialog";
+import { MeshCard } from "./MeshCard";
 import { SteeringCard } from "./SteeringCard";
 import { clientsOn, onNow, scopeText, warningsOf } from "./summary";
 import { WlanEditor } from "./WlanEditor";
@@ -169,7 +170,12 @@ export function WifiPage() {
         </div>
       </Card>
       <Show when={site.data}>
-        {(view) => <SteeringCard view={view()} admin={admin()} basicWpad={steeringWpad()} />}
+        {(view) => (
+          <>
+            <SteeringCard view={view()} admin={admin()} basicWpad={steeringWpad()} />
+            <MeshCard view={view()} admin={admin()} />
+          </>
+        )}
       </Show>
       <Show when={editing()}>
         {(open) => (

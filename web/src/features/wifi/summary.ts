@@ -1,5 +1,6 @@
 import type { Client } from "../../api/gen/Client";
 import type { Issue } from "../../api/gen/Issue";
+import type { Network } from "../../api/gen/Network";
 import type { Schedule } from "../../api/gen/Schedule";
 import type { Span } from "../../api/gen/Span";
 import type { Weekday } from "../../api/gen/Weekday";
@@ -89,4 +90,17 @@ export function isOn(schedule: Schedule, day: Weekday, minute: number): boolean 
 export function onNow(schedule: Schedule, zone: string, at: Date): boolean | undefined {
   const now = localTime(zone, at);
   return now && isOn(schedule, now.day, now.minute);
+}
+
+/**
+ * Why `text` can't be the mesh's wired backhaul VLAN (D-094), if it can't: 1–4094 and no
+ * network's VLAN (the server's `mesh/wired_vlan` check).
+ */
+export function wiredVlanError(text: string, networks: readonly Network[]): string | undefined {
+  const vid = Number(text.trim());
+  if (text.trim() === "" || !Number.isInteger(vid) || vid < 1 || vid > 4094) {
+    return t.mesh.vlanError;
+  }
+  const taken = networks.find((n) => n.vlan === vid);
+  return taken ? t.mesh.vlanTaken(taken.name) : undefined;
 }

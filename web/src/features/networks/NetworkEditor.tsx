@@ -82,7 +82,9 @@ export function NetworkEditor(props: {
   };
 
   const save = () => {
-    const { network, errors: found } = networkOf(draft(), others(), props.isNew);
+    const mesh = props.view.config.mesh;
+    const backhaul = mesh.enabled ? mesh.wired_vlan : undefined;
+    const { network, errors: found } = networkOf(draft(), others(), props.isNew, backhaul);
     if (!network) {
       setErrors(found);
       return;

@@ -30,6 +30,9 @@ import {
 
 const t = strings.ports;
 
+/** A swconfig switch's port (`switch0:3`), which can't carry the backhaul yet (mesh.md). */
+const onSwitch = (port: string) => port.includes(":");
+
 /**
  * A device's Ports tab (network.md, Networks; D-077): each LAN port with its link and the
  * networks it carries, untagged and tagged; admins change them as the site's next revision.
@@ -47,6 +50,11 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
   const profiles = () => entry()?.ports ?? [];
   const untagged = () => untaggedOf(networks());
   const vlans = () => networks().filter((n) => n.vlan !== null);
+  /** Whether the site's mesh runs over cables at all (D-094). */
+  const wired = () => {
+    const mesh = site.data?.config.mesh;
+    return !!mesh && mesh.enabled && mesh.wired;
+  };
   const rows = createMemo(() => portsOf(props.facts, profiles()));
   const [drafts, setDrafts] = createSignal<Record<string, PortDraft>>();
   const [failure, setFailure] = createSignal<string>();
@@ -124,6 +132,7 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
             <Show when={vlans().length === 0}>
               <p class="text-fg-muted text-xs">{t.noVlans}</p>
             </Show>
+            <p class="text-fg-muted text-xs">{wired() ? t.backhaulNote : t.wiredOff}</p>
             <div class="overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="text-left text-fg-muted text-xs">
@@ -131,7 +140,8 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
                     <th class="py-1.5 pr-3 font-medium">{t.port}</th>
                     <th class="py-1.5 pr-3 font-medium">{t.link}</th>
                     <th class="py-1.5 pr-3 font-medium">{t.native}</th>
-                    <th class="py-1.5 font-medium">{t.tagged}</th>
+                    <th class="py-1.5 pr-3 font-medium">{t.tagged}</th>
+                    <th class="py-1.5 font-medium">{t.backhaul}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-edge">
@@ -156,9 +166,21 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
                         <Show
                           when={drafts()}
                           fallback={
-                            <td colspan={2} class="py-2 text-xs leading-7">
-                              {carriesOf(draftOf(row().port), untagged(), networks())}
-                            </td>
+                            <>
+                              <td colspan={2} class="py-2 pr-3 text-xs leading-7">
+                                {carriesOf(draftOf(row().port), untagged(), networks())}
+                              </td>
+                              <td class="py-2 text-xs leading-7">
+                                <Show
+                                  when={!onSwitch(row().port)}
+                                  fallback={<span class="text-fg-subtle">—</span>}
+                                >
+                                  <span class={draftOf(row().port).backhaul ? "" : "text-fg-muted"}>
+                                    {draftOf(row().port).backhaul ? t.backhaulOn : t.backhaulOff}
+                                  </span>
+                                </Show>
+                              </td>
+                            </>
                           }
                         >
                           <td class="py-2 pr-3">
@@ -176,7 +198,7 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
                               </For>
                             </select>
                           </td>
-                          <td class="py-2">
+                          <td class="py-2 pr-3">
                             <Show when={vlans().length > 0} fallback={<span>—</span>}>
                               <Segmented
                                 label={`${t.tagged} ${row().port}`}
@@ -212,6 +234,24 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
                                   </For>
                                 </div>
                               </Show>
+                            </Show>
+                          </td>
+                          <td class="py-2 leading-7">
+                            <Show
+                              when={!onSwitch(row().port)}
+                              fallback={
+                                <span class="text-fg-subtle text-xs" title={t.switchPort}>
+                                  —
+                                </span>
+                              }
+                            >
+                              <Checkbox
+                                label={t.backhaulToggle(row().port)}
+                                hideLabel
+                                checked={draftOf(row().port).backhaul}
+                                onChange={(backhaul) => update(row().port, { backhaul })}
+                                class="pt-1.5"
+                              />
                             </Show>
                           </td>
                         </Show>

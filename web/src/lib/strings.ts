@@ -795,7 +795,8 @@ export const strings = {
         tq: (percent: string) => `TQ ${percent}`,
       },
       stranded: (port: string) =>
-        `${port} carries only the mesh backhaul, but no device answers on it: whatever is plugged in there gets no LAN. Applies keep it so in case the other end comes back; if it is gone for good, take the port off the backhaul.`,
+        `${port} carries only the mesh backhaul, but no device answers on it: whatever is plugged in there gets no LAN. Applies keep it so in case the other end comes back; if it is gone for good, opt the port out of the backhaul on the Ports tab.`,
+      openPorts: "Open Ports",
       failures: {
         title: "Failed cables",
         description:
@@ -2953,6 +2954,23 @@ export const strings = {
       save: "Save",
       cancel: "Cancel",
     },
+    mesh: {
+      title: "Mesh backhaul",
+      description:
+        "batman-adv links the access points to the gateway over the air and, where two of them share a cable, over that cable too.",
+      off: "The mesh is off, so no cable carries it either: these settings wait until it is on.",
+      wired: "Mesh over cables",
+      wiredHint:
+        "A cable between two managed devices carries the mesh on a VLAN of its own and leaves the LAN: about 4 s without LAN between them when it switches. A port opts out on its device's Ports tab.",
+      vlan: "Backhaul VLAN",
+      vlanHint: "Only those cables use it; no network may.",
+      vlanError: "A VLAN ID is 1 to 4094",
+      vlanTaken: (name: string) => `${name} uses this VLAN: choose another`,
+      message: (wired: boolean, vlan: number) =>
+        wired ? `Mesh over cables on VLAN ${vlan}` : "Mesh over cables off",
+      save: "Save",
+      cancel: "Cancel",
+    },
     off: "Off",
     hidden: "Hidden",
     security: {
@@ -3263,6 +3281,7 @@ export const strings = {
       nameTaken: "Another network has this name",
       vlan: "A VLAN ID is 1 to 4094",
       vlanTaken: (name: string) => `${name} is on this VLAN already`,
+      vlanBackhaul: "The mesh's wired backhaul takes this VLAN (Wi-Fi page)",
       untaggedTaken: (name: string) => `${name} is untagged already: give this one a VLAN`,
       address: "An address with its prefix, /8 to /30, such as 10.0.30.1/24",
       host: "The gateway's address is a host of the subnet, not its first or last address",
@@ -3328,6 +3347,15 @@ export const strings = {
     custom: "Custom",
     missing: "Not on this device: render leaves it out",
     noVlans: "No network has a VLAN yet, so ports carry the default network only.",
+    backhaul: "Mesh backhaul",
+    backhaulOn: "Allowed",
+    backhaulOff: "Opted out",
+    backhaulToggle: (port: string) => `Mesh backhaul on ${port}`,
+    backhaulNote:
+      "Mesh backhaul: when a port is a cable to another managed device, batman-adv may take it over (it leaves the LAN). Opt a port out to keep it a plain port.",
+    wiredOff:
+      "The site's mesh doesn't run over cables (Wi-Fi page), so no port carries the backhaul.",
+    switchPort: "A switch port can't carry it",
     reset: "Make a trunk",
     edit: "Edit",
     cancel: "Cancel",

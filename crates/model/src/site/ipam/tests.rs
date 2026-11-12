@@ -71,6 +71,9 @@ fn vlans_follow_the_purpose_then_the_next_free() {
         .networks
         .push(network(&config, Purpose::Custom, None).unwrap());
     assert_eq!(free_vlan(&config, Purpose::Custom), Some(60));
+    // The wired backhaul's VLAN is never handed out.
+    config.mesh.wired_vlan = 99;
+    assert_eq!(free_vlan(&config, Purpose::Mgmt), Some(100));
 }
 
 #[test]
