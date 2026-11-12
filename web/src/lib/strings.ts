@@ -14,15 +14,15 @@ const STEERING_PROFILES: Record<string, { label: string; text: string }> = {
   off: { label: "Off", text: "Clients choose their access point and band themselves." },
   conservative: {
     label: "Conservative",
-    text: "Asks clients with a strong signal (above -60 dBm for 2 min) to move up a band. Nothing else.",
+    text: "Asks clients with a strong signal (above -60 dBm for 2 min) to move up a band. Nothing else, so on OpenWrt 24.10 and 25.12 it changes nothing yet (see below).",
   },
   balanced: {
     label: "Balanced",
-    text: "Band steering after 1 min above -63 dBm, and a client fading below -75 dBm is sent to an access point 8 dB stronger.",
+    text: "Band steering after 1 min above -63 dBm, and a client fading below -75 dBm is moved to an access point 8 dB stronger: disconnected 10 s after the request, so it reconnects there.",
   },
   aggressive: {
     label: "Aggressive",
-    text: "Band steering after 30 s; clients below -72 dBm move to an access point 5 dB stronger. Refuses clients below -85 dBm and sheds them from channels over 75 % busy.",
+    text: "Band steering after 30 s; clients below -72 dBm move to an access point 5 dB stronger, disconnected 10 s after the request. Refuses clients below -85 dBm and sheds them from channels over 75 % busy.",
   },
 };
 
@@ -1148,6 +1148,22 @@ export const strings = {
         node === null ? `${client} left the network` : `${client} left ${node}`,
       clientRoamed: (client: string, from: string, to: string) =>
         `${client} roamed from ${from} to ${to}`,
+      clientSteered: {
+        probe_denied: (node: string, client: string) => `${node} didn't answer ${client}'s probes`,
+        auth_denied: (node: string, client: string) => `${node} turned ${client} away`,
+        assoc_denied: (node: string, client: string) => `${node} turned ${client} away`,
+        signal_kick: (node: string, client: string) =>
+          `${node} disconnected ${client} (weak signal)`,
+        load_kick: (node: string, client: string) =>
+          `${node} disconnected ${client} (busy channel)`,
+        transition_accepted: (node: string, client: string) =>
+          `${client} agreed to move off ${node}`,
+        transition_rejected: (node: string, client: string) =>
+          `${client} declined to move off ${node}`,
+      },
+      clientSteeredTo: (client: string, from: string, to: string) =>
+        `${client} agreed to move from ${from} to ${to}`,
+      aClient: "a client",
       newClient: (client: string, node: string | null) =>
         node === null ? `New device ${client}` : `New device ${client} on ${node}`,
       logPattern: (pattern: string) => `Log: ${pattern}`,
@@ -1186,6 +1202,26 @@ export const strings = {
       connectedFor: (d: string) => `Connected for ${d}`,
       fast: "Fast transition (802.11r)",
       wired: "Wired",
+      steer: {
+        betterAt: (to: string) => `Better served by ${to}`,
+        betterAtSignal: (to: string, dbm: number) => `Better served by ${to} (${dbm} dBm)`,
+        weak: (dbm: number, min: number) => `Signal ${dbm} dBm, under ${min} dBm`,
+        signal: (dbm: number) => `Signal ${dbm} dBm`,
+        connectDelay: "Too soon after it first asked",
+        retryExceeded: "Turned away again and again",
+        // 802.11 BSS transition status codes (IEEE 802.11-2020, table 9-428).
+        status: {
+          1: "Declined, no reason given",
+          2: "Declined: not enough beacon reports",
+          3: "Declined: not enough capacity",
+          4: "Declined: BSS termination undesired",
+          5: "Declined: asked for a termination delay",
+          6: "Declined, with its own candidates",
+          7: "Declined: no suitable access point",
+          8: "Declined: leaving the network",
+        } as Record<number, string>,
+        statusCode: (code: number) => `Declined (status ${code})`,
+      },
       jobKind: {
         adopt: "adoption",
         manage: "enabling management",
@@ -1380,6 +1416,7 @@ export const strings = {
       client_joined: "Client joined",
       client_left: "Client left",
       client_roamed: "Client roamed",
+      client_steered: "Client steered",
       new_client: "New device",
       channel_changed: "Channel changed",
       channel_congested: "Channel congested",
@@ -2805,7 +2842,7 @@ export const strings = {
         "usteer moves clients to the better band or access point. One profile for the site; a WLAN can opt out in its Roaming settings.",
       profiles: STEERING_PROFILES,
       footnote:
-        "A client that ignores a request to move is disconnected 10 s later, so it reconnects to the better access point. Only clients with 802.11v are asked to change band.",
+        "Only clients with 802.11v are asked to change band. On OpenWrt 24.10 and 25.12, hostapd refuses usteer's requests to move, so clients move only when refused or disconnected; uniwrt will send these requests itself in a later version.",
       noWlan: "No WLAN takes part: turn Steer clients on in a WLAN's Roaming settings.",
       basicWpad: (count: number, profile: string) =>
         `${count === 1 ? "This device runs" : "These devices run"} the basic wpad, without 802.11v: ${profile === "conservative" ? "Conservative steering does nothing there" : "steering can only disconnect clients there to move them"}, and access points can't suggest where to roam. Install the full wpad from the device's Config tab:`,

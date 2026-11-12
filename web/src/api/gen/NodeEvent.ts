@@ -3,5 +3,6 @@ import type { DeviceEvent } from "./DeviceEvent";
 import type { InterfaceEvent } from "./InterfaceEvent";
 import type { LeaseEvent } from "./LeaseEvent";
 import type { StationEvent } from "./StationEvent";
+import type { SteerEvent } from "./SteerEvent";
 
-export type NodeEvent = { "kind": "station" } & StationEvent | { "kind": "device" } & DeviceEvent | { "kind": "interface" } & InterfaceEvent | { "kind": "lease" } & LeaseEvent;
+export type NodeEvent = { "kind": "station" } & StationEvent | { "kind": "device" } & DeviceEvent | { "kind": "interface" } & InterfaceEvent | { "kind": "lease" } & LeaseEvent | { "kind": "steer" } & SteerEvent;

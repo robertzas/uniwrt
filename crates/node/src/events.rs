@@ -10,7 +10,10 @@ mod hostapd;
 mod log;
 mod netifd;
 #[cfg(test)]
+mod steer_tests;
+#[cfg(test)]
 mod tests;
+mod usteer;
 
 use serde::{Deserialize, de::DeserializeOwned};
 use uniwrt_model::{event::NodeEvent, log::LogEntry};
@@ -68,6 +71,7 @@ pub fn parse(event: &AgentEvent) -> Result<Option<Push>, EventError> {
                 "netifd" => netifd::interface(kind, raw),
                 "netifd.device" => netifd::device(kind, raw),
                 "dnsmasq" | "odhcpd" => dhcp::parse(kind, raw),
+                "usteer" => usteer::parse(kind, raw),
                 _ => Ok(None),
             }
             .map(|event| event.map(Push::Event))
@@ -80,7 +84,14 @@ pub fn parse(event: &AgentEvent) -> Result<Option<Push>, EventError> {
 /// and a type may have dots: `netifd.device.link_up`, `netifd.interface.update`,
 /// `dnsmasq.dhcp.ack`.
 fn split(topic: &str) -> (&str, &str) {
-    for source in ["netifd.device", "hostapd", "netifd", "dnsmasq", "odhcpd"] {
+    for source in [
+        "netifd.device",
+        "hostapd",
+        "netifd",
+        "dnsmasq",
+        "odhcpd",
+        "usteer",
+    ] {
         if let Some(kind) = topic
             .strip_prefix(source)
             .and_then(|rest| rest.strip_prefix('.'))

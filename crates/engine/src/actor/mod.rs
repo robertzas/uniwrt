@@ -68,6 +68,8 @@ pub(crate) struct NodeActor<L> {
     /// latest time it ran out.
     stale_from: Instant,
     logs: Logs,
+    /// A kick usteer named no client of, until the disconnect that follows names it.
+    kick: Option<telemetry::Kick>,
 }
 
 /// The running agent.
@@ -122,6 +124,7 @@ impl<L: NodeLink> NodeActor<L> {
             refresh_at: None,
             stale_from: Instant::now(),
             logs: Logs::default(),
+            kick: None,
         }
     }
 

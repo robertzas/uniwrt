@@ -240,8 +240,10 @@ describe("Wi-Fi", () => {
     const profiles = within(card).getByRole("group", { name: "Steering" });
     expect(within(profiles).getByLabelText("Off")).toBeChecked();
     expect(
-      within(card).getByText(/-75 dBm is sent to an access point 8 dB stronger/),
+      within(card).getByText(/-75 dBm is moved to an access point 8 dB stronger/),
     ).toBeVisible();
+    // What these releases' hostapd does to usteer's requests is said once, under the profiles.
+    expect(within(card).getByText(/hostapd refuses usteer's requests to move/)).toBeVisible();
     // Steering off: the page's note names the basic wpad, the card doesn't.
     expect(screen.getByText(/This device runs the basic wpad, so its/)).toBeVisible();
     expect(within(card).queryByRole("link", { name: "attic" })).toBeNull();

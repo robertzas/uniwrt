@@ -9,8 +9,9 @@ import { BAD_REQUEST, event } from "./proto.uc";
 // Each topic's objects: the source its events are named after, by object name, or null for
 // objects it does not cover.
 const TOPICS = {
-	// Wi-Fi clients of each BSS: auth, assoc, sta-authorized, disassoc, and radar detection.
-	// Probe requests are dropped: a busy AP sends dozens a second.
+	// Wi-Fi clients of each BSS: auth, assoc, sta-authorized, disassoc, clients' answers to
+	// transition requests (bss-transition-response), and radar detection. Probe requests are
+	// dropped: a busy AP sends dozens a second.
 	hostapd: {
 		source: (path) => match(path, /^hostapd\.[^.]+$/) ? "hostapd" : null,
 		drop: { probe: true },
@@ -24,6 +25,18 @@ const TOPICS = {
 	// DHCP leases acked and released, by dnsmasq (IPv4) and odhcpd.
 	dhcp: {
 		source: (path) => ({ dnsmasq: "dnsmasq", dhcp: "odhcpd" })[path],
+	},
+	// What usteer does to clients: the requests it refuses and the clients it kicks. usteer
+	// notifies only while it has subscribers. Accepts are dropped (every probe and assoc a
+	// client sends, and its roam state changes, which it names probe_req_accept), and so are
+	// the load kick's steps that concern no client.
+	usteer: {
+		source: (path) => path == "usteer" ? "usteer" : null,
+		drop: {
+			probe_req_accept: true, auth_req_accept: true, assoc_req_accept: true,
+			load_kick_trigger: true, load_kick_reset: true, load_kick_min_clients: true,
+			load_kick_no_client: true,
+		},
 	},
 };
 

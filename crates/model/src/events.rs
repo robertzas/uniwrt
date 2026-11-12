@@ -14,7 +14,7 @@ use uniwrt_core::{EventId, JobId, LogId, MacAddr, NodeId, RevisionId, Timestamp}
 use crate::{
     client::ClientMedium,
     drift::DriftEnd,
-    event::Attachment,
+    event::{Attachment, SteerAction, SteerReason},
     job::JobKind,
     log::Severity,
     status::StatusReason,
@@ -214,6 +214,21 @@ pub enum EventKind {
         to: Attachment,
         fast: bool,
     },
+    /// Client steering at the event's node: usteer refused the client or kicked it at the
+    /// access point `iface`, or the client answered a BSS transition request there. `to` is
+    /// the access point usteer would rather have it on, or the one it said it would go to,
+    /// when the controller knows it, and `to_signal_dbm` the client's signal there;
+    /// `status` is the answer's 802.11 status code.
+    ClientSteered {
+        action: SteerAction,
+        iface: String,
+        reason: Option<SteerReason>,
+        signal_dbm: Option<i16>,
+        min_signal_dbm: Option<i16>,
+        to: Option<Attachment>,
+        to_signal_dbm: Option<i16>,
+        status: Option<u8>,
+    },
     /// A user kicked a client off the Wi-Fi, keeping it off every managed access point for
     /// `ban_secs` (0: it may come back at once).
     ClientKicked {
@@ -349,6 +364,10 @@ impl EventKind {
             Self::ClientJoined { .. } | Self::ClientLeft { .. } | Self::ClientRoamed { .. } => {
                 (C::Client, L::Info)
             }
+            Self::ClientSteered { action, .. } => {
+                let kicked = matches!(action, SteerAction::SignalKick | SteerAction::LoadKick);
+                (C::Client, if kicked { L::Notice } else { L::Info })
+            }
             Self::NewClient { .. }
             | Self::ClientKicked { .. }
             | Self::ClientBlocked { .. }
@@ -389,6 +408,7 @@ impl EventKind {
             Self::ClientJoined { .. } => "client_joined",
             Self::ClientLeft { .. } => "client_left",
             Self::ClientRoamed { .. } => "client_roamed",
+            Self::ClientSteered { .. } => "client_steered",
             Self::NewClient { .. } => "new_client",
             Self::ChannelChanged { .. } => "channel_changed",
             Self::ChannelCongested { .. } => "channel_congested",

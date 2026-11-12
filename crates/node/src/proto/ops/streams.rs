@@ -17,24 +17,28 @@ use super::{Op, Set};
 #[serde(rename_all = "snake_case")]
 pub enum Topic {
     /// Wi-Fi clients of each access point: `hostapd.auth`, `.assoc`, `.sta-authorized`,
-    /// `.disassoc` and the rest of hostapd's notifications but probe requests. The agent
-    /// subscribes to each BSS's object as it appears.
+    /// `.disassoc`, `.bss-transition-response` and the rest of hostapd's notifications but
+    /// probe requests. The agent subscribes to each BSS's object as it appears.
     Hostapd,
     /// `netifd.interface.update` and `.interface.down` (with the interface's status), and
     /// `netifd.device.<change>` (devices and their links).
     Netifd,
     /// `dnsmasq.dhcp.ack` and `.dhcp.release`, and odhcpd's as `odhcpd.<type>`.
     Dhcp,
+    /// What usteer does to clients (`usteer.probe_req_deny`, `.assoc_req_deny`,
+    /// `.signal_kick`, `.load_kick_client`…), while it runs; its accepts are dropped.
+    Usteer,
 }
 
 impl Topic {
-    pub const ALL: [Self; 3] = [Self::Dhcp, Self::Hostapd, Self::Netifd];
+    pub const ALL: [Self; 4] = [Self::Dhcp, Self::Hostapd, Self::Netifd, Self::Usteer];
 
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Dhcp => "dhcp",
             Self::Hostapd => "hostapd",
             Self::Netifd => "netifd",
+            Self::Usteer => "usteer",
         }
     }
 }
@@ -160,7 +164,7 @@ mod tests {
                 topics: Topic::ALL.to_vec()
             })
             .unwrap(),
-            json!({"topics": ["dhcp", "hostapd", "netifd"]})
+            json!({"topics": ["dhcp", "hostapd", "netifd", "usteer"]})
         );
         assert_eq!(
             serde_json::to_value(LogFollow::new(LogMode::Poll)).unwrap(),

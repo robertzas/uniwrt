@@ -98,6 +98,33 @@ function reasonText(reason: StatusReason | undefined): string | undefined {
   }
 }
 
+type Steered = Extract<EventRecord["what"], { kind: "client_steered" }>;
+
+/** Why a client was steered, its signals, how it answered, and the access point. */
+function steerDetail(what: Steered, names: Names): string[] {
+  const s = t.detail.steer;
+  const parts: (string | null)[] = [];
+  const signal = what.signal_dbm;
+  if (signal !== null && what.min_signal_dbm !== null) {
+    parts.push(s.weak(signal, what.min_signal_dbm));
+  } else if (signal !== null) {
+    parts.push(s.signal(signal));
+  }
+  if (what.reason === "connect_delay") parts.push(s.connectDelay);
+  if (what.reason === "retry_exceeded") parts.push(s.retryExceeded);
+  if (what.to !== null && what.action !== "transition_accepted") {
+    const to = names.node(what.to.node);
+    parts.push(
+      what.to_signal_dbm === null ? s.betterAt(to) : s.betterAtSignal(to, what.to_signal_dbm),
+    );
+  }
+  if (what.action === "transition_rejected" && what.status !== null) {
+    parts.push(s.status[what.status] ?? s.statusCode(what.status));
+  }
+  parts.push(what.iface);
+  return parts.filter((part): part is string => part !== null);
+}
+
 const withDetail = (title: string, detail: string | null | undefined): Described =>
   detail ? { title, detail } : { title };
 
@@ -186,6 +213,15 @@ export function describeEvent(event: EventRecord, names: Names): Described {
         titles.clientRoamed(client, names.node(what.from.node), names.node(what.to.node)),
         what.fast ? d.fast : `${what.from.iface} → ${what.to.iface}`,
       );
+    case "client_steered": {
+      const who = client || titles.aClient;
+      const to = what.to === null ? null : names.node(what.to.node);
+      const title =
+        what.action === "transition_accepted" && to !== null
+          ? titles.clientSteeredTo(who, node, to)
+          : titles.clientSteered[what.action](node, who);
+      return withDetail(title, steerDetail(what, names).join(" · "));
+    }
     case "new_client":
       return withDetail(
         titles.newClient(client, placed),

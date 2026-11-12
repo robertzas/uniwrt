@@ -101,7 +101,7 @@ Rules:
 {"id":7,"op":"collect","args":{"sets":["system","stations"]}}
 {"id":8,"op":"ubus","args":{"path":"hostapd.phy1-ap0","method":"rrm_nr_set","data":{"list":[]}}}
 {"id":9,"op":"exec","args":{"argv":["batctl","o"],"timeout_ms":5000}}
-{"id":10,"op":"subscribe","args":{"topics":["hostapd","netifd","dhcp"]}}
+{"id":10,"op":"subscribe","args":{"topics":["hostapd","netifd","dhcp","usteer"]}}
 {"id":11,"op":"set_interval","args":{"interval_ms":2000,"sets":["radios","stations"]}}
 // agent → controller
 {"id":7,"ok":{}}

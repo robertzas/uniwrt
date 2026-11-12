@@ -56,6 +56,65 @@ describe("events in words", () => {
       title: "Pixel roamed from Gateway to Attic AP",
       detail: "Fast transition (802.11r)",
     });
+    const steered = (what: Partial<Extract<EventRecord["what"], { kind: "client_steered" }>>) =>
+      describeEvent(
+        event(
+          {
+            kind: "client_steered",
+            action: "assoc_denied",
+            iface: "phy0-ap0",
+            reason: null,
+            signal_dbm: null,
+            min_signal_dbm: null,
+            to: null,
+            to_signal_dbm: null,
+            status: null,
+            ...what,
+          },
+          { node: 1, client: "f0:18:98:00:00:01" },
+        ),
+        names,
+      );
+    expect(
+      steered({
+        reason: "better_candidate",
+        signal_dbm: -71,
+        to: { node: 2, iface: "phy1-ap0" },
+        to_signal_dbm: -52,
+      }),
+    ).toEqual({
+      title: "Gateway turned Pixel away",
+      detail: "Signal -71 dBm · Better served by Attic AP (-52 dBm) · phy0-ap0",
+    });
+    expect(steered({ action: "transition_accepted", to: { node: 2, iface: "phy1-ap0" } })).toEqual({
+      title: "Pixel agreed to move from Gateway to Attic AP",
+      detail: "phy0-ap0",
+    });
+    expect(steered({ action: "transition_rejected", status: 7 }).detail).toBe(
+      "Declined: no suitable access point · phy0-ap0",
+    );
+    expect(
+      describeEvent(
+        event(
+          {
+            kind: "client_steered",
+            action: "signal_kick",
+            iface: "phy0-ap0",
+            reason: null,
+            signal_dbm: -91,
+            min_signal_dbm: -85,
+            to: null,
+            to_signal_dbm: null,
+            status: null,
+          },
+          { node: 1, client: null },
+        ),
+        names,
+      ),
+    ).toEqual({
+      title: "Gateway disconnected a client (weak signal)",
+      detail: "Signal -91 dBm, under -85 dBm · phy0-ap0",
+    });
     const joined = event(
       { kind: "client_joined", medium: "wifi", place: "phy1-ap0", ssid: "home", band: "5g" },
       { client: "f0:18:98:00:00:01" },

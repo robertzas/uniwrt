@@ -38,8 +38,10 @@ pub fn thresholds(profile: SteeringProfile) -> &'static [(&'static str, &'static
             ("assoc_steering", "0"),
             ("load_kick_enabled", "0"),
         ],
-        // Also a client fading below -75 dBm is sent to an AP heard 8 dB stronger (a client
-        // that ignores the request is disconnected 10 s later, so it reconnects there).
+        // Also a client fading below -75 dBm is sent to an AP heard 8 dB stronger: usteer
+        // disconnects it 10 s after the request (`roam_kick_delay`), so it reconnects there.
+        // 24.10's and 25.12's hostapd refuse usteer 2022.08's transition requests (no MBO
+        // fields), so only the disconnect happens (features/wifi.md, Steering & balancing).
         SteeringProfile::Balanced => &[
             ("band_steering_interval", "60000"),
             ("band_steering_min_snr", "-63"),

@@ -4,7 +4,7 @@
 //! - **API:** a [`Deriver`] takes what the engine announces, each with the controller's time:
 //!   node statuses ([`Deriver::status`]), facts ([`Deriver::facts`]), topology builds
 //!   ([`Deriver::topology`]), clients' views ([`Deriver::clients`]), roams, stored log entries
-//!   ([`Deriver::logged`]) and jobs, plus a regular [`Deriver::tick`], and returns the
+//!   ([`Deriver::logged`]), steering ([`Deriver::steered`]) and jobs, plus a regular [`Deriver::tick`], and returns the
 //!   [`NewEvent`]s they make. [`Seed`] is what it knows at start: conditions still raised in the
 //!   store, the clients already known and the nodes' last facts. A [`Folder`] plans how to
 //!   store events ([`EventWrite`]): repeats of one with a fold key fold into its record.
@@ -15,7 +15,8 @@
 //!   (their boot time moved) and short of flash (under 10 % free, until 15 %); gateways' WAN
 //!   links without a default route (after 10 s) and their addresses changing; mesh links between
 //!   adopted nodes down (after 30 s) or weak (quality under 40 for 2 min, until 50); clients
-//!   joining, leaving, roaming and new ones; radios changing channel (marked when radar on their
+//!   joining, leaving, roaming and new ones; clients steered (usteer's refusals, folding, and
+//!   kicks; their answers to transition requests), with the access point they were steered to; radios changing channel (marked when radar on their
 //!   node came just before) and their channel congested (at least 80 % busy for 15 min, until
 //!   65 %); log entries whose pattern is an event; adoptions and failed jobs; drift beginning
 //!   and ending ([`Deriver::drift`], from what the engine's drift watcher says changed). Raised conditions
@@ -37,6 +38,9 @@ mod drift_tests;
 mod fold;
 mod links;
 mod radios;
+mod steer;
+#[cfg(test)]
+mod steer_tests;
 #[cfg(test)]
 mod tests;
 

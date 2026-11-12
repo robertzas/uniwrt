@@ -1,6 +1,6 @@
 //! Recording events (features/observability.md, Events; `uniwrt_events`): a deriver fed by the
-//! bus (statuses, facts, topology builds, clients, roams, stored log entries) and by the job
-//! runner, ticked for conditions that must last, its events folded and stored in batches
+//! bus (statuses, facts, topology builds, clients, roams, steering, stored log entries) and by
+//! the job runner, ticked for conditions that must last, its events folded and stored in batches
 //! through [`EventRepo`] and announced as [`Event::Recorded`] once stored; retention runs
 //! beside it.
 //!
@@ -20,6 +20,7 @@ use tracing::warn;
 use uniwrt_core::Timestamp;
 use uniwrt_events::{DeriveConfig, Deriver, EventWrite, Folder, NewEvent, Seed};
 use uniwrt_model::{
+    event::NodeEvent,
     events::{EventCategory, EventKind, EventRecord},
     job::Job,
     log::Severity,
@@ -247,6 +248,12 @@ impl Intake {
                 Vec::new()
             }
             Event::Drift { changes, .. } => deriver.drift(changes, now),
+            Event::Node {
+                node,
+                at,
+                event: NodeEvent::Steer(steer),
+                ..
+            } => vec![deriver.steered(*node, steer, *at)],
             Event::Node { .. }
             | Event::Log { .. }
             | Event::Recorded { .. }

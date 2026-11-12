@@ -81,6 +81,7 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
       "client_joined",
       "client_left",
       "client_roamed",
+      "client_steered",
       "new_client",
       "client_kicked",
       "client_blocked",

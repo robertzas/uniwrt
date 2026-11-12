@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 use uniwrt_core::{ManualClock, NodeId, Timestamp};
 use uniwrt_model::{
     client::{ClientRecord, ClientWifi},
-    event::{Attachment, NodeEvent, StationChange},
+    event::{Attachment, NodeEvent, StationChange, SteerAction},
     facts::StationCapability,
     status::{NodeState, NodeStatus, StatusReason},
 };
@@ -138,7 +138,7 @@ async fn a_new_agent_is_subscribed_collected_and_scheduled() {
         (subscribe.op.as_str(), subscribe.args),
         (
             "subscribe",
-            json!({"topics": ["dhcp", "hostapd", "netifd"]})
+            json!({"topics": ["dhcp", "hostapd", "netifd", "usteer"]})
         )
     );
     let collect = script.call().await;
@@ -153,6 +153,45 @@ async fn a_new_agent_is_subscribed_collected_and_scheduled() {
     assert_eq!(view.status.state, NodeState::Online);
     // Nobody follows the log, and the agent ticks by itself (until its ticks are late).
     script.no_call(Duration::from_secs(40)).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_kick_takes_its_client_from_the_disconnect_that_follows() {
+    let mut fleet = Fleet::new();
+    let mut script = fleet.node(NODE, true).await;
+    set_up(&mut script).await;
+    let kick = |ifname: &str| json!({"node": format!("hostapd.{ifname}"), "threshold": [-90, -85]});
+    let gone = |ifname: &str| json!({"address": "02:00:00:00:0a:00", "ifname": ifname});
+    let steered = async |fleet: &mut Fleet| {
+        fleet
+            .next(|event| match event {
+                Event::Node {
+                    event: NodeEvent::Steer(steer),
+                    ..
+                } => Some(steer),
+                _ => None,
+            })
+            .await
+    };
+    // A disconnect from another access point doesn't claim it; the next kick announces it.
+    script.push_event("usteer.signal_kick", &kick("phy1-ap0"));
+    script.push_event("hostapd.disassoc", &gone("phy0-ap0"));
+    script.push_event("usteer.signal_kick", &kick("phy0-ap0"));
+    script.push_event("hostapd.disassoc", &gone("phy0-ap0"));
+    let unclaimed = steered(&mut fleet).await;
+    assert_eq!(
+        (unclaimed.iface.as_str(), unclaimed.mac),
+        ("phy1-ap0", None)
+    );
+    let claimed = steered(&mut fleet).await;
+    assert_eq!(
+        (claimed.iface.as_str(), claimed.action, claimed.mac),
+        (
+            "phy0-ap0",
+            SteerAction::SignalKick,
+            Some("02:00:00:00:0a:00".parse().unwrap())
+        )
+    );
 }
 
 #[tokio::test(start_paused = true)]

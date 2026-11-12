@@ -1,6 +1,6 @@
 //! [`Deriver`]: what the engine announces, turned into events. Nodes here (status, reboots,
-//! flash, WAN addresses), roams, log entries and jobs; links in `links.rs` and clients in
-//! `clients.rs`.
+//! flash, WAN addresses), roams, log entries and jobs; links in `links.rs`, clients in
+//! `clients.rs` and steering in `steer.rs`.
 
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
@@ -28,6 +28,7 @@ use crate::{
     links::{self, MeshLink},
     ms,
     radios::Radios,
+    steer::Places,
 };
 
 /// What the deriver knows when it starts.
@@ -54,6 +55,8 @@ pub(crate) struct NodeEvents {
     wan: BTreeMap<String, Vec<String>>,
     /// Its radios' channels and its latest radar report.
     radios: Radios,
+    /// Its addresses and BSSes, which steering targets name.
+    pub(crate) places: Places,
 }
 
 /// The jobs whose end was seen, the latest.
@@ -102,6 +105,7 @@ impl Deriver {
                 .filter(|(_, addresses)| !addresses.is_empty())
                 .collect();
             state.radios = Radios::seeded(&facts);
+            state.places = Places::of(&facts);
         }
         deriver
     }
@@ -173,6 +177,7 @@ impl Deriver {
         let config = self.config;
         let state = self.nodes.entry(node).or_default();
         state.role = Some(role);
+        state.places = Places::of(facts);
         let mut events = Vec::new();
         if system_fresh && facts.system.uptime_s > 0 {
             let (booted, up_s) = boot(facts);

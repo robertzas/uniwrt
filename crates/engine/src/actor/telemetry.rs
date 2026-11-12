@@ -1,14 +1,16 @@
 //! What an actor does with telemetry: collected sets become the node's facts, pushed events are
 //! stamped and announced (and refresh the sets they touch), log batches are announced without
-//! the entries a restarted follow repeats.
+//! the entries a restarted follow repeats. usteer's signal kicks name no client: the
+//! disconnect from the same access point that follows (usteer kicks right after notifying)
+//! names it.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::broadcast::error::RecvError, time::Instant};
 use tracing::warn;
 use uniwrt_core::Timestamp;
 use uniwrt_model::{
-    event::{NodeEvent, StationChange},
+    event::{NodeEvent, StationChange, SteerEvent},
     facts::{NodeFacts, StationCapability},
     log::LogEntry,
 };
@@ -24,6 +26,16 @@ use crate::bus::Event;
 
 /// The sets that pushed events keep fresh, collected again when pushes were missed.
 const EVENT_SETS: [Set; 4] = [Set::Devices, Set::Interfaces, Set::Leases, Set::Stations];
+
+/// How soon after a kick without a client the disconnect that names it comes.
+const KICK_CLAIM: Duration = Duration::from_secs(2);
+
+/// A kick waiting for its client.
+pub(super) struct Kick {
+    at: Timestamp,
+    reported_at: Option<Timestamp>,
+    steer: SteerEvent,
+}
 
 impl<L: NodeLink> NodeActor<L> {
     pub(super) fn on_push(&mut self, push: Result<AgentEvent, RecvError>) {
@@ -108,6 +120,33 @@ impl<L: NodeLink> NodeActor<L> {
 
     fn on_node_event(&mut self, reported_at: Option<Timestamp>, event: NodeEvent) {
         let at = self.ctx.clock.now();
+        if let NodeEvent::Steer(steer) = &event
+            && steer.mac.is_none()
+        {
+            self.unclaimed_kick(at, true);
+            self.kick = Some(Kick {
+                at,
+                reported_at,
+                steer: steer.clone(),
+            });
+            return;
+        }
+        if let NodeEvent::Station(station) = &event
+            && station.change == StationChange::Disassociated
+            && let Some(kick) = self
+                .kick
+                .take_if(|kick| kick.steer.iface == station.iface && !stale(kick, at))
+        {
+            let mut steer = kick.steer;
+            steer.mac = Some(station.mac);
+            self.ctx.publish(Event::Node {
+                node: self.node,
+                at: kick.at,
+                reported_at: kick.reported_at,
+                event: NodeEvent::Steer(steer),
+            });
+        }
+        self.unclaimed_kick(at, false);
         let roam = match &event {
             NodeEvent::Station(station) => self.ctx.roams().observe(self.node, at, station),
             _ => None,
@@ -125,12 +164,17 @@ impl<L: NodeLink> NodeActor<L> {
                 self.ctx.publish_clients(changes);
             }
         }
-        self.mark_dirty(match &event {
-            NodeEvent::Station(_) => Set::Stations,
-            NodeEvent::Device(_) => Set::Devices,
-            NodeEvent::Interface(_) => Set::Interfaces,
-            NodeEvent::Lease(_) => Set::Leases,
-        });
+        let touched = match &event {
+            NodeEvent::Station(_) => Some(Set::Stations),
+            NodeEvent::Device(_) => Some(Set::Devices),
+            NodeEvent::Interface(_) => Some(Set::Interfaces),
+            NodeEvent::Lease(_) => Some(Set::Leases),
+            // The disconnect a kick brings touches the stations.
+            NodeEvent::Steer(_) => None,
+        };
+        if let Some(set) = touched {
+            self.mark_dirty(set);
+        }
         self.ctx.publish(Event::Node {
             node: self.node,
             at,
@@ -139,6 +183,19 @@ impl<L: NodeLink> NodeActor<L> {
         });
         if let Some(roam) = roam {
             self.ctx.publish(Event::Roam { at, roam });
+        }
+    }
+
+    /// Announces the waiting kick without a client once no disconnect claimed it in time, or
+    /// at once (`now`), as another kick comes.
+    fn unclaimed_kick(&mut self, at: Timestamp, now: bool) {
+        if let Some(kick) = self.kick.take_if(|kick| now || stale(kick, at)) {
+            self.ctx.publish(Event::Node {
+                node: self.node,
+                at: kick.at,
+                reported_at: kick.reported_at,
+                event: NodeEvent::Steer(kick.steer),
+            });
         }
     }
 
@@ -193,4 +250,8 @@ fn differs(set: Set, a: &NodeFacts, b: &NodeFacts) -> bool {
         Set::Stations => a.stations != b.stations,
         Set::System => a.system != b.system,
     }
+}
+
+fn stale(kick: &Kick, at: Timestamp) -> bool {
+    at.saturating_duration_since(kick.at) > KICK_CLAIM
 }

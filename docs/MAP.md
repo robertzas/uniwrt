@@ -111,7 +111,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 
 - `src/actor/jobs.rs`: The requests an actor sends its agent, one at a time so a node that serves requests one at a time is never asked twice at once: a queue of [`Job`]s, the one running, and its [`Outcome`].
 - `src/actor/mod.rs`: [`NodeActor`]: one task per node.
-- `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats.
+- `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats. usteer's signal kicks name no client: the disconnect from the same access point that follows (usteer kicks right after notifying) names it.
 - `src/actor/tests.rs`: Actors over a scripted link, on tokio's paused clock: what they ask the agent, and what they announce.
 - `src/alerts/mod.rs`: Alerting (features/observability.md, Alerts; `uniwrt_events::alerts`): an evaluator fed by the bus (recorded events, metric windows) and by the job runner (maintenance while jobs run), ticked for alerts that resolve with time, its writes stored through [`AlertRepo`] and announced as [`Event::Alerts`]; retention runs beside it.
 - `src/alerts/tests.rs`: The alert engine over a store and an engine without nodes, fed by hand on a manual clock: the built-in rules stored once, an event alert raised and cleared, a metric rule of the user's firing from windows, acknowledgements, a rule disabled, silencing while a job runs, and a restart that resumes what fires.
@@ -130,7 +130,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/drift/tests.rs`: The drift watcher over a store and an engine watching a scripted node whose `/etc/config` the test holds: a semantic change is drift (acknowledged, changed again, reverted), a change in form only is confirmed as it reads now, a muted package is left alone, a gone file is a removed drift, and a job holds the node until it ends and the apply confirms it anew.
 - `src/drift/view.rs`: What drift shows of a package (pure): its diff from what the controller confirmed, secrets masked, and whether two texts mean the same; with the hash `sha256sum` prints.
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
-- `src/events/mod.rs`: Recording events (features/observability.md, Events; `uniwrt_events`): a deriver fed by the bus (statuses, facts, topology builds, clients, roams, stored log entries) and by the job runner, ticked for conditions that must last, its events folded and stored in batches through [`EventRepo`] and announced as [`Event::Recorded`] once stored; retention runs beside it.
+- `src/events/mod.rs`: Recording events (features/observability.md, Events; `uniwrt_events`): a deriver fed by the bus (statuses, facts, topology builds, clients, roams, steering, stored log entries) and by the job runner, ticked for conditions that must last, its events folded and stored in batches through [`EventRepo`] and announced as [`Event::Recorded`] once stored; retention runs beside it.
 - `src/events/tests.rs`: The recorder over a store and an engine without nodes, fed by hand on a manual clock: the controller's start, a node going offline (once it lasts) and back after a restart, log entries whose pattern is an event folding together, and an adoption from the job runner.
 - `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 - `src/history.rs`: The topology's history, for the replay (features/observability.md, Topology): each build as [`Topology::for_history`] keeps it, recorded through [`TopologyRepo`] as a keyframe every hour and as deltas between, at most every 30 s, and pruned to the last 24 h.
@@ -184,6 +184,8 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/links.rs`: Links from topology builds: gateways' WAN links (down while they have no default route) and mesh links between adopted nodes, down (reported down, or gone from the topology while both nodes are online: batman-adv forgets a lost neighbour) or weak.
 - `src/radios.rs`: Radio events from facts: a radio changing channel (after radar, or not), and its channel staying congested (busy at least `busy_above` % for `busy_after`, clear again at or under `busy_clear` %), as the built-in `channel-busy` alert rule sees it.
 - `src/radios_tests.rs`: Radio events over hand-made facts: channel changes, with and without radar before them, and a congested channel.
+- `src/steer.rs`: Client steering ([`Deriver::steered`]): what usteer did to a client, or how the client answered a transition request, as a `client_steered` event of the node, with the access point it was steered to placed among the nodes. usteer names another node's access point by the address its usteer talks from, a client's answer by BSSID: each node's facts tell both.
+- `src/steer_tests.rs`: (no header comment)
 - `src/tests.rs`: The deriver over hand-made statuses, facts, topologies, clients, log entries and jobs.
 
 ### `uniwrt-import` (crates/import)
@@ -296,7 +298,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074): a managed package that changed on its node after the controller confirmed it, and what the user made of it.
-- `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus notifications.
+- `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's, the DHCP servers' and usteer's ubus notifications.
 - `src/events.rs`: Events (features/observability.md, Events, alerts, notifications): what happened on the network, as the controller records it for its timeline.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
@@ -361,10 +363,12 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/error.rs`: Errors of the node transport.
 - `src/events.rs`: Parsing what the agent pushes ([`AgentEvent`]): ticks into [`Collected`] (applied with [`facts::apply`](crate::facts::apply)), the notifications of the subscribed [`Topic`](crate::proto::ops::Topic)s into [`NodeEvent`]s, and `log` batches into [`LogEntry`]s.
 - `src/events/dhcp.rs`: The DHCP servers' notifications, alike for dnsmasq and odhcpd: `dhcp.ack` with the client's `mac`, `ip`, `name` and the `interface` it was leased on, and `dhcp.release` without the name.
-- `src/events/hostapd.rs`: hostapd's notifications from each BSS's `hostapd.<ifname>` object: `auth` and `assoc` with the request's signal and frequency, `sta-authorized` with how the station authenticated, and `disassoc`.
+- `src/events/hostapd.rs`: hostapd's notifications from each BSS's `hostapd.<ifname>` object: `auth` and `assoc` with the request's signal and frequency, `sta-authorized` with how the station authenticated, `disassoc`, and `bss-transition-response` (a client's answer to a BSS transition request, with its `status-code` and the `target-bssid` it goes to, as the agent reads them: the status a boolean).
 - `src/events/log.rs`: `log` batches (`node-agent/logs.uc`): logd's entries when polled, `{id, priority, source, time, msg}` with the time in ms and `msg` as `program[pid]: text`, or `logread -f -t` lines when streamed, `<ctime> [<s>.<ms>] <facility>.<severity> <msg>`, where the kernel's messages read `kern.<severity> kernel: <text>`.
 - `src/events/netifd.rs`: netifd's notifications: `interface.update` (up, with what changed) and `interface.down` from `network.interface`, each with the interface's status, and the `network.device` changes with the device's state.
+- `src/events/steer_tests.rs`: usteer's notifications and hostapd's transition answers, shaped as usteer 2022.08's `usteer_event_send_ubus` and hostapd's `hostapd_ubus_notify_bss_transition_response` build them.
 - `src/events/tests.rs`: (no header comment)
+- `src/events/usteer.rs`: usteer's notifications from its `usteer` object (usteer 2022.08, which both 24.10 and 25.12 ship): `probe_req_deny`, `auth_req_deny`, `assoc_req_deny`, `signal_kick` and `load_kick_client`, each with the access point as usteer names it (`node`, such as `hostapd.phy1-ap0`), the client (`sta`; signal kicks have none), its `signal`, the `reason`, the `threshold` it was held to (`[current, limit]`) and the better access point (`remote`, `<host>#hostapd.<ifname>` for another node's).
 - `src/exec.rs`: Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 - `src/exec/stream.rs`: Long-lived commands: an [`ExecStream`] and its producer's end, a pair of queues.
 - `src/facts/batman.rs`: The `batman` set: batctl's JSON queries per mesh device.
@@ -712,7 +716,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (336 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (340 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

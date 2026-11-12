@@ -1,6 +1,6 @@
 //! What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node
-//! protocol), which the `node` crate parses from hostapd's, netifd's and the DHCP servers' ubus
-//! notifications. They carry no node or time: the engine stamps them as they arrive. A
+//! protocol), which the `node` crate parses from hostapd's, netifd's, the DHCP servers' and
+//! usteer's ubus notifications. They carry no node or time: the engine stamps them as they arrive. A
 //! [`Roam`] is what the engine infers from them across nodes.
 
 use std::net::IpAddr;
@@ -20,6 +20,9 @@ pub enum NodeEvent {
     Interface(InterfaceEvent),
     /// A DHCP server acking or releasing a lease (dnsmasq, odhcpd).
     Lease(LeaseEvent),
+    /// usteer refusing or kicking a client, or a client answering a BSS transition request
+    /// (hostapd).
+    Steer(SteerEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,6 +116,81 @@ pub enum LeaseChange {
     Acked,
     /// Given back by the client.
     Released,
+}
+
+/// What client steering did at one of the node's access points (features/wifi.md, Steering &
+/// balancing: Timeline).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct SteerEvent {
+    /// The client; usteer leaves it out of signal kicks, and the engine takes it from the
+    /// disconnect that follows.
+    pub mac: Option<MacAddr>,
+    /// The access point's interface, such as `phy1-ap0`.
+    pub iface: String,
+    pub action: SteerAction,
+    /// Why usteer refused the client.
+    pub reason: Option<SteerReason>,
+    /// The client's signal at this access point.
+    pub signal_dbm: Option<i16>,
+    /// The signal it was held to (refusals for low signal, signal kicks).
+    pub min_signal_dbm: Option<i16>,
+    /// Where usteer would rather have it, or where the client said it would go.
+    pub target: Option<SteerTarget>,
+    /// The answer's status code (802.11 BTM status, 0 accepts), when known: the agent reads
+    /// only whether it was 0.
+    pub status: Option<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum SteerAction {
+    /// usteer kept the access point from answering a probe (probe steering).
+    ProbeDenied,
+    /// usteer refused the client's authentication.
+    AuthDenied,
+    /// usteer refused the client's association.
+    AssocDenied,
+    /// usteer disconnected the client: its signal stayed under the minimum.
+    SignalKick,
+    /// usteer disconnected the client: its channel was too busy.
+    LoadKick,
+    /// The client accepted a BSS transition request (802.11v).
+    TransitionAccepted,
+    /// The client turned a BSS transition request down.
+    TransitionRejected,
+}
+
+/// Why usteer refused a request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum SteerReason {
+    /// The client's signal is under the minimum.
+    LowSignal,
+    /// The client hasn't waited long enough since its first request.
+    ConnectDelay,
+    /// Another access point would serve it better.
+    BetterCandidate,
+    /// Refused so often in a row that the client may be stuck (it is still refused).
+    RetryExceeded,
+}
+
+/// Another access point, as the node named it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "by", rename_all = "snake_case")]
+pub enum SteerTarget {
+    /// usteer's name for it: an interface of the same node, or of the usteer at `host`.
+    Usteer {
+        host: Option<IpAddr>,
+        iface: String,
+        /// The client's signal there.
+        signal_dbm: Option<i16>,
+    },
+    /// The BSSID a client's transition answer names.
+    Bssid { bssid: MacAddr },
 }
 
 /// A Wi-Fi client moving from one access point to another, on the same node or another one:
