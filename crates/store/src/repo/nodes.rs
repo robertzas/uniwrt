@@ -2,7 +2,7 @@
 
 use rusqlite::{Connection, OptionalExtension as _, Row, params};
 use uniwrt_core::NodeId;
-use uniwrt_model::node::{NewNode, Node, NodeMode};
+use uniwrt_model::node::{NewNode, Node, NodeMode, NodeRole};
 
 use super::{NodeRepo, adoption};
 use crate::{
@@ -121,6 +121,21 @@ impl NodeRepo for Store {
         .await
     }
 
+    async fn set_node_role(&self, id: NodeId, role: NodeRole) -> Result<Option<Node>> {
+        let now = self.now().as_unix_ms();
+        let role = enum_text(role);
+        self.write(move |conn| {
+            Ok(conn
+                .prepare_cached(
+                    "UPDATE nodes SET role = ?2, updated_at = ?3 WHERE id = ?1
+                     RETURNING id, name, mac, board_name, host, port, role, mode, created_at, updated_at",
+                )?
+                .query_row(params![id.get(), role, now], node_from_row)
+                .optional()?)
+        })
+        .await
+    }
+
     async fn delete_node(&self, id: NodeId) -> Result<bool> {
         self.write(move |conn| {
             Ok(conn
@@ -148,6 +163,26 @@ pub(crate) mod tests {
             port: 22,
             role: NodeRole::Ap,
         }
+    }
+
+    #[tokio::test]
+    async fn the_role_changes_and_an_unknown_node_is_none() {
+        let (_dir, store, clock) = testing::open().await;
+        let node = store.create_node(new_node(2)).await.unwrap();
+        clock.advance(std::time::Duration::from_secs(1));
+        let gateway = store
+            .set_node_role(node.id, NodeRole::Gateway)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(gateway.role, NodeRole::Gateway);
+        assert!(gateway.updated_at > node.updated_at);
+        assert_eq!(store.node(node.id).await.unwrap(), Some(gateway));
+        let missing = store
+            .set_node_role(NodeId::new(99), NodeRole::Ap)
+            .await
+            .unwrap();
+        assert_eq!(missing, None);
     }
 
     #[tokio::test]

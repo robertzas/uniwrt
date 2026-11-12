@@ -230,6 +230,16 @@ impl<L: NodeLink> Engine<L> {
         self.interest(node, Kind::Logs)
     }
 
+    /// Takes the node's new role (D-100): the topology is rebuilt with it, and the events read
+    /// it from then on. False for a node the engine doesn't watch.
+    pub fn identify(&self, node: NodeId, identity: Identity) -> bool {
+        if !self.nodes().contains_key(&node) {
+            return false;
+        }
+        self.inner.ctx.topology.identify(node, identity);
+        true
+    }
+
     /// Collects every set of the node again now, as when its agent starts: a job changed what
     /// the hourly sets describe (its capabilities after the wpad swap, D-089). False for a node
     /// the engine doesn't watch.

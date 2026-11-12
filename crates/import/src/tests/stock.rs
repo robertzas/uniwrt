@@ -2,6 +2,8 @@
 //! router, and the hwsim lab's gateway with its radios.
 
 use insta::assert_snapshot;
+
+use crate::Fate;
 use uniwrt_model::{
     node::NodeRole,
     site::{SiteConfig, node::RawValue},
@@ -77,34 +79,7 @@ fn openwrt_25_12_imports() {
 
 #[test]
 fn the_hwsim_gateway_imports() {
-    let mut packages = release!("25.12");
-    packages.extend(parse(&[
-        (
-            "network",
-            include_str!("../../../uci/fixtures/openwrt/gateway/network"),
-        ),
-        (
-            "wireless",
-            include_str!("../../../uci/fixtures/openwrt/gateway/wireless"),
-        ),
-        (
-            "dhcp",
-            include_str!("../../../uci/fixtures/openwrt/gateway/dhcp"),
-        ),
-        (
-            "firewall",
-            include_str!("../../../uci/fixtures/openwrt/gateway/firewall"),
-        ),
-    ]));
-    // The fixture is a hand-made gateway whose WAN port is `wan` (DSA).
-    let mut facts = gateway_facts();
-    facts.board.layout.wan = Some("wan".to_owned());
-    let found = [Found {
-        node: GATEWAY,
-        role: NodeRole::Gateway,
-        facts,
-        packages,
-    }];
+    let found = [hwsim_gateway(NodeRole::Gateway)];
     let import = run(&SiteConfig::defaults(None), &found);
     assert_lossless(&import);
     assert_snapshot!("hwsim_gateway", summary(&import));
@@ -173,4 +148,92 @@ config wireguard_wg0
         .map(|slot| slot.path)
         .collect();
     assert_eq!(paths.len(), 2, "{paths:?}");
+}
+
+/// The hwsim lab's gateway: 25.12's stock config with its own network, Wi-Fi, DHCP and
+/// firewall, and facts whose WAN port is `wan` (DSA).
+fn hwsim_gateway(role: NodeRole) -> Found {
+    let mut packages = release!("25.12");
+    packages.extend(parse(&[
+        (
+            "network",
+            include_str!("../../../uci/fixtures/openwrt/gateway/network"),
+        ),
+        (
+            "wireless",
+            include_str!("../../../uci/fixtures/openwrt/gateway/wireless"),
+        ),
+        (
+            "dhcp",
+            include_str!("../../../uci/fixtures/openwrt/gateway/dhcp"),
+        ),
+        (
+            "firewall",
+            include_str!("../../../uci/fixtures/openwrt/gateway/firewall"),
+        ),
+    ]));
+    let mut facts = gateway_facts();
+    facts.board.layout.wan = Some("wan".to_owned());
+    Found {
+        node: GATEWAY,
+        role,
+        facts,
+        packages,
+    }
+}
+
+/// D-100's dumb AP: a router adopted as an access point keeps none of its router parts (WAN,
+/// DHCP server, static LAN address, firewall) raw; the residual shows them going. Its networks
+/// are the site's (the site as its import as the gateway made it).
+#[test]
+fn a_router_imports_as_a_dumb_access_point() {
+    let site = run(
+        &SiteConfig::defaults(None),
+        &[hwsim_gateway(NodeRole::Gateway)],
+    )
+    .site;
+    let found = [hwsim_gateway(NodeRole::Ap)];
+    let import = run(&site, &found);
+    assert_lossless(&import);
+    let node = &import.nodes[0];
+    let fate = |package: &str, name: &str| {
+        node.sections
+            .iter()
+            // A section render doesn't write has no rendered name: its own is `renamed`.
+            .find(|s| {
+                s.package == package && s.renamed.as_deref().or(s.name.as_deref()) == Some(name)
+            })
+            .map(|s| s.fate.clone())
+    };
+    assert_eq!(fate("network", "wan"), Some(Fate::Dropped));
+    assert_eq!(fate("network", "wan6rd"), Some(Fate::Dropped));
+    assert_eq!(fate("dhcp", "wan"), Some(Fate::Dropped));
+    assert_eq!(fate("dhcp", "lan"), Some(Fate::Mapped { kept: Vec::new() }));
+    assert!(
+        matches!(fate("network", "lan"), Some(Fate::Mapped { kept }) if !kept.iter().any(|k| k == "ipaddr")),
+        "{:?}",
+        fate("network", "lan")
+    );
+    let raw: Vec<_> = node
+        .sections
+        .iter()
+        .filter(|s| s.fate == Fate::Raw)
+        .map(|s| format!("{}.{:?}", s.package, s.name))
+        .collect();
+    assert!(raw.is_empty(), "nothing is kept raw: {raw:?}");
+    let packages = rendered(&import, &found[0]);
+    let lan = packages["network"]
+        .sections
+        .iter()
+        .find(|s| s.name.as_deref() == Some("lan"))
+        .unwrap();
+    assert_eq!(lan.option("proto"), Some("dhcp"));
+    assert_eq!(lan.option("ipaddr"), None);
+    let pool = packages["dhcp"]
+        .sections
+        .iter()
+        .find(|s| s.name.as_deref() == Some("lan"))
+        .unwrap();
+    assert_eq!(pool.option("ignore"), Some("1"));
+    assert_eq!(pool.option("limit"), None);
 }

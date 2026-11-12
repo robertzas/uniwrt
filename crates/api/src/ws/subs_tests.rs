@@ -90,6 +90,10 @@ impl Fleet for FakeFleet {
         let at = blocked.then_some(uniwrt_core::Timestamp::UNIX_EPOCH);
         self.book().block(mac, at).map(|(record, _)| record)
     }
+
+    fn identify(&self, _: uniwrt_core::NodeId, _: uniwrt_engine::Identity) -> bool {
+        false
+    }
 }
 
 struct Harness {

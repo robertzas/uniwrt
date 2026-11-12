@@ -168,11 +168,25 @@ impl Subscriptions {
             .into_iter()
             .chain(job.nodes.iter().map(|node| node.node))
             .collect();
+        let mut out = self.records_changed(api, &nodes).await;
+        if subs_config::changes_config(job) {
+            out.extend(self.config(api).await);
+        }
+        out
+    }
+
+    /// The records of `nodes` read again for the `fleet` topics (sent with the next flush) and
+    /// their `node:<id>` topics snapshotted again: after a job, or a role change.
+    pub(crate) async fn records_changed(
+        &mut self,
+        api: &Api,
+        nodes: &BTreeSet<NodeId>,
+    ) -> Vec<ServerMessage> {
         let mut renew = Vec::new();
         for (name, sub) in &mut self.topics {
             match &mut sub.pending {
                 Pending::Fleet { records, dirty, .. } => {
-                    for &node in &nodes {
+                    for &node in nodes {
                         if !records.contains_key(&node) {
                             continue;
                         }
@@ -195,9 +209,6 @@ impl Subscriptions {
         let mut out = Vec::new();
         for name in renew {
             self.renew(api, name, &mut out).await;
-        }
-        if subs_config::changes_config(job) {
-            out.extend(self.config(api).await);
         }
         out
     }

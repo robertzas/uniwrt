@@ -48,6 +48,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/logs_tests.rs`: The logs routes over the demo's store, with entries recorded by hand.
 - `src/management.rs`: Management on and off, with an admin's session (directive 8; D-069): `PUT /api/v1/nodes/{id}/management` with `{"enabled":true}` starts the job that installs the transaction tool and the boot guard on the node and records it as managed; `false` removes them and puts the node back in observe mode.
 - `src/metrics.rs`: The metrics routes, with a session (features/observability.md, Metrics): `GET /api/v1/metrics?entity=<entity>&metrics=<a,b>&from=<ms>&to=<ms>&width=<points>` reads an entity's series over a time range at the resolution that holds it, reduced with LTTB to about `width` points ([`MetricsResponse`]); `GET /api/v1/metrics/series?under=<entity>` lists the series kept ([`SeriesInfo`]), for every entity or for one and those below it.
+- `src/node_role.rs`: A node's role, with an admin's session (D-100): `PUT /api/v1/nodes/{id}/role` with `{"role":"ap"}` stores it and tells the engine, which rebuilds the topology; the next apply renders it (a router that becomes an access point loses its DHCP server, firewall and WAN, whose port joins the bridge). 409 for a second gateway, for a managed gateway, and while an apply or a job for the node runs.
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
 - `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
@@ -198,6 +199,7 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configuration a fleet holds, mapped into the site's desired state, so that managing the nodes keeps them as they are.
 
 - `src/dhcp.rs`: DHCP and local DNS, from the gateway's `dhcp` package: each network's pool with its options and network boot, how its clients get IPv6 (odhcpd), the reservations, the local records, but the controller's own record (`uniwrt`), which render writes from where the controller is rather than from the site ([`uniwrt_render::held_controller`]).
+- `src/dumb.rs`: What a router's configuration loses when it becomes an access point or a bridge (D-100's dumb AP, adoption.md's Roles): its DHCP server, WAN and static LAN address are the gateway's job, so render never writes them on such a node.
 - `src/firewall.rs`: The firewall policy between networks, from the gateway's fw4 zones and forwardings (features/network.md, Firewall policy): each zone takes its network's id as its name (the WAN's is `wan`), and each cell where the forwardings differ from what the networks' purposes seed becomes an override, so the policy renders as the node has it.
 - `src/fit.rs`: Fitting one node to the import (D-072): its sections renamed as render names them, paired with the rendered ones, and what the model doesn't hold kept raw, so that the import renders as the node is, up to the residual: the options render writes its own way.
 - `src/lib.rs`: Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configuration a fleet holds, mapped into the site's desired state, so that managing the nodes keeps them as they are.
@@ -270,6 +272,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
+- `src/role.rs`: A node's role, changed after adoption (D-100): the router that becomes a dumb access point, or the access point promoted to the site's gateway.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `src/speed_test/measure.rs`: What the speed test's script prints, read (pure): the WAN device's byte counters each second while loading, and the ping replies; rates from the counters past the warm-up (TCP's slow start), the median round trip idle and the 90th percentile under load.
 - `src/speed_test/mod.rs`: The speed test (features/wan.md, SQM; D-076): measures the line from the gateway with its own tools (`node-agent/speedtest.sh`: uclient-fetch, ping, the WAN device's counters), so nothing needs installing and observe mode is fine.
@@ -746,7 +749,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (343 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (344 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -757,7 +760,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
-- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
+- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts

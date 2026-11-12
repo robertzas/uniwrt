@@ -350,6 +350,39 @@ async fn a_manage_job_that_ends_updates_the_node_and_fleet_topics() {
 }
 
 #[tokio::test]
+async fn a_role_change_updates_the_node_and_fleet_topics() {
+    let demo = Demo::start().await;
+    let gateway = demo.ids[0];
+    let mut ws = open(&demo).await;
+    let topic = format!("node:{gateway}");
+    sub(&mut ws, &["fleet", &topic]).await;
+    until(&mut ws, |message| message["type"] == "fleet_snapshot").await;
+    until(&mut ws, |message| message["type"] == "node_snapshot").await;
+    let res = demo
+        .send(request(
+            axum::http::Method::PUT,
+            &format!("/v1/nodes/{gateway}/role"),
+            Some(&json!({ "role": "ap" })),
+            Some(&demo.cookie),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::OK);
+    until(&mut ws, |message| {
+        message["type"] == "node_snapshot" && message["node"]["node"]["role"] == "ap"
+    })
+    .await;
+    until(&mut ws, |message| {
+        message["type"] == "fleet_delta"
+            && message["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|n| n["id"] == gateway.get() && n["role"] == "ap")
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn a_logs_topic_follows_what_is_stored() {
     let mut demo = Demo::start().await;
     demo.record_logs().await;

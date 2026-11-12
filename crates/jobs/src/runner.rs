@@ -106,6 +106,11 @@ impl Shared {
     fn running(&self) -> MutexGuard<'_, Running> {
         self.running.lock().unwrap_or_else(PoisonError::into_inner)
     }
+
+    /// Whether a job holds `target`.
+    pub(crate) fn busy(&self, target: &str) -> bool {
+        self.running().targets.contains(target)
+    }
 }
 
 impl Jobs {

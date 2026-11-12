@@ -5,7 +5,7 @@
 use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
-use uniwrt_core::{Clock, Timestamp};
+use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
@@ -101,6 +101,8 @@ struct Inner {
     closing: watch::Sender<bool>,
     /// Bumped whenever a revision is committed ([`Api::config_changed`]).
     config: watch::Sender<u64>,
+    /// A node whose record changed outside a job ([`Api::node_changed`]: its role).
+    nodes: tokio::sync::broadcast::Sender<NodeId>,
     /// The newest import preview, until accepted (`import.rs`).
     imports: std::sync::Mutex<Option<crate::import::Held>>,
 }
@@ -122,6 +124,7 @@ impl Api {
                 fleet: config.fleet,
                 closing: watch::Sender::new(false),
                 config: watch::Sender::new(0),
+                nodes: tokio::sync::broadcast::Sender::new(16),
                 clock: config.clock,
                 build: config.build,
                 certificate: config.certificate,
@@ -175,6 +178,17 @@ impl Api {
 
     pub(crate) fn closing(&self) -> watch::Receiver<bool> {
         self.inner.closing.subscribe()
+    }
+
+    /// Tells the WS hub's `fleet` and `node:<id>` topics that the node's record changed.
+    pub(crate) fn node_changed(&self, node: NodeId) {
+        // Nobody listening is fine.
+        let _ = self.inner.nodes.send(node);
+    }
+
+    /// The nodes whose records change outside jobs, from now on.
+    pub(crate) fn node_changes(&self) -> tokio::sync::broadcast::Receiver<NodeId> {
+        self.inner.nodes.subscribe()
     }
 
     /// Tells the WS hub's `config` topics that a revision was committed.

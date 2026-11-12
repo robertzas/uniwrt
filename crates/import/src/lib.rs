@@ -38,6 +38,7 @@ use uniwrt_render::Issue;
 use uniwrt_uci::{Diff, Package};
 
 mod dhcp;
+mod dumb;
 mod firewall;
 mod fit;
 mod networks;
@@ -76,6 +77,8 @@ pub struct Import {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeImport {
     pub node: NodeId,
+    /// The role it was imported in: an access point or a bridge drops a router's parts.
+    pub role: NodeRole,
     /// Each of its sections in the packages render writes, in package order.
     pub sections: Vec<SectionImport>,
     /// What applying the import would still change, per package: render's own choices (a
@@ -107,7 +110,8 @@ pub enum Fate {
     Mapped { kept: Vec<String> },
     /// Kept whole as a raw section.
     Raw,
-    /// Dropped by render's design (the firewall's zones and rules on an access point).
+    /// Dropped by render's design: on an access point or a bridge, the firewall's zones and
+    /// rules, and a router's WAN interfaces and DHCP server (D-100).
     Dropped,
 }
 

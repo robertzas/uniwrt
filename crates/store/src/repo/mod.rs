@@ -43,7 +43,7 @@ use uniwrt_model::{
     job::{Job, JobError, NewJob},
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
     metric::{Entity, Metric, Point, Resolution, Sample},
-    node::{HostKeyPin, NewNode, Node, NodeMode},
+    node::{HostKeyPin, NewNode, Node, NodeMode, NodeRole},
     notify::{Notifier, NotifierConfig},
     rf::{NewScan, Scan, ScanSummary},
     site::revision::{NewRevision, Revision, RevisionMeta},
@@ -157,6 +157,14 @@ pub trait NodeRepo: Send + Sync {
         &self,
         id: NodeId,
         mode: NodeMode,
+    ) -> impl Future<Output = Result<Option<Node>>> + Send;
+
+    /// Sets a node's role (D-100); the node as it is now, or `None` when there is no such
+    /// node. What the role means for its configuration takes effect with the next apply.
+    fn set_node_role(
+        &self,
+        id: NodeId,
+        role: NodeRole,
     ) -> impl Future<Output = Result<Option<Node>>> + Send;
 }
 

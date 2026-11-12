@@ -42,6 +42,7 @@ import type { Network } from "../api/gen/Network";
 import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
+import type { NodeRole } from "../api/gen/NodeRole";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { NotificationSettings } from "../api/gen/NotificationSettings";
 import type { NotifierInput } from "../api/gen/NotifierInput";
@@ -61,6 +62,7 @@ import type { RevisionDiff } from "../api/gen/RevisionDiff";
 import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
 import type { RfView } from "../api/gen/RfView";
+import type { RoleBody } from "../api/gen/RoleBody";
 import type { RuleList } from "../api/gen/RuleList";
 import type { RuleSpec } from "../api/gen/RuleSpec";
 import type { RuleView } from "../api/gen/RuleView";
@@ -263,6 +265,9 @@ export const api = {
     /** Starts the job that turns management on or off (admins); the `jobs` topic follows it. */
     manage: (id: NodeId, enabled: boolean) =>
       request<Job>(`/nodes/${id}/management`, { method: "PUT", body: { enabled } }),
+    /** Changes the node's role (admins, D-100); the next apply renders it. */
+    role: (id: NodeId, role: NodeRole) =>
+      request<RoleBody>(`/nodes/${id}/role`, { method: "PUT", body: { role } }),
     /** Starts the job that swaps a managed node's basic wpad for the full one (admins, D-089). */
     wpad: (id: NodeId) => request<Job>(`/nodes/${id}/wpad`, { method: "POST" }),
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */

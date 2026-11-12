@@ -10,7 +10,7 @@ use uniwrt_model::client::ClientRecord;
 use uniwrt_node::NodeLink;
 use uniwrt_topo::Topology;
 
-use crate::{Engine, Event, Interest, NodeView};
+use crate::{Engine, Event, Identity, Interest, NodeView};
 
 /// The engine's link-free face: the live state, the topology, the clients, the bus and
 /// interest.
@@ -34,6 +34,8 @@ pub trait Fleet: Send + Sync + 'static {
     /// See [`Engine::block_client`].
     fn block_client(&self, mac: MacAddr, blocked: bool, by: Option<String>)
     -> Option<ClientRecord>;
+    /// See [`Engine::identify`].
+    fn identify(&self, node: NodeId, identity: Identity) -> bool;
 }
 
 impl<L: NodeLink> Fleet for Engine<L> {
@@ -76,5 +78,9 @@ impl<L: NodeLink> Fleet for Engine<L> {
         by: Option<String>,
     ) -> Option<ClientRecord> {
         Self::block_client(self, mac, blocked, by)
+    }
+
+    fn identify(&self, node: NodeId, identity: Identity) -> bool {
+        Self::identify(self, node, identity)
     }
 }

@@ -86,6 +86,8 @@ The controller host sits behind a fresh OpenWrt gateway and has a 192.168.1.x ad
 
 Future roles: `switch` (an OpenWrt managed switch) and secondary gateways (multi-WAN at another node).
 
+**Changing a role (D-101, M5.4 a2):** Config tab › Role, or `PUT /api/v1/nodes/{id}/role` (admins, audited). Only the stored role changes; the engine rebuilds the topology with it and the `fleet` and `node:<id>` topics show it at once. The next apply renders what it means, and the review shows it first. A site keeps one gateway (making a second is refused: demote the first), a managed gateway keeps its role (its routing would go with it), and nothing changes while an apply or a job for the node runs. **Dumb-AP conversion:** a router adopted or made an access point loses at the next apply its DHCP server, firewall and WAN; its WAN port joins the bridge, and it takes its address from the gateway's DHCP (its reservation). The import drops those parts by design instead of keeping them raw (lifecycle.md, Brownfield import). Connect one of its ports to the site's network before applying: the apply reconnects to it at its new address.
+
 ## Identity, credentials, trust
 
 - **Identity** is the label MAC (from `board.json`; else the MAC of the device behind `lan`, else the lowest globally administered Ethernet MAC) plus the board name, so it survives IP changes. A host-key mismatch quarantines the node and raises an alert. The admin can re-trust it, for example after a reflash.

@@ -84,6 +84,8 @@ pub enum AuditAction {
     SpeedTest,
     /// A user swapped a node's basic wpad for the full one (the detail names the job).
     Wpad,
+    /// A user changed a node's role (the detail names the node and both roles).
+    NodeRole,
     /// A user forgot a cable's failed backhaul probe, so the next apply probes it again (the
     /// detail names both ends).
     Backhaul,

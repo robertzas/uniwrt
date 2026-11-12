@@ -14,7 +14,7 @@ use uniwrt_model::{
 use uniwrt_render::{MESH_IFACE, RENDERABLE, Rendered, Secrets, Target, raw};
 use uniwrt_uci::{Package, Section, Value};
 
-use crate::{Fate, NodeImport, SectionImport, Source, node_config, read::Renames};
+use crate::{Fate, NodeImport, SectionImport, Source, dumb, node_config, read::Renames};
 
 /// The secrets found so far, and how to name a new one.
 pub(crate) type Vault<'a> = (
@@ -76,6 +76,7 @@ pub(crate) fn node(
     node_config(site, source.node).raw.clear();
     let failed = |issues| NodeImport {
         node: source.node,
+        role: source.role,
         sections: Vec::new(),
         residual: Vec::new(),
         issues,
@@ -88,7 +89,7 @@ pub(crate) fn node(
     };
     rename_wifi(&mut original, &rendered);
     let (sections, mut raws, confidence) =
-        classify(&mut original, &names, &rendered, renames, source.role);
+        classify(&mut original, &names, &rendered, renames, source);
     seal(&mut raws, secrets, mint);
     node_config(site, source.node).raw = raws;
     let rendered = match trial(site, secrets, source) {
@@ -106,6 +107,7 @@ pub(crate) fn node(
         .collect();
     NodeImport {
         node: source.node,
+        role: source.role,
         sections,
         residual,
         issues: Vec::new(),
@@ -121,8 +123,10 @@ fn classify(
     names: &BTreeMap<ManagedPackage, Vec<Option<String>>>,
     rendered: &Rendered,
     renames: &Renames,
-    role: NodeRole,
+    source: &Source<'_>,
 ) -> (Vec<SectionImport>, Vec<RawSection>, u8) {
+    let role = source.role;
+    let wan = source.facts.board.layout.wan.as_deref();
     let ap_firewall = role != NodeRole::Gateway;
     let mut sections = Vec::new();
     let mut raws = Vec::new();
@@ -156,6 +160,7 @@ fn classify(
                         .filter(|e| {
                             target.get(&e.name).is_none()
                                 && !consumed(&before.name, &section.kind, &e.name)
+                                && !dumb::option_dropped(role, &before.name, &section.kind, &e.name)
                                 && keepable(e)
                         })
                         .cloned()
@@ -172,6 +177,10 @@ fn classify(
                     Fate::Mapped {
                         kept: kept.iter().map(|e| e.name.clone()).collect(),
                     }
+                }
+                Pairing::Alone if dumb::dropped(role, &before.name, section, wan) => {
+                    modeled += weight;
+                    Fate::Dropped
                 }
                 Pairing::Alone => {
                     if *package == ManagedPackage::Network

@@ -87,6 +87,7 @@ beforeEach(() => {
       if (url === "/api/v1/nodes/1/management") {
         return Response.json(manageJob("running", 0), { status: 202 });
       }
+      if (url === "/api/v1/nodes/1/role") return Response.json(body);
       if (url === "/api/v1/nodes/1/wpad")
         return Response.json(wpadJob("running", 2), { status: 202 });
       if (url === "/api/v1/nodes/1/root-password/reveal") {
@@ -155,6 +156,48 @@ describe("Device › Config", () => {
     expect(await screen.findByText("Management is on")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Turn management off" })).toBeEnabled();
     expect(screen.getByText("Holds revision 1; the latest is 2.")).toBeInTheDocument();
+  });
+
+  it("makes the gateway an access point after saying what the apply changes", async () => {
+    const user = userEvent.setup();
+    const ws = await renderConfig();
+    expect(await screen.findByText(/^The site's router:/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change role" }));
+    const dialog = await screen.findByRole("dialog", { name: "Change the role of gw" });
+    const save = within(dialog).getByRole("button", { name: "Change role" });
+    expect(save).toBeDisabled();
+    await user.click(within(dialog).getByRole("radio", { name: /^Access point/ }));
+    expect(dialog).toHaveTextContent("its DHCP server, firewall and WAN go");
+    await user.click(save);
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "PUT",
+        url: "/api/v1/nodes/1/role",
+        body: { role: "ap" },
+      }),
+    );
+    expect(await screen.findByText("gw is now: Access point")).toBeInTheDocument();
+    const ap = detail(facts(1));
+    ap.node.role = "ap";
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: ap });
+    expect(await screen.findByText(/^A dumb access point:/)).toBeInTheDocument();
+  });
+
+  it("keeps a managed gateway's role, and says why", async () => {
+    const user = userEvent.setup();
+    const ws = await renderConfig();
+    const managed = detail(facts(1));
+    managed.node.mode = "managed";
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: managed });
+    await screen.findByRole("button", { name: "Turn management off" });
+    await user.click(screen.getByRole("button", { name: "Change role" }));
+    const dialog = await screen.findByRole("dialog", { name: "Change the role of gw" });
+    await user.click(within(dialog).getByRole("radio", { name: /^Access point/ }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "The site's routing runs on this device.",
+    );
+    expect(within(dialog).getByRole("button", { name: "Change role" })).toBeDisabled();
+    expect(calls.some((c) => c.url === "/api/v1/nodes/1/role")).toBe(false);
   });
 
   it("swaps the basic wpad for the full one after asking, and follows the job", async () => {

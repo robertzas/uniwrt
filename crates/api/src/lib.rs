@@ -12,7 +12,7 @@
 //!   (setup state and the session's user), `POST v1/auth/setup`, `POST v1/auth/login`; with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
-//!   on or off, a job), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
+//!   on or off, a job), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
 //!   job, D-089), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
 //!   v1/import/preview` ([`ImportPreview`](uniwrt_model::import::ImportPreview)), `POST
@@ -99,6 +99,7 @@ mod jobs;
 mod logs;
 mod management;
 mod metrics;
+mod node_role;
 mod nodes;
 mod notifiers;
 pub mod problem;
@@ -149,6 +150,7 @@ pub use logs::{
 };
 pub use management::ManagementBody;
 pub use metrics::{MetricSeries, MetricsResponse, SeriesInfo};
+pub use node_role::RoleBody;
 pub use nodes::{NodeDetail, NodeSummary};
 pub use notifiers::{
     HeaderInput, NotifierInput, NotifierList, NotifierTest, NotifierView, Placeholder,
@@ -180,6 +182,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/nodes", get(nodes::list))
         .route("/v1/nodes/{id}", get(nodes::get))
         .route("/v1/nodes/{id}/management", put(management::put))
+        .route("/v1/nodes/{id}/role", put(node_role::put))
         .route("/v1/nodes/{id}/wpad", post(wpad::post))
         .route("/v1/adopt/probe", post(adopt::probe))
         .route("/v1/adopt", post(adopt::adopt))

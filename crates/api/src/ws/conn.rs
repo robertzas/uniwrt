@@ -2,7 +2,7 @@
 //! and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends,
 //! the peer goes silent, a send stalls or the controller stops.
 
-use std::time::Duration;
+use std::{collections::BTreeSet, time::Duration};
 
 use axum::{
     body::Bytes,
@@ -58,6 +58,7 @@ async fn serve(
     let mut bus = api.fleet().subscribe();
     let mut jobs = api.jobs().subscribe();
     let mut config = api.config_watch();
+    let mut changed_nodes = api.node_changes();
     let mut closing = api.closing();
     // Set once and never unset, so a change means the server is stopping.
     if *closing.borrow_and_update() {
@@ -107,6 +108,11 @@ async fn serve(
                     debug!(missed, "a WS connection fell behind the jobs; sending snapshots");
                     subs.resync(api).await
                 }
+                Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
+            },
+            node = changed_nodes.recv() => match node {
+                Ok(node) => subs.records_changed(api, &BTreeSet::from([node])).await,
+                Err(RecvError::Lagged(_)) => subs.resync(api).await,
                 Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
             },
             changed = config.changed() => match changed {

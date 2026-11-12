@@ -811,6 +811,36 @@ export const strings = {
         forgotten: "Forgotten: the next apply probes the cable again.",
       },
     },
+    role: {
+      title: "Role",
+      what: {
+        gateway:
+          "The site's router: its internet connection, routing, firewall, DHCP and DNS. It can serve Wi-Fi too.",
+        ap: "A dumb access point: it bridges the site's networks to the gateway and takes its address from the gateway's DHCP. No DHCP server, firewall or WAN of its own.",
+        bridge:
+          "A wireless bridge: it joins the mesh or a Wi-Fi network and bridges its Ethernet ports, for wired devices far from a cable.",
+      },
+      change: "Change role",
+      adminOnly: "Only admins can change a device's role.",
+      dialogTitle: (name: string) => `Change the role of ${name}`,
+      label: "Role",
+      becomes: {
+        gateway:
+          "At the next apply it becomes the site's router. Its WAN port carries the internet connection; set it up on the Internet page.",
+        ap: "At the next apply its DHCP server, firewall and WAN go, its WAN port joins the bridge, and it takes its address from the gateway. Connect one of its ports to the site's network before you apply; the review shows every change first.",
+        bridge:
+          "At the next apply it bridges its Ethernet ports over the mesh, with no DHCP server, firewall or WAN of its own.",
+      },
+      otherGateway: (name: string) =>
+        `${name} is the site's gateway. Make it an access point first.`,
+      managedGateway:
+        "The site's routing runs on this device. Turn its management off, or make another device the gateway, before it changes role.",
+      save: "Change role",
+      cancel: "Cancel",
+      done: (name: string, role: string) => `${name} is now: ${role}`,
+      doneHint: "Nothing changed on the device yet. Review and apply to convert it.",
+      failed: "The role didn't change",
+    },
     management: {
       title: "Management",
       observe:
@@ -2461,7 +2491,7 @@ export const strings = {
           mapped: "The site's model holds it.",
           raw: "Kept as it is, as a raw section the site writes back.",
           dropped:
-            "Not written on this device: an access point's firewall keeps only its defaults.",
+            "Not written on this device: an access point keeps no firewall zones, WAN or DHCP server of its own.",
         },
         kept: (options: string) => `keeps ${options}`,
         renamed: (to: string) => `→ '${to}'`,

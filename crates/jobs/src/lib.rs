@@ -6,7 +6,8 @@
 //!   [`Jobs::probe`] reads a node's host key for the user to confirm; [`Jobs::adopt`] starts
 //!   adopting a node ([`AdoptRequest`]) and returns the job as it starts (`model::job::Job`);
 //!   [`Jobs::manage`] switches a node's management on or off (D-069); [`Jobs::wpad`] swaps a
-//!   managed node's basic wpad for the full one (D-089); [`Jobs::plan`] plans
+//!   managed node's basic wpad for the full one (D-089); [`Jobs::set_role`] changes a node's
+//!   role (D-100); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
@@ -87,6 +88,7 @@ mod manage;
 mod manage_tests;
 mod progress;
 mod remote;
+mod role;
 mod runner;
 mod speed_test;
 #[cfg(test)]
@@ -129,6 +131,9 @@ pub enum Error {
     },
     #[error("{0}")]
     Failed(String),
+    /// The change breaks a rule of the site (its one gateway): why, for the user.
+    #[error("{0}")]
+    Refused(String),
     #[error(transparent)]
     Node(#[from] uniwrt_node::Error),
     #[error(transparent)]

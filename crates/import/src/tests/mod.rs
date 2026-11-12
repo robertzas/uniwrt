@@ -85,15 +85,19 @@ pub(crate) fn assert_lossless(import: &Import) {
             for section in &diff.sections {
                 if section.after.is_some() {
                     assert!(
-                        section.options.iter().all(|o| o.after.is_some()
-                            || crate::fit::consumed(
-                                &diff.package,
-                                &section
-                                    .before
-                                    .as_ref()
-                                    .map_or_else(String::new, |b| b.kind.clone()),
-                                &o.name,
-                            )),
+                        section.options.iter().all(|o| o.after.is_some() || {
+                            let kind = section
+                                .before
+                                .as_ref()
+                                .map_or_else(String::new, |b| b.kind.clone());
+                            crate::fit::consumed(&diff.package, &kind, &o.name)
+                                || crate::dumb::option_dropped(
+                                    node.role,
+                                    &diff.package,
+                                    &kind,
+                                    &o.name,
+                                )
+                        }),
                         "{}: no option goes: {diff}",
                         node.node
                     );

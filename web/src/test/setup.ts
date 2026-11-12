@@ -1,9 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 
+import { toaster } from "@kobalte/core/toast";
 import { cleanup, configure } from "@solidjs/testing-library";
 import { afterEach } from "vitest";
 
-afterEach(cleanup);
+// Kobalte keeps toasts in a global store and its region shows three at most: one test's
+// toasts would hide the next one's.
+afterEach(() => {
+  cleanup();
+  toaster.clear();
+});
 
 // On a busy CI runner a lazy route can take over a second to load: `find*` and `waitFor` wait up
 // to 3 s (passing tests don't wait longer), and a test up to 15 s (vite.config.ts).
