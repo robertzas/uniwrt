@@ -25,6 +25,9 @@
 //!   the networks UPnP serves; a network overlapping the subnet its uplink holds now is an issue.
 //!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
 //!   firewall off.
+//! - **Staging** ([`staging`], D-107): a factory-default device's packages made safe on any LAN
+//!   (a DHCP client on its bridge, no DHCP server, Wi-Fi off, the WAN bridged), the
+//!   first transaction of an adoption through the adoption port.
 //! - **Invariants:** pure: no IO, no clock; the same input gives the same packages. Rendering
 //!   reads capabilities (switch kind, hostapd features, batman-adv), never release versions.
 //!   Values the node generated for itself (its DHCP DUID, LED sections, odhcpd's paths) are
@@ -64,6 +67,7 @@ mod redirect;
 mod roaming;
 mod split;
 mod sqm;
+mod staging;
 mod switch;
 mod system;
 mod upnp;
@@ -188,6 +192,7 @@ pub use self::{
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},
     split::{wan_interface, wan_sections, without_wan},
+    staging::{Staging, staging},
     upnp::LEASE_FILE as UPNP_LEASE_FILE,
     usteer::thresholds as steering_thresholds,
 };

@@ -316,3 +316,113 @@ fn the_adoption_port_reaches_a_factory_device_and_nothing_more() {
         ping.stdout
     );
 }
+
+/// Path C's lend (D-107): the factory device, staged as an access point would be, drops
+/// 192.168.1.1, and takes a lease from the gateway's LAN while the adoption port is lent (on a
+/// bridge that filters VLANs: the LAN untagged, nothing else). The port goes back to the
+/// segment when the lend ends, at its deadline, not while kept, and once its link stays down.
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn a_staged_factory_device_takes_a_lease_while_the_adoption_port_is_lent() {
+    use uniwrt_model::site::adoption::AdoptionPort;
+    use uniwrt_node::adoption_port::{self as port, Lent};
+
+    /// Ends the lend and puts the factory device back as it shipped, whatever the test's
+    /// outcome.
+    struct Restore<'a> {
+        gw: &'a Node,
+        fac: &'a Node,
+        factory: std::collections::BTreeMap<String, uniwrt_uci::Package>,
+    }
+    impl Drop for Restore<'_> {
+        fn drop(&mut self) {
+            self.gw.exec(&port::end_lend("eth2"));
+            self.fac.run("ip link set eth0 up", &[], &[]);
+            let on = std::collections::BTreeMap::from([("dnsmasq", true), ("odhcpd", true)]);
+            self.fac.write_packages(&self.factory, &on);
+        }
+    }
+
+    let mut site = site::home(Uplink::Dhcp);
+    site.adoption_port = Some(AdoptionPort::new("eth2"));
+    let gw = gateway(&site);
+    // A stock AP on the LAN would offer the device its own 192.168.1.0/24.
+    access_point(&site);
+    let segment_up = |gw: &Node| {
+        gw.wait_interface("uw_adopt", UP, |s| ipv4(s) == ["192.168.1.250/24"]);
+    };
+    segment_up(&gw);
+    let fac = Node::new("uniwrt-system-fac");
+    let restore = Restore {
+        factory: fac.packages(),
+        gw: &gw,
+        fac: &fac,
+    };
+    let staging = uniwrt_render::staging(&restore.factory).unwrap();
+    fac.write_packages(&staging.packages, &staging.services);
+    fac.wait_interface("lan", UP, |s| ipv4(s).is_empty());
+
+    let lend = |request: uniwrt_node::ExecRequest| {
+        let run = gw.exec(&request);
+        assert!(run.ok, "{}{}", run.stdout, run.stderr);
+        Lent::parse(&run.stdout)
+    };
+    let in_bridge = |bridge: &str| {
+        gw.run(r#"[ -e "/sys/class/net/$1/brif/eth2" ]"#, &[bridge], &[])
+            .ok
+    };
+    let back = |within: Duration| {
+        let start = std::time::Instant::now();
+        while in_bridge("br-lan") {
+            assert!(start.elapsed() < within, "eth2 is still lent");
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        assert!(in_bridge("br-adopt"));
+        segment_up(&gw);
+    };
+    let ten_minutes = Duration::from_secs(600);
+    assert_eq!(
+        lend(port::lend("eth2", "lan", ten_minutes)),
+        Some(Lent::Lent)
+    );
+    assert_eq!(
+        lend(port::lend("eth2", "lan", ten_minutes)),
+        Some(Lent::Busy)
+    );
+    assert!(in_bridge("br-lan") && !in_bridge("br-adopt"));
+    let untagged: Vec<String> = gw.bridge_vlans()["eth0"]
+        .iter()
+        .filter(|vlan| vlan.ends_with("PU"))
+        .cloned()
+        .collect();
+    assert_eq!(gw.bridge_vlans().get("eth2"), Some(&untagged));
+    fac.wait_interface("lan", UP, |s| in_subnet(s, "10.0.0."));
+    let mac = fac.sh("cat /sys/class/net/br-lan/address", &[]);
+    let leases = gw.sh("cat /tmp/dhcp.leases", &[]);
+    assert!(leases.contains(mac.trim()), "{mac} in {leases}");
+    assert_eq!(lend(port::end_lend("eth2")), Some(Lent::Ended));
+    back(Duration::from_secs(5));
+    assert_eq!(lend(port::end_lend("eth2")), Some(Lent::Ended));
+
+    // The deadline gives it back; kept, the lend outlasts it, until the link stays down.
+    assert_eq!(
+        lend(port::lend("eth2", "lan", Duration::from_secs(4))),
+        Some(Lent::Lent)
+    );
+    back(Duration::from_secs(15));
+    assert_eq!(
+        lend(port::lend("eth2", "lan", Duration::from_secs(4))),
+        Some(Lent::Lent)
+    );
+    assert_eq!(lend(port::keep("eth2")), Some(Lent::Kept));
+    std::thread::sleep(Duration::from_secs(10));
+    assert!(in_bridge("br-lan"));
+    fac.sh("ip link set eth0 down", &[]);
+    back(Duration::from_secs(25));
+    drop(restore);
+    gw.wait_interface("uw_adopt", UP, |s| ipv4(s) == ["192.168.1.250/24"]);
+    gw.sh(
+        "ping -c 1 -W 5 192.168.1.1 >/dev/null || ping -c 1 -W 10 192.168.1.1",
+        &[],
+    );
+}

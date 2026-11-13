@@ -1,9 +1,11 @@
 //! The adoption port (features/adoption.md, Path C; D-105, D-106): what the controller reads on
 //! the gateway (whether its segment is up, a device's MAC in its ARP table) and on a
 //! factory-default device found there (its board, its identity MAC as ZTP's hello reports it).
-//! Each read is a request to run and a parser of its output; nothing changes anywhere.
+//! Each read is a request to run and a parser of its output; nothing changes anywhere, but for
+//! the lend ([`lend`], D-107): the gateway moves the port into a network's bridge for a moment,
+//! so a device adopted on it takes its lease on the site's LAN, and gives it back by itself.
 
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, time::Duration};
 
 use serde::Deserialize;
 use uniwrt_core::MacAddr;
@@ -23,6 +25,62 @@ pub fn is_port_link(device: &str, port: &str) -> bool {
 /// then the LAN bridge's, then the first port's. Each prints a line when it has one.
 const IDENTITY: &str = "jsonfilter -q -i /etc/board.json -e '@.system.label_macaddr' 2>/dev/null; \
      cat /sys/class/net/br-lan/address /sys/class/net/eth0/address 2>/dev/null; exit 0";
+
+/// The gateway's lend script (`node-agent/adoption/lend.sh`).
+const LEND: &str = include_str!("../../../node-agent/adoption/lend.sh");
+
+/// Writes the lend script (stdin) where its watcher finds it again, then runs it with the
+/// arguments.
+const LAUNCH: &str = "mkdir -p /var/run/uniwrt-lend && \
+     cat >/var/run/uniwrt-lend/lend.sh && exec sh /var/run/uniwrt-lend/lend.sh \"$@\"";
+
+/// What the lend script answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lent {
+    /// [`lend`]: the port is in the network's bridge now.
+    Lent,
+    /// [`lend`]: the port is lent already.
+    Busy,
+    /// [`keep`]: the lend lasts until the link goes down.
+    Kept,
+    /// [`end_lend`]: the port is back on the segment (or was never lent).
+    Ended,
+}
+
+impl Lent {
+    pub fn parse(output: &str) -> Option<Self> {
+        match output.trim() {
+            "lent" => Some(Self::Lent),
+            "busy" => Some(Self::Busy),
+            "kept" => Some(Self::Kept),
+            "ended" => Some(Self::Ended),
+            _ => None,
+        }
+    }
+}
+
+fn lend_command(args: &[&str]) -> ExecRequest {
+    ExecRequest::new(["sh", "-c", LAUNCH, "sh"].iter().chain(args).copied()).stdin(LEND)
+}
+
+/// Lends the gateway's `port` to `interface` (the management network's netifd interface) for
+/// `lasting`, rounded up to whole seconds: the gateway gives it back then unless it is
+/// [`keep`]t, and once its link has been down for 10 s. Answers [`Lent::Lent`] or
+/// [`Lent::Busy`].
+pub fn lend(port: &str, interface: &str, lasting: Duration) -> ExecRequest {
+    let seconds = lasting.as_secs() + u64::from(lasting.subsec_nanos() > 0);
+    lend_command(&["lend", port, interface, &seconds.to_string()])
+}
+
+/// Makes the lend of `port` last until its link goes down ([`Lent::Kept`]).
+pub fn keep(port: &str) -> ExecRequest {
+    lend_command(&["keep", port])
+}
+
+/// Gives `port` back to the segment now ([`Lent::Ended`]).
+pub fn end_lend(port: &str) -> ExecRequest {
+    lend_command(&["end", port])
+}
 
 /// netifd's status of the segment's interface (`uw_adopt`) on the gateway.
 pub fn segment_status() -> ExecRequest {
@@ -122,6 +180,21 @@ mod tests {
     use super::*;
 
     const DEVICE: Ipv4Addr = Ipv4Addr::new(192, 168, 1, 1);
+
+    #[test]
+    fn the_lend_runs_the_script_from_stdin_with_its_arguments() {
+        let request = lend("lan4", "lan", Duration::from_millis(90_500));
+        assert_eq!(&request.argv[..2], ["sh", "-c"]);
+        assert_eq!(&request.argv[3..], ["sh", "lend", "lan4", "lan", "91"]);
+        assert_eq!(request.stdin.as_deref(), Some(LEND.as_bytes()));
+        assert_eq!(&keep("lan4").argv[4..], ["keep", "lan4"]);
+        assert_eq!(&end_lend("lan4").argv[4..], ["end", "lan4"]);
+        assert_eq!(Lent::parse("lent\n"), Some(Lent::Lent));
+        assert_eq!(Lent::parse("busy"), Some(Lent::Busy));
+        assert_eq!(Lent::parse("kept\n"), Some(Lent::Kept));
+        assert_eq!(Lent::parse("ended"), Some(Lent::Ended));
+        assert_eq!(Lent::parse(""), None);
+    }
 
     #[test]
     fn the_port_s_link_is_the_port_s_or_its_bridge_s() {

@@ -59,6 +59,63 @@ impl Node {
         }
     }
 
+    /// Runs a request as a node's login would: its argv, its stdin.
+    pub fn exec(&self, request: &uniwrt_node::ExecRequest) -> Run {
+        let mut child = Command::new("docker")
+            .args(["exec", "-i", &self.container])
+            .args(&request.argv)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("docker runs");
+        let mut stdin = child.stdin.take().expect("a piped stdin");
+        stdin
+            .write_all(request.stdin.as_deref().unwrap_or_default())
+            .expect("the container reads its input");
+        drop(stdin);
+        let output = child.wait_with_output().expect("docker exec finishes");
+        Run {
+            ok: output.status.success(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }
+    }
+
+    /// Writes `packages` to `/etc/config` and runs `reload_config`, as a transaction would:
+    /// the `services` that go off stop first, those that stay on start last.
+    pub fn write_packages(
+        &self,
+        packages: &BTreeMap<String, Package>,
+        services: &BTreeMap<&str, bool>,
+    ) {
+        for (service, _) in services.iter().filter(|(_, on)| !**on) {
+            self.sh(
+                r#"/etc/init.d/"$1" disable; /etc/init.d/"$1" stop"#,
+                &[service],
+            );
+        }
+        for (name, package) in packages {
+            let write = self.run(
+                r#"cat >"/etc/config/$1""#,
+                &[name],
+                package.to_file().as_bytes(),
+            );
+            assert!(
+                write.ok,
+                "{}: writing {name}: {}",
+                self.container, write.stderr
+            );
+        }
+        self.sh("reload_config", &[]);
+        for (service, _) in services.iter().filter(|(_, on)| **on) {
+            self.sh(
+                r#"/etc/init.d/"$1" enable; /etc/init.d/"$1" restart"#,
+                &[service],
+            );
+        }
+    }
+
     /// Runs `script` and returns its stdout; panics with its output when it fails.
     pub fn sh(&self, script: &str, args: &[&str]) -> String {
         let run = self.run(script, args, &[]);

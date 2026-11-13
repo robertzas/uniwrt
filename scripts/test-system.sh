@@ -7,7 +7,7 @@
 #                                └─ eth2 ═ eth0 (LAN) ── fac
 #
 # `fac` is stock OpenWrt (192.168.1.1) on the gateway's adoption port (features/adoption.md,
-# Path C). gw's eth2 appears only once gw has booted, so its stock config leaves it alone (its
+# Path C); a test stages it and lends it the port (D-107), then puts it back as it shipped. gw's eth2 appears only once gw has booted, so its stock config leaves it alone (its
 # own LAN is 192.168.1.1 too until a test renders the site).
 #
 # The ISP (scripts/system/) serves DHCP untagged (192.0.2.0/24) and on VLAN 201
