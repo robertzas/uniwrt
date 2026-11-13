@@ -1,7 +1,7 @@
 //! The adoption port end to end in demo mode (features/adoption.md, Path C; D-107, D-108): the
 //! sim's bench device on the gateway's `lan4` is found through the gateway's login, adopted as
-//! an access point (staged, lent to the LAN, confirmed at its lease) and configured with the
-//! revision the gateway holds.
+//! an access point (staged, lent to the LAN, confirmed at its lease), given the mesh's packages
+//! its image lacks and configured with the revision the gateway holds.
 
 use std::{sync::Arc, time::Duration};
 
@@ -132,17 +132,19 @@ async fn the_bench_device_is_found_adopted_through_the_gateway_and_configured() 
     let adopted = jobs.adopt(request, None).await.unwrap();
     let adopted = finished(&jobs, adopted, Duration::from_secs(300)).await;
     assert_eq!(adopted.state, JobState::Succeeded, "{adopted:#?}");
-    // The factory image lacks the mesh's packages, which Configure doesn't bring yet (M5.4
-    // c2c2b): the device is adopted, with the staging config.
+    // The factory image lacks the mesh's packages: Prepare brings them (D-108), then Configure
+    // applies the gateway's revision.
     for step in &adopted.steps {
-        if step.name == StepName::Configure {
-            let detail = step.detail.as_deref().unwrap_or_default();
-            assert_eq!(step.state, StepState::Failed, "{step:#?}");
-            assert!(detail.contains("the full wpad"), "{detail}");
-        } else {
-            assert_eq!(step.state, StepState::Done, "{step:#?}");
-        }
+        assert_eq!(step.state, StepState::Done, "{step:#?}");
     }
+    let prepare = adopted.steps.iter().find(|s| s.name == StepName::Prepare);
+    let detail = prepare
+        .and_then(|s| s.detail.as_deref())
+        .unwrap_or_default();
+    assert_eq!(
+        detail,
+        "Installed kmod-batman-adv, batctl-default, then swapped in the full wpad for the mesh"
+    );
     let id = adopted.node.unwrap();
     let node = store.node(id).await.unwrap().unwrap();
     assert!(node.host.starts_with("10.0.0."), "{}", node.host);

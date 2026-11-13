@@ -1,5 +1,5 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM, failover, UPnP and steering need, which brings their init
+//! update`, then installing what SQM, failover, UPnP, steering and the mesh need, which brings their init
 //! scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init
 //! scripts' `start`, `stop`, `enable` and `disable`.
 
@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 7] = [
+pub(crate) const FEED: [FeedPackage; 9] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -71,6 +71,9 @@ pub(crate) const FEED: [FeedPackage; 7] = [
         )),
     ),
     ("kmod-usb-net-rndis", "6.12.58-r1", None, None),
+    // The mesh's, for a factory image without them (the bench device's, D-108).
+    ("kmod-batman-adv", "6.12.58.2025.4-r1", None, None),
+    ("batctl-default", "2025.4-r1", None, None),
     ("kmod-usb-net-cdc-ether", "6.12.58-r1", None, None),
 ];
 
@@ -208,5 +211,28 @@ mod tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod mesh_tests {
+    use super::{super::commands::Disk, exec};
+
+    #[test]
+    fn a_factory_image_gets_batman_adv_from_the_feeds() {
+        let mut disk = Disk {
+            batman_in_image: false,
+            ..Disk::default()
+        };
+        assert_eq!(disk.mesh_software(), [] as [&str; 0]);
+        let out = exec(
+            &["apk", "add", "kmod-batman-adv", "batctl-default"],
+            "apk",
+            &mut disk.installed,
+            &mut disk.tool,
+        );
+        assert!(out.unwrap().status.success());
+        assert_eq!(disk.mesh_software(), ["batman-adv", "batctl"]);
+        assert_eq!(Disk::default().mesh_software(), ["batman-adv", "batctl"]);
     }
 }

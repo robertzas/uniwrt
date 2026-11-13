@@ -29,6 +29,20 @@ impl Progress {
         self.save().await;
     }
 
+    /// Tells what the running step is doing now, as its detail (a step made of others, such as
+    /// the port adoption's Prepare).
+    pub(crate) async fn note(&mut self, detail: impl Into<String>) {
+        if let Some(step) = self
+            .job
+            .steps
+            .iter_mut()
+            .find(|step| step.state == StepState::Running)
+        {
+            step.detail = Some(detail.into());
+        }
+        self.save().await;
+    }
+
     /// Finishes the running step.
     pub(crate) async fn done(&mut self, detail: Option<String>) {
         self.finish_running(StepState::Done, detail);

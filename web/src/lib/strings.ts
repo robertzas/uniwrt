@@ -311,6 +311,7 @@ export const strings = {
       fetch: "Download the packages",
       swap: "Swap the wpad",
       lease: "Take a lease on the LAN",
+      prepare: "Bring the mesh's packages",
       configure: "Set it up on the LAN",
     },
     /** Steps whose words differ by kind of job. */

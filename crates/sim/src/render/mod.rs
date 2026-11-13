@@ -27,6 +27,7 @@ use uniwrt_node::{
     },
 };
 
+use self::commands::Disk;
 use crate::world::{Happening, What, World};
 
 pub(crate) use self::logs::{log_entries, log_lines};
@@ -61,15 +62,10 @@ pub(crate) fn hello(world: &World, node: usize) -> Hello {
     }
 }
 
-/// A collect answer (or a tick's body) for `sets`; `files` is the node's `/etc/config`.
-pub(crate) fn collect(
-    world: &World,
-    node: usize,
-    sets: &[Set],
-    files: &BTreeMap<String, String>,
-    off: &BTreeSet<String>,
-    wpad: &str,
-) -> Value {
+/// A collect answer (or a tick's body) for `sets`, from what is on the node's `disk`.
+pub(crate) fn collect(world: &World, node: usize, sets: &[Set], disk: &Disk) -> Value {
+    let files = &disk.tool.files;
+    let off = &disk.bss_off();
     let sets: Map<_, _> = sets
         .iter()
         .map(|&set| {
@@ -79,7 +75,9 @@ pub(crate) fn collect(
                 Set::Leases => l2::leases(world, node, files),
                 Set::Radios => wifi::radios(world, node, &config::aps(files), off),
                 Set::Stations => wifi::stations(world, node, off),
-                Set::Capabilities => system::capabilities(&world.nodes[node], wpad),
+                Set::Capabilities => {
+                    system::capabilities(&world.nodes[node], disk.wpad, &disk.mesh_software())
+                }
                 _ => set_of(world, node, set),
             };
             (set.as_str().to_owned(), value)
@@ -93,7 +91,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
     match set {
         Set::Batman => batman::batman(world, n),
         Set::Board => system::board(node),
-        Set::Capabilities => system::capabilities(node, wpad::MESH),
+        Set::Capabilities => system::capabilities(node, wpad::MESH, &["batman-adv", "batctl"]),
         Set::Config => json!({"files": {}}),
         Set::Devices => devices::devices(world, n),
         Set::Interfaces => net::interfaces(world, n, &BTreeMap::new()),

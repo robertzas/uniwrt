@@ -8,8 +8,9 @@
 //! on the LAN; the job finds the device's lease by MAC in the gateway's leases, logs in there,
 //! confirms, keeps the lend and records the node at that address. Any failure after the lend
 //! gives the port back to the segment, and the device's timer rolls it back. Last, on the LAN,
-//! an apply job of its own gives the node the revision the gateway holds ([`apply::adopted`]);
-//! the device stays adopted whatever its outcome (the Configure step says so).
+//! the device gets the mesh's packages its image lacks ([`super::prepare`], D-108), then an
+//! apply job of its own gives the node the revision the gateway holds ([`apply::adopted`]);
+//! the device stays adopted whatever their outcome (the Configure step says so).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -46,7 +47,7 @@ use crate::{
 };
 
 /// The port path's steps, in order.
-pub(crate) const STEPS: [StepName; 16] = [
+pub(crate) const STEPS: [StepName; 17] = [
     StepName::Connect,
     StepName::Check,
     StepName::InstallKey,
@@ -62,6 +63,7 @@ pub(crate) const STEPS: [StepName; 16] = [
     StepName::Confirm,
     StepName::Record,
     StepName::Watch,
+    StepName::Prepare,
     StepName::Configure,
 ];
 
@@ -232,13 +234,34 @@ async fn through(
     Ok(())
 }
 
-/// On the LAN, the node's own render from the revision the gateway holds (step 5). The device is
-/// adopted whatever its outcome: a failure leaves it managed with the staging config.
+/// On the LAN, the mesh's packages, then the node's own render from the revision the gateway
+/// holds (step 5). The device is adopted whatever their outcome: a failure leaves it managed
+/// with the staging config.
 async fn configure(shared: &Arc<Shared>, gateway: NodeId, node: Node, progress: &mut Progress) {
-    progress.start(StepName::Configure).await;
     let keeps = "The node keeps the staging config (Wi-Fi off): apply the site from Review before \
                  unplugging it";
-    match apply::adopted(shared, gateway, node, progress.created_by()).await {
+    let revision = match apply::held(shared, gateway).await {
+        Ok(revision) => revision,
+        Err(why) => {
+            progress
+                .skip(StepName::Prepare, "No revision to prepare for")
+                .await;
+            progress.start(StepName::Configure).await;
+            progress.fail(format!("{why}. {keeps}")).await;
+            return;
+        }
+    };
+    if super::prepare::prepare(shared, &revision.config.mesh, &node, progress)
+        .await
+        .is_err()
+    {
+        progress.start(StepName::Configure).await;
+        let why = "Not applied: the device lacks the mesh's packages";
+        progress.fail(format!("{why}. {keeps}")).await;
+        return;
+    }
+    progress.start(StepName::Configure).await;
+    match apply::adopted(shared, &revision, node, progress.created_by()).await {
         Ok(Configured {
             job,
             revision,

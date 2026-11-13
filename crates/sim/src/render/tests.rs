@@ -36,9 +36,7 @@ fn facts_of(world: &World, node: usize) -> NodeFacts {
         world,
         node,
         &Set::ALL,
-        &super::config::files(world, node),
-        &std::collections::BTreeSet::new(),
-        super::wpad::MESH,
+        &super::commands::Disk::holding(super::config::files(world, node)),
     ))
     .expect("a collect answer");
     let mut facts = NodeFacts::default();

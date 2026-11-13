@@ -11,6 +11,7 @@ mod login;
 mod port;
 #[cfg(test)]
 mod port_tests;
+mod prepare;
 #[cfg(test)]
 mod tests;
 

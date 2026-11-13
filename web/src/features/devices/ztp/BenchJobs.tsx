@@ -60,6 +60,10 @@ export function BenchJobs(props: {
 
 function Bench(props: { name: string; job: Job; onClose: () => void }) {
   const configure = () => props.job.steps.find((step) => step.name === "configure");
+  /** Why it wasn't configured: the mesh's packages that didn't come, else Configure's failure. */
+  const why = () =>
+    props.job.steps.find((step) => step.name === "prepare" && step.state === "failed") ??
+    configure();
   const close = () => (
     <Button size="sm" variant="ghost" icon={X} onClick={props.onClose}>
       {t.close}
@@ -89,7 +93,7 @@ function Bench(props: { name: string; job: Job; onClose: () => void }) {
               <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
               <div class="min-w-0">
                 <p class="text-fg">{t.unconfigured(props.name)}</p>
-                <Show when={configure()?.detail}>
+                <Show when={why()?.detail}>
                   {(detail) => (
                     <p class="mt-1 break-words font-mono text-fg-subtle text-xs">{detail()}</p>
                   )}

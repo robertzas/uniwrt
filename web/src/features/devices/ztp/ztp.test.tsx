@@ -79,20 +79,27 @@ const portSteps = [
   "confirm",
   "record",
   "watch",
+  "prepare",
   "configure",
 ] as const;
 
-/** Job 12, a port adoption with `done` steps done; `failed`, the Configure step's failure. */
-function portJob(done: number, state: Job["state"], failed?: string): Job {
+/** Job 12, a port adoption with `done` steps done; `failed`, the failure of step `at` and of
+ * Configure after it. */
+function portJob(
+  done: number,
+  state: Job["state"],
+  failed?: string,
+  at: "prepare" | "configure" = "configure",
+): Job {
   const job = adoptJob(12, "192.168.1.1", done, "running", { state });
   return {
     ...job,
     steps: portSteps.map((name, i) => {
-      const configureFailed = name === "configure" && failed !== undefined;
+      const fails = failed !== undefined && (name === at || name === "configure");
       return {
         name,
-        state: configureFailed ? "failed" : i < done ? "done" : i === done ? "running" : "pending",
-        detail: configureFailed ? failed : null,
+        state: fails ? "failed" : i < done ? "done" : i === done ? "running" : "pending",
+        detail: fails ? (name === at ? failed : "Not applied") : null,
         started_at: i <= done ? 1 : null,
         finished_at: i < done ? 2 : null,
       };
@@ -233,7 +240,7 @@ describe("Waiting for adoption", () => {
     expect(within(bench).getByText("Set it up on the LAN")).toBeInTheDocument();
     await waitFor(() => expect(within(card).queryByText("Unnamed device")).not.toBeInTheDocument());
     inbox = { pending: [factory], approvals: [] };
-    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(16, "succeeded")] });
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(17, "succeeded")] });
     expect(
       await within(bench).findByText(
         /02:42:ac:11:00:03 is adopted and set up. Unplug it and place it/,
@@ -261,12 +268,19 @@ describe("Waiting for adoption", () => {
     expect(within(dialog).queryByLabelText(/Root password/)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "It matches, adopt" }));
     const failed = "Another apply is running. The node keeps the staging config";
-    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(16, "succeeded", failed)] });
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(17, "succeeded", failed)] });
     const bench = await within(card).findByRole("region", { name: "On the adoption port" });
     expect(await within(bench).findByRole("alert")).toHaveTextContent(
       "OpenWrt is adopted, but its configuration wasn't applied.",
     );
     expect(bench).toHaveTextContent(failed);
+
+    // When the mesh's packages didn't come, that is why.
+    const missing = "apk add kmod-batman-adv batctl-default failed: unable to select packages";
+    const jobs = [portJob(17, "succeeded", missing, "prepare")];
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs });
+    await waitFor(() => expect(bench).toHaveTextContent(missing));
+    expect(bench).not.toHaveTextContent("Not applied");
   });
 
   it("dismisses, pre-approves by MAC and withdraws", async () => {

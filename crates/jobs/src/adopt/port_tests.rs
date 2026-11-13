@@ -175,16 +175,21 @@ async fn a_device_on_the_port_is_staged_lent_confirmed_at_its_lease_and_managed(
     let device = device(&setup, true);
     let (job, _) = setup.adopt(request(&device, gw, Some(NodeRole::Ap))).await;
     assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
-    let (configure, rest) = states(&job)
-        .split_last()
-        .map(|(l, r)| (*l, r.to_vec()))
-        .unwrap();
+    let states = states(&job);
+    let (rest, last) = states.split_at(states.len() - 2);
     assert!(
         rest.iter().all(|(_, state)| *state == StepState::Done),
         "{rest:?}"
     );
-    // The fake gateway holds no revision: the device stays adopted with the staging config.
-    assert_eq!(configure, (StepName::Configure, StepState::Failed));
+    // The fake gateway holds no revision: nothing to prepare for, and the device stays adopted
+    // with the staging config.
+    assert_eq!(
+        last,
+        [
+            (StepName::Prepare, StepState::Skipped),
+            (StepName::Configure, StepState::Failed)
+        ]
+    );
     let detail = job.steps.last().and_then(|step| step.detail.as_deref());
     assert!(
         detail.is_some_and(|d| d.starts_with("The gateway holds no revision to apply. ")),

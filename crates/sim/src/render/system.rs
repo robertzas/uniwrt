@@ -86,9 +86,12 @@ pub(super) fn system(world: &World, node: &Node) -> Value {
 }
 
 /// What the node's `wpad` was built with ([`super::wpad`]): the basic one lacks 802.11v, the
-/// mesh, EAP and WPS (D-085).
-pub(super) fn capabilities(node: &Node, wpad: &str) -> Value {
-    let mut software = vec!["batman-adv", "batctl", "iw", "rpcd-mod-iwinfo", "luci"];
+/// mesh, EAP and WPS (D-085); `mesh` is the mesh's software it has ([`Disk::mesh_software`]).
+///
+/// [`Disk::mesh_software`]: super::commands::Disk::mesh_software
+pub(super) fn capabilities(node: &Node, wpad: &str, mesh: &[&str]) -> Value {
+    let mut software = mesh.to_vec();
+    software.extend(["iw", "rpcd-mod-iwinfo", "luci"]);
     if node.gateway {
         software.extend(["nlbwmon", "iperf3"]);
     }

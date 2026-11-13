@@ -2,7 +2,7 @@
 //! ends it is a wired link; the hard interfaces an apply adds on its VLAN carry batman-adv once
 //! both ends have them, and the `mtu` probe passes where both ends take 1532 bytes.
 
-use std::{collections::BTreeSet, fmt::Write as _};
+use std::fmt::Write as _;
 
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{facts::NodeFacts, node::NodeRole, status::NodeState};
@@ -31,9 +31,7 @@ fn facts_of(world: &World, node: usize) -> NodeFacts {
         world,
         node,
         &Set::ALL,
-        &files,
-        &BTreeSet::new(),
-        super::wpad::MESH,
+        &super::commands::Disk::holding(files),
     );
     let collected: Collected = serde_json::from_value(raw).expect("a collect answer");
     let mut facts = NodeFacts::default();

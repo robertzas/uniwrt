@@ -44,7 +44,7 @@ use uniwrt_model::{
 use uniwrt_node::txn::TxnId;
 use uniwrt_store::ApplyRepo as _;
 
-pub(crate) use self::adopted::{Configured, adopted};
+pub(crate) use self::adopted::{Configured, adopted, held};
 use self::{
     run::{Holds, Live, Run, nodes},
     survey::Survey,

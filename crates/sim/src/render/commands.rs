@@ -44,6 +44,9 @@ pub(crate) struct Disk {
     /// The wpad installed ([`super::wpad`]): the mesh one, with 802.11v, on a node set up by
     /// hand; the image's basic one on a factory gateway, until the wpad swap.
     pub(crate) wpad: &'static str,
+    /// Whether the image brought batman-adv and batctl: not a factory image's (the bench
+    /// device's), which gets them from the feeds ([`Disk::mesh_software`], D-108).
+    pub(crate) batman_in_image: bool,
     /// The BSSes the `bss` op turned off, and `/etc/config/wireless` as it was then: a
     /// `wifi reload` (an apply that changes it) brings them back ([`Disk::bss_off`]).
     pub(crate) bss_off: Option<(String, BTreeSet<String>)>,
@@ -65,6 +68,7 @@ impl Default for Disk {
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
             wpad: super::wpad::MESH,
+            batman_in_image: true,
             bss_off: None,
             rrm: None,
             wired_from: None,
@@ -73,6 +77,14 @@ impl Default for Disk {
 }
 
 impl Disk {
+    /// A node's with `files` as its `/etc/config`, and stock otherwise.
+    #[cfg(test)]
+    pub(crate) fn holding(files: BTreeMap<String, String>) -> Self {
+        let mut disk = Self::default();
+        disk.tool.files = files;
+        disk
+    }
+
     /// The BSSes that are off: those the `bss` op turned off, unless `wireless` changed since.
     pub(crate) fn bss_off(&self) -> BTreeSet<String> {
         match &self.bss_off {
@@ -100,6 +112,19 @@ impl Disk {
             }
             _ => BTreeMap::new(),
         }
+    }
+
+    /// The mesh's software the node has, as the agent names it: from the image, or installed
+    /// from the feeds since.
+    pub(crate) fn mesh_software(&self) -> Vec<&'static str> {
+        [
+            ("batman-adv", MESH_PACKAGES[0]),
+            ("batctl", MESH_PACKAGES[1]),
+        ]
+        .into_iter()
+        .filter(|(_, package)| self.batman_in_image || self.installed.contains(*package))
+        .map(|(software, _)| software)
+        .collect()
     }
 
     /// What `network` does with the ports, once it changed since the last call.
@@ -140,12 +165,18 @@ impl Disk {
             } else {
                 super::wpad::MESH
             },
+            batman_in_image: !node.bench,
             ..Self::default()
         }
     }
 }
 
-/// The installed packages, `(name, version, installed on purpose)`, the same on every node.
+/// The feed packages that bring the mesh's software to a factory image (the firmware's mesh
+/// essentials).
+const MESH_PACKAGES: [&str; 2] = ["kmod-batman-adv", "batctl-default"];
+
+/// The installed packages, `(name, version, installed on purpose)`, the same on every node
+/// (batman-adv's only where the image has it, [`Disk::batman_in_image`]).
 const PACKAGES: [(&str, &str, bool); 22] = [
     ("base-files", "1647-r1", false),
     ("batctl-full", "2025.4-r1", true),
@@ -253,16 +284,14 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
             "-E",
             "^(Package|Version|Status):",
             "/usr/lib/opkg/status",
-        ] if node.release.package_manager == "opkg" => {
-            ok(opkg_status(&disk.installed, disk.wpad).into_bytes())
-        }
+        ] if node.release.package_manager == "opkg" => ok(opkg_status(disk).into_bytes()),
         ["grep", "-E", "^[PV]:", "/lib/apk/db/installed"]
             if node.release.package_manager == "apk" =>
         {
-            ok(apk_installed(&disk.installed, disk.wpad).into_bytes())
+            ok(apk_installed(disk).into_bytes())
         }
         ["cat", "/etc/apk/world"] if node.release.package_manager == "apk" => {
-            ok(apk_world(&disk.installed, disk.wpad).into_bytes())
+            ok(apk_world(disk).into_bytes())
         }
         ["sysupgrade", "-b", "-"] => ok(BACKUP.to_vec()),
         ["nslookup", name, "127.0.0.1"] if node.gateway => ok(format!(
@@ -350,9 +379,9 @@ fn release(node: &Node) -> String {
     )
 }
 
-fn opkg_status(installed: &BTreeSet<String>, wpad: &'static str) -> String {
+fn opkg_status(disk: &Disk) -> String {
     let mut out = String::new();
-    for (name, version, wanted) in all(installed, wpad) {
+    for (name, version, wanted) in all(disk) {
         let flag = if wanted { "user" } else { "ok" };
         let _ = writeln!(
             out,
@@ -364,12 +393,13 @@ fn opkg_status(installed: &BTreeSet<String>, wpad: &'static str) -> String {
 
 /// The image's packages (with the node's wpad) and those installed since, `(name, version,
 /// installed on purpose)`.
-fn all<'a>(
-    installed: &'a BTreeSet<String>,
-    wpad: &'static str,
-) -> impl Iterator<Item = (&'a str, &'a str, bool)> {
+fn all(disk: &Disk) -> impl Iterator<Item = (&str, &str, bool)> {
+    let wpad = disk.wpad;
     PACKAGES
         .into_iter()
+        .filter(|(name, ..)| {
+            disk.batman_in_image || !matches!(*name, "kmod-batman-adv" | "batctl-full")
+        })
         .map(move |(name, version, wanted)| {
             if name == super::wpad::MESH {
                 (wpad, version, wanted)
@@ -377,22 +407,22 @@ fn all<'a>(
                 (name, version, wanted)
             }
         })
-        .chain(installed.iter().filter_map(|name| {
+        .chain(disk.installed.iter().filter_map(|name| {
             super::feeds::version(name).map(|version| (name.as_str(), version, true))
         }))
 }
 
-fn apk_installed(installed: &BTreeSet<String>, wpad: &'static str) -> String {
+fn apk_installed(disk: &Disk) -> String {
     let mut out = String::new();
-    for (name, version, _) in all(installed, wpad) {
+    for (name, version, _) in all(disk) {
         let _ = writeln!(out, "P:{name}\nV:{version}");
     }
     out
 }
 
-fn apk_world(installed: &BTreeSet<String>, wpad: &'static str) -> String {
+fn apk_world(disk: &Disk) -> String {
     let mut out = String::new();
-    for (name, _, wanted) in all(installed, wpad) {
+    for (name, _, wanted) in all(disk) {
         if wanted {
             let _ = writeln!(out, "{name}");
         }

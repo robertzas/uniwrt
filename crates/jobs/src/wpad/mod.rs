@@ -4,7 +4,8 @@
 //! free flash and RAM) → fetch (every package onto the node; nothing changes) → swap (detached
 //! on the node and offline, [`uniwrt_node::wpad`]; the controller logs in again as often as it takes to read
 //! how it ended) → verify (the agent finds 802.11v). The node's configuration doesn't change:
-//! an apply then renders 802.11v where its WLANs ask for it.
+//! an apply then renders 802.11v where its WLANs ask for it. The port adoption's Prepare step
+//! runs the same swap within its own step ([`within`], D-108).
 
 #[cfg(test)]
 mod tests;
@@ -79,12 +80,16 @@ fn failed(message: impl Into<String>) -> JobError {
 
 async fn wpad(shared: &Shared, node: &Node, progress: &mut Progress) -> Result<(), JobError> {
     let remote = connect(shared, node, progress).await?;
-    let swap = match check(shared, remote.as_ref(), progress).await {
+    let mut report = Report {
+        progress,
+        within: false,
+    };
+    let swap = match check(shared, remote.as_ref(), &mut report).await {
         Ok(Some(swap)) => swap,
         Ok(None) => {
             remote.close().await;
             for step in [StepName::Fetch, StepName::Swap, StepName::Verify] {
-                progress.skip(step, "Nothing to swap").await;
+                report.progress.skip(step, "Nothing to swap").await;
             }
             return Ok(());
         }
@@ -93,31 +98,101 @@ async fn wpad(shared: &Shared, node: &Node, progress: &mut Progress) -> Result<(
             return Err(err);
         }
     };
-    if let Err(err) = fetch(remote.as_ref(), &swap, progress).await {
+    let (remote, result) = swap_and_verify(shared, node, remote, &swap, &mut report).await;
+    if let Some(remote) = remote {
+        remote.close().await;
+    }
+    result
+}
+
+/// The swap as a part of another job's running step (the port adoption's Prepare, D-108), on
+/// `remote`, a login to `node`: what it does is the step's detail. Hands back the login it
+/// ends with, if any, and whether it swapped (`Ok(false)`: hostapd has 802.11v already).
+pub(crate) async fn within(
+    shared: &Shared,
+    node: &Node,
+    remote: Box<dyn Remote>,
+    progress: &mut Progress,
+) -> (Option<Box<dyn Remote>>, Result<bool, JobError>) {
+    let mut report = Report {
+        progress,
+        within: true,
+    };
+    let swap = match check(shared, remote.as_ref(), &mut report).await {
+        Ok(Some(swap)) => swap,
+        Ok(None) => return (Some(remote), Ok(false)),
+        Err(err) => return (Some(remote), Err(err)),
+    };
+    let (remote, result) = swap_and_verify(shared, node, remote, &swap, &mut report).await;
+    (remote, result.map(|()| true))
+}
+
+/// Fetch, swap and verify, once the check found `swap` to do.
+async fn swap_and_verify(
+    shared: &Shared,
+    node: &Node,
+    remote: Box<dyn Remote>,
+    swap: &Swap,
+    report: &mut Report<'_>,
+) -> (Option<Box<dyn Remote>>, Result<(), JobError>) {
+    if let Err(err) = fetch(remote.as_ref(), swap, report).await {
         // The packages go; nothing else changed.
         let _ = remote
             .exec(ExecRequest::new(["rm", "-rf", swap::DIR]))
             .await;
-        remote.close().await;
-        return Err(err);
+        return (Some(remote), Err(err));
     }
-    let (remote, swapped) = run_swap(shared, node, remote, &swap, progress).await;
+    let (remote, swapped) = run_swap(shared, node, remote, swap, report).await;
     let Some(remote) = remote else {
-        return swapped;
+        return (None, swapped);
     };
     let verified = match swapped {
-        Ok(()) => verify(shared, remote.as_ref(), progress).await,
+        Ok(()) => verify(shared, remote.as_ref(), report).await,
         Err(err) => Err(err),
     };
-    remote.close().await;
-    verified
+    (Some(remote), verified)
+}
+
+/// Where the swap tells its steps: as the wpad job's own, or `within` another job's running
+/// step, as what it is doing now (its failure is the caller's to tell).
+struct Report<'a> {
+    progress: &'a mut Progress,
+    within: bool,
+}
+
+impl Report<'_> {
+    async fn start(&mut self, step: StepName) {
+        if !self.within {
+            self.progress.start(step).await;
+            return;
+        }
+        let doing = match step {
+            StepName::Check => "Checking the wpad",
+            StepName::Fetch => "Downloading the full wpad",
+            StepName::Swap => "Swapping the wpad for the full one",
+            _ => "Checking that hostapd has the full wpad's features",
+        };
+        self.progress.note(doing).await;
+    }
+
+    async fn done(&mut self, detail: Option<String>) {
+        if !self.within {
+            self.progress.done(detail).await;
+        }
+    }
+
+    async fn fail(&mut self, detail: &str) {
+        if !self.within {
+            self.progress.fail(detail).await;
+        }
+    }
 }
 
 /// Reads what the node has; `None` when its hostapd has 802.11v already.
 async fn check(
     shared: &Shared,
     remote: &dyn Remote,
-    progress: &mut Progress,
+    progress: &mut Report<'_>,
 ) -> Result<Option<Swap>, JobError> {
     progress.start(StepName::Check).await;
     match survey::idle_tool(remote).await {
@@ -175,7 +250,11 @@ async fn check(
 }
 
 /// Downloads every package the swap needs onto the node.
-async fn fetch(remote: &dyn Remote, swap: &Swap, progress: &mut Progress) -> Result<(), JobError> {
+async fn fetch(
+    remote: &dyn Remote,
+    swap: &Swap,
+    progress: &mut Report<'_>,
+) -> Result<(), JobError> {
     progress.start(StepName::Fetch).await;
     for argv in swap::fetch(swap) {
         let what = if argv[0] == "sh" {
@@ -218,7 +297,7 @@ async fn run_swap(
     node: &Node,
     remote: Box<dyn Remote>,
     swap: &Swap,
-    progress: &mut Progress,
+    progress: &mut Report<'_>,
 ) -> (Option<Box<dyn Remote>>, Result<(), JobError>) {
     progress.start(StepName::Swap).await;
     let started = remote.exec(ExecRequest::new(swap::launch(swap))).await;
@@ -328,7 +407,7 @@ async fn log_line(remote: &dyn Remote) -> String {
 async fn verify(
     shared: &Shared,
     remote: &dyn Remote,
-    progress: &mut Progress,
+    progress: &mut Report<'_>,
 ) -> Result<(), JobError> {
     progress.start(StepName::Verify).await;
     let facts = survey::collect(shared, remote, &[Set::Capabilities], &[Set::Capabilities])

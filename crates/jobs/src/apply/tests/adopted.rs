@@ -1,13 +1,15 @@
 //! The apply a port adoption ends with (D-107): the revision the gateway holds, applied to the
 //! new node alone as an apply job of its own; refused while another apply runs.
 
+use uniwrt_core::NodeId;
 use uniwrt_model::{
     job::{JobKind, JobNodeState, JobState},
     node::{NodeMode, NodeRole},
+    site::revision::Revision,
 };
 use uniwrt_store::{ApplyRepo as _, JobRepo as _, NodeRepo as _};
 
-use super::fleet::{commit, fleet};
+use super::fleet::{Fleet, commit, fleet};
 use crate::apply::{self, Configured};
 
 const GW: (NodeRole, &str) = (NodeRole::Gateway, "192.168.1.1");
@@ -39,9 +41,14 @@ async fn the_new_node_gets_the_revision_the_gateway_holds_and_nothing_else_chang
         job,
         revision,
         result,
-    } = apply::adopted(&fleet.jobs.shared, gw, node, None)
-        .await
-        .expect("an apply starts");
+    } = apply::adopted(
+        &fleet.jobs.shared,
+        &revision_of(&fleet, gw).await,
+        node,
+        None,
+    )
+    .await
+    .expect("an apply starts");
     assert_eq!(result, Ok(()));
     assert_eq!(revision, held.meta.id);
     let job = fleet.store.job(job).await.unwrap().unwrap();
@@ -69,9 +76,7 @@ async fn the_new_node_gets_the_revision_the_gateway_holds_and_nothing_else_chang
 async fn no_apply_starts_while_another_runs_or_before_the_gateway_holds_a_revision() {
     let fleet = fleet(&[GW, AP]).await;
     let (gw, node) = (fleet.nodes[0].0.id, fleet.nodes[1].0.clone());
-    let why = apply::adopted(&fleet.jobs.shared, gw, node.clone(), None)
-        .await
-        .err();
+    let why = apply::held(&fleet.jobs.shared, gw).await.err();
     assert_eq!(
         why.as_deref(),
         Some("The gateway holds no revision to apply")
@@ -86,8 +91,19 @@ async fn no_apply_starts_while_another_runs_or_before_the_gateway_holds_a_revisi
         .claim(vec![apply::TARGET.to_owned()], hold)
         .await
         .unwrap();
-    let why = apply::adopted(&fleet.jobs.shared, gw, node, None)
-        .await
-        .err();
+    let why = apply::adopted(
+        &fleet.jobs.shared,
+        &revision_of(&fleet, gw).await,
+        node,
+        None,
+    )
+    .await
+    .err();
     assert_eq!(why.as_deref(), Some("Another apply is running"));
+}
+
+async fn revision_of(fleet: &Fleet, gateway: NodeId) -> Revision {
+    apply::held(&fleet.jobs.shared, gateway)
+        .await
+        .expect("the gateway holds a revision")
 }

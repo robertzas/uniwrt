@@ -209,6 +209,9 @@ pub enum StepName {
     Upload,
     /// Lend the gateway's adoption port to the LAN and find the device's lease there (D-107).
     Lease,
+    /// Bring the mesh's packages a factory image lacks (batman-adv, the full wpad) before
+    /// Configure, where the gateway's revision turns the mesh on (D-108).
+    Prepare,
     /// Apply the revision the gateway holds to the new node on the LAN, as an apply job of its
     /// own: its packages, mesh and WLANs (D-107).
     Configure,

@@ -2,7 +2,7 @@
 //! facts, as its agent reports them, and its `/etc/config` before uniwrt manages it
 //! (`render::config`), for import's round-trip tests and the demo.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use uniwrt_core::Timestamp;
 use uniwrt_model::{facts::NodeFacts, node::NodeRole};
@@ -13,7 +13,7 @@ use uniwrt_node::{
 
 use crate::{
     SimConfig,
-    render::{collect, config},
+    render::{collect, commands::Disk, config},
     world::World,
 };
 
@@ -41,16 +41,10 @@ pub(crate) fn of(world: &World) -> Vec<Brownfield> {
     (0..world.nodes.len())
         .filter(|&n| !world.is_bench(n))
         .map(|n| {
-            let files = config::files(world, n);
-            let collected: Collected = serde_json::from_value(collect(
-                world,
-                n,
-                &Set::ALL,
-                &files,
-                &BTreeSet::new(),
-                super::render::wpad::MESH,
-            ))
-            .expect("the sim's collect parses");
+            let mut disk = Disk::default();
+            disk.tool.files = config::files(world, n);
+            let collected: Collected = serde_json::from_value(collect(world, n, &Set::ALL, &disk))
+                .expect("the sim's collect parses");
             let mut found = NodeFacts::default();
             let _ = facts::apply(&collected, &mut found);
             let node = &world.nodes[n];
@@ -62,7 +56,7 @@ pub(crate) fn of(world: &World) -> Vec<Brownfield> {
                     NodeRole::Ap
                 },
                 facts: found,
-                files,
+                files: disk.tool.files,
             }
         })
         .collect()

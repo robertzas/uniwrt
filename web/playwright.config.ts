@@ -6,7 +6,8 @@ import { defineConfig } from "@playwright/test";
 /*
  * The end-to-end smoke test (docs/dev/TESTING.md): the real binary with the UI embedded, serving
  * the simulated fleet (`serve --demo`, whose admin is demo / demo) and, on a second controller, a
- * factory-default gateway without a user (`--demo-factory`), driven in the installed Chrome.
+ * factory-default gateway without a user (`--demo-factory`), and on a third the demo again for the
+ * adoption port's path, driven in the installed Chrome.
  * `just e2e` builds the binary; CI passes the release build in UNIWRT_BIN.
  */
 const bin = process.env.UNIWRT_BIN ?? "../target/debug/uniwrt";
@@ -48,9 +49,12 @@ export default defineConfig({
     { name: "demo", testMatch: "smoke.spec.ts", use: { baseURL: "https://127.0.0.1:18443" } },
     // A factory-default gateway and no user: the first run (adoption.md, Path E).
     { name: "first-run", testMatch: "setup.spec.ts", use: { baseURL: "https://127.0.0.1:18444" } },
+    // The demo again, for the adoption port's bench device (adoption.md, Path C).
+    { name: "port", testMatch: "port.spec.ts", use: { baseURL: "https://127.0.0.1:18445" } },
   ],
   webServer: [
     controller("--demo --demo-seed 42", 18080, 18443),
     controller("--demo --demo-factory --demo-seed 42", 18081, 18444),
+    controller("--demo --demo-seed 42", 18082, 18445),
   ],
 });
