@@ -36,6 +36,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     }
     if gateway {
         sections.push(ignored("wan"));
+        sections.extend(crate::adoption::dhcp(plan));
     }
     sections.push(
         Section::named("odhcpd", "odhcpd")

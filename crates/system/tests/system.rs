@@ -246,3 +246,43 @@ fn forwards_dmz_and_upnp() {
         assert!(rules.contains("chain upnp_forward"), "{rules}");
     }
 }
+
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn the_adoption_port_reaches_a_factory_device_and_nothing_more() {
+    use uniwrt_model::site::adoption::AdoptionPort;
+    let mut site = site::defaults(Uplink::Dhcp);
+    site.adoption_port = Some(AdoptionPort::new("eth2"));
+    let gw = gateway(&site);
+    gw.wait_interface("uw_adopt", UP, |s| ipv4(s) == ["192.168.1.250/24"]);
+    let members = |bridge: &str| gw.sh("ls \"/sys/class/net/$1/brif\"", &[bridge]);
+    assert_eq!(members("br-adopt").trim(), "eth2");
+    assert!(!members("br-lan").contains("eth2"));
+    // The gateway reaches the factory device (stock OpenWrt at 192.168.1.1), and takes no
+    // address from its DHCP server or router advertisements.
+    gw.sh("ping -c 1 -W 3 192.168.1.1", &[]);
+    let fac = Node::new("uniwrt-system-fac");
+    std::thread::sleep(Duration::from_secs(5));
+    assert_eq!(
+        ipv4(&gw.interface("uw_adopt").unwrap()),
+        ["192.168.1.250/24"]
+    );
+    let global = gw.sh("ip -6 addr show dev br-adopt scope global", &[]);
+    assert!(global.trim().is_empty(), "{global}");
+    // netifd turns IPv6 off on the bridge where it can: a container's /proc/sys is read-only.
+    let read_only = "grep -q '^proc /proc/sys proc ro,' /proc/mounts";
+    if !gw.run(read_only, &[], &[]).ok {
+        let off = gw.sh("cat /proc/sys/net/ipv6/conf/br-adopt/disable_ipv6", &[]);
+        assert_eq!(off.trim(), "1");
+    }
+    if !needs("nftables") {
+        return;
+    }
+    // Nothing on the segment reaches the gateway.
+    let ping = fac.run("ping -c 1 -W 3 192.168.1.250", &[], &[]);
+    assert!(
+        !ping.ok,
+        "the gateway answered the factory device:\n{}",
+        ping.stdout
+    );
+}

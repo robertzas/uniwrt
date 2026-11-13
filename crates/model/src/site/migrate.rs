@@ -13,7 +13,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
-    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9,
+    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -239,6 +239,15 @@ fn v8_to_v9(value: &mut Value) -> Result<(), String> {
             port.insert("backhaul".to_owned(), json!(true));
         }
     }
+    Ok(())
+}
+
+/// v10 (M5.4, D-105): the gateway's adoption port, none.
+fn v9_to_v10(value: &mut Value) -> Result<(), String> {
+    value
+        .as_object_mut()
+        .ok_or("the document is not an object")?
+        .insert("adoption_port".to_owned(), Value::Null);
     Ok(())
 }
 

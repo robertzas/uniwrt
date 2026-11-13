@@ -4,7 +4,8 @@
 //!
 //! - **API:** [`import`] takes the site to start from, the nodes as [`Source`]s (each its role,
 //!   facts and UCI packages) and a way to name new secrets; it gives an [`Import`]: the site
-//!   with the networks, WAN, firewall policy, local DNS, WLANs, mesh and radios the nodes hold,
+//!   with the networks, WAN, firewall policy, local DNS, adoption port, WLANs, mesh and radios
+//!   the nodes hold,
 //!   the values of the secrets it found (for the caller to seal), and per node a
 //!   [`NodeImport`]: each section's [`Fate`], the residual (what applying the import would
 //!   still change), render's issues and a confidence score.
@@ -37,6 +38,7 @@ use uniwrt_model::{
 use uniwrt_render::Issue;
 use uniwrt_uci::{Diff, Package};
 
+mod adoption;
 mod dhcp;
 mod dumb;
 mod firewall;
@@ -137,6 +139,7 @@ pub fn import(
         networks::import(&mut site, gateway, &mut renames);
         wan::import(&mut site, gateway, &mut renames, &mut seal);
         uplink::import(&mut site, base, gateway, &mut renames);
+        adoption::import(&mut site, gateway);
         firewall::import(&mut site, gateway, &mut renames);
     }
     wireless::import(&mut site, sources, &renames, &mut seal);

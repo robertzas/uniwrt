@@ -6,7 +6,8 @@
 //! render as no forwarding. APs run no firewall: theirs has only its defaults, which accept
 //! input. Port forwards and the DMZ host are `redirect`s ([`redirect`](crate::redirect)), and
 //! the untrusted zones that UPnP serves may reach miniupnpd ([`upnp`](crate::upnp)). The wired
-//! backhaul's interfaces have a zone of their own ([`backhaul`](crate::backhaul)).
+//! backhaul's interfaces have a zone of their own ([`backhaul`](crate::backhaul)), and so has the
+//! adoption port ([`adoption`](crate::adoption)).
 
 use uniwrt_model::{
     node::NodeRole,
@@ -77,6 +78,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         }
         sections.extend(crate::redirect::sections(plan, WAN));
         sections.extend(crate::backhaul::firewall(plan));
+        sections.extend(crate::adoption::firewall(plan));
     }
     let mut package = Package::new("firewall");
     package.sections = sections;

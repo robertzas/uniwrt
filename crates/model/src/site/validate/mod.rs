@@ -94,6 +94,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     gateway::wan(config, &mut issues);
     firewall::firewall(config, &mut issues);
     gateway::services(config, &mut issues);
+    gateway::adoption_port(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
     issues.0
 }

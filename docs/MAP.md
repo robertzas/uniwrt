@@ -218,6 +218,7 @@ Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zer
 
 Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configuration a fleet holds, mapped into the site's desired state, so that managing the nodes keeps them as they are.
 
+- `src/adoption.rs`: The adoption port, from the gateway (features/adoption.md, Path C; D-105): the segment render writes, `interface uw_adopt` on the bridge `br-adopt` with the one port, read back.
 - `src/dhcp.rs`: DHCP and local DNS, from the gateway's `dhcp` package: each network's pool with its options and network boot, how its clients get IPv6 (odhcpd), the reservations, the local records, but the controller's own record (`uniwrt`), which render writes from where the controller is rather than from the site ([`uniwrt_render::held_controller`]).
 - `src/dumb.rs`: What a router's configuration loses when it becomes an access point or a bridge (D-100's dumb AP, adoption.md's Roles): its DHCP server, WAN and static LAN address are the gateway's job, so render never writes them on such a node.
 - `src/firewall.rs`: The firewall policy between networks, from the gateway's fw4 zones and forwardings (features/network.md, Firewall policy): each zone takes its network's id as its name (the WAN's is `wan`), and each cell where the forwardings differ from what the networks' purposes seed becomes an override, so the policy renders as the node has it.
@@ -354,6 +355,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
 - `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
+- `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
+- `src/site/adoption_tests.rs`: The adoption port (schema v10, D-105): its migration and validation.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
 - `src/site/firewall.rs`: The gateway's firewall (features/network.md, Firewall policy): the policy between networks, port forwards and the DMZ host, and UPnP.
 - `src/site/firewall_tests.rs`: Validating the firewall's parts that M4.2b added (port forwards, the DMZ, UPnP), and their migration.
@@ -371,7 +374,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/tz.rs`: Time zones: the IANA names a site may use and the POSIX TZ string OpenWrt's `system.timezone` takes for each (`data/tz.tsv`, built from tzdata by `just tz`).
 - `src/site/validate/dhcp.rs`: A pool's DHCP options: servers, the domain, network boot and custom options, which dnsmasq's init script writes into its configuration line by line.
 - `src/site/validate/firewall.rs`: The firewall: the policy between networks, port forwards, the DMZ host and UPnP.
-- `src/site/validate/gateway.rs`: The WAN and services.
+- `src/site/validate/gateway.rs`: The WAN, services and the adoption port.
 - `src/site/validate/mod.rs`: Validating a [`SiteConfig`]: errors refuse a save, warnings are shown with it.
 - `src/site/validate/names.rs`: The names a document holds: ids, host and DNS names.
 - `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
@@ -488,6 +491,7 @@ Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in wo
 
 Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
 
+- `src/adoption.rs`: The adoption port on the gateway (features/adoption.md, Path C; D-105): the port leaves the LAN for a bridge of its own, `br-adopt`, where the gateway holds a static address in factory-default OpenWrt's 192.168.1.0/24 with IPv6 off (a factory device's router advertisements stay out).
 - `src/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable between two nodes, on the site's backhaul VLAN (`<port>.<vid>`, MTU 1532).
 - `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 as each network's clients mode says; on APs every network is ignored, as their DHCP services are off.
 - `src/ext.rs`: Builders for sections whose options are optional, lists that may be empty, and flags.
@@ -495,7 +499,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/firewall.rs`: The `firewall` package (fw4; features/network.md, Firewall policy): a zone per network and one for the WAN, a forwarding for each allowed cell of the policy matrix ([`matrix`](self::matrix)), OpenWrt's stock WAN rules, and on the zones that don't reach the gateway freely the rules that let their clients get addresses and names. fw4 accepts replies to allowed connections in every direction, so "block" and "established" both render as no forwarding.
 - `src/lib.rs`: Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
 - `src/mesh.rs`: The mesh backhaul (features/mesh.md, D-013): batman-adv's `bat0` in the `network` package, a bridge trunk like the Ethernet ports, and an 802.11s mesh point as its hard interface in `wireless`, and the wired backhaul's hard interfaces ([`backhaul`](crate::backhaul)).
-- `src/network.rs`: The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the swconfig switch, one interface per network, the WAN and the mesh.
+- `src/network.rs`: The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the swconfig switch, one interface per network, the WAN, the adoption port and the mesh.
 - `src/plan.rs`: What every package's renderer shares, worked out once per node: the VLAN each network has on the bridge, the bridge's ports, the WAN's device, the mesh radio and the wired backhaul, and the issues found.
 - `src/ports.rs`: The bridge's ports and what each carries (features/network.md, Networks): an Ethernet port is a trunk (the untagged network untagged, every network with a VLAN tagged) unless the node's port profile says otherwise; a port that carries nothing leaves the bridge.
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
@@ -510,6 +514,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/usteer.rs`: The `usteer` package (features/wifi.md, Steering & balancing; D-090): usteer on each node that carries a steered WLAN, set by the site's profile, exchanging what it sees with the other nodes' over the management network (UDP 16720, which that network's zone accepts).
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
 - `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the band's policy and the node's overrides, within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
+- `tests/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port taken out of the LAN into `br-adopt`, with its own zone and no DHCP, and the ports and uplinks that can't serve.
 - `tests/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node can't give it.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
 - `tests/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): usteer's package per profile, where it runs, and what is left when steering goes off.
@@ -775,7 +780,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (359 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (360 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

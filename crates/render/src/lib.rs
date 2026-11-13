@@ -48,6 +48,7 @@ use uniwrt_model::{
 };
 use uniwrt_uci::Package;
 
+mod adoption;
 mod backhaul;
 mod dhcp;
 mod ext;
@@ -178,6 +179,7 @@ pub fn uplink_section(name: &str) -> bool {
 }
 
 pub use self::{
+    adoption::{ADOPT_BRIDGE, ADOPT_INTERFACE},
     backhaul::{
         BACKHAUL_PREFIX, Backhaul, BackhaulStage, backhaul_interface, backhaul_ports,
         held_backhauls, meshes_over_radio,

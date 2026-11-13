@@ -14,6 +14,7 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         SiteConfig,
+        adoption::AdoptionPort,
         gateway::{BackupLink, Failover, WanProto},
         network::Network,
         node::NodeConfig,
@@ -46,6 +47,8 @@ pub(crate) struct Plan<'a> {
     pub wan_password: Option<String>,
     /// The gateway's backup line, with failover on.
     pub backup: Option<crate::failover::Backup>,
+    /// The gateway's adoption port.
+    pub adoption: Option<&'a AdoptionPort>,
     pub mesh: Option<Mesh<'a>>,
     /// The cables batman-adv runs over.
     pub backhaul: Vec<&'a Backhaul>,
@@ -130,7 +133,13 @@ impl<'a> Plan<'a> {
             }
             _ => None,
         };
+        let adoption = if target.role == NodeRole::Gateway {
+            crate::adoption::plan(site, facts, switch, &mut errors, &mut warnings)
+        } else {
+            None
+        };
         let mut claimed = claimed(site, config, backup.is_some());
+        claimed.extend(adoption.map(|a| a.port.as_str()));
         let at = backhaul::Node {
             role: target.role,
             facts,
@@ -188,6 +197,7 @@ impl<'a> Plan<'a> {
             wan,
             wan_password,
             backup,
+            adoption,
             mesh,
             backhaul,
             bat,

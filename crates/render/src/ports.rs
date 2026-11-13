@@ -169,7 +169,8 @@ pub(crate) fn check(
             warnings.push(Issue::new(
                 at,
                 format!(
-                    "Port {port} is the backup line's or a raw interface's: its profile is left out"
+                    "Port {port} is taken by the backup line, the adoption port or a raw interface: \
+                     its profile is left out"
                 ),
             ));
             continue;

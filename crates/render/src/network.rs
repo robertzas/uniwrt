@@ -1,5 +1,5 @@
 //! The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the
-//! swconfig switch, one interface per network, the WAN and the mesh.
+//! swconfig switch, one interface per network, the WAN, the adoption port and the mesh.
 
 use uniwrt_model::{
     node::NodeRole,
@@ -35,6 +35,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     sections.extend(plan.nets.iter().map(|net| interface(plan, net)));
     sections.extend(wan::interfaces(plan));
     sections.extend(failover::network(plan));
+    sections.extend(crate::adoption::network(plan));
     sections.extend(mesh::interfaces(plan));
     let mut package = Package::new("network");
     package.sections = sections;

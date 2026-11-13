@@ -2,7 +2,8 @@
 //! controller owns, [`SiteConfig`], and its history of [`revision`]s.
 //!
 //! - **Shape:** site settings and the address plan, then [`network::Network`]s, WLANs and the
-//!   mesh ([`wireless`]), the WAN and services ([`gateway`]), the firewall ([`firewall`]), and per node
+//!   mesh ([`wireless`]), the WAN and services ([`gateway`]), the firewall ([`firewall`]), the
+//!   gateway's [`adoption`] port, and per node
 //!   its overrides ([`node::NodeConfig`]). Schema v1 has every section; the fields are the ones
 //!   M3.3 renders, and later WPs extend them through [`migrate`].
 //! - **Keys:** networks and WLANs have ids (`[a-z][a-z0-9_]{0,11}`), which name their UCI
@@ -15,6 +16,7 @@
 //!   documents by structure, matching list items by key. [`ipam`] suggests new networks and
 //!   reserved addresses under the address plan (D-077).
 
+pub mod adoption;
 pub mod diff;
 pub mod firewall;
 pub mod gateway;
@@ -34,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::{Ipv4Net, Ipv6Net};
 
 use self::{
+    adoption::AdoptionPort,
     firewall::{FirewallConfig, Upnp},
     gateway::{Services, WanConfig, WanProto},
     network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
@@ -43,7 +46,7 @@ use self::{
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 9;
+pub const SCHEMA_VERSION: u32 = 10;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,6 +66,9 @@ pub struct SiteConfig {
     pub wan: WanConfig,
     pub firewall: FirewallConfig,
     pub services: Services,
+    /// The gateway's adoption port; none when left out (schema v10, D-105).
+    #[serde(default)]
+    pub adoption_port: Option<AdoptionPort>,
     /// Overrides per adopted node; a node without an entry takes the site's settings.
     pub nodes: Vec<NodeConfig>,
 }
@@ -199,6 +205,7 @@ impl SiteConfig {
                 ..FirewallConfig::default()
             },
             services: Services::default(),
+            adoption_port: None,
             nodes: Vec::new(),
         }
     }
@@ -320,6 +327,8 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     }
 }
 
+#[cfg(test)]
+mod adoption_tests;
 #[cfg(test)]
 mod firewall_tests;
 #[cfg(test)]

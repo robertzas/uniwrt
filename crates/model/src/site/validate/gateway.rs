@@ -1,4 +1,4 @@
-//! The WAN and services.
+//! The WAN, services and the adoption port.
 
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -7,6 +7,7 @@ use uniwrt_core::Ipv4Net;
 use super::{Issues, names};
 use crate::site::{
     SiteConfig,
+    adoption::AdoptionPort,
     gateway::{
         BackupLink, BackupProto, CONTROLLER_HOST, DhcpClient, DnsRecord, Failover, Sqm, WanConfig,
         WanIpv6, WanProto,
@@ -207,6 +208,41 @@ fn failover(failover: &Failover, wan: &WanConfig, issues: &mut Issues) {
         issues.error(
             "wan/failover",
             "Failover backs up the WAN's IPv4, which an IPv6-only WAN lacks",
+        );
+    }
+}
+
+/// The adoption port (D-105): a device of its own that the backup line doesn't use, and an
+/// address in factory-default OpenWrt's subnet that isn't the factory device's own.
+pub(super) fn adoption_port(config: &SiteConfig, issues: &mut Issues) {
+    let Some(adoption) = &config.adoption_port else {
+        return;
+    };
+    if !device_name(&adoption.port) {
+        issues.error(
+            "adoption_port/port",
+            "A device name is 1 to 15 letters, digits, '-', '_' or '.'",
+        );
+    }
+    if let Some(BackupLink::Port { port, .. }) = config.wan.failover.as_ref().map(|f| &f.link)
+        && *port == adoption.port
+    {
+        issues.error(
+            "adoption_port/port",
+            format!("{port} is the backup line's port: pick another"),
+        );
+    }
+    let subnet = AdoptionPort::SUBNET;
+    let address = adoption.address;
+    if !subnet.contains(&address)
+        || address == subnet.network()
+        || address == subnet.broadcast()
+        || address == AdoptionPort::FACTORY
+    {
+        issues.error(
+            "adoption_port/address",
+            "The gateway's address on the adoption port is a host in 192.168.1.0/24 other than \
+             192.168.1.1, where factory-default OpenWrt answers",
         );
     }
 }

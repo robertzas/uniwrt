@@ -305,6 +305,36 @@ fn sqm_and_failover_import_exactly() {
 }
 
 #[test]
+fn the_adoption_port_imports_exactly() {
+    use uniwrt_model::site::adoption::AdoptionPort;
+    for adoption in [
+        AdoptionPort::new("lan2"),
+        AdoptionPort {
+            port: "lan1".to_owned(),
+            address: "192.168.1.2".parse().unwrap(),
+        },
+    ] {
+        let mut site = home_site();
+        site.adoption_port = Some(adoption);
+        let import = round_trip(
+            &site,
+            &[
+                (GATEWAY, NodeRole::Gateway, gateway_facts()),
+                (AP, NodeRole::Ap, gateway_facts()),
+            ],
+        );
+        assert_eq!(import.site.adoption_port, site.adoption_port);
+        let ids = |site: &SiteConfig| {
+            site.networks
+                .iter()
+                .map(|n| n.id.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids(&import.site), ids(&site), "no network of its own");
+    }
+}
+
+#[test]
 fn a_queue_set_up_by_hand_is_renamed() {
     let mut site = home_site();
     site.wan.sqm = None;

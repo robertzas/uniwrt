@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # The system harness (TESTING.md, System): rendered configs on real OpenWrt. For each release,
-# three containers booted with procd and linked by veth pairs, with no other network
+# four containers booted with procd and linked by veth pairs, with no other network
 # (`--network none`, so nothing reaches the host's):
 #
 #   isp ── eth0 ═ eth1 (WAN) ── gw ── eth0 (LAN) ═ eth0 ── ap
+#                                └─ eth2 ═ eth0 (LAN) ── fac
+#
+# `fac` is stock OpenWrt (192.168.1.1) on the gateway's adoption port (features/adoption.md,
+# Path C). gw's eth2 appears only once gw has booted, so its stock config leaves it alone (its
+# own LAN is 192.168.1.1 too until a test renders the site).
 #
 # The ISP (scripts/system/) serves DHCP untagged (192.0.2.0/24) and on VLAN 201
 # (198.51.100.0/24), and PPPoE (user@isp, 203.0.113.0/24). crates/system/tests/system.rs
@@ -24,7 +29,7 @@ cd "$(dirname "$0")/.."
 # The releases in the test matrix (TESTING.md); pinned, so a run is reproducible. CI runs one
 # job per release: keep the `system` job's matrix in .github/workflows/ci.yml in line.
 RELEASES=(24.10.8 25.12.6)
-ROLES=(isp gw ap)
+ROLES=(isp gw ap fac)
 HELPER_IMAGE=openwrt/rootfs:x86-64-25.12.6
 ENV_FILE=target/system.env
 
@@ -89,7 +94,20 @@ declare -A READY=(
   [isp]='ubus -S call network.interface.isp status | grep -q "\"up\":true" && pidof dnsmasq'
   [gw]='ubus -S call network.interface.lan status | grep -q "\"up\":true"'
   [ap]='ubus -S call network.interface.lan status | grep -q "\"up\":true"'
+  [fac]='ubus -S call network.interface.lan status | grep -q "\"up\":true"'
 )
+
+# Waits until the role ($1) is ready.
+ready() {
+  local role=$1 _
+  for _ in $(seq 60); do
+    docker exec "uniwrt-system-$role" /bin/sh -c "${READY[$role]}" >/dev/null 2>&1 && return
+    sleep 1
+  done
+  echo "$role did not come up on $release" >&2
+  docker exec "uniwrt-system-$role" /bin/sh -c 'ip -br addr; logread | tail -n 40' >&2 || true
+  exit 1
+}
 
 down() {
   for role in "${ROLES[@]}"; do docker rm -f "uniwrt-system-$role" >/dev/null 2>&1 || true; done
@@ -117,20 +135,9 @@ up() {
   done
   host_root "ip link add eth0 netns ${pid[isp]} type veth peer name eth1 netns ${pid[gw]} &&
     ip link add eth0 netns ${pid[gw]} type veth peer name eth0 netns ${pid[ap]}"
-  for role in "${ROLES[@]}"; do
-    local up=''
-    for _ in $(seq 60); do
-      if docker exec "uniwrt-system-$role" /bin/sh -c "${READY[$role]}" >/dev/null 2>&1; then
-        up=1 && break
-      fi
-      sleep 1
-    done
-    if [[ -z $up ]]; then
-      echo "$role did not come up on $release" >&2
-      docker exec "uniwrt-system-$role" /bin/sh -c 'ip -br addr; logread | tail -n 40' >&2 || true
-      exit 1
-    fi
-  done
+  for role in isp gw ap; do ready "$role"; done
+  host_root "ip link add eth2 netns ${pid[gw]} type veth peer name eth0 netns ${pid[fac]}"
+  ready fac
   # The ISP neither filters nor routes IPv6, and serves PPPoE once its interface is up (procd
   # had read the boot's list of services before uci-defaults ran).
   docker exec uniwrt-system-isp /bin/sh -c '/etc/init.d/firewall stop; /etc/init.d/odhcpd stop

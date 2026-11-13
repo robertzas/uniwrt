@@ -1,0 +1,25 @@
+---
+source: crates/render/tests/adoption.rs
+expression: "segment.join(\"\\n\\n\")"
+---
+config device
+	option name 'br-adopt'
+	option type 'bridge'
+	list ports 'lan2'
+	option ipv6 '0'
+
+config interface 'uw_adopt'
+	option device 'br-adopt'
+	option proto 'static'
+	list ipaddr '192.168.1.250/24'
+
+config dhcp 'uw_adopt'
+	option interface 'uw_adopt'
+	option ignore '1'
+
+config zone
+	option name 'uw_adopt'
+	list network 'uw_adopt'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'

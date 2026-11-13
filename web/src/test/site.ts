@@ -122,6 +122,7 @@ export function siteConfig(): SiteConfig {
     services: {
       dns_records: [],
     },
+    adoption_port: null,
     nodes: [],
   };
 }
