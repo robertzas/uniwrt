@@ -40,3 +40,10 @@ export function scaleBar(
 export function fitWithin(width: number, height: number, max: number): number {
   return Math.min(1, max / Math.max(width, height));
 }
+
+/** An area for people, in m² or ft², whole above 10. */
+export function formatArea(squareMeters: number, unit: LengthUnit): string {
+  const value = unit === "ft" ? squareMeters / (M_PER_FT * M_PER_FT) : squareMeters;
+  const shown = value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+  return `${shown} ${unit}²`;
+}

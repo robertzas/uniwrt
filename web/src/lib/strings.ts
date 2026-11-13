@@ -4059,6 +4059,40 @@ export const strings = {
       marker: (name: string) => `${name}: drag or use the arrow keys to move`,
       needsPlan: "Upload a plan to place devices on this floor.",
     },
+    coverage: {
+      title: "Coverage",
+      description:
+        "The signal the devices reach across the plan, from a path-loss model fitted to how they hear each other.",
+      show: "Coverage",
+      off: "Off",
+      band: { "2g": "2.4 GHz", "5g": "5 GHz", "6g": "6 GHz", "60g": "60 GHz" },
+      loading: "Loading the coverage model",
+      failed: "The coverage model couldn't be loaded.",
+      noBands: "No radio has reported yet.",
+      needsScale: "Set this floor's scale to see its coverage.",
+      noDevices: "Place devices that use this band to see their coverage.",
+      legend: "Signal",
+      strong: "Strong",
+      good: "Good, −67 dBm",
+      dead: "Dead, below −75 dBm",
+      fitted: (samples: number, error: number) =>
+        `Fitted to ${samples} ${samples === 1 ? "measurement" : "measurements"} between placed devices, within ±${error} dB on average.`,
+      defaults:
+        "Not calibrated yet: typical indoor values until two placed devices hear each other.",
+      parameters: (exponent: number, floorLoss: number, fitted: boolean) =>
+        `Path-loss exponent ${exponent}; ${floorLoss} dB per floor${fitted ? "" : " (typical)"}.`,
+      deadZones: (area: string, share: number) => `Dead zones: ${area}, ${share} % of the floor.`,
+      noDead: "No dead zones on this floor.",
+      outline: "The floor's outline comes from the plan's drawing.",
+      wholePlan: "No outline found in the plan's drawing: the whole plan counts.",
+      suggestion: (area: string) =>
+        `Another node at the marked spot would cover about ${area} of the dead zones.`,
+      noSuggestion:
+        "No spot that hears the mesh at −70 dBm on 5 GHz covers the dead zones: a cabled node would.",
+      suggested: "Suggested spot for another node",
+      unplaced: (count: number) =>
+        `${count} ${count === 1 ? "device" : "devices"} on this band ${count === 1 ? "isn't" : "aren't"} placed, so ${count === 1 ? "it doesn't" : "they don't"} count.`,
+    },
     dialog: {
       addTitle: "Add floor",
       addDescription:

@@ -1,3 +1,4 @@
+import type { JSX } from "@solidjs/web";
 import { Ruler } from "lucide";
 import { createEffect, createMemo, createSignal, onSettled, Show } from "solid-js";
 import type { Floor } from "../../api/gen/Floor";
@@ -9,7 +10,7 @@ import { Button } from "../../ui/Button";
 import { INPUT, SELECT } from "../../ui/FormField";
 import { Icon } from "../../ui/Icon";
 import { showToast } from "../../ui/Toast";
-import { PlanCanvas, type PlanPoint } from "../../viz/floorplan/PlanCanvas";
+import { PlanCanvas, type PlanFrame, type PlanPoint } from "../../viz/floorplan/PlanCanvas";
 import { type Marker, Markers } from "./Markers";
 import { scaleBar, toMeters } from "./units";
 
@@ -37,6 +38,10 @@ export function FloorEditor(props: {
   mode: Mode;
   onMode: (mode: Mode) => void;
   onSaved: (floor: Floor) => void;
+  /** Drawn on the plan (the heatmap), given the positions being dragged or nudged. */
+  underlay?: (moving: ReadonlyMap<number, PlanPoint>) => JSX.Element;
+  /** Drawn over the plan under the devices (a suggested spot). */
+  marks?: (frame: PlanFrame) => JSX.Element;
 }) {
   const [zoom, setZoom] = createSignal(1);
   /** Positions being dragged or nudged, ahead of the floor that saves them. */
@@ -190,6 +195,7 @@ export function FloorEditor(props: {
           picking={props.mode.kind !== "idle"}
           onPick={pick}
           onZoom={setZoom}
+          underlay={props.underlay?.(moving())}
           overlay={
             <>
               <Show when={hint()}>
@@ -305,6 +311,7 @@ export function FloorEditor(props: {
                   );
                 }}
               </Show>
+              {props.marks?.(frame)}
               <Markers
                 frame={frame}
                 markers={markers()}

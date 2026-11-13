@@ -24,8 +24,9 @@ const t = strings.floors.canvas;
 
 /**
  * A floor's plan in a pan-and-zoom view (D-117): drag to pan, wheel or the buttons to zoom,
- * fitted on first show. `children` draws over the plan in screen space (markers keep their size
- * at any zoom); `picking` turns clicks into `onPick` with the plan point under the pointer.
+ * fitted on first show. `underlay` draws on the plan in its own pixels (a heatmap), `children`
+ * over it in screen space (markers keep their size at any zoom); `picking` turns clicks into
+ * `onPick` with the plan point under the pointer.
  */
 export function PlanCanvas(props: {
   src: string;
@@ -36,6 +37,8 @@ export function PlanCanvas(props: {
   onPick?: (point: PlanPoint) => void;
   /** Called with each zoom, for scale bars. */
   onZoom?: (zoom: number) => void;
+  /** Drawn on the plan, in its pixels. */
+  underlay?: JSX.Element;
   children?: (frame: PlanFrame) => JSX.Element;
   /** HTML laid over the canvas's corner (a scale bar, a hint). */
   overlay?: JSX.Element;
@@ -154,8 +157,9 @@ export function PlanCanvas(props: {
         }}
       >
         <g transform={`translate(${view().x} ${view().y}) scale(${view().zoom})`}>
-          <rect width={props.width} height={props.height} class="fill-white" />
+          <rect width={props.width} height={props.height} fill="#fff" />
           <image href={props.src} width={props.width} height={props.height} />
+          {props.underlay}
         </g>
         {props.children?.(frame)}
       </svg>

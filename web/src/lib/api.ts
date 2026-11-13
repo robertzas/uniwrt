@@ -13,6 +13,7 @@ import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientKick } from "../api/gen/ClientKick";
 import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
+import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { DriftMuteBody } from "../api/gen/DriftMuteBody";
@@ -616,6 +617,7 @@ export const api = {
   /** Floor plans (D-117): everyone reads; admins edit, and each edit answers with the floor. */
   floors: {
     list: (signal?: AbortSignal) => request<Floor[]>("/floors", { signal }),
+    coverage: (signal?: AbortSignal) => request<Coverage>("/floors/coverage", { signal }),
     create: (fields: FloorFields) => request<Floor>("/floors", { method: "POST", body: fields }),
     update: (id: number, fields: FloorFields) =>
       request<Floor>(`/floors/${id}`, { method: "PUT", body: fields }),

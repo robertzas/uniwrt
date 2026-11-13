@@ -167,3 +167,62 @@ async fn a_plan_is_checked_served_and_carries_its_nodes() {
     let (status, _) = send(&demo, Method::DELETE, &place, None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn coverage_is_fitted_to_what_placed_nodes_hear() {
+    let demo = Demo::start().await;
+    let (status, coverage) = send(&demo, Method::GET, "/v1/floors/coverage", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        coverage["bands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["samples"] == 0)
+    );
+
+    let (_, floor) = send(&demo, Method::POST, "/v1/floors", Some(fields("Ground", 0))).await;
+    let id = floor["id"].clone();
+    demo.send(upload(&demo, &id, png(800, 600))).await;
+    let mut scaled = fields("Ground", 0);
+    scaled["scale"] = json!({
+        "from": { "x": 0, "y": 0 }, "to": { "x": 400, "y": 0 }, "length_m": 20, "unit": "m"
+    });
+    let (status, _) = send(
+        &demo,
+        Method::PUT,
+        &format!("/v1/floors/{id}"),
+        Some(scaled),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    for (i, x) in [(0, 100), (1, 500), (2, 700)] {
+        let place = format!("/v1/floors/{id}/nodes/{}", demo.ids[i]);
+        let (status, _) = send(
+            &demo,
+            Method::PUT,
+            &place,
+            Some(json!({ "x": x, "y": 300 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    // The demo's scans hear the nodes within seconds.
+    let fitted = async {
+        loop {
+            let (_, coverage) = send(&demo, Method::GET, "/v1/floors/coverage", None).await;
+            let bands = coverage["bands"].as_array().cloned().unwrap_or_default();
+            if let Some(band) = bands.into_iter().find(|b| b["samples"].as_u64() > Some(0)) {
+                return band;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    };
+    let band = tokio::time::timeout(std::time::Duration::from_secs(30), fitted)
+        .await
+        .expect("a band fitted within 30 s");
+    assert_eq!(band["exponent_fitted"], true);
+    assert!(band["error_db"].is_number());
+    assert_ne!(band["transmitters"], json!([]));
+}

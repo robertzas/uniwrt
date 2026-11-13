@@ -552,6 +552,9 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; and the RF planner (M6.1): each radio's channel, width and power.
 
 - `src/build.rs`: Building the [`RfReport`] from the nodes' facts, their radios' latest scans and the radar history.
+- `src/coverage/geometry.rs`: Where placed nodes are in meters: each floor's plan scaled by its own scale, the floors stacked by level with their heights, every plan's top-left corner over the same point (features/wifi.md, Coverage & floor plans).
+- `src/coverage/mod.rs`: The coverage model (features/wifi.md, Coverage & floor plans; D-118): per band, a log-distance path loss fitted to the inter-node RSSI matrix between placed nodes.
+- `src/coverage/tests.rs`: (no header comment)
 - `src/lib.rs`: RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; and the RF planner (M6.1): each radio's channel, width and power.
 - `src/plan/blocks.rs`: The channels a radio may take: each band's standard blocks of 20 MHz channels per width (the layout OpenWrt derives from a primary channel and `htmode`), filtered by what the radios allow and the DFS policy.
 - `src/plan/cost.rs`: The objective (features/wifi.md, RF planner: Objective) over one band: what each radio suffers from the site's other radios and foreign networks, DFS, moving, and the width it gives up.
@@ -834,7 +837,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (385 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (388 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -851,6 +854,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
+- `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
@@ -867,7 +871,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
-- `viz/floorplan/`: PlanCanvas.tsx
+- `viz/floorplan/`: Heatmap.tsx, PlanCanvas.tsx
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
 - `viz/topology/`: TopologyCanvas.tsx, graph.ts, health.ts, scene.ts
 - `viz/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts

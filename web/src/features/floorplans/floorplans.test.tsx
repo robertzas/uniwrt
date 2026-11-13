@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-lib
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Coverage } from "../../api/gen/Coverage";
 import type { Floor } from "../../api/gen/Floor";
 import { createAppRouter } from "../../app/routes";
 import { summary } from "../../test/fixtures";
@@ -15,6 +16,25 @@ vi.mock("./upload", async (original) => ({
 
 let calls: { method: string; url: string; body: unknown }[] = [];
 let floors: Floor[] = [];
+/** One 5 GHz model, not calibrated: a device alone on the floor. */
+const coverage: Coverage = {
+  bands: [
+    {
+      band: "5g",
+      loss_at_1m_db: 47.3,
+      exponent: 3.3,
+      exponent_fitted: false,
+      floor_loss_db: 16,
+      floor_loss_fitted: false,
+      samples: 0,
+      error_db: null,
+      transmitters: [
+        { node: 1, tx_power_dbm: 20 },
+        { node: 2, tx_power_dbm: 20 },
+      ],
+    },
+  ],
+};
 
 function floor(extra: Partial<Floor> = {}): Floor {
   return {
@@ -44,6 +64,7 @@ beforeEach(() => {
       const one = path.match(/^\/floors\/(\d+)/);
       const found = one ? floors.find((f) => f.id === Number(one[1])) : undefined;
       if (path === "/floors" && method === "GET") return Response.json(floors);
+      if (path === "/floors/coverage") return Response.json(coverage);
       if (path === "/floors" && method === "POST") {
         const created = floor({ ...(body as Partial<Floor>), id: 7, image: null });
         floors.push(created);
@@ -172,5 +193,31 @@ describe("the floor plans page", () => {
     for (const name of ["Add floor", "Edit floor", "Set scale", "Place Gateway", "Take off"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
+  });
+
+  it("shows the coverage on a band: dead zones and where another node would help", async () => {
+    // 80 × 60 m with one device near a corner: most of the floor is out of its reach.
+    floors = [
+      floor({
+        scale: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, length_m: 10, unit: "m" },
+        nodes: [{ node: 2, at: { x: 100, y: 100 } }],
+      }),
+    ];
+    await renderPage();
+    const user = userEvent.setup();
+    const card = await screen.findByRole("region", { name: "Coverage" });
+    expect(sent("GET", /\/floors\/coverage$/)).toHaveLength(0);
+    await user.click(within(card).getByRole("button", { name: "5 GHz" }));
+
+    await waitFor(() => expect(card).toHaveTextContent(/Dead zones: \d+ m², \d+ % of the floor/));
+    expect(card).toHaveTextContent("Another node at the marked spot would cover about");
+    expect(card).toHaveTextContent("Not calibrated yet");
+    expect(card).toHaveTextContent("1 device on this band isn't placed");
+    expect(card).toHaveTextContent("the whole plan counts");
+    expect(document.querySelector("[data-suggested]")).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "5 GHz" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

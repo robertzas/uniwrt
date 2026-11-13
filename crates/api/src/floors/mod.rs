@@ -12,6 +12,8 @@
 //! - `PUT v1/floors/{id}/nodes/{node}` (`{x, y}` on the plan, which must be uploaded: 409) places
 //!   a node, moving it from any other floor; `DELETE` there takes it off. Placements aren't
 //!   audited (dragging a node would flood the log), like the topology's layout.
+//! - `GET v1/floors/coverage`: each band's path-loss model fitted to the RSSI matrix between the
+//!   placed nodes ([`Coverage`], D-118); the browser draws the heatmap from it.
 
 mod image;
 #[cfg(test)]
@@ -35,6 +37,7 @@ use uniwrt_model::{
     },
     user::{AuditAction, AuditEntry, Role},
 };
+use uniwrt_rf::coverage::Coverage;
 use uniwrt_store::{AuditRepo as _, Error, FloorRepo as _, NewFloorImage};
 
 use crate::{Api, ApiError, ApiResult, Client, CurrentUser};
@@ -42,6 +45,7 @@ use crate::{Api, ApiError, ApiResult, Client, CurrentUser};
 pub(crate) fn routes() -> Router<Api> {
     Router::new()
         .route("/v1/floors", get(list).post(create))
+        .route("/v1/floors/coverage", get(coverage))
         .route("/v1/floors/{id}", put(update).delete(delete))
         .route(
             "/v1/floors/{id}/image",
@@ -109,6 +113,12 @@ async fn floor(api: &Api, id: FloorId) -> ApiResult<Floor> {
 
 async fn list(State(api): State<Api>, _: CurrentUser) -> ApiResult<Json<Vec<Floor>>> {
     Ok(Json(api.store().floors().await?))
+}
+
+async fn coverage(State(api): State<Api>, _: CurrentUser) -> ApiResult<Json<Coverage>> {
+    let view = api.rf()?.view();
+    let floors = api.store().floors().await?;
+    Ok(Json(uniwrt_rf::coverage::coverage(&floors, &view.report)))
 }
 
 async fn create(

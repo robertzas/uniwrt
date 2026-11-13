@@ -2,6 +2,7 @@ import { useSearchParams } from "@solidjs/router";
 import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { Map as MapIcon, Pencil, Plus, Ruler, Upload } from "lucide";
 import { createEffect, createSignal, Show, useContext } from "solid-js";
+import type { Band } from "../../api/gen/Band";
 import type { Floor } from "../../api/gen/Floor";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
@@ -12,6 +13,9 @@ import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { Segmented } from "../../ui/Segmented";
+import { CoverageCard } from "./coverage/CoverageCard";
+import { COVERAGE_KEY, createCoverage } from "./coverage/createCoverage";
+import { CoverageLayer, SuggestedMark } from "./coverage/layers";
 import { DevicesPanel } from "./DevicesPanel";
 import { FloorDialog } from "./FloorDialog";
 import { FloorEditor, type Mode } from "./FloorEditor";
@@ -20,6 +24,7 @@ import { formatLength } from "./units";
 
 const t = strings.floors;
 const KEY = ["floors"];
+const COVERAGE_BANDS: readonly string[] = ["2g", "5g", "6g"];
 
 /**
  * `/insights/floor-plans` (features/wifi.md, Coverage & floor plans; D-117): the site's floors
@@ -30,7 +35,7 @@ export function FloorPlansPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
   const admin = () => session.user.role === "admin";
-  const [params, setParams] = useSearchParams<{ floor?: string }>();
+  const [params, setParams] = useSearchParams<{ floor?: string; coverage?: string }>();
   const client = useQueryClient();
   const query = useQuery(() => ({
     queryKey: KEY,
@@ -43,7 +48,18 @@ export function FloorPlansPage() {
   const [mode, setMode] = createSignal<Mode>({ kind: "idle" });
   const [dialog, setDialog] = createSignal<{ open: boolean; floor?: Floor }>({ open: false });
 
-  const saved = (floor: Floor) => update((list) => withFloor(list, floor));
+  /** The band whose coverage shows (`?coverage=5g`), if any. */
+  const band = () =>
+    COVERAGE_BANDS.includes(params.coverage ?? "") ? (params.coverage as Band) : undefined;
+  const coverage = createCoverage({ floor: current, floors, band });
+  /** Placements feed the model's fit: fetch it again after any change. */
+  const refit = () => {
+    if (band()) void client.invalidateQueries({ queryKey: COVERAGE_KEY });
+  };
+  const saved = (floor: Floor) => {
+    update((list) => withFloor(list, floor));
+    refit();
+  };
   // Another floor shown ends whatever the plan was doing.
   createEffect(
     () => current()?.id,
@@ -183,19 +199,41 @@ export function FloorPlansPage() {
                         mode={mode()}
                         onMode={setMode}
                         onSaved={saved}
+                        underlay={(moving) => (
+                          <Show when={coverage.heat(moving)}>
+                            {(grid) => <CoverageLayer grid={grid()} />}
+                          </Show>
+                        )}
+                        marks={(frame) => (
+                          <SuggestedMark
+                            frame={frame}
+                            suggestion={coverage.summary()?.suggestion}
+                          />
+                        )}
                       />
                     </Show>
                   </div>
                 </Card>
-                <DevicesPanel
-                  floor={floor()}
-                  floors={floors()}
-                  nodes={live.fleet.nodes}
-                  admin={admin()}
-                  mode={mode()}
-                  onMode={setMode}
-                  onRemoved={(node) => update((list) => withoutNode(list, floor().id, node))}
-                />
+                <div class="flex flex-col gap-4">
+                  <CoverageCard
+                    floor={floor()}
+                    band={band()}
+                    onBand={(b) => setParams({ coverage: b })}
+                    state={coverage}
+                  />
+                  <DevicesPanel
+                    floor={floor()}
+                    floors={floors()}
+                    nodes={live.fleet.nodes}
+                    admin={admin()}
+                    mode={mode()}
+                    onMode={setMode}
+                    onRemoved={(node) => {
+                      update((list) => withoutNode(list, floor().id, node));
+                      refit();
+                    }}
+                  />
+                </div>
               </div>
             </>
           )}
