@@ -311,6 +311,7 @@ export const strings = {
       fetch: "Download the packages",
       swap: "Swap the wpad",
       lease: "Take a lease on the LAN",
+      configure: "Set it up on the LAN",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -451,8 +452,22 @@ export const strings = {
       locked: "Root password set",
       lockedHint:
         "Its root password is set, so nothing more could be read. Adopting it needs that password.",
-      soon: "Adopting from the adoption port isn't available yet.",
       dismissHint: "It shows up again when it's plugged in again.",
+      adoptHint:
+        "uniwrt sets it up through the gateway, then lends it the adoption port on the LAN to install its packages and apply its configuration. Keep it plugged in until it says to unplug it.",
+      roleHint: "A device on the adoption port becomes an access point or a bridge.",
+      password: "Root password",
+      passwordHint: "Its root password is set. The vault keeps it.",
+    },
+    /** Adoptions from the adoption port, followed after the inbox drops the device (D-107). */
+    bench: {
+      title: "On the adoption port",
+      adopting: (name: string) => `Adopting ${name}`,
+      placeIt: (name: string) =>
+        `${name} is adopted and set up. Unplug it and place it: it joins through the mesh or any Ethernet port and keeps its address.`,
+      unconfigured: (name: string) =>
+        `${name} is adopted, but its configuration wasn't applied. Keep it plugged in and apply the site from Review.`,
+      close: "Close",
     },
     adopt: "Adopt",
     dismiss: "Dismiss",

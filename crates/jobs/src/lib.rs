@@ -27,6 +27,9 @@
 //!   inventory (packages) → backup
 //!   (`sysupgrade -b`, sealed) → record (node, pin, facts, inventory and backup in one
 //!   transaction; the password in the vault if asked) → watch. At most 4 run at once; more wait.
+//!   On the adoption port (`adopt/port.rs`, D-107), managed at once: the transaction tool, the
+//!   staging transaction, the lend and the lease, confirmed there, then configure: an apply job
+//!   of the revision the gateway holds to that node alone, run in the adoption's task.
 //! - **Management** steps: connect (the controller's key, the pinned host key) → install the
 //!   transaction tool and the guard unless that version is there (or remove them) → record the
 //!   mode. An open transaction on the node fails the job before anything changes.

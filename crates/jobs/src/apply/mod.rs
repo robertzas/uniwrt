@@ -15,6 +15,7 @@
 //! a failure in a later transaction rolls back that one alone.
 
 mod address;
+mod adopted;
 mod backhaul;
 mod cables;
 mod controller;
@@ -43,6 +44,7 @@ use uniwrt_model::{
 use uniwrt_node::txn::TxnId;
 use uniwrt_store::ApplyRepo as _;
 
+pub(crate) use self::adopted::{Configured, adopted};
 use self::{
     run::{Holds, Live, Run, nodes},
     survey::Survey,

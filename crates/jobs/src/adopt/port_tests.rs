@@ -9,7 +9,7 @@ use std::{
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
-    job::{Job, JobErrorCode, JobState, StepState},
+    job::{Job, JobErrorCode, JobState, StepName, StepState},
     node::{NodeMode, NodeRole},
 };
 use uniwrt_node::{ExecOutput, ExitStatus, Target, txn::TOOL};
@@ -175,12 +175,20 @@ async fn a_device_on_the_port_is_staged_lent_confirmed_at_its_lease_and_managed(
     let device = device(&setup, true);
     let (job, _) = setup.adopt(request(&device, gw, Some(NodeRole::Ap))).await;
     assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    let (configure, rest) = states(&job)
+        .split_last()
+        .map(|(l, r)| (*l, r.to_vec()))
+        .unwrap();
     assert!(
-        states(&job)
-            .iter()
-            .all(|(_, state)| *state == StepState::Done),
-        "{:?}",
-        states(&job)
+        rest.iter().all(|(_, state)| *state == StepState::Done),
+        "{rest:?}"
+    );
+    // The fake gateway holds no revision: the device stays adopted with the staging config.
+    assert_eq!(configure, (StepName::Configure, StepState::Failed));
+    let detail = job.steps.last().and_then(|step| step.detail.as_deref());
+    assert!(
+        detail.is_some_and(|d| d.starts_with("The gateway holds no revision to apply. ")),
+        "{detail:?}"
     );
     assert_eq!(
         tool_verbs(&device),

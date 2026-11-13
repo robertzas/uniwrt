@@ -7,11 +7,14 @@
 //! deadline a tenth of its timer before the transaction's own, so a device that rolls back is never
 //! on the LAN; the job finds the device's lease by MAC in the gateway's leases, logs in there,
 //! confirms, keeps the lend and records the node at that address. Any failure after the lend
-//! gives the port back to the segment, and the device's timer rolls it back.
+//! gives the port back to the segment, and the device's timer rolls it back. Last, on the LAN,
+//! an apply job of its own gives the node the revision the gateway holds ([`apply::adopted`]);
+//! the device stays adopted whatever its outcome (the Configure step says so).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::IpAddr,
+    sync::Arc,
 };
 
 use serde::de::DeserializeOwned;
@@ -35,6 +38,7 @@ use uniwrt_store::{NodeRepo as _, RevisionRepo as _};
 use super::AdoptRequest;
 use crate::{
     Dial, Remote,
+    apply::{self, Configured},
     errors::{chain, internal, node_error, txn_error},
     manage,
     progress::Progress,
@@ -42,7 +46,7 @@ use crate::{
 };
 
 /// The port path's steps, in order.
-pub(crate) const STEPS: [StepName; 15] = [
+pub(crate) const STEPS: [StepName; 16] = [
     StepName::Connect,
     StepName::Check,
     StepName::InstallKey,
@@ -58,6 +62,7 @@ pub(crate) const STEPS: [StepName; 15] = [
     StepName::Confirm,
     StepName::Record,
     StepName::Watch,
+    StepName::Configure,
 ];
 
 /// Where the device was found: the gateway whose adoption port it is plugged into.
@@ -82,7 +87,7 @@ struct Site {
 }
 
 pub(super) async fn adopt(
-    shared: &Shared,
+    shared: &Arc<Shared>,
     request: &AdoptRequest,
     path: &PortPath,
     progress: &mut Progress,
@@ -139,7 +144,7 @@ async fn site(shared: &Shared, path: &PortPath) -> Result<Site, JobError> {
 }
 
 async fn through(
-    shared: &Shared,
+    shared: &Arc<Shared>,
     request: &AdoptRequest,
     site: &Site,
     gateway: &mut Gateway<'_>,
@@ -222,8 +227,39 @@ async fn through(
     };
     let facts = found.facts.clone();
     let node = super::record(shared, request, found, host.to_string(), true, progress).await?;
-    super::watch(shared, request, node, facts, progress).await;
+    super::watch(shared, request, node.clone(), facts, progress).await;
+    configure(shared, site.gateway.id, node, progress).await;
     Ok(())
+}
+
+/// On the LAN, the node's own render from the revision the gateway holds (step 5). The device is
+/// adopted whatever its outcome: a failure leaves it managed with the staging config.
+async fn configure(shared: &Arc<Shared>, gateway: NodeId, node: Node, progress: &mut Progress) {
+    progress.start(StepName::Configure).await;
+    let keeps = "The node keeps the staging config (Wi-Fi off): apply the site from Review before \
+                 unplugging it";
+    match apply::adopted(shared, gateway, node, progress.created_by()).await {
+        Ok(Configured {
+            job,
+            revision,
+            result: Ok(()),
+        }) => {
+            let detail = format!("Applied revision {revision} in job {job}");
+            progress.done(Some(detail)).await;
+        }
+        Ok(Configured {
+            job,
+            revision,
+            result: Err(err),
+        }) => {
+            let detail = format!(
+                "Applying revision {revision} failed in job {job}: {}. {keeps}",
+                err.message
+            );
+            progress.fail(detail).await;
+        }
+        Err(why) => progress.fail(format!("{why}. {keeps}")).await,
+    }
 }
 
 /// Installs the transaction tool, then stages and checks the staging config.

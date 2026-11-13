@@ -209,6 +209,9 @@ pub enum StepName {
     Upload,
     /// Lend the gateway's adoption port to the LAN and find the device's lease there (D-107).
     Lease,
+    /// Apply the revision the gateway holds to the new node on the LAN, as an apply job of its
+    /// own: its packages, mesh and WLANs (D-107).
+    Configure,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

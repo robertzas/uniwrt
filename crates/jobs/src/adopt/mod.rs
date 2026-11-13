@@ -114,7 +114,7 @@ struct Found {
 }
 
 async fn adopt(
-    shared: &Shared,
+    shared: &Arc<Shared>,
     request: &AdoptRequest,
     progress: &mut Progress,
 ) -> Result<(), JobError> {

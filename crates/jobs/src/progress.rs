@@ -57,6 +57,10 @@ impl Progress {
         self.job.id
     }
 
+    pub(crate) fn created_by(&self) -> Option<uniwrt_core::UserId> {
+        self.job.created_by
+    }
+
     /// Moves a node of a job on several to `state`, with what happened.
     pub(crate) async fn node(
         &mut self,

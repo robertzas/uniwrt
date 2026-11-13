@@ -83,7 +83,8 @@ pub(crate) struct Shared {
 /// The jobs running now and the targets they hold.
 #[derive(Default)]
 struct Running {
-    tasks: BTreeMap<JobId, (Vec<String>, AbortHandle)>,
+    /// Each job's targets, and its task unless it runs in another job's (a child, [`Shared::claim`]).
+    tasks: BTreeMap<JobId, (Vec<String>, Option<AbortHandle>)>,
     targets: BTreeSet<String>,
 }
 
@@ -105,6 +106,43 @@ impl Shared {
 
     fn running(&self) -> MutexGuard<'_, Running> {
         self.running.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Records a job that runs inside the calling job's task (an apply an adoption starts,
+    /// D-107), holding `keys` meanwhile; they are released when it finishes or the guard drops.
+    pub(crate) async fn claim(
+        self: &Arc<Self>,
+        keys: Vec<String>,
+        new: NewJob,
+    ) -> Result<(Progress, Release)> {
+        let job = self.create(&keys, new).await?;
+        self.running().tasks.insert(job.id, (keys, None));
+        let release = Release(Arc::clone(self), job.id);
+        Ok((Progress::new(job, Arc::clone(self)), release))
+    }
+
+    /// Holds `keys` and records the job, or fails busy when another job holds one.
+    async fn create(&self, keys: &[String], new: NewJob) -> Result<Job> {
+        {
+            let mut running = self.running();
+            if keys.iter().any(|key| running.targets.contains(key)) {
+                return Err(Error::Busy { target: new.target });
+            }
+            running.targets.extend(keys.iter().cloned());
+        }
+        let job = match self.store.create_job(new).await {
+            Ok(job) => job,
+            Err(err) => {
+                let mut running = self.running();
+                for key in keys {
+                    running.targets.remove(key);
+                }
+                return Err(err.into());
+            }
+        };
+        info!(job_id = %job.id, kind = ?job.kind, target = %job.target, "starting a job");
+        self.announce(&job);
+        Ok(job)
     }
 
     /// Whether a job holds `target`.
@@ -378,25 +416,7 @@ impl Jobs {
         F: FnOnce(Arc<Shared>, Progress) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        {
-            let mut running = self.shared.running();
-            if keys.iter().any(|key| running.targets.contains(key)) {
-                return Err(Error::Busy { target: new.target });
-            }
-            running.targets.extend(keys.iter().cloned());
-        }
-        let job = match self.shared.store.create_job(new).await {
-            Ok(job) => job,
-            Err(err) => {
-                let mut running = self.shared.running();
-                for key in &keys {
-                    running.targets.remove(key);
-                }
-                return Err(err.into());
-            }
-        };
-        info!(job_id = %job.id, kind = ?job.kind, target = %job.target, "starting a job");
-        self.shared.announce(&job);
+        let job = self.shared.create(&keys, new).await?;
         let progress = Progress::new(job.clone(), Arc::clone(&self.shared));
         let work = run(Arc::clone(&self.shared), progress);
         let span = info_span!("job", job_id = %job.id);
@@ -410,7 +430,9 @@ impl Jobs {
             }
             .instrument(span),
         );
-        running.tasks.insert(job.id, (keys, task.abort_handle()));
+        running
+            .tasks
+            .insert(job.id, (keys, Some(task.abort_handle())));
         Ok(job)
     }
 
@@ -454,7 +476,7 @@ impl Jobs {
     /// Stops the running jobs and records them as interrupted.
     pub async fn shutdown(&self) {
         let tasks = std::mem::take(&mut self.shared.running().tasks);
-        for (_, task) in tasks.values() {
+        for task in tasks.values().filter_map(|(_, task)| task.as_ref()) {
             task.abort();
         }
         if !tasks.is_empty()
@@ -466,7 +488,7 @@ impl Jobs {
 }
 
 /// Releases a job's target when its task ends, even by a panic.
-struct Release(Arc<Shared>, JobId);
+pub(crate) struct Release(Arc<Shared>, JobId);
 
 impl Drop for Release {
     fn drop(&mut self) {

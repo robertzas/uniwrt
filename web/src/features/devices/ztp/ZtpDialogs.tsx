@@ -49,12 +49,19 @@ export function RolePicker<T extends string>(props: {
   );
 }
 
+/** The roles a device on the adoption port may take (the API refuses others, D-107). */
+const portRoleOptions = roleOptions.filter(
+  (option) => option.value === "ap" || option.value === "bridge",
+);
+
 /** The name and role fields both dialogs share. */
 function NameAndRole(props: {
   name: string;
   onName: (name: string) => void;
   role: RoleChoice;
   onRole: (role: RoleChoice) => void;
+  /** A device on the adoption port: an access point or a bridge. */
+  port?: boolean;
 }) {
   return (
     <>
@@ -70,11 +77,14 @@ function NameAndRole(props: {
         <RolePicker
           label={f.role}
           value={props.role}
-          options={roleOptions}
+          options={props.port ? portRoleOptions : roleOptions}
           onChange={props.onRole}
         />
         <Show when={props.role === "image"}>
           <p class="mt-1.5 text-fg-subtle text-xs">{f.roleImageHint}</p>
+        </Show>
+        <Show when={props.port}>
+          <p class="mt-1.5 text-fg-subtle text-xs">{t.port.roleHint}</p>
         </Show>
       </div>
     </>
@@ -95,13 +105,16 @@ export function ZtpAdoptDialog(props: {
 }) {
   const [name, setName] = createSignal("");
   const [role, setRole] = createSignal<RoleChoice>("image");
+  const [password, setPassword] = createSignal("");
   const [error, setError] = createSignal<string>();
   const [pending, setPending] = createSignal(false);
+  const port = () => props.device?.source.kind === "port";
   createEffect(
     () => props.device?.mac,
     () => {
       setName("");
-      setRole("image");
+      setRole(port() ? "ap" : "image");
+      setPassword("");
       setError(undefined);
     },
   );
@@ -114,6 +127,7 @@ export function ZtpAdoptDialog(props: {
         await api.ztp.adopt(device.mac, {
           ...(trimmed && { name: trimmed }),
           ...(chosenRole(role()) && { role: chosenRole(role()) }),
+          ...(device.locked && { password: password() }),
         }),
       );
     } catch (err) {
@@ -130,7 +144,7 @@ export function ZtpAdoptDialog(props: {
         if (!open) props.onClose();
       }}
       title={t.confirm.title(props.device?.hostname || props.device?.mac || "")}
-      description={t.confirm.description}
+      description={port() ? t.port.adoptHint : t.confirm.description}
     >
       <Show when={props.device}>
         {(device) => (
@@ -160,10 +174,32 @@ export function ZtpAdoptDialog(props: {
                 {t.confirm.details(device().model, device().release)}
               </p>
             </div>
-            <NameAndRole name={name()} onName={setName} role={role()} onRole={setRole} />
+            <NameAndRole
+              name={name()}
+              onName={setName}
+              role={role()}
+              onRole={setRole}
+              port={port()}
+            />
+            <Show when={device().locked}>
+              <TextField
+                label={t.port.password}
+                name="password"
+                type="password"
+                value={password()}
+                onInput={setPassword}
+                hint={t.port.passwordHint}
+                autocomplete="off"
+                required
+              />
+            </Show>
             <Footer>
               <Button onClick={() => props.onClose()}>{f.cancel}</Button>
-              <Button type="submit" variant="primary" disabled={pending()}>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={pending() || (device().locked && password() === "")}
+              >
                 {pending() ? t.confirm.starting : t.confirm.submit}
               </Button>
             </Footer>

@@ -2,18 +2,19 @@
 //! the gateway's adoption port, through the gateway's login (the dial's tunnel reaches it
 //! only while the test says it is behind the gateway), stages it with the real transaction
 //! tool, has the gateway lend the port to the LAN, finds its lease in the gateway's leases,
-//! confirms there and records it managed at that address. `fac` is put back as it shipped.
+//! confirms there and records it managed at that address; an apply job of its own then gives it
+//! the revision the gateway holds, at the same address. `fac` is put back as it shipped.
 
 use std::collections::BTreeMap;
 
 use uniwrt_jobs::{AdoptRequest, PortPath};
 use uniwrt_model::{
-    job::JobState,
+    job::{JobState, StepName, StepState},
     node::{NodeMode, NodeRole},
     site::adoption::AdoptionPort,
 };
 use uniwrt_node::{Target, adoption_port, txn};
-use uniwrt_store::NodeRepo as _;
+use uniwrt_store::{ApplyRepo as _, NodeRepo as _};
 use uniwrt_system::{Node, ipv4, site::GATEWAY};
 
 use super::{FAC, GW, UP, lab_with};
@@ -29,7 +30,7 @@ impl Drop for Restore {
     fn drop(&mut self) {
         self.gw.exec(&adoption_port::end_lend("eth2"));
         self.fac.exec(&txn::uninstall().request);
-        let on = BTreeMap::from([("dnsmasq", true), ("odhcpd", true)]);
+        let on = BTreeMap::from([("dnsmasq", true), ("odhcpd", true), ("firewall", true)]);
         self.fac.write_packages(&self.factory, &on);
         // `reload_config` alone left it at its lease after a confirmed staging (seen on 25.12).
         self.fac.run("ubus call network reload", &[], &[]);
@@ -87,9 +88,19 @@ async fn a_factory_device_on_the_adoption_port_is_adopted_through_the_gateway() 
         .expect("the node");
     assert!(node.host.starts_with("10.0.0."), "{}", node.host);
     assert_eq!((node.role, node.mode), (NodeRole::Ap, NodeMode::Managed));
+    let configure = job.steps.last().expect("steps");
+    assert_eq!(
+        (configure.name, configure.state),
+        (StepName::Configure, StepState::Done),
+        "{job:#?}"
+    );
+    let held = lab.store.applied_revisions().await.expect("the store");
+    let holds = |id| held.iter().find(|a| a.node == id).map(|a| a.revision);
+    assert_eq!(holds(node.id), Some(revision));
+    assert_eq!(holds(GATEWAY), Some(revision));
 
     tokio::task::block_in_place(|| {
-        // At its lease, with the staging config confirmed and the port still lent.
+        // At its lease, with its own configuration confirmed and the port still lent.
         let at = format!("{}/", node.host);
         fac.wait_interface("lan", UP, |s| ipv4(s).iter().any(|a| a.starts_with(&at)));
         let status = fac.sh(&format!("{} status", txn::TOOL), &[]);

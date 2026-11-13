@@ -14,6 +14,7 @@ import { Card, CardHeader } from "../../../ui/Card";
 import { Icon } from "../../../ui/Icon";
 import { JobErrorNote, RequestError } from "../../../ui/JobOutcome";
 import { currentStep, jobProgress } from "../../../ui/JobSteps";
+import { type BenchDevice, BenchJobs, onBench } from "./BenchJobs";
 import { SetupDialog } from "./SetupDialog";
 import { ApproveDialog, ZtpAdoptDialog } from "./ZtpDialogs";
 
@@ -74,7 +75,10 @@ export function ZtpCard(props: { jobs: JobsState; addJob: (job: Job) => void }) 
   const [approving, setApproving] = createSignal(false);
   const [settingUp, setSettingUp] = createSignal(false);
   const [actionError, setActionError] = createSignal<string>();
-  const pending = () => inbox()?.pending ?? [];
+  const [bench, setBench] = createSignal<readonly BenchDevice[]>([]);
+  // A port adoption's row gives way to its steps below while it runs.
+  const pending = () =>
+    (inbox()?.pending ?? []).filter((device) => !onBench(bench(), props.jobs, device.job));
   const approvals = () => inbox()?.approvals ?? [];
   const act = async (action: () => Promise<unknown>) => {
     setActionError(undefined);
@@ -127,6 +131,11 @@ export function ZtpCard(props: { jobs: JobsState; addJob: (job: Job) => void }) 
           </For>
         </ul>
       </Show>
+      <BenchJobs
+        devices={bench()}
+        jobs={props.jobs}
+        onClose={(job) => setBench((devices) => devices.filter((device) => device.job !== job))}
+      />
       <Show when={approvals().length > 0}>
         <section class="border-edge border-t px-4 py-3" aria-label={t.approvals.title}>
           <h3 class="font-medium text-sm">{t.approvals.title}</h3>
@@ -149,6 +158,14 @@ export function ZtpCard(props: { jobs: JobsState; addJob: (job: Job) => void }) 
         onClose={() => setAdopting(undefined)}
         onStarted={(job) => {
           props.addJob(job);
+          const device = adopting();
+          if (device?.source.kind === "port") {
+            const name = device.hostname || device.model || device.mac;
+            setBench((devices) => [
+              ...devices.filter((entry) => entry.job !== job.id),
+              { job: job.id, name },
+            ]);
+          }
           setAdopting(undefined);
           void refresh();
         }}
@@ -182,12 +199,7 @@ function Row(props: {
   const port = () => (props.device.source.kind === "port" ? props.device.source.port : undefined);
   const dismissHint = () => (port() === undefined ? t.dismissHint : t.port.dismissHint);
   const adopt = () => (
-    <Button
-      size="sm"
-      onClick={props.onAdopt}
-      disabled={port() !== undefined}
-      title={port() === undefined ? undefined : t.port.soon}
-    >
+    <Button size="sm" onClick={props.onAdopt}>
       {job()?.state === "failed" ? t.retry : t.adopt}
     </Button>
   );

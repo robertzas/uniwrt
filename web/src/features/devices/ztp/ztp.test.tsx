@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ImageBuild } from "../../../api/gen/ImageBuild";
+import type { Job } from "../../../api/gen/Job";
 import type { PendingDevice } from "../../../api/gen/PendingDevice";
 import type { ZtpInbox } from "../../../api/gen/ZtpInbox";
 import type { ZtpOneLiner } from "../../../api/gen/ZtpOneLiner";
@@ -44,6 +45,60 @@ const oneLiner: ZtpOneLiner = {
   device: null,
   created_by: "admin",
 };
+
+const factory: PendingDevice = {
+  ...device,
+  mac: "94:83:c4:00:00:09",
+  hostname: "OpenWrt",
+  role: null,
+  address: "192.168.1.1",
+  source: { kind: "port", gateway: 1, port: "lan4" },
+};
+const locked: PendingDevice = {
+  ...factory,
+  mac: "02:42:ac:11:00:03",
+  board_name: "",
+  model: "",
+  hostname: "",
+  release: "",
+  locked: true,
+};
+const portSteps = [
+  "connect",
+  "check",
+  "install_key",
+  "verify_key",
+  "set_password",
+  "inventory",
+  "backup",
+  "install_tool",
+  "stage",
+  "apply",
+  "lease",
+  "verify",
+  "confirm",
+  "record",
+  "watch",
+  "configure",
+] as const;
+
+/** Job 12, a port adoption with `done` steps done; `failed`, the Configure step's failure. */
+function portJob(done: number, state: Job["state"], failed?: string): Job {
+  const job = adoptJob(12, "192.168.1.1", done, "running", { state });
+  return {
+    ...job,
+    steps: portSteps.map((name, i) => {
+      const configureFailed = name === "configure" && failed !== undefined;
+      return {
+        name,
+        state: configureFailed ? "failed" : i < done ? "done" : i === done ? "running" : "pending",
+        detail: configureFailed ? failed : null,
+        started_at: i <= done ? 1 : null,
+        finished_at: i < done ? 2 : null,
+      };
+    }),
+  };
+}
 
 type Route = (body: unknown) => unknown;
 
@@ -130,42 +185,88 @@ describe("Waiting for adoption", () => {
     expect(within(card).getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
-  it("shows devices on the adoption port, locked or not, without adopting them yet", async () => {
-    const port = { kind: "port", gateway: 1, port: "lan4" } as const;
-    const factory: PendingDevice = {
-      ...device,
-      mac: "94:83:c4:00:00:09",
-      hostname: "OpenWrt",
-      role: null,
-      address: "192.168.1.1",
-      source: port,
-    };
-    const locked: PendingDevice = {
-      ...factory,
-      mac: "02:42:ac:11:00:03",
-      board_name: "",
-      model: "",
-      hostname: "",
-      release: "",
-      locked: true,
-    };
-    stubApi({ "GET /api/v1/ztp/pending": () => ({ pending: [factory, locked], approvals: [] }) });
-    renderDevices();
+  it("adopts a locked device on the adoption port and follows it until it can be placed", async () => {
+    const user = userEvent.setup();
+    let inbox: ZtpInbox = { pending: [factory, locked], approvals: [] };
+    const calls = stubApi({
+      "GET /api/v1/ztp/pending": () => inbox,
+      "POST /api/v1/ztp/pending/02%3A42%3Aac%3A11%3A00%3A03/adopt": () => {
+        inbox = { pending: [factory, { ...locked, job: 12 }], approvals: [] };
+        return portJob(1, "running");
+      },
+    });
+    const ws = renderDevices();
     const card = await screen.findByRole("region", { name: "Waiting for adoption" });
     const open = (await within(card).findByText("OpenWrt")).closest("li") as HTMLElement;
     expect(open).toHaveTextContent("On the adoption port (lan4) · Last seen");
     expect(open).not.toHaveTextContent("Root password set");
-    const adopt = within(open).getByRole("button", { name: "Adopt" });
-    expect(adopt).toBeDisabled();
-    expect(adopt).toHaveAttribute("title", "Adopting from the adoption port isn't available yet.");
     expect(within(open).getByRole("button", { name: "Dismiss" })).toHaveAttribute(
       "title",
       "It shows up again when it's plugged in again.",
     );
     const shut = within(card).getByText("Unnamed device").closest("li") as HTMLElement;
-    expect(shut).toHaveTextContent("02:42:ac:11:00:03");
     expect(shut).toHaveTextContent("Root password set");
-    expect(within(shut).getByRole("button", { name: "Adopt" })).toBeDisabled();
+
+    await user.click(within(shut).getByRole("button", { name: "Adopt" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Keep it plugged in until it says to unplug it.");
+    expect(within(dialog).queryByRole("button", { name: "Gateway" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Access point" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const submit = within(dialog).getByRole("button", { name: "It matches, adopt" });
+    expect(submit).toBeDisabled();
+    await user.type(within(dialog).getByLabelText(/Root password/), "hunter2");
+    await user.click(submit);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toEqual([
+      [
+        "POST /api/v1/ztp/pending/02%3A42%3Aac%3A11%3A00%3A03/adopt",
+        { role: "ap", password: "hunter2" },
+      ],
+    ]);
+
+    // Its row gives way to its steps, which go on once the inbox drops it.
+    const bench = await within(card).findByRole("region", { name: "On the adoption port" });
+    expect(bench).toHaveTextContent("Adopting 02:42:ac:11:00:03");
+    expect(within(bench).getByText("Set it up on the LAN")).toBeInTheDocument();
+    await waitFor(() => expect(within(card).queryByText("Unnamed device")).not.toBeInTheDocument());
+    inbox = { pending: [factory], approvals: [] };
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(16, "succeeded")] });
+    expect(
+      await within(bench).findByText(
+        /02:42:ac:11:00:03 is adopted and set up. Unplug it and place it/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(bench).getByRole("button", { name: "Close" }));
+    expect(within(card).queryByRole("region", { name: "On the adoption port" })).toBeNull();
+  });
+
+  it("says when a port adoption's configuration wasn't applied", async () => {
+    const user = userEvent.setup();
+    let inbox: ZtpInbox = { pending: [factory], approvals: [] };
+    stubApi({
+      "GET /api/v1/ztp/pending": () => inbox,
+      "POST /api/v1/ztp/pending/94%3A83%3Ac4%3A00%3A00%3A09/adopt": () => {
+        inbox = { pending: [], approvals: [] };
+        return portJob(14, "running");
+      },
+    });
+    const ws = renderDevices();
+    const card = await screen.findByRole("region", { name: "Waiting for adoption" });
+    await within(card).findByText("OpenWrt");
+    await user.click(within(card).getByRole("button", { name: "Adopt" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByLabelText(/Root password/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "It matches, adopt" }));
+    const failed = "Another apply is running. The node keeps the staging config";
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [portJob(16, "succeeded", failed)] });
+    const bench = await within(card).findByRole("region", { name: "On the adoption port" });
+    expect(await within(bench).findByRole("alert")).toHaveTextContent(
+      "OpenWrt is adopted, but its configuration wasn't applied.",
+    );
+    expect(bench).toHaveTextContent(failed);
   });
 
   it("dismisses, pre-approves by MAC and withdraws", async () => {
