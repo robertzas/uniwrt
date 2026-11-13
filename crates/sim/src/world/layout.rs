@@ -25,7 +25,7 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
     let mut rng = Rng::new(config.seed);
     let base = 100.max(config.access_points + 2);
     let wide = base + config.clients > 254;
-    let nodes: Vec<_> = (0..=config.access_points)
+    let mut nodes: Vec<_> = (0..=config.access_points)
         .map(|index| node(&mut rng, index, config, epoch_ms, wide))
         .collect();
     let cables: Vec<_> = (config.access_points >= 2)
@@ -42,9 +42,22 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
             .unwrap_or(0);
         let nth = dealt[kind];
         dealt[kind] += 1;
-        let ip = lan_ip(base + index, wide);
+        let ip = lan_ip(base + index, wide, config.factory);
         clients.push(client(&mut rng, &nodes, &cables, spec, nth, ip, epoch_ms));
     }
+    let bench = config.bench.then(|| {
+        let node = nodes.len();
+        nodes.push(bench(config, node, epoch_ms, wide));
+        for client in &mut clients {
+            client.fading.push([0.0; 2]);
+        }
+        super::Bench {
+            node,
+            lent: None,
+            dhcp: false,
+            leased: false,
+        }
+    });
     let reboot_mean = config.reboot_every.map(|every| every.as_secs_f64());
     let next_reboot = reboot_mean.map_or(u64::MAX, |mean| {
         super::WARMUP_S + 120 + rng.exp(mean) as u64
@@ -60,17 +73,39 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
         reboot_mean,
         next_reboot,
         pending: Vec::new(),
+        bench,
     };
     world.settle();
     world
 }
 
-/// A host of the LAN: 192.168.1.0/24 while the fleet fits, else 192.168.0.0/16.
-pub(crate) fn lan_ip(host: usize, wide: bool) -> Ipv4Addr {
+/// A factory-default OpenWrt's LAN address.
+pub(crate) const FACTORY_LAN: Ipv4Addr = Ipv4Addr::new(192, 168, 1, 1);
+
+/// The bench device ([`super::bench`]), node `index`: a factory-default access point on the
+/// bench beside the gateway, drawn from a generator of its own, plugged in once the world runs.
+fn bench(config: &SimConfig, index: usize, epoch_ms: i64, wide: bool) -> Node {
+    let mut rng = Rng::new(config.seed ^ 0x0062_656e_6368);
+    let mut node = node(&mut rng, index, config, epoch_ms, wide);
+    "OpenWrt".clone_into(&mut node.name);
+    node.release = &RELEASES[0];
+    node.ip = FACTORY_LAN;
+    node.pos = (NODE_PLACES[0].1.0 + 0.5, NODE_PLACES[0].1.1 + 0.5);
+    node.wired = false;
+    node.bench = true;
+    node.down_until = Some(super::WARMUP_S + super::bench::PLUG_S);
+    node
+}
+
+/// A host of the LAN: 10.0.0.0/24 while the fleet fits, else 10.0.0.0/16, the subnets of the
+/// site's defaults, which leave 192.168.1.0/24 to factory-default devices and the adoption
+/// port (D-108). A factory-default gateway's LAN is OpenWrt's own, 192.168.1.0/24.
+pub(crate) fn lan_ip(host: usize, wide: bool, factory: bool) -> Ipv4Addr {
+    let (a, b) = if factory { (192, 168) } else { (10, 0) };
     if wide {
-        Ipv4Addr::new(192, 168, (host / 256) as u8, (host % 256) as u8)
+        Ipv4Addr::new(a, b, (host / 256) as u8, (host % 256) as u8)
     } else {
-        Ipv4Addr::new(192, 168, 1, host as u8)
+        Ipv4Addr::new(a, b, u8::from(factory), host as u8)
     }
 }
 
@@ -141,7 +176,7 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
         model,
         release,
         mac,
-        ip: lan_ip(1 + index, wide),
+        ip: lan_ip(1 + index, wide, config.factory),
         pos,
         wired: index <= 1 && config.access_points > 0,
         radios: [
@@ -160,6 +195,7 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
         banned: BTreeMap::new(),
         steers: false,
         wiring: Wiring::default(),
+        bench: false,
     }
 }
 

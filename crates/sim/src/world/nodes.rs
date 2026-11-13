@@ -2,6 +2,8 @@
 //! to the others), drifting load, memory and temperature, the radios' noise and air time, and
 //! the routine lines of their logs.
 
+use std::net::Ipv4Addr;
+
 use super::{
     Counters, Happening, Logd, What, World, catalog::ROUTINE_LOGS, clients::LEASE_MS, drift,
     radio::Band,
@@ -27,7 +29,7 @@ impl World {
         {
             self.next_reboot = now + self.rng.exp(mean).max(300.0) as u64;
             let up: Vec<_> = (1..self.nodes.len())
-                .filter(|&node| self.nodes[node].up())
+                .filter(|&node| self.nodes[node].on_air())
                 .collect();
             if !up.is_empty() {
                 let node = up[self.rng.below(up.len() as u64) as usize];
@@ -48,7 +50,7 @@ impl World {
             at.memory_used = drift(rng, at.memory_used, memory, 0.01, 0.002).clamp(0.1, 0.9);
             let temp = if at.gateway { 54.0 } else { 47.0 } + at.cpu * 0.2;
             at.temp = drift(rng, at.temp, temp, 0.02, 0.15);
-            if self.lease_due(node) {
+            if self.lease_due(node) && !self.is_bench(node) {
                 self.node_lease(node, out);
             }
             if self.rng.chance(1.0 / 400.0) {
@@ -82,7 +84,7 @@ impl World {
     /// Takes access point `node` down for a reboot; `false` for the gateway or a node that is
     /// already down.
     pub(crate) fn reboot(&mut self, node: usize, out: &mut Vec<Happening>) -> bool {
-        if node == 0 || node >= self.nodes.len() || !self.nodes[node].up() {
+        if node == 0 || node >= self.nodes.len() || !self.nodes[node].on_air() {
             return false;
         }
         self.nodes[node].down_until = Some(self.now_s + REBOOT_S);
@@ -112,6 +114,7 @@ impl World {
         let now = self.now_ms();
         let booted = now - BOOT_MS;
         let ip = self.nodes[node].ip;
+        let gateway = self.nodes[0].ip;
         let at = &mut self.nodes[node];
         at.down_until = None;
         at.booted_ms = booted;
@@ -137,28 +140,33 @@ impl World {
                 format!("kernel: Linux version {kernel} (builder@buildhost) #0 SMP"),
             ),
             (30, "procd: - init -".to_owned()),
-            (
+        ];
+        if !at.bench {
+            lines.push((
                 6,
                 "kernel: batman_adv: bat0: Adding interface: phy1-mesh0".to_owned(),
-            ),
-        ];
+            ));
+        }
         if at.wired {
             lines.push((
                 6,
                 format!("kernel: batman_adv: bat0: Adding interface: {wan}"),
             ));
         }
-        lines.extend([
-            (29, "netifd: Interface 'lan' is now up".to_owned()),
-            (29, "hostapd: phy0-ap0: interface state COUNTRY_UPDATE->ENABLED".to_owned()),
-            (29, "hostapd: phy1-ap0: interface state COUNTRY_UPDATE->ENABLED".to_owned()),
-            (
-                30,
-                format!(
-                    "netifd: lan (1611): udhcpc: lease of {ip} obtained from 192.168.1.1, lease time 43200"
+        lines.push((29, "netifd: Interface 'lan' is now up".to_owned()));
+        // A factory-default device has its radios off and a static LAN.
+        if !at.bench {
+            lines.extend([
+                (29, "hostapd: phy0-ap0: interface state COUNTRY_UPDATE->ENABLED".to_owned()),
+                (29, "hostapd: phy1-ap0: interface state COUNTRY_UPDATE->ENABLED".to_owned()),
+                (
+                    30,
+                    format!(
+                        "netifd: lan (1611): udhcpc: lease of {ip} obtained from {gateway}, lease time 43200"
+                    ),
                 ),
-            ),
-        ]);
+            ]);
+        }
         let count = lines.len() as i64;
         for (i, (priority, line)) in lines.into_iter().enumerate() {
             at.logd
@@ -169,15 +177,19 @@ impl World {
             at: self.now(),
             what: What::Up,
         });
-        self.node_lease(node, out);
+        if self.is_bench(node) {
+            self.plugged(out);
+        } else {
+            self.node_lease(node, out);
+        }
     }
 
-    fn lease_due(&self, node: usize) -> bool {
+    pub(super) fn lease_due(&self, node: usize) -> bool {
         node != 0 && self.now_ms() - self.nodes[node].lease_ms > LEASE_MS / 2
     }
 
     /// The gateway acks access point `node`'s own lease.
-    fn node_lease(&mut self, node: usize, out: &mut Vec<Happening>) {
+    pub(super) fn node_lease(&mut self, node: usize, out: &mut Vec<Happening>) {
         let at = self.now_ms();
         let (mac, ip, name) = {
             let node = &mut self.nodes[node];
@@ -208,7 +220,12 @@ impl World {
             .filter(|(for_gateway, _, _)| *for_gateway == gateway)
             .collect();
         let (_, priority, line) = lines[self.rng.below(lines.len() as u64) as usize];
-        let line = line.replace("192.168.1.%ip", &self.nodes[node].ip.to_string());
+        let gateway = self.nodes[0].ip;
+        let client = Ipv4Addr::from(u32::from(gateway) + 119);
+        let line = line
+            .replace("%ip", &self.nodes[node].ip.to_string())
+            .replace("%gw", &gateway.to_string())
+            .replace("%client", &client.to_string());
         let at = self.now_ms() + self.rng.below(1000) as i64;
         self.log(node, at, *priority, line);
     }

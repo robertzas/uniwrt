@@ -209,7 +209,8 @@ async fn start_api(
         api.create_admin(DEMO_USER, DEMO_PASSWORD).await?;
         info!(
             "demo mode: log in as {DEMO_USER}, password {DEMO_PASSWORD}; the last access point \
-             waits to be adopted, with root password {}",
+             waits to be adopted, with root password {}, and a factory-default one is plugged \
+             into the gateway's adoption port (lan4) a little after the start",
             crate::demo::ROOT_PASSWORD
         );
     } else if api.awaiting_setup() {
@@ -232,6 +233,8 @@ async fn start_fleet(
         } else {
             SimConfig {
                 seed: args.demo_seed,
+                // A factory-default access point on the gateway's adoption port.
+                bench: true,
                 ..SimConfig::default()
             }
         };

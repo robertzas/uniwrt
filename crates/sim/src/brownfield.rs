@@ -36,9 +36,10 @@ pub fn brownfield(config: &SimConfig, start: Timestamp) -> Vec<Brownfield> {
     of(&World::new(config, start))
 }
 
-/// The nodes of `world` as found, the gateway first.
+/// The nodes of `world` as found, the gateway first; the bench device is no part of it.
 pub(crate) fn of(world: &World) -> Vec<Brownfield> {
     (0..world.nodes.len())
+        .filter(|&n| !world.is_bench(n))
         .map(|n| {
             let files = config::files(world, n);
             let collected: Collected = serde_json::from_value(collect(

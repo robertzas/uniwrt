@@ -51,7 +51,9 @@ impl World {
     /// demo always has a roam to show, and its tests one to wait for.
     pub(super) fn opening_walk(&mut self) {
         let now = self.now_s;
-        let last = self.nodes.len().saturating_sub(1);
+        let last = (0..self.nodes.len())
+            .rfind(|&n| !self.nodes[n].bench)
+            .unwrap_or(0);
         let walker = self.clients.iter().enumerate().find_map(|(c, client)| {
             let walks = client.home() && client.port.is_none() && client.spec.moves.is_some();
             let node = client.assoc.as_ref()?.node;
@@ -62,7 +64,7 @@ impl World {
         };
         let origin = self.nodes[from].pos;
         let far = (0..last)
-            .filter(|&n| n != from && self.nodes[n].up())
+            .filter(|&n| n != from && self.nodes[n].on_air())
             .max_by(|&a, &b| {
                 super::distance(origin, self.nodes[a].pos)
                     .total_cmp(&super::distance(origin, self.nodes[b].pos))
@@ -153,7 +155,7 @@ impl World {
     /// The same among the nodes `pick` allows.
     fn best_of(&self, c: usize, pick: impl Fn(usize) -> bool) -> Option<(usize, Band, f64)> {
         let mut best: Option<(usize, Band, f64)> = None;
-        for node in (0..self.nodes.len()).filter(|&node| self.nodes[node].up() && pick(node)) {
+        for node in (0..self.nodes.len()).filter(|&node| self.nodes[node].on_air() && pick(node)) {
             for band in Band::BOTH {
                 if band == Band::G5 && !self.clients[c].spec.five_ghz {
                     continue;

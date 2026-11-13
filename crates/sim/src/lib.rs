@@ -41,6 +41,14 @@
 //!   ports bounce (the tool's `bounce`, or a rollback's) every host asks for a lease again, so
 //!   the nodes, the clients and the controller's own login move to the subnet of `lan`'s first
 //!   address (`World::renumber`, D-081). The access point's SSID is the one `wireless` names.
+//! - **The bench** ([`SimConfig::bench`], `world/bench.rs`): a factory-default access point
+//!   plugged into the gateway's adoption port (`lan4`, which the gateway's `network` holds as
+//!   the segment `br-adopt`/`uw_adopt`) 20 s after the world starts; the gateway reports the
+//!   port's `link_up`. It answers at 192.168.1.1 only on the segment
+//!   ([`SimLink::segment_hosts`], which a login to the gateway tunnels to), root without a
+//!   password. The gateway runs the lend script (`ubus` reads the segment's status), and a
+//!   device whose LAN asks for a lease takes one from the gateway while the port is lent
+//!   ([`SimLink::hosts`]). It never goes on the air: no clients, no mesh, no scans.
 //! - **Invariants:** the world is a pure function of the seed and the number of steps, with
 //!   timestamps counted from the clock's now at spawn; it reads no clock, uses no randomness
 //!   but its seeded generator, and iterates in a fixed order. Addresses are documentation or
@@ -94,6 +102,10 @@ pub struct SimConfig {
     /// root without a password, the stock `/etc/config` with an untagged DHCP WAN and its
     /// radios off, named `OpenWrt`.
     pub factory: bool,
+    /// A factory-default access point on the gateway's adoption port (features/adoption.md,
+    /// Path C; `world/bench.rs`): the gateway holds `lan4` as the port's segment, and the
+    /// device is plugged in a little after the world starts.
+    pub bench: bool,
 }
 
 impl SimConfig {
@@ -108,6 +120,7 @@ impl SimConfig {
             clients: 12,
             reboot_every: None,
             factory: true,
+            bench: false,
         }
     }
 }
@@ -122,6 +135,7 @@ impl Default for SimConfig {
             clients: 30,
             reboot_every: Some(Duration::from_mins(90)),
             factory: false,
+            bench: false,
         }
     }
 }

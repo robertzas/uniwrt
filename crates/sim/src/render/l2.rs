@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::net::LAN_PREFIX6;
 use crate::world::{
-    Client, World,
+    BENCH_PORT, Client, World,
     catalog::{Kind, WAN_VLAN},
     clients::LEASE_MS,
 };
@@ -36,7 +36,13 @@ pub(super) fn leases(world: &World, n: usize, files: &BTreeMap<String, String>) 
             let _ = writeln!(data, "{expiry} {mac} {ip} {name} 01:{mac}");
         }
     };
-    for node in &world.nodes[1..] {
+    for (_, node) in world
+        .nodes
+        .iter()
+        .enumerate()
+        .skip(1)
+        .filter(|(m, _)| world.on_lan(*m))
+    {
         line(
             node.lease_ms,
             node.mac.to_string(),
@@ -100,7 +106,10 @@ pub(super) fn neighbors(world: &World, n: usize) -> Value {
             "00:00:5e:00:01:c9",
             REACHABLE,
         ));
-        for other in world.nodes[1..].iter().filter(|other| other.up()) {
+        for (m, other) in world.nodes.iter().enumerate().skip(1) {
+            if !other.up() || !world.on_lan(m) {
+                continue;
+            }
             neigh.push(entry(
                 2,
                 "br-lan",
@@ -108,7 +117,9 @@ pub(super) fn neighbors(world: &World, n: usize) -> Value {
                 &other.mac.to_string(),
                 REACHABLE,
             ));
-            fdb.push(json!({"dev": "bat0", "master": "br-lan", "lladdr": other.mac.to_string()}));
+            // The bench device is on the lent adoption port, the others on the mesh.
+            let dev = if other.bench { BENCH_PORT } else { "bat0" };
+            fdb.push(json!({"dev": dev, "master": "br-lan", "lladdr": other.mac.to_string()}));
         }
         for (client, at) in attached {
             let state = if recent(client) { REACHABLE } else { STALE };

@@ -66,7 +66,7 @@ impl World {
         let five = self.clients[c].spec.five_ghz;
         let target = wanted.into_iter().find_map(|(to, to_band)| {
             let usable = (to, to_band) != (node, band)
-                && self.nodes[to].up()
+                && self.nodes[to].on_air()
                 && (to_band == Band::G2 || five);
             let signal = self.client_signal(c, to, to_band);
             (usable && signal >= super::clients::JOIN_FLOOR).then_some((to, to_band, signal))
@@ -112,7 +112,7 @@ impl World {
         let c = self.clients.iter().position(|client| client.mac == mac)?;
         let client = &self.clients[c];
         let mut nodes = Map::new();
-        for n in (0..self.nodes.len()).filter(|&n| self.nodes[n].steers && self.nodes[n].up()) {
+        for n in (0..self.nodes.len()).filter(|&n| self.nodes[n].steers && self.nodes[n].on_air()) {
             for band in Band::BOTH {
                 if band == Band::G5 && !client.spec.five_ghz {
                     continue;

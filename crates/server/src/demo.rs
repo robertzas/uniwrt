@@ -7,9 +7,13 @@
 //! them (D-081). Every answer takes about as long as over a LAN, so the wizard shows each
 //! step. Other hosts refuse the connection, as the simulated clients would.
 //!
+//! A login to the gateway tunnels (`direct-tcpip`, [`Remote::dial`]) to the adoption port's
+//! segment, where the sim's bench device answers at 192.168.1.1 ([`SimLink::segment_hosts`];
+//! features/adoption.md, Path C); once it holds a lease, the dial reaches it there.
+//!
 //! [`SshDial`]: uniwrt_jobs::SshDial
 
-use std::{io, time::Duration};
+use std::{io, sync::Arc, time::Duration};
 
 use uniwrt_jobs::{BoxFuture, Dial, Remote};
 use uniwrt_node::{
@@ -37,22 +41,29 @@ struct DemoNode {
     host_key: HostKey,
 }
 
-/// Reaches the simulated nodes.
+/// Reaches the simulated nodes: on the LAN, or on the gateway's adoption port through a login
+/// to the gateway (`segment`).
 pub(crate) struct DemoDial {
-    nodes: Vec<DemoNode>,
+    /// The gateway first, as the sim orders them, then the bench device if any.
+    nodes: Arc<Vec<DemoNode>>,
+    segment: bool,
 }
 
 impl DemoDial {
-    /// Every node of `sim`, each with a host key of its own.
+    /// Every node of `sim` and its bench device, each with a host key of its own.
     pub(crate) fn new(sim: &SimFleet) -> anyhow::Result<Self> {
         let nodes = (0..sim.nodes().len())
             .filter_map(|index| sim.link(index))
+            .chain(sim.bench())
             .map(|link| {
                 let host_key = HostKey::parse(&ControllerKey::generate()?.authorized_key()?)?;
                 Ok(DemoNode { link, host_key })
             })
             .collect::<Result<_>>()?;
-        Ok(Self { nodes })
+        Ok(Self {
+            nodes: Arc::new(nodes),
+            segment: false,
+        })
     }
 
     /// The link of the node at `host`, for the engine to watch once it is adopted.
@@ -67,23 +78,33 @@ impl DemoDial {
     }
 
     fn node(&self, host: &str) -> Option<&DemoNode> {
-        self.nodes
-            .iter()
-            .find(|node| node.link.hosts().iter().any(|held| held == host))
+        self.find(host).map(|(_, node)| node)
+    }
+
+    /// The node at `host` and its place in [`DemoDial::nodes`].
+    fn find(&self, host: &str) -> Option<(usize, &DemoNode)> {
+        self.nodes.iter().enumerate().find(|(_, node)| {
+            let held = if self.segment {
+                node.link.segment_hosts()
+            } else {
+                node.link.hosts()
+            };
+            held.iter().any(|held| held == host)
+        })
     }
 
     /// The node at `target` after `delay`, or at once the error of a host without an SSH
-    /// server.
-    async fn reach(&self, target: &Target, delay: Duration) -> Result<&DemoNode> {
-        let node = self
-            .node(&target.host)
+    /// server; with whether it is the gateway.
+    async fn reach(&self, target: &Target, delay: Duration) -> Result<(bool, &DemoNode)> {
+        let (index, node) = self
+            .find(&target.host)
             .filter(|_| target.port == 22)
             .ok_or_else(|| Error::Connect {
                 target: target.to_string(),
                 source: io::Error::new(io::ErrorKind::ConnectionRefused, "Connection refused"),
             })?;
         tokio::time::sleep(delay).await;
-        Ok(node)
+        Ok((index == 0 && !self.segment, node))
     }
 }
 
@@ -96,7 +117,7 @@ impl Dial for DemoDial {
     }
 
     fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
-        Box::pin(async move { Ok(self.reach(target, PROBE_DELAY).await?.host_key.clone()) })
+        Box::pin(async move { Ok(self.reach(target, PROBE_DELAY).await?.1.host_key.clone()) })
     }
 
     fn connect<'a>(
@@ -106,7 +127,7 @@ impl Dial for DemoDial {
         credential: &'a Credential,
     ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
         Box::pin(async move {
-            let node = self.reach(target, LOGIN_DELAY).await?;
+            let (gateway, node) = self.reach(target, LOGIN_DELAY).await?;
             if node.host_key.fingerprint() != host_key.fingerprint() {
                 return Err(Error::HostKeyMismatch {
                     target: target.to_string(),
@@ -129,13 +150,20 @@ impl Dial for DemoDial {
                     method,
                 });
             }
-            Ok(Box::new(DemoRemote(node.link.clone())) as Box<dyn Remote>)
+            // Only the gateway's login reaches the adoption port's segment.
+            let tunnel = gateway.then(|| {
+                Arc::new(Self {
+                    nodes: Arc::clone(&self.nodes),
+                    segment: true,
+                }) as Arc<dyn Dial>
+            });
+            Ok(Box::new(DemoRemote(node.link.clone(), tunnel)) as Box<dyn Remote>)
         })
     }
 }
 
-/// A login on a simulated node.
-struct DemoRemote(SimLink);
+/// A login on a simulated node, and the gateway's tunnel to the adoption port's segment.
+struct DemoRemote(SimLink, Option<Arc<dyn Dial>>);
 
 impl Remote for DemoRemote {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>> {
@@ -173,6 +201,10 @@ impl Remote for DemoRemote {
             tokio::time::sleep(EXEC_DELAY).await;
             self.0.call(op, args, timeout).await
         })
+    }
+
+    fn dial(&self) -> Option<Arc<dyn Dial>> {
+        self.1.clone()
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {

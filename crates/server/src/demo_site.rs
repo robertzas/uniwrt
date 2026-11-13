@@ -90,11 +90,11 @@ mod tests {
         let config = &site.config;
         assert_eq!(config.site.name, "Demo home");
         let lan = config.networks[0].ipv4.as_ref().unwrap();
-        assert_eq!(lan.address.to_string(), "192.168.1.1/24");
+        assert_eq!(lan.address.to_string(), "10.0.0.1/24");
         let dhcp = lan.dhcp.as_ref().unwrap();
         assert_eq!(
             (dhcp.start.to_string(), dhcp.end.to_string()),
-            ("192.168.1.100".to_owned(), "192.168.1.249".to_owned())
+            ("10.0.0.100".to_owned(), "10.0.0.249".to_owned())
         );
         assert_eq!(config.wlans[0].ssid, uniwrt_sim::SSID);
         assert!(config.mesh.enabled);

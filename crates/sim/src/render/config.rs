@@ -9,14 +9,12 @@ use std::{collections::BTreeMap, fmt::Write as _, net::Ipv4Addr};
 
 use super::wifi::{MESH_ID, SSID, WIFI_PATH};
 use crate::world::{
-    Node, World,
+    BENCH_PORT, FACTORY_LAN, Node, SEGMENT_ADDRESS, World,
     catalog::{GATEWAY_BACKHAUL_PORT, WAN_VLAN},
 };
 
 /// The demo WLAN's passphrase: the demo's, so not secret.
 pub const PASSPHRASE: &str = "uniwrt-demo-wifi";
-/// A factory-default OpenWrt's LAN address.
-const FACTORY_LAN: Ipv4Addr = Ipv4Addr::new(192, 168, 1, 1);
 /// The demo mesh's key.
 pub const MESH_KEY: &str = "uniwrt-demo-mesh-key";
 
@@ -34,12 +32,18 @@ pub(crate) fn files(world: &World, n: usize) -> BTreeMap<String, String> {
         ("system", system(node)),
         ("network", network(world, node)),
         ("wireless", wireless(node)),
-        ("dhcp", dhcp(node)),
-        ("firewall", FIREWALL.to_owned()),
+        ("dhcp", dhcp(world, node)),
+        ("firewall", firewall(world, node)),
     ]
     .into_iter()
     .map(|(name, text)| (name.to_owned(), text))
     .collect()
+}
+
+/// Whether `node` is the gateway of a world with a bench: it holds the adoption port's segment
+/// as uniwrt's render writes it (`uniwrt_render::adoption`).
+fn holds_segment(world: &World, node: &Node) -> bool {
+    node.gateway && world.bench.is_some()
 }
 
 /// A factory-default gateway's packages (OpenWrt 25.12's first boot): the LAN at 192.168.1.1/24,
@@ -101,6 +105,11 @@ pub(crate) fn factory_files(node: &Node) -> BTreeMap<String, String> {
 /// The IPv4 addresses of `lan` in a node's `network`, in order: an applied renumbering holds the
 /// new one first, beside the old (D-081).
 pub(crate) fn lan_addresses(files: &BTreeMap<String, String>) -> Vec<Ipv4Addr> {
+    static_addresses(files, "lan")
+}
+
+/// The IPv4 addresses of the static `interface` in a node's `network`, in order.
+pub(crate) fn static_addresses(files: &BTreeMap<String, String>, interface: &str) -> Vec<Ipv4Addr> {
     let Some(network) = files
         .get("network")
         .and_then(|text| uniwrt_uci::parse("network", text).ok())
@@ -108,7 +117,7 @@ pub(crate) fn lan_addresses(files: &BTreeMap<String, String>) -> Vec<Ipv4Addr> {
         return Vec::new();
     };
     network
-        .section("lan")
+        .section(interface)
         .filter(|lan| lan.kind == "interface" && lan.option("proto") == Some("static"))
         .and_then(|lan| lan.get("ipaddr"))
         .map(|value| {
@@ -186,8 +195,11 @@ fn network(world: &World, node: &Node) -> String {
         o[5],
     );
     out.push_str("\nconfig device\n\toption name 'br-lan'\n\toption type 'bridge'\n");
+    let segment = holds_segment(world, node);
     for port in node.model.lan_ports {
-        let _ = writeln!(out, "\tlist ports '{port}'");
+        if !(segment && *port == BENCH_PORT) {
+            let _ = writeln!(out, "\tlist ports '{port}'");
+        }
     }
     // An access point without its wired backhaul bridges its WAN port too.
     if !node.gateway && !node.wired {
@@ -208,6 +220,15 @@ fn network(world: &World, node: &Node) -> String {
              \toption proto 'dhcpv6'\n",
             node.ip
         );
+        if segment {
+            let _ = write!(
+                out,
+                "\nconfig device\n\toption name 'br-adopt'\n\toption type 'bridge'\n\
+                 \tlist ports '{BENCH_PORT}'\n\toption ipv6 '0'\n\
+                 \nconfig interface 'uw_adopt'\n\toption device 'br-adopt'\n\
+                 \toption proto 'static'\n\tlist ipaddr '{SEGMENT_ADDRESS}/24'\n"
+            );
+        }
     } else {
         out.push_str("\nconfig interface 'lan'\n\toption device 'br-lan'\n\toption proto 'dhcp'\n");
     }
@@ -265,8 +286,14 @@ fn wireless(node: &Node) -> String {
     out
 }
 
-/// The gateway's is stock; an access point's serves no DHCP on its LAN.
-fn dhcp(node: &Node) -> String {
+/// The gateway's is stock (and serves nothing on the adoption port); an access point's serves
+/// no DHCP on its LAN.
+fn dhcp(world: &World, node: &Node) -> String {
+    if holds_segment(world, node) {
+        return format!(
+            "{DHCP}\nconfig dhcp 'uw_adopt'\n\toption interface 'uw_adopt'\n\toption ignore '1'\n"
+        );
+    }
     if node.gateway {
         return DHCP.to_owned();
     }
@@ -275,6 +302,17 @@ fn dhcp(node: &Node) -> String {
         "{dnsmasq}\nconfig dhcp 'lan'\n\toption interface 'lan'\n\toption ignore '1'\n\
          \nconfig odhcpd 'odhcpd'\n\toption maindhcp '0'\n\toption leasefile '/tmp/odhcpd.leases'\n\
          \toption leasetrigger '/usr/sbin/odhcpd-update'\n\toption loglevel '4'\n"
+    )
+}
+
+/// Stock, with the adoption port's zone on a gateway that holds it.
+fn firewall(world: &World, node: &Node) -> String {
+    if !holds_segment(world, node) {
+        return FIREWALL.to_owned();
+    }
+    format!(
+        "{FIREWALL}\nconfig zone\n\toption name 'uw_adopt'\n\tlist network 'uw_adopt'\n\
+         \toption input 'REJECT'\n\toption output 'ACCEPT'\n\toption forward 'REJECT'\n"
     )
 }
 
@@ -303,7 +341,7 @@ mod tests {
             assert!(files["wireless"].contains(&format!("mesh_id '{MESH_ID}'")));
             let network = &files["network"];
             assert_eq!(
-                network.contains("proto 'static'\n\tlist ipaddr '192.168"),
+                network.contains("proto 'static'\n\tlist ipaddr '10.0.0.1/"),
                 node.gateway
             );
             assert_eq!(network.contains(&format!(".{WAN_VLAN}'")), node.gateway);

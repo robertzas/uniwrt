@@ -52,9 +52,9 @@ fn the_simulated_fleet_imports_as_it_is() {
     );
     assert_eq!(
         lan.ipv4.as_ref().unwrap().address.to_string(),
-        "192.168.1.1/24"
+        "10.0.0.1/24"
     );
-    assert_eq!(site.addressing.ipv4.to_string(), "192.168.0.0/16");
+    assert_eq!(site.addressing.ipv4.to_string(), "10.0.0.0/16");
     assert_eq!(
         (site.wan.proto.clone(), site.wan.vlan, site.wan.ipv6.clone()),
         (

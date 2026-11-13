@@ -245,6 +245,21 @@ pub(super) fn adoption_port(config: &SiteConfig, issues: &mut Issues) {
              192.168.1.1, where factory-default OpenWrt answers",
         );
     }
+    // The segment's route would take the network's place (D-108).
+    for network in &config.networks {
+        if let Some(ipv4) = &network.ipv4
+            && super::network::overlap(ipv4.address.trunc(), subnet)
+        {
+            issues.error(
+                "adoption_port",
+                format!(
+                    "Network {} overlaps 192.168.1.0/24, which the adoption port keeps for \
+                     factory-default devices: renumber it or remove the adoption port",
+                    network.id
+                ),
+            );
+        }
+    }
 }
 
 /// A Linux interface name netifd accepts.

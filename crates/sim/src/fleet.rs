@@ -119,11 +119,13 @@ impl SimFleet {
         Self { shared, driver }
     }
 
+    /// The house's nodes, the gateway first (not the bench device: [`bench`](Self::bench)).
     pub fn nodes(&self) -> Vec<SimNode> {
         let world = self.shared.world();
         world
             .nodes
             .iter()
+            .filter(|node| !node.bench)
             .map(|node| SimNode {
                 name: node.name.clone(),
                 mac: node.mac,
@@ -147,9 +149,20 @@ impl SimFleet {
 
     /// The link of the `index`-th node of [`nodes`](Self::nodes).
     pub fn link(&self, index: usize) -> Option<SimLink> {
-        (index < self.shared.nodes.len()).then(|| SimLink {
+        let house = index < self.shared.nodes.len() && !self.shared.world().is_bench(index);
+        house.then(|| SimLink {
             shared: Arc::clone(&self.shared),
             node: index,
+        })
+    }
+
+    /// The link of the factory-default device on the gateway's adoption port
+    /// ([`SimConfig::bench`]).
+    pub fn bench(&self) -> Option<SimLink> {
+        let node = self.shared.world().bench.as_ref()?.node;
+        Some(SimLink {
+            shared: Arc::clone(&self.shared),
+            node,
         })
     }
 
@@ -187,6 +200,10 @@ impl Shared {
             if let Some(wiring) = disk.rewired() {
                 world.nodes[node].wiring = wiring;
             }
+        }
+        if let Some(bench) = world.bench.as_mut() {
+            let files = &lock(&self.nodes[bench.node].disk).tool.files;
+            bench.dhcp = render::config::lan_addresses(files).is_empty();
         }
         let happenings = world.step();
         self.dispatch(&world, &happenings);

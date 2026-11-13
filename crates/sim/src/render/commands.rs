@@ -113,17 +113,17 @@ impl Disk {
     }
 
     /// Node `n`'s, configured by hand to run the simulated network ([`super::config`]); a
-    /// `factory` gateway's is OpenWrt's own, and its root has no password.
+    /// `factory` gateway's and the bench device's are OpenWrt's own, and root has no password.
     pub(crate) fn of(world: &World, n: usize, factory: bool) -> Self {
         let node = &world.nodes[n];
-        let factory = factory && node.gateway;
+        let factory = (factory && node.gateway) || node.bench;
         let mut tool = Tool::stock();
         tool.files = if factory {
             super::config::factory_files(node)
         } else {
             super::config::files(world, n)
         };
-        if !node.gateway {
+        if !node.gateway && !factory {
             for service in super::config::AP_OFF {
                 tool.services.insert(service.to_owned(), false);
             }
@@ -224,6 +224,11 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
         ["ubus", "call", "system", "board"] => {
             ok(super::system::board(node)["board"].to_string().into_bytes())
+        }
+        // The identity MAC's candidates (`uniwrt_node::adoption_port::identity`): board.json's
+        // label MAC comes first.
+        ["sh", "-c", script] if script.contains("label_macaddr") => {
+            ok(format!("{}\n", node.mac).into_bytes())
         }
         // The controller logs in from host .50 of the LAN.
         ["env"] => {

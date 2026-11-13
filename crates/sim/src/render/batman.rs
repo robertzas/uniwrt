@@ -25,10 +25,10 @@ struct Link {
 fn links(world: &World, from: usize) -> Vec<Link> {
     let nodes = &world.nodes;
     let mut links = Vec::new();
-    if !nodes[from].up() {
+    if !nodes[from].on_air() {
         return links;
     }
-    for to in (0..nodes.len()).filter(|&to| to != from && nodes[to].up()) {
+    for to in (0..nodes.len()).filter(|&to| to != from && nodes[to].on_air()) {
         // Slow swings of a few dB, alike in both directions.
         let phase = (world.now_s as f64 / 47.0) + (from * to) as f64;
         let signal = world.mesh_signal(from, to) + 2.0 * phase.sin();
@@ -118,7 +118,7 @@ fn last_seen(world: &World, seed: usize) -> u64 {
 /// Every route to every other node, the best of each marked.
 fn originators(world: &World, n: usize, links: &[Link], best: &[Vec<u32>]) -> Vec<Value> {
     let mut originators = Vec::new();
-    for target in (0..world.nodes.len()).filter(|&t| t != n && world.nodes[t].up()) {
+    for target in (0..world.nodes.len()).filter(|&t| t != n && world.nodes[t].on_air()) {
         let routes: Vec<_> = links
             .iter()
             .map(|link| {

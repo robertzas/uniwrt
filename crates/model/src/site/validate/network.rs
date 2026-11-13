@@ -249,7 +249,7 @@ fn ipv6(config: &SiteConfig, network: &Network, at: &str, issues: &mut Issues) {
     }
 }
 
-fn overlap(a: Ipv4Net, b: Ipv4Net) -> bool {
+pub(super) fn overlap(a: Ipv4Net, b: Ipv4Net) -> bool {
     a.contains(&b.network()) || b.contains(&a.network())
 }
 

@@ -25,6 +25,7 @@ use crate::{
 };
 
 mod backhaul;
+mod port;
 mod steering;
 
 /// A simulated node's link. Clones share it.
@@ -84,9 +85,13 @@ impl SimLink {
 
     /// The addresses the node answers at: its own and, on the gateway, every address of its
     /// `lan` (two while a renumbering bridges the old subnet and the new, D-081).
+    /// The bench device answers at its lease only, while it holds one.
     pub fn hosts(&self) -> Vec<String> {
         let world = self.shared.world();
         let node = &world.nodes[self.node];
+        if !world.on_lan(self.node) {
+            return Vec::new();
+        }
         let mut hosts = vec![node.ip];
         if node.gateway {
             let disk = lock(&self.shared.nodes[self.node].disk);
@@ -97,6 +102,22 @@ impl SimLink {
             }
         }
         hosts.iter().map(ToString::to_string).collect()
+    }
+
+    /// The addresses the node answers at on the gateway's adoption port, which only a login to
+    /// the gateway reaches (`direct-tcpip`): the bench device's static LAN addresses while the
+    /// port isn't lent; none for other nodes.
+    pub fn segment_hosts(&self) -> Vec<String> {
+        let world = self.shared.world();
+        if !world.is_bench(self.node) {
+            return Vec::new();
+        }
+        let gateway = lock(&self.shared.nodes[0].disk);
+        let device = lock(&self.shared.nodes[self.node].disk);
+        port::bench_hosts(&world, &gateway.tool.files, &device.tool.files)
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     fn answer(&self, op: &str, args: &RawValue) -> Result<Value> {
@@ -325,6 +346,16 @@ impl SimLink {
             });
         }
         let mut world = self.shared.world();
+        if self.node == 0 {
+            // The world, then the gateway's disk, then the device's, as everywhere.
+            let bench = world.bench.as_ref().map(|bench| bench.node);
+            let gateway = lock(&self.shared.nodes[0].disk);
+            let device = bench.map(|n| lock(&self.shared.nodes[n].disk));
+            let device = device.as_ref().map(|disk| &disk.tool.files);
+            if let Some(output) = port::exec(&mut world, &gateway.tool.files, device, request) {
+                return Ok(output);
+            }
+        }
         let mut disk = lock(&self.shared.nodes[self.node].disk);
         let output =
             render::commands::exec(&world.nodes[self.node], request, &mut disk, world.now_ms());

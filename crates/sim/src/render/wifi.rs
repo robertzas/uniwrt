@@ -288,7 +288,7 @@ fn hostapd_client(client: &Client) -> Value {
 fn mesh_peers(world: &World, n: usize) -> Vec<Value> {
     let uptime_s = (world.now_ms() - world.nodes[n].booted_ms) / 1000;
     (0..world.nodes.len())
-        .filter(|&peer| peer != n && world.nodes[peer].up())
+        .filter(|&peer| peer != n && world.nodes[n].on_air() && world.nodes[peer].on_air())
         .filter_map(|peer| {
             let signal = world.mesh_signal(n, peer);
             if signal < -88.0 {

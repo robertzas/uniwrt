@@ -7,6 +7,7 @@
 //! The world is a pure function of its seed and the number of steps: it never reads a clock,
 //! and its own time starts at the `start` it was built with.
 
+mod bench;
 pub(crate) mod cables;
 pub(crate) mod catalog;
 pub(crate) mod clients;
@@ -24,6 +25,10 @@ use std::{
 
 use uniwrt_core::{MacAddr, Timestamp};
 
+pub(crate) use self::{
+    bench::{Bench, LendReply, PORT as BENCH_PORT, SEGMENT_ADDRESS},
+    layout::FACTORY_LAN,
+};
 use self::{
     cables::{Cable, Wiring},
     catalog::{KindSpec, Model, Release},
@@ -50,8 +55,11 @@ pub(crate) struct World {
     next_reboot: u64,
     /// What happened between steps (a ban's kick), for the next step to hand on.
     pending: Vec<Happening>,
+    /// The adoption port's device, if the world has one ([`bench`]).
+    pub(crate) bench: Option<Bench>,
 }
 
+#[expect(clippy::struct_excessive_bools, reason = "a node's traits")]
 pub(crate) struct Node {
     pub(crate) name: String,
     pub(crate) gateway: bool,
@@ -83,11 +91,19 @@ pub(crate) struct Node {
     pub(crate) steers: bool,
     /// What its `network` does with its ports ([`cables`]); the fleet sets it from the disk.
     pub(crate) wiring: Wiring,
+    /// The factory-default device on the adoption port ([`bench`]).
+    pub(crate) bench: bool,
 }
 
 impl Node {
     pub(crate) fn up(&self) -> bool {
         self.down_until.is_none()
+    }
+
+    /// Up and part of the house's air: the bench device's radios serve no clients and join no
+    /// mesh ([`bench`]).
+    pub(crate) fn on_air(&self) -> bool {
+        self.up() && !self.bench
     }
 
     /// 0 is the label (and LAN) MAC, 1 the WAN port, 2 and 3 the 2.4 and 5 GHz access points,
@@ -250,6 +266,11 @@ pub(crate) enum What {
     Down,
     /// The node is up again.
     Up,
+    /// A port's link came up or went down (netifd's `link_up`, `link_down`).
+    PortLink {
+        port: &'static str,
+        up: bool,
+    },
 }
 
 /// A node's log buffer, as logd keeps it: ids count up from boot, the oldest fall out.
@@ -318,8 +339,10 @@ impl World {
             return;
         }
         let moved = |ip: Ipv4Addr| Ipv4Addr::from(u32::from(ip).wrapping_add(shift));
-        for node in &mut self.nodes {
-            node.ip = moved(node.ip);
+        for n in 0..self.nodes.len() {
+            if self.on_lan(n) {
+                self.nodes[n].ip = moved(self.nodes[n].ip);
+            }
         }
         for client in &mut self.clients {
             client.ip = moved(client.ip);
@@ -339,6 +362,7 @@ impl World {
         self.now_s += 1;
         let mut out = std::mem::take(&mut self.pending);
         self.step_nodes(&mut out);
+        self.step_bench(&mut out);
         self.step_clients(&mut out);
         self.step_air();
         out

@@ -153,6 +153,14 @@ pub(crate) fn notification(world: &World, happening: &Happening) -> Option<(Topi
             "dnsmasq.dhcp.ack".to_owned(),
             json!({"mac": mac.to_string(), "ip": ip.to_string(), "name": name.as_deref().unwrap_or_default(), "interface": "br-lan"}),
         )),
+        What::PortLink { port, up } => Some((
+            Topic::Netifd,
+            format!(
+                "netifd.device.{}",
+                if *up { "link_up" } else { "link_down" }
+            ),
+            json!({"name": port, "present": true, "active": true, "link_active": up}),
+        )),
         What::Down | What::Up => None,
     }
 }

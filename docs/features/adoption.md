@@ -63,7 +63,7 @@ A gateway port picked by the user (for example, `lan4`) becomes an isolated segm
 
 No temporary NAT opens the segment: packages come once the node is on the LAN. Alternatively, reflash to a ZTP image for a consistent package set (recommended before the first rolling upgrade).
 
-Limitation: one factory-default device at a time, because they all answer at 192.168.1.1.
+Limitation: one factory-default device at a time, because they all answer at 192.168.1.1. While the site has an adoption port, validation refuses a network that overlaps 192.168.1.0/24 (D-108).
 
 ## Path D: bootstrap one-liner [M5.4]
 
@@ -126,5 +126,7 @@ Later sources: LLDP neighbors. ZTP hellos have their own inbox (Path B).
 ## Demo mode (D-048)
 
 `serve --demo` adopts the simulated gateway and every access point but the last, which the gateway's leases and mesh show under Discovered. The demo's dial reaches the simulated nodes as SSH would: a dropbear banner, a host key made at start, the root password `demo` (another is rejected; without one, the node must trust the controller's key), and the commands adoption runs, answered by the simulated node (its release, `authorized_keys`, its package database, a small backup). Each answer takes about as long as over a LAN, so a whole adoption takes about 5 s. Other addresses refuse the connection at once. The adopted node joins the engine on its simulated link.
+
+The demo's LAN is 10.0.0.0/24 (D-108), and its gateway holds `lan4` as the adoption port (Path C): 20 s after the start, a factory-default access point (the sim's **bench**, root without a password) is plugged in there, so the gateway reports the link and Devices › Waiting for adoption lists it. A login to the simulated gateway tunnels to the port's segment, where the device answers at 192.168.1.1; the simulated gateway runs the lend, and the device takes a lease of the LAN while the port is lent, so the whole port path runs. Its Configure step needs the revision the gateway holds: manage the gateway and apply once first. The bench device never goes on the air (no clients, no mesh).
 
 `serve --demo --demo-factory` is the first run instead (Path E): one factory-default gateway at 192.168.1.1 (root without a password, OpenWrt's own `/etc/config`, an untagged DHCP WAN that the simulated ISP, on VLAN 201, doesn't answer), no user and nothing adopted. Create the admin, and the wizard sets the router up; the simulated LAN follows the renumbering.

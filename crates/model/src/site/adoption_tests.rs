@@ -90,3 +90,23 @@ fn the_port_is_a_device_name_that_the_backup_line_doesnt_use() {
     };
     assert_eq!(issues_after(backup), error("adoption_port/port"));
 }
+
+#[test]
+fn no_network_overlaps_the_factory_subnet() {
+    // Only the adoption port's issue counts: a renumbered LAN's pool and reservations have
+    // their own.
+    let flagged = |address: &str, port: bool| {
+        let address = address.parse().unwrap();
+        issues_after(move |c| {
+            c.networks[0].ipv4.as_mut().unwrap().address = address;
+            if !port {
+                c.adoption_port = None;
+            }
+        })
+        .contains(&("adoption_port".to_owned(), Severity::Error))
+    };
+    assert!(!flagged("192.168.2.1/24", true));
+    assert!(flagged("192.168.1.1/24", true));
+    assert!(flagged("192.168.0.1/16", true));
+    assert!(!flagged("192.168.1.1/24", false));
+}

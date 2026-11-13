@@ -194,7 +194,7 @@ pub(crate) fn scan(world: &World, n: usize, ifname: &str) -> Option<Value> {
         .nodes
         .iter()
         .enumerate()
-        .filter(|(m, o)| *m != n && o.up())
+        .filter(|(m, o)| *m != n && o.on_air())
     {
         let (_, other) = other;
         let radio = &other.radios[band.index()];

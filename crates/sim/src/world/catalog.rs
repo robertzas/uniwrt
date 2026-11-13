@@ -322,7 +322,7 @@ pub(crate) const ROUTINE_LOGS: [(bool, u8, &str); 8] = [
     (
         true,
         29,
-        "dropbear[3102]: Exit (root) from <192.168.1.120:52814>: Disconnected",
+        "dropbear[3102]: Exit (root) from <%client:52814>: Disconnected",
     ),
     (true, 30, "dnsmasq[2092]: read /etc/hosts - 12 names"),
     (
@@ -333,12 +333,12 @@ pub(crate) const ROUTINE_LOGS: [(bool, u8, &str); 8] = [
     (
         false,
         30,
-        "netifd: lan (1611): udhcpc: sending renew to server 192.168.1.1",
+        "netifd: lan (1611): udhcpc: sending renew to server %gw",
     ),
     (
         false,
         30,
-        "netifd: lan (1611): udhcpc: lease of 192.168.1.%ip obtained from 192.168.1.1, lease time 43200",
+        "netifd: lan (1611): udhcpc: lease of %ip obtained from %gw, lease time 43200",
     ),
     (
         false,
