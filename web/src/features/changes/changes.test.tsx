@@ -112,6 +112,7 @@ describe("Review & apply", () => {
     );
     expect(gateway).toHaveTextContent("The WAN changes last, on its own");
     expect(attic).not.toHaveTextContent("The WAN changes last");
+    expect(attic).not.toHaveTextContent("Only its radio channels change");
     expect(gateway).toHaveTextContent("factory subnet");
     // Packages open and close.
     await user.click(within(gateway).getByRole("button", { name: "The network package" }));

@@ -3,9 +3,11 @@
 
 mod adopted;
 mod backhaul;
+mod channels;
 pub(crate) mod facts;
 pub(crate) mod fleet;
 mod install;
 mod jobs;
+pub(crate) mod radios;
 mod roaming;
 mod rounds;

@@ -70,6 +70,11 @@ pub struct NodePlan {
     /// Its WAN changes with other things, so the WAN changes last, in its own transaction: a
     /// failure there rolls back only the WAN (D-081).
     pub wan_last: bool,
+    /// Only its radios' channels and widths change: they move after the other nodes' changes,
+    /// one node at a time, by a channel switch where they can, else a reload (D-113). Their
+    /// power changes with the others'.
+    #[serde(default)]
+    pub air: bool,
     /// Hops from the gateway, by wire or mesh, when known: the farthest apply first.
     pub hops: Option<u32>,
     /// The dead-man timer: unconfirmed for this long, it rolls back by itself.

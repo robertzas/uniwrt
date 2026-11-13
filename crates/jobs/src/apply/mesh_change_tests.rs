@@ -79,6 +79,7 @@ fn plan(id: i64, action: PlanAction) -> NodePlan {
         address: None,
         renumbering: None,
         wan_last: false,
+        air: false,
         hops: None,
         timeout_s: 300,
         warnings: Vec::new(),

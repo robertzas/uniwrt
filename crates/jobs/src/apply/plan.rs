@@ -32,6 +32,7 @@ use uniwrt_uci::Package;
 use super::{
     ApplyTiming, address,
     address::Bridge,
+    air::{self, Air},
     mesh_change::{self, MeshChange},
     round::{Round, WAN_PACKAGES, bridge_ports, bridge_round, wan_last},
 };
@@ -81,6 +82,10 @@ pub(crate) struct Part {
     pub(crate) uplink: bool,
     /// What the revision does to its mesh.
     pub(crate) mesh: MeshChange,
+    /// Only its radios' channels and widths change: the Channels round moves them (D-113).
+    pub(crate) air: Option<Air>,
+    /// The radios this transaction moves by a channel switch: it reloads nothing.
+    pub(crate) live: Vec<String>,
 }
 
 impl Part {
@@ -100,6 +105,8 @@ impl Part {
             timeout: timing.timer,
             uplink: false,
             mesh: MeshChange::Same,
+            air: None,
+            live: Vec::new(),
         }
     }
 
@@ -134,6 +141,7 @@ pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -
         address: None,
         renumbering: None,
         wan_last: false,
+        air: false,
         hops: None,
         timeout_s: 0,
         warnings: Vec::new(),
@@ -229,6 +237,7 @@ pub(crate) fn plan(
         Err(why) if !part.files.is_empty() => part.plan.issues.push(issue("node", why)),
         Err(_) => {}
     }
+    air::split(&rendered.packages, &current, report, &mut part);
     part.uplink = uplink;
     part.timeout = if uplink {
         timing.timer_uplink
@@ -238,7 +247,11 @@ pub(crate) fn plan(
     part.plan.timeout_s = u32::try_from(part.timeout.as_secs()).unwrap_or(u32::MAX);
     part.plan.action = if !part.plan.issues.is_empty() {
         PlanAction::Refused
-    } else if part.files.is_empty() && part.services.is_empty() && part.installs.is_none() {
+    } else if part.files.is_empty()
+        && part.services.is_empty()
+        && part.installs.is_none()
+        && part.air.is_none()
+    {
         PlanAction::Unchanged
     } else {
         PlanAction::Change

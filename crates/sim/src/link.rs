@@ -202,7 +202,7 @@ impl SimLink {
             "ban" => self.ban(&mut world, op, args)?,
             "rrm" => self.rrm(&world, op, args)?,
             "btm" => self.btm(&mut world, op, args)?,
-            "ubus" => self.ubus(&world, op, args)?,
+            "ubus" => self.ubus(&mut world, op, args)?,
             "mtu" => self.mtu(&world, op, args)?,
             "scan" => {
                 let ifname: String = field(op, args, "ifname")?;

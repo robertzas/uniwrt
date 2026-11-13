@@ -141,6 +141,7 @@ mod tests {
             address: None,
             renumbering: None,
             wan_last: false,
+            air: false,
             hops,
             timeout_s: 120,
             warnings: Vec::new(),

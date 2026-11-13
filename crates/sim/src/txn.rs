@@ -38,6 +38,10 @@ pub struct Tool {
     pub services: BTreeMap<String, bool>,
     /// The ports each `bounce` named, in order.
     pub bounced: Vec<Vec<String>>,
+    /// The radios each live `apply` named (their channels move by a switch, D-113), in order.
+    pub live: Vec<Vec<String>>,
+    /// The radios each rollback of a live apply restarted, in order.
+    pub restarted: Vec<Vec<String>>,
     stage: Option<Stage>,
     open: Option<Open>,
     last: Option<serde_json::Value>,
@@ -69,6 +73,8 @@ struct Open {
     services: BTreeMap<String, bool>,
     /// The ports it bounced, which a rollback bounces again.
     bounced: Option<Vec<String>>,
+    /// The radios a live apply named, which a rollback restarts.
+    radios: Vec<String>,
 }
 
 type Reply = Result<serde_json::Value, (&'static str, String)>;
@@ -143,7 +149,7 @@ impl Tool {
             ("stage", [id, services @ ..]) => self.stage(id, services),
             ("put", [id, package]) => self.put(id, package, stdin.unwrap_or_default()),
             ("check", [id]) => self.check(id),
-            ("apply", [id, seconds]) => self.apply(id, seconds, now),
+            ("apply", [id, seconds, radios @ ..]) => self.apply(id, seconds, radios, now),
             ("extend", [id, seconds]) => {
                 let seconds = timeout(seconds)?;
                 self.require_open(id)?.deadline_s = now.uptime_s + seconds;
@@ -229,7 +235,7 @@ impl Tool {
         Ok(json!({ "packages": stage.packages.keys().collect::<Vec<_>>() }))
     }
 
-    fn apply(&mut self, id: &str, seconds: &str, now: Now) -> Reply {
+    fn apply(&mut self, id: &str, seconds: &str, radios: &[&str], now: Now) -> Reply {
         let seconds = timeout(seconds)?;
         if let Some(open) = &self.open {
             return Err((code::BUSY, format!("transaction {} is open", open.id)));
@@ -267,7 +273,12 @@ impl Tool {
             files,
             services,
             bounced: None,
+            radios: radios.iter().map(|r| (*r).to_owned()).collect(),
         });
+        if !radios.is_empty() {
+            self.live
+                .push(radios.iter().map(|r| (*r).to_owned()).collect());
+        }
         Ok(json!({ "timeout_s": seconds }))
     }
 
@@ -305,6 +316,9 @@ impl Tool {
             && let Some(ports) = &open.bounced
         {
             self.bounced.push(ports.clone());
+        }
+        if reason != "boot" && !open.radios.is_empty() {
+            self.restarted.push(open.radios.clone());
         }
         self.open = Some(open);
         self.finish("rolled_back", Some(reason), now);

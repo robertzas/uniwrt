@@ -33,6 +33,21 @@ describe("the apply plan in words", () => {
     expect(list[5]?.text).toBe("1 warning below.");
   });
 
+  it("tells radios that move live from Wi-Fi that restarts", () => {
+    const plan = applyPlan();
+    const attic = plan.nodes.find((n) => n.name === "Attic AP");
+    if (!attic) throw new Error("no Attic AP");
+    attic.air = true;
+    attic.services = [];
+    const list = impacts(plan);
+    expect(list.map((i) => i.kind)).not.toContain("wireless");
+    expect(list.find((i) => i.kind === "channels")).toEqual({
+      kind: "channels",
+      text: "Radio channels move on Attic AP, one device at a time: clients follow the switch, or reconnect where a radio can't announce it.",
+      disruptive: false,
+    });
+  });
+
   it("names a few devices and counts many", () => {
     const plan = applyPlan();
     for (const node of plan.nodes) {

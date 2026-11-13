@@ -137,6 +137,12 @@ export function NodePlanCard(props: { plan: NodePlan }) {
               {t.wanLast}
             </p>
           </Show>
+          <Show when={p().air}>
+            <p class="flex items-start gap-2 text-fg-muted text-sm" title={t.airHint}>
+              <Icon icon={RadioTower} class="mt-0.5 size-4 shrink-0 text-info" />
+              {t.air}
+            </p>
+          </Show>
           <Show when={(p().installs ?? []).length > 0}>
             <div class="flex flex-wrap items-center gap-1.5 text-sm" title={t.installsHint}>
               <span class="mr-1 flex items-center gap-1.5 text-fg-muted">

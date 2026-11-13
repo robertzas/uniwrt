@@ -8,7 +8,7 @@
 //! 13: both are planned and the cheaper kept). Elsewhere widths are free up to the hardware
 //! (D-110): the width given up is a cost, so the planner narrows only where the air is crowded.
 
-mod blocks;
+pub(crate) mod blocks;
 mod cost;
 mod input;
 mod output;

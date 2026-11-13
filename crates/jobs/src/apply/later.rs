@@ -50,20 +50,7 @@ impl Run<'_> {
     /// Every transaction: installs, then the first round as the Stage, Apply, Verify and
     /// Confirm steps, then each later round of the gateway's as a step of its own.
     pub(crate) async fn rounds(&mut self, progress: &mut Progress) -> Result<(), JobError> {
-        self.install(progress).await?;
-        progress.start(StepName::Stage).await;
-        self.update_tools(progress).await?;
-        let summary = self.stage(progress).await?;
-        progress.done(Some(summary)).await;
-        progress.start(StepName::Apply).await;
-        let summary = self.apply(progress).await?;
-        progress.done(Some(summary)).await;
-        progress.start(StepName::Verify).await;
-        let summary = self.verify(progress).await?;
-        progress.done(Some(summary)).await;
-        progress.start(StepName::Confirm).await;
-        let summary = self.confirm(progress).await?;
-        progress.done(Some(summary)).await;
+        self.first(progress).await?;
 
         let mut ran = Vec::new();
         while let Some(round) = self
@@ -83,6 +70,17 @@ impl Run<'_> {
                 live.deadline = None;
             }
             let group = self.active();
+            if round == Round::Air {
+                // Its nodes may have sat the first round out: the tool must know live applies.
+                if let Err(err) = self.update_tools(progress).await {
+                    return Err(later(round, &err));
+                }
+                match self.channels(&group, progress).await {
+                    Ok(summary) => progress.done(Some(summary)).await,
+                    Err(err) => return Err(later(round, &err)),
+                }
+                continue;
+            }
             let probed = if round == Round::Backhaul {
                 Some(self.probe_cables(progress).await)
             } else {
@@ -126,29 +124,49 @@ impl Run<'_> {
                 Err(err) => return Err(later(round, &err)),
             }
         }
-        if !ran.contains(&Round::Settle) {
-            progress
-                .skip(
-                    StepName::Settle,
-                    "This controller's network keeps its subnet",
-                )
-                .await;
-        }
-        if !ran.contains(&Round::Wan) {
-            progress
-                .skip(StepName::Wan, "The WAN doesn't change among other things")
-                .await;
-        }
-        if !ran.contains(&Round::Backhaul) {
-            progress
-                .skip(StepName::Backhaul, "No cable between nodes to bring over")
-                .await;
+        skip_unran(&ran, progress).await;
+        Ok(())
+    }
+
+    /// The first round as the Stage, Apply, Verify and Confirm steps, with the installs before.
+    async fn first(&mut self, progress: &mut Progress) -> Result<(), JobError> {
+        if self.active().is_empty() {
+            // Only channels move (D-113): the Channels round has every node, one at a time.
+            for step in [
+                StepName::Install,
+                StepName::Stage,
+                StepName::Apply,
+                StepName::Verify,
+                StepName::Confirm,
+            ] {
+                progress
+                    .skip(
+                        step,
+                        "Only radio channels change: they move one device at a time",
+                    )
+                    .await;
+            }
+        } else {
+            self.install(progress).await?;
+            progress.start(StepName::Stage).await;
+            self.update_tools(progress).await?;
+            let summary = self.stage(progress).await?;
+            progress.done(Some(summary)).await;
+            progress.start(StepName::Apply).await;
+            let summary = self.apply(progress).await?;
+            progress.done(Some(summary)).await;
+            progress.start(StepName::Verify).await;
+            let summary = self.verify(progress).await?;
+            progress.done(Some(summary)).await;
+            progress.start(StepName::Confirm).await;
+            let summary = self.confirm(progress).await?;
+            progress.done(Some(summary)).await;
         }
         Ok(())
     }
 
     /// Plans node `i`'s transaction of `round` from what it holds now, over its current login.
-    async fn replan(&mut self, i: usize, round: Round) -> Result<(), String> {
+    pub(super) async fn replan(&mut self, i: usize, round: Round) -> Result<(), String> {
         let live = &mut self.lives[i];
         let remote = live
             .remote
@@ -277,5 +295,32 @@ impl Run<'_> {
             JobErrorCode::RolledBack,
             format!("Rolled back. {name}: {why}"),
         )
+    }
+}
+
+/// Skips the later rounds' steps that didn't run, saying why.
+async fn skip_unran(ran: &[Round], progress: &mut Progress) {
+    if !ran.contains(&Round::Settle) {
+        progress
+            .skip(
+                StepName::Settle,
+                "This controller's network keeps its subnet",
+            )
+            .await;
+    }
+    if !ran.contains(&Round::Wan) {
+        progress
+            .skip(StepName::Wan, "The WAN doesn't change among other things")
+            .await;
+    }
+    if !ran.contains(&Round::Air) {
+        progress
+            .skip(StepName::Channels, "No device's radios move alone")
+            .await;
+    }
+    if !ran.contains(&Round::Backhaul) {
+        progress
+            .skip(StepName::Backhaul, "No cable between nodes to bring over")
+            .await;
     }
 }

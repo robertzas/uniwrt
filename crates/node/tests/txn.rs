@@ -224,6 +224,49 @@ async fn a_rollback_restores_the_snapshot_and_the_services() {
     );
 }
 
+/// A live apply (D-113) installs `system` with no change for `reload_config` to fire, and its
+/// rollback restarts the radios it named (`wifi down`, `wifi up`: a stub, without Wi-Fi here).
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn a_live_apply_reloads_nothing_and_its_rollback_restarts_the_radios() {
+    let session = managed().await;
+    let stub = "[ -x /sbin/wifi ] || { printf '#!/bin/sh\\necho \"$*\" >>/tmp/uniwrt-wifi.log\\n' \
+        >/sbin/wifi && chmod 755 /sbin/wifi && touch /tmp/uniwrt-wifi.stub; }; \
+        rm -f /tmp/uniwrt-wifi.log; reload_config";
+    assert!(shell_ok(&session, stub).await);
+    let id = TxnId::new("live").unwrap();
+    let system = run(&session, &["cat", "/etc/config/system"]).await;
+    let marked = format!("{system}\nconfig uniwrt_test 'probe'\n\toption mark '{id}'\n");
+    exec(&session, &txn::stage(&id, []).unwrap()).await.unwrap();
+    exec(&session, &txn::put(&id, "system", marked).unwrap())
+        .await
+        .unwrap();
+    exec(&session, &txn::check(&id)).await.unwrap();
+    let live = txn::apply_live(&id, Duration::from_secs(300), ["radio0"]).unwrap();
+    exec(&session, &live).await.unwrap();
+    wait_state(&session, OpenState::Applied).await;
+    assert_eq!(mark(&session).await, "live");
+    let quiet = r#"s=$(uci show system | md5sum) && grep -qx "${s%% *}  /var/run/config.check/system" /var/run/config.md5"#;
+    assert!(
+        shell_ok(&session, quiet).await,
+        "reload_config would fire system"
+    );
+
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
+    if shell_ok(&session, "[ -f /tmp/uniwrt-wifi.stub ]").await {
+        let log = run(&session, &["cat", "/tmp/uniwrt-wifi.log"]).await;
+        assert_eq!(log, "down radio0\nup radio0\n");
+        assert!(
+            shell_ok(
+                &session,
+                "rm -f /sbin/wifi /tmp/uniwrt-wifi.stub /tmp/uniwrt-wifi.log"
+            )
+            .await
+        );
+    }
+}
+
 /// How often `port` lost its carrier, and whether it has one now.
 async fn carrier(session: &Session, port: &str) -> (u32, bool) {
     let dir = format!("/sys/class/net/{port}");

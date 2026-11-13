@@ -67,7 +67,7 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
     assert!(states(&job).iter().all(|(name, state)| *state
         == if matches!(
             name,
-            StepName::Install | StepName::Settle | StepName::Backhaul
+            StepName::Install | StepName::Settle | StepName::Channels | StepName::Backhaul
         ) {
             StepState::Skipped
         } else {
@@ -156,6 +156,7 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
             StepName::Confirm,
             StepName::Settle,
             StepName::Wan,
+            StepName::Channels,
             StepName::Backhaul
         ]
     );

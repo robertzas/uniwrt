@@ -58,6 +58,12 @@ renumbering: Renumbering | null,
  */
 wan_last: boolean, 
 /**
+ * Only its radios' channels and widths change: they move after the other nodes' changes,
+ * one node at a time, by a channel switch where they can, else a reload (D-113). Their
+ * power changes with the others'.
+ */
+air: boolean, 
+/**
  * Hops from the gateway, by wire or mesh, when known: the farthest apply first.
  */
 hops: number | null, 

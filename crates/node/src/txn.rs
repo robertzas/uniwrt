@@ -284,6 +284,27 @@ pub fn apply(id: &TxnId, timeout: Duration) -> Command<Armed> {
     Command::tool("apply", &[id.as_str(), &timeout.as_secs().to_string()])
 }
 
+/// [`apply`] where the `radios` (UCI `wifi-device` sections) move live by a channel switch
+/// (D-113): nothing reloads what it installs, and a rollback restarts the radios on what they
+/// held. The transaction installs only what the switch did (their `channel` and `htmode`).
+pub fn apply_live<'a>(
+    id: &TxnId,
+    timeout: Duration,
+    radios: impl IntoIterator<Item = &'a str>,
+) -> Result<Command<Armed>> {
+    let mut args = vec![id.as_str().to_owned(), timeout.as_secs().to_string()];
+    for radio in radios {
+        if !valid_name(radio) {
+            return Err(Error::Invalid {
+                what: format!("radio name {radio:?}"),
+            });
+        }
+        args.push(radio.to_owned());
+    }
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    Ok(Command::tool("apply", &args))
+}
+
 /// Moves the open transaction's deadline to `timeout` from now.
 pub fn extend(id: &TxnId, timeout: Duration) -> Command<Armed> {
     Command::tool("extend", &[id.as_str(), &timeout.as_secs().to_string()])

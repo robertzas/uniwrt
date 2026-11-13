@@ -27,6 +27,7 @@ export function longestTimer(plan: ApplyPlan): number | undefined {
 export type ImpactKind =
   | "network"
   | "wireless"
+  | "channels"
   | "dhcp"
   | "firewall"
   | "system"
@@ -57,6 +58,8 @@ export function impacts(plan: ApplyPlan): Impact[] {
   const byPackage = new Map<string, NodePlan[]>();
   for (const node of changing) {
     for (const diff of node.packages) {
+      // Its radios move by a channel switch, one device at a time (below).
+      if (node.air && diff.package === "wireless") continue;
       byPackage.set(diff.package, [...(byPackage.get(diff.package) ?? []), node]);
     }
   }
@@ -69,6 +72,10 @@ export function impacts(plan: ApplyPlan): Impact[] {
         disruptive: pkg === "network" || pkg === "wireless",
       });
     }
+  }
+  const moving = changing.filter((n) => n.air);
+  if (moving.length > 0) {
+    out.push({ kind: "channels", text: t.impact.channels(names(moving)), disruptive: false });
   }
   for (const [pkg, nodes] of byPackage) {
     if (!isKnown(pkg)) {

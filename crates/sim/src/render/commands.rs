@@ -253,6 +253,9 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
     let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
+        // A reload after a channel switch that didn't take (D-113): the sim's radios run what
+        // the switch announced already.
+        ["wifi", "reload"] => ok(Vec::new()),
         ["ubus", "call", "system", "board"] => {
             ok(super::system::board(node)["board"].to_string().into_bytes())
         }

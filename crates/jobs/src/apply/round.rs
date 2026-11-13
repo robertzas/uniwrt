@@ -21,6 +21,8 @@ pub(crate) enum Round {
     Settle,
     /// The WAN's change, deferred from the transactions before.
     Wan,
+    /// The radios' channels and widths, one node at a time (D-113).
+    Air,
     /// The cables brought over as overlays: each carries the mesh alone once both ends pass
     /// the probe, or goes back to a trunk (D-097). Every node with such a cable takes part.
     Backhaul,
@@ -31,6 +33,7 @@ impl Round {
         match self {
             Self::Settle => StepName::Settle,
             Self::Wan => StepName::Wan,
+            Self::Air => StepName::Channels,
             Self::Backhaul => StepName::Backhaul,
         }
     }
@@ -40,6 +43,7 @@ impl Round {
         match self {
             Self::Settle => "settle",
             Self::Wan => "wan",
+            Self::Air => "air",
             Self::Backhaul => "backhaul",
         }
     }
@@ -49,6 +53,7 @@ impl Round {
         match self {
             Self::Settle => "Dropping the old address",
             Self::Wan => "The WAN's change",
+            Self::Air => "Moving the radios' channels",
             Self::Backhaul => "Bringing the cables over to the wired backhaul",
         }
     }

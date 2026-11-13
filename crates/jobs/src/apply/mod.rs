@@ -7,7 +7,9 @@
 //! → apply (leaves → gateway, each with its dead-man timer) → verify (all at once, each over a
 //! new login at the address it moves to, against its health before) → confirm (all) → settle
 //! and wan (the gateway's later transactions, D-081: dropping the old address of this
-//! controller's network once it reaches the new one, and the WAN's change last) → backhaul
+//! controller's network once it reaches the new one, and the WAN's change last) → channels (the
+//! nodes whose radios' channels and widths alone change, one at a time, by a channel switch
+//! where they can, [`channels`], D-113) → backhaul
 //! (the cables brought over as overlays probed from both ends, then each carries the mesh alone
 //! or goes back to a trunk, D-097) → record
 //! (the revision each node holds, and the addresses that moved). A failure before a confirm
@@ -16,8 +18,10 @@
 
 mod address;
 mod adopted;
+mod air;
 mod backhaul;
 mod cables;
+mod channels;
 mod controller;
 pub(crate) mod health;
 mod install;
@@ -55,7 +59,7 @@ use crate::{errors::internal, progress::Progress, runner::Shared};
 /// The key that keeps one apply at a time.
 pub(crate) const TARGET: &str = "apply";
 
-const STEPS: [StepName; 11] = [
+const STEPS: [StepName; 12] = [
     StepName::Connect,
     StepName::Plan,
     StepName::Install,
@@ -65,6 +69,7 @@ const STEPS: [StepName; 11] = [
     StepName::Confirm,
     StepName::Settle,
     StepName::Wan,
+    StepName::Channels,
     StepName::Backhaul,
     StepName::Record,
 ];
@@ -231,17 +236,8 @@ async fn apply(
     progress.done(Some(summary(&plan))).await;
 
     if lives.is_empty() {
-        for step in [
-            StepName::Install,
-            StepName::Stage,
-            StepName::Apply,
-            StepName::Verify,
-            StepName::Confirm,
-            StepName::Settle,
-            StepName::Wan,
-            StepName::Backhaul,
-        ] {
-            progress.skip(step, "Nothing to change").await;
+        for step in &STEPS[2..STEPS.len() - 1] {
+            progress.skip(*step, "Nothing to change").await;
         }
         return record(shared, revision, progress, &[], &unchanged).await;
     }

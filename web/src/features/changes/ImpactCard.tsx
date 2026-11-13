@@ -5,6 +5,7 @@ import {
   FilePen,
   Network,
   Power,
+  RadioTower,
   Server,
   ShieldCheck,
   ShieldHalf,
@@ -24,6 +25,7 @@ const t = strings.changes.impact;
 const ICONS: Record<ImpactKind, IconNode> = {
   network: Network,
   wireless: Wifi,
+  channels: RadioTower,
   dhcp: Server,
   firewall: ShieldHalf,
   system: Cog,

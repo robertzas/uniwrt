@@ -21,6 +21,7 @@ uniwrt-isp.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-render.workspace = true
+uniwrt-rf.workspace = true
 uniwrt-store.workspace = true
 uniwrt-topo.workspace = true
 uniwrt-uci.workspace = true

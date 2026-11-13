@@ -72,8 +72,10 @@ pub(crate) struct Live {
 
 impl From<Member> for Live {
     fn from(member: Member) -> Self {
-        // A node with nothing to change before the backhaul round sits the first rounds out.
-        let first = member.part.plan.action == PlanAction::Change || member.part.follows();
+        // A node with nothing to change before the backhaul round sits the first rounds out, as
+        // does one whose radios' channels alone change (the Channels round's, D-113).
+        let changes = member.part.plan.action == PlanAction::Change || member.part.follows();
+        let first = changes && !(member.part.air.is_some() && member.part.files.is_empty());
         Self {
             host: member.login.node.host.clone(),
             node: member.login.node,
@@ -85,8 +87,8 @@ impl From<Member> for Live {
             confirmed: false,
             active: first,
             moves: false,
-            holds: if first { Holds::Before } else { Holds::Part },
-            held: if first {
+            holds: if changes { Holds::Before } else { Holds::Part },
+            held: if changes {
                 BTreeMap::new()
             } else {
                 member.part.held.clone()
@@ -295,7 +297,15 @@ impl<'a> Run<'a> {
                 continue;
             }
             let timeout = self.lives[i].part.timeout;
-            let result = self.lives[i].tool(&txn::apply(&self.txn, timeout)).await;
+            let live = &self.lives[i].part.live;
+            let result = if live.is_empty() {
+                self.lives[i].tool(&txn::apply(&self.txn, timeout)).await
+            } else {
+                match txn::apply_live(&self.txn, timeout, live.iter().map(String::as_str)) {
+                    Ok(command) => self.lives[i].tool(&command).await,
+                    Err(err) => Err(err),
+                }
+            };
             match result {
                 Ok(_) => {
                     self.lives[i].deadline = Some(Instant::now() + timeout);

@@ -19,6 +19,7 @@ export function nodePlan(node: number, name: string, extra: Partial<NodePlan> = 
     address: null,
     renumbering: null,
     wan_last: false,
+    air: false,
     hops: 1,
     timeout_s: 120,
     warnings: [],

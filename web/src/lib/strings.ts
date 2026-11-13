@@ -296,6 +296,7 @@ export const strings = {
       confirm: "Confirm",
       settle: "Drop the old address",
       wan: "Change the WAN",
+      channels: "Move the radio channels",
       backhaul: "Bring the cables over to the mesh",
       link: "Link on the WAN port",
       address: "Get an address",
@@ -2212,6 +2213,8 @@ export const strings = {
     impact: {
       title: "Impact",
       wireless: (names: string) => `Wi-Fi restarts on ${names}: clients reconnect within seconds.`,
+      channels: (names: string) =>
+        `Radio channels move on ${names}, one device at a time: clients follow the switch, or reconnect where a radio can't announce it.`,
       network: (names: string) =>
         `The network restarts on ${names}: traffic pauses for a few seconds.`,
       dhcp: (names: string) => `DHCP and DNS restart on ${names}.`,
@@ -2262,6 +2265,9 @@ export const strings = {
       renumberingHint:
         "The gateway's LAN ports go down for a few seconds so wired devices ask for a new address. uniwrt's host must get its address from the gateway's DHCP; behind a switch, renew its lease while the apply checks. Otherwise everything rolls back.",
       wanLast: "The WAN changes last, on its own: if it fails, only the WAN rolls back",
+      air: "Only its radio channels change: they move after the other devices, one device at a time, without dropping clients where the radio can announce the switch",
+      airHint:
+        "A channel switch announcement (CSA) moves the radio and its clients follow. Where a radio can't announce it (a DFS channel that needs its radar check, Wi-Fi 7, or a device with more than access points on that radio), the device reloads its Wi-Fi instead, and its clients reconnect. The radio restarts once more, on the channel it already uses, the next time its Wi-Fi settings reload.",
       packages: (n: number) => `${n} ${n === 1 ? "package changes" : "packages change"}`,
       noPackages: "Only services change.",
       drift: (packages: readonly string[]) =>

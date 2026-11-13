@@ -178,6 +178,9 @@ pub enum StepName {
     Settle,
     /// Apply the WAN's change last, in its own transaction (D-081).
     Wan,
+    /// Move the radios whose channel or width alone changes, one node at a time: by a channel
+    /// switch where they can, else a reload (D-113).
+    Channels,
     /// Bring the cables between nodes over to the wired backhaul once both ends pass the probe,
     /// or back to trunks (D-097).
     Backhaul,

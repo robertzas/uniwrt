@@ -263,9 +263,12 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adoption_port_tests.rs`: Looks on the adoption port over a fake gateway and the fake device behind it.
 - `src/apply/address.rs`: Where the controller finds a node once an apply renumbers it (the owner's choice: follow the new address, features/lifecycle.md).
 - `src/apply/adopted.rs`: The apply an adoption on the gateway's adoption port ends with (features/adoption.md, Path C, step 5; D-107): the revision the gateway holds, applied to the new node alone, as an apply job of its own run in the adoption's task.
+- `src/apply/air.rs`: The radios an apply moves in the Channels round (features/wifi.md, RF planner: Apply; M6.1 b1b, D-113), pure: a node whose `wireless` change is only its radios' `channel`, `htmode` and `txpower` waits until the fleet's transactions are confirmed, then moves one node at a time.
+- `src/apply/air_tests.rs`: (no header comment)
 - `src/apply/backhaul.rs`: The apply's backhaul round (features/mesh.md, Wired backhaul; D-094, D-097): each cable the first round brought over as an overlay is probed from both ends, once batman-adv hears the far end over the cable's VLAN; one that passes carries the mesh alone from then on, one that fails goes back to a plain trunk and is remembered, so later applies leave it so.
 - `src/apply/cables.rs`: Which cables an apply brings over to the wired backhaul (features/mesh.md, Wired backhaul; D-094, D-097), pure: the direct Ethernet links between two managed nodes that the topology sees, on ports render accepts at both ends, and the backhauls the nodes hold.
 - `src/apply/cables_tests.rs`: Which cables an apply brings over: from the topology's direct links between managed nodes, what the nodes hold, and the cables that failed the probe.
+- `src/apply/channels.rs`: The Channels round (features/wifi.md, RF planner: Apply; M6.1 b1b, D-113): the nodes whose radios' channels and widths alone change move after the fleet's transactions, one node at a time, so their neighbors carry the clients while one moves.
 - `src/apply/controller.rs`: The controller's address as the gateway sees its login, for the `uniwrt.<domain>` record render writes when the address is inside one of the networks (features/network.md, DHCP & local DNS).
 - `src/apply/health.rs`: The health checks an apply verifies each node with (features/lifecycle.md, Render → diff → apply, step 4), relative to a baseline taken while planning (the owner's choice): a check that passed before must pass again, so a network that was already down doesn't block an apply, while what the change itself breaks rolls it back.
 - `src/apply/install.rs`: The apply's install step (D-076): the feed packages a node's configuration needs and it lacks (SQM's, mwan3), installed with its package manager before anything is staged.
@@ -282,11 +285,13 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/survey.rs`: Surveying the managed nodes for an apply: log in to each (with the controller's key, against the pinned host key), read what it holds (packages, services, facts, and on the gateway its DNS), and plan its part.
 - `src/apply/tests/adopted.rs`: The apply a port adoption ends with (D-107): the revision the gateway holds, applied to the new node alone as an apply job of its own; refused while another apply runs.
 - `src/apply/tests/backhaul.rs`: The wired backhaul's round (D-097) over the scripted fleet: a cable between the gateway and an access point (each bridge sees the other node on `eth0`) comes over as an overlay, is probed from both ends once batman-adv hears the far end on its VLAN, then carries the mesh alone; a cable that fails goes back to a trunk and is left so.
+- `src/apply/tests/channels.rs`: The Channels round over the scripted fleet (D-113): access points whose radios' channels alone change move after the rest, one at a time, by a channel switch, falling back to a reload; their power goes with the fleet's transactions; a failure rolls back that node alone and restarts its radios.
 - `src/apply/tests/facts.rs`: Facts for the apply's unit tests, built field by field.
 - `src/apply/tests/fleet.rs`: A scripted fleet for the apply job: each node answers at its addresses with the simulated transaction tool (`uniwrt_sim::txn`), the agent's collect from a 24.10 container, and its dnsmasq's answers; faults break it once a transaction is open.
 - `src/apply/tests/install.rs`: The apply's install step (D-076) over a scripted gateway: what SQM needs is installed before anything is staged, its service kept off until the transaction switches it on; a failed install changes nothing.
 - `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
 - `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
+- `src/apply/tests/radios.rs`: A fake node's radios for the Channels round (D-113): hostapd's `switch_chan` (taken, refused or stuck), the kernel's channel the agent's `radios` set reports (nl80211's), and `wifi reload`, which restarts the radios on what they were switched to.
 - `src/apply/tests/roaming.rs`: The 802.11r keys an apply renders with (D-085): one per WLAN that fast-roams, derived from the controller's roaming key, which is made only once some WLAN needs it.
 - `src/apply/tests/rounds.rs`: The gateway's later transactions (D-081) over the scripted fleet: the network this controller sits on renumbers make-before-break, and the WAN changes last and alone.
 - `src/apply/verify.rs`: The verify phase of an apply (features/lifecycle.md, Render → diff → apply, step 4): every node at once over a new login at the address it moves to; it applied and reloaded, its timer is extended, the bridging gateway sees this controller come from the new subnet (D-081), and its health holds against the baseline.
@@ -553,6 +558,7 @@ RF insight (features/wifi.md, RF insight): what the site's radios hear and how c
 - `src/radar.rs`: Radar hits from hostapd's log (`DFS-RADAR-DETECTED`, the `dfs-radar` pattern): where the radar was, so each channel's radar history can be told.
 - `src/report.rs`: The RF report: per band, the site's radios, each channel's occupancy, the networks heard and the inter-node RSSI matrix.
 - `src/span.rs`: The frequencies a channel occupies, how much two channels share, and how much a signal counts.
+- `src/switch.rs`: A channel switch announcement (features/wifi.md, RF planner: Apply; M6.1 b1b, D-113): the arguments of hostapd's `switch_chan` (`hostapd.<ifname>`) that move a running radio to a primary channel and width of the band's standard blocks, as OpenWrt lays them out from a primary channel and `htmode` ([`crate::plan`]'s blocks).
 - `src/tests.rs`: A small site made in code: node 1 and node 2, each with a 5 GHz radio on channel 36 at 80 MHz carrying an AP and a mesh point, and node 1's latest scan.
 
 ### `uniwrt` (crates/server)
@@ -643,6 +649,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
 - `tests/rrm.rs`: The simulated agent's `rrm` op: each access point's own neighbor report, and lists that are set once and left alone when sent again.
+- `tests/switch.rs`: The simulated agent's channel switch (D-113): hostapd's `switch_chan` over the `ubus` op moves the access point's radio, which the `radios` set then reports.
 
 ### `uniwrt-store` (crates/store)
 

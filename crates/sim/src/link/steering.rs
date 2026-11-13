@@ -34,10 +34,23 @@ impl SimLink {
         Ok(json!({"ifname": band.ap_iface(), "token": 1, "timer": timer, "mbo": false}))
     }
 
-    /// `ubus`: usteer's `get_client_info` where usteer runs.
-    pub(super) fn ubus(&self, world: &World, op: &str, args: &RawValue) -> Result<Value> {
+    /// `ubus`: usteer's `get_client_info` where usteer runs; hostapd's `switch_chan`, which
+    /// moves the radio of the access point to the primary channel announced (D-113).
+    pub(super) fn ubus(&self, world: &mut World, op: &str, args: &RawValue) -> Result<Value> {
         let path: String = field(op, args, "path")?;
         let method: String = field(op, args, "method")?;
+        if method == "switch_chan"
+            && let Some(radio) = world.nodes[self.node]
+                .radios
+                .iter_mut()
+                .find(|radio| path == format!("hostapd.{}", radio.band.ap_iface()))
+        {
+            let data: Value = field(op, args, "data")?;
+            let freq = data["freq"].as_u64().unwrap_or_default();
+            let channel = (1..=196u8).find(|c| u64::from(radio.band.freq(*c)) == freq);
+            radio.channel = channel.ok_or_else(|| bad_request(op, "freq"))?;
+            return Ok(json!({}));
+        }
         if path != "usteer" || method != "get_client_info" {
             return Err(bad_request(op, &format!("no {path} {method} here")));
         }

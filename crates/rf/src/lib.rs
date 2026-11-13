@@ -36,6 +36,7 @@ pub mod plan;
 pub mod radar;
 mod report;
 mod span;
+pub mod switch;
 
 pub use self::{
     build::{Inputs, report},

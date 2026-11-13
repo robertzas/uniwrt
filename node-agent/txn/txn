@@ -7,7 +7,9 @@
 # Usage: txn stage <id> [<service>=on|off]…   start staging (in RAM), replacing any other stage
 #        txn put <id> <package>               stage a package's file, read from stdin
 #        txn check <id>                       parse the staged packages with uci
-#        txn apply <id> <seconds>             snapshot, arm the timer, install, reload in procd
+#        txn apply <id> <seconds> [<radio>…]  snapshot, arm the timer, install, reload in procd;
+#                                             with radios, nothing reloads what it installs (their
+#                                             channels move live, D-113) and a rollback restarts them
 #        txn extend <id> <seconds>            move the open transaction's deadline
 #        txn confirm <id> | rollback <id>     end the open transaction
 #        txn status | uninstall | install <dir>
@@ -158,6 +160,30 @@ reload_all() {
 	sleep $TRIGGER_S
 }
 
+# Has reload_config take the packages $@ as they are now, so it fires no change for them: what
+# netifd runs stays as it is (a radio moved by a channel switch, D-113). reload_config compares
+# `uci show <package>` with the sums it kept; with none kept yet it fires nothing anyway.
+quiet() {
+	sums=/var/run/config.md5
+	[ -f "$sums" ] || return 0
+	for name; do
+		sum=$(uci show "$name" 2>/dev/null | md5sum) || return 1
+		grep -v "  /var/run/config.check/$name\$" "$sums" >"$sums.uniwrt"
+		echo "${sum%% *}  /var/run/config.check/$name" >>"$sums.uniwrt"
+		mv "$sums.uniwrt" "$sums" || return 1
+	done
+}
+
+# Restarts the radios $j/radios names on what /etc/config/wireless says: netifd never learned of
+# their channel switch, so reloading alone leaves them where the switch took them.
+restart_radios() {
+	[ -f "$1/radios" ] && command -v wifi >/dev/null || return 0
+	while read -r radio; do
+		wifi down "$radio"
+		wifi up "$radio"
+	done <"$1/radios"
+}
+
 # Rolls the open transaction $1 back, for reason $2; the lock is held. At boot the services
 # are about to start, so nothing reloads.
 roll_back() {
@@ -180,6 +206,7 @@ roll_back() {
 	if [ "$2" != boot ]; then
 		reload_all
 		rebounce "$j/bounce"
+		restart_radios "$j"
 	fi
 	# Services the transaction stopped start again (at boot too: rcS listed the boot's scripts
 	# before the guard enabled them again).
@@ -262,7 +289,12 @@ cmd_apply() {
 	valid "${1:-}" || fail bad_request "bad transaction id"
 	seconds "${2:-}" || fail bad_request "the timeout is $MIN_S to $MAX_S seconds"
 	id=$1
+	secs=$2
 	dir=$STAGE/$id
+	shift 2
+	for radio; do
+		valid "$radio" || fail bad_request "bad radio name: $radio"
+	done
 	lock
 	open=$(open_id)
 	[ -z "$open" ] || fail busy "transaction $open is open"
@@ -271,6 +303,7 @@ cmd_apply() {
 	j=$JOURNAL/$id
 	rm -rf "$j"
 	mkdir -p "$j/config" || fail failed "cannot create the journal"
+	[ $# -eq 0 ] || printf '%s\n' "$@" >"$j/radios"
 	# The snapshot: the packages it replaces and the services it switches.
 	for file in "$dir"/config/*; do
 		[ -f "$file" ] || continue
@@ -287,7 +320,7 @@ cmd_apply() {
 		[ -x "/etc/init.d/$name" ] || continue
 		if service "$name" enabled; then echo "$name on"; else echo "$name off"; fi >>"$j/before"
 	done <"$dir/services"
-	put_file "$j/deadline" $(($(uptime_s) + $2))
+	put_file "$j/deadline" $(($(uptime_s) + secs))
 	put_file "$j/state" applying
 	put_file "$JOURNAL/current" "$id"
 	sync
@@ -303,6 +336,14 @@ cmd_apply() {
 		install_package "${file##*/}" "$file" ||
 			abort "$id" failed "cannot install package ${file##*/}"
 	done
+	if [ -f "$j/radios" ]; then
+		names=''
+		for file in "$dir"/config/*; do
+			[ -f "$file" ] && names="$names ${file##*/}"
+		done
+		# shellcheck disable=SC2086 # package names, checked by valid
+		quiet $names || abort "$id" failed "cannot keep the reload from restarting the radios"
+	fi
 	if [ -f "$dir/config/firewall" ] && command -v fw4 >/dev/null; then
 		out=$(fw4 check 2>&1) || abort "$id" invalid "fw4 check: $out"
 	fi
@@ -313,7 +354,7 @@ cmd_apply() {
 	sync
 	rm -rf "$STAGE"
 	guard
-	ok "{\"timeout_s\":$2}"
+	ok "{\"timeout_s\":$secs}"
 }
 
 # bounce <seconds> <port>…: once the open transaction is applied, takes the ports down and up

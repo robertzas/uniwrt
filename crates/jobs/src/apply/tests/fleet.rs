@@ -30,6 +30,7 @@ use uniwrt_store::{
     HostKeyRepo as _, JobRepo as _, MasterKey, NodeRepo as _, RevisionRepo as _, Store, Vault,
 };
 
+use super::radios::FakeRadios;
 use crate::{
     ApplyTiming, BoxFuture, Dial, Jobs, JobsConfig, Remote, apply::plan::tests::collected,
     testing::Watched,
@@ -69,6 +70,8 @@ pub(crate) struct FakeNode {
     pub(crate) renews_to: Mutex<Option<&'static str>>,
     /// The MTU its backhauls' VLAN devices take, which the agent's `mtu` op reports.
     pub(crate) mtu: Mutex<u32>,
+    /// Its radios' channel switches and reloads (the agent's `ubus` op, `wifi reload`).
+    pub(crate) radios: Mutex<FakeRadios>,
     /// The tool's commands run on every node, as `<node's first address> <command>`.
     journal: Arc<Mutex<Vec<String>>>,
 }
@@ -91,6 +94,7 @@ impl FakeNode {
             exec_hook: Mutex::default(),
             renews_to: Mutex::default(),
             mtu: Mutex::new(1532),
+            radios: Mutex::default(),
             journal,
         })
     }
@@ -136,6 +140,9 @@ impl FakeNode {
                 0,
                 &format!("USER=root\nSSH_CONNECTION={from} 50022 192.168.1.1 22\n"),
             ));
+        }
+        if argv[0] == "wifi" {
+            return Ok(self.radios.lock().unwrap().reload());
         }
         if argv[0] == "nslookup" {
             let up = self.role == NodeRole::Gateway && self.broken() != Some(Fault::DnsDown);
@@ -244,6 +251,7 @@ impl Remote for FakeRemote {
             if let Some(hook) = &*self.0.collect_hook.lock().unwrap() {
                 hook(&self.0.tool.lock().unwrap(), &mut collected);
             }
+            self.0.radios.lock().unwrap().patch(&mut collected);
             Ok(serde_json::from_value(collected).unwrap())
         })
     }
@@ -257,12 +265,16 @@ impl Remote for FakeRemote {
         _timeout: Duration,
     ) -> BoxFuture<'a, Result<Box<RawValue>>> {
         Box::pin(async move {
-            if self.0.down.load(Ordering::SeqCst) || op != "mtu" {
+            if self.0.down.load(Ordering::SeqCst) || !["mtu", "ubus"].contains(&op) {
                 return Err(Error::Disconnected {
                     what: op.to_owned(),
                 });
             }
             let args: serde_json::Value = serde_json::from_str(args.get()).unwrap();
+            if op == "ubus" {
+                let answer = self.0.radios.lock().unwrap().ubus(&args)?;
+                return Ok(serde_json::value::to_raw_value(&answer).unwrap());
+            }
             let (dev, size) = (
                 args["dev"].as_str().unwrap(),
                 args["size"].as_u64().unwrap(),
