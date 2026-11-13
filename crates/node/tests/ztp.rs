@@ -173,6 +173,27 @@ fn boot(lab: &mut Lab, image: &str, script: Option<&str>, net: u8) -> (String, S
     (controller, device)
 }
 
+/// The device's port on the Docker network whose name ends with `suffix`, found by its MAC.
+fn port_on(device: &str, suffix: &str) -> String {
+    let template =
+        "{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{$net.MacAddress}}\n{{end}}";
+    let output = docker(&["inspect", "-f", template, device]);
+    let networks = String::from_utf8_lossy(&output.stdout);
+    let mac = networks
+        .lines()
+        .find_map(|line| {
+            line.split_once(' ')
+                .filter(|(name, _)| name.ends_with(suffix))
+        })
+        .map(|(_, mac)| mac.to_lowercase())
+        .expect("the device is on the network");
+    exec(
+        device,
+        &format!("grep -l '^{mac}$' /sys/class/net/eth*/address | cut -d/ -f5"),
+    )
+    .expect("a port with that MAC")
+}
+
 /// Writes `text` to `target` (`container:path`).
 fn copy(text: &str, target: &str) {
     let file = tempfile::NamedTempFile::new().unwrap();
@@ -188,7 +209,7 @@ fn copy(text: &str, target: &str) {
 
 /// A lease on the bridge with the WAN port in it, no DHCP served, only the controller's key
 /// (`line`) let in, and root's password locked.
-fn safe_to_plug_in(device: &str, line: &str, net: u8) {
+fn safe_to_plug_in(device: &str, line: &str, net: u8, wan: &str) {
     // Safe to plug in anywhere: a lease on the bridge, the WAN port in it, no DHCP served.
     let uci = |key: &str| exec(device, &format!("uci -q get {key}"));
     assert_eq!(uci("network.lan.proto").as_deref(), Some("dhcp"));
@@ -199,7 +220,7 @@ fn safe_to_plug_in(device: &str, line: &str, net: u8) {
         uci("network.@device[0].ports")
             .unwrap()
             .split(' ')
-            .any(|port| port == "eth1"),
+            .any(|port| port == wan),
         "the WAN port joins the bridge"
     );
     let address = exec(device, "ip -4 -o addr show dev br-lan").unwrap();
@@ -269,7 +290,7 @@ fn a_first_boot_calls_home_safely_and_stops_once_adopted() {
     let hostname = exec(&device, "uci get system.@system[0].hostname");
     assert_eq!(hostname, Some(format!("uniwrt-{suffix}")));
 
-    safe_to_plug_in(&device, &line, 77);
+    safe_to_plug_in(&device, &line, 77, "eth1");
 
     // `adopted`: the service removes itself and calls no more.
     wait_for("the service gone", Duration::from_secs(30), || {
@@ -319,11 +340,24 @@ fn a_one_liner_sets_up_a_live_device_and_its_hello_carries_the_token() {
         )
         .is_some()
     });
+    // Plugged in as Path D says, its WAN port on the site's LAN: whichever port Docker put
+    // there (it doesn't keep the order networks were connected in) becomes the WAN port, the
+    // other the bridge's, and the WAN port takes a lease from the controller's dnsmasq.
+    let wan = port_on(&device, "-lan");
+    let other = if wan == "eth0" { "eth1" } else { "eth0" };
     exec(
         &device,
-        &format!("ip addr add 172.31.{NET}.70/24 dev br-lan"),
+        &format!(
+            "uci set network.wan.device={wan} && uci set network.wan6.device={wan} \
+             && uci delete network.@device[0].ports && uci add_list network.@device[0].ports={other} \
+             && uci commit network && /etc/init.d/network reload"
+        ),
     )
     .unwrap();
+    wait_for("the WAN port's lease", Duration::from_secs(60), || {
+        exec(&device, &format!("ip -4 addr show dev {wan}"))
+            .is_some_and(|addr| addr.contains(&format!("inet 172.31.{NET}.1")))
+    });
     exec(&controller, "mkdir -p /www/b").unwrap();
     copy(&script, &format!("{controller}:/www/b/{token}"));
     let (command, _) = one_liner(&endpoint, token, &script);
@@ -381,7 +415,7 @@ fn a_one_liner_sets_up_a_live_device_and_its_hello_carries_the_token() {
     let hello: ZtpHello = serde_json::from_str(&body).unwrap();
     assert_eq!(hello.token.as_deref(), Some(token));
     assert_eq!(hello.role, Some(NodeRole::Ap));
-    safe_to_plug_in(&device, &line, NET);
+    safe_to_plug_in(&device, &line, NET, &wan);
 
     wait_for("the service gone", Duration::from_secs(30), || {
         exec(
