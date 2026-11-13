@@ -149,7 +149,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 ## M6 — RF optimization ("optimize the air")
 
-- [ ] **M6.1 RF planner & apply** (XL; merged M6.1 and M6.2, D-055): `rf` crate with constraints, scoring, search and explanations; simulation tests; rolling and synchronized cutovers with rollback; a nightly optimizer with hysteresis. Split: planner | apply & scheduler.
+- [ ] **M6.1 RF planner & apply** (XL; merged M6.1 and M6.2, D-055): `rf` crate with constraints, scoring, search and explanations; simulation tests; rolling and synchronized cutovers with rollback; a nightly optimizer with hysteresis. Split: planner a1 ✅ (2026-11-13, D-110: `uniwrt_rf::plan`: each band's standard blocks, mesh groups, pins, the DFS policy, the objective term by term, power aimed at roaming overlap, a descent then branch and bound up to 10 units, else seeded annealing; simulation tests over floors with path loss) | planner a2 (the engine's inputs from the facts, the report and the site; `GET v1/rf/plan`; the DFS policy in `RfSettings`; `/insights/rf`'s plan preview: before and after, each radio's terms and reasons) | apply b1 (where a plan lives in the site's desired state; the job one node at a time, CSA through hostapd's `switch_chan` where supported, else a reload) | apply b2 (the mesh group's synchronized cutover at an agreed NTP time, rolled back if the mesh doesn't re-form; the Wi-Fi lab) | scheduler b3 (the nightly optimizer in the maintenance window, 03:30 local, applying only from a 15% improvement and without heavy traffic).
 - [ ] **M6.2 Floor plans & heatmap** (L): floor-plan editor and a calibrated path-loss heatmap.
 
 ## M7 — Lifecycle ("keep it current")

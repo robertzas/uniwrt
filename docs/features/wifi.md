@@ -93,33 +93,39 @@ Split (D-090, D-091): a1 ✅ (schema v8, render, import, the neighbor-list hando
 
 ## RF planner: auto channel, width and power [M6.1]
 
-**Inputs:** radios and their capabilities (channels, widths, DFS flags, max tx power), the country's regulatory domain, foreign BSSs and survey data per channel, the inter-node RSSI matrix, and client load/airtime.
+The planner is `uniwrt_rf::plan` (M6.1 a1, D-110): pure and deterministic, per band.
+
+**Inputs** (`PlanInputs`): each radio's allowed channels (from its phy and the regulatory domain: DFS flags and state, no-IR, max power), hardware widths, current channel/width/center/power, pins (channel, width, power), whether it carries the mesh, and its clients; the inter-node links per band (the report's matrix, with live mesh links marked); the foreign networks each node hears (primary, span, signal); each 20 MHz channel's survey busy share (not the live share of a radio on it, which counts its own traffic) and radar hits in 30 days; the DFS policy.
 
 **Constraints:**
-- **Mesh channel groups.** Radios carrying 802.11s backhaul must share one channel per band. On dual-band nodes the 5 GHz AP shares that radio, so planning 5 GHz comes down to choosing one channel for the whole mesh group.
-- **DFS policy:** avoid | allow non-weather channels | allow all. The planner accounts for CAC time and penalizes channels with a history of radar hits.
-- **Pins:** a manual channel set on a radio is a hard constraint.
+- **Mesh channel groups.** Radios carrying 802.11s backhaul share one channel and width per band: they are one unit in the search, with the widths all of them support. On dual-band nodes the 5 GHz AP shares that radio, so planning 5 GHz comes down to choosing one channel for the whole mesh group. Where mesh radios are pinned differently, the group follows the first pin (by node), and the others get `pin_conflict`.
+- **DFS policy** (D-110): avoid | allow non-weather (not 5600–5650 MHz, channels 120–128) | allow all, **the default**. Channels in radar's non-occupancy period (`unavailable`) are never chosen. The cost counts the DFS risk, more with a history of radar hits, and the CAC's silence when moving onto DFS (ten minutes on weather channels), twice on mesh radios (radar drops the backhaul).
+- **Pins:** a manual channel (or width, or power) set on a radio is a hard constraint, kept whatever the DFS policy says.
+- **No-IR** channels that aren't DFS (the radio may not start a network there) are left out; two radios of one node on one band never overlap (a cost far above any neighbor's).
 
-**Objective (minimize):**
+**Objective (minimize; every term ≥ 0):**
 
 ```
-Σ_pairs w(rssi_ij) · overlap(ch_i, width_i, ch_j, width_j)
-+ Σ_i external_i(ch_i)
-+ α · dfs_risk + β · change_cost − γ · width_benefit
+Σ_i L_i · Σ_j w(rssi_ij) · overlap(i ← j)          own: the site's other radios (not its mesh group)
++ Σ_i L_i · (Σ_f w(rssi_if) · overlap(i ← f) + ½ · busy_i)   external: foreign networks, survey busy share
++ Σ_i dfs_i + 0.1 · moved_i + 0.3 · L_i · log2(widest_i / width_i)
 
-w(rssi)    logistic: −90 dBm → 0, −60 dBm → 1
-overlap    fraction of shared 20 MHz sub-channels
-external   foreign BSSs weighted by RSSI + survey busy %
+w(rssi)        logistic: −90 dBm → 0, −60 dBm → 1 (at the planned powers)
+overlap(i ← j) the share of i's channel that j covers
+L_i            1 + min(clients, 20) / 10
+widest_i       the widest width the unit could take under its constraints
 ```
 
-**Search:** exhaustive for small deployments (typically 4–6 radios per band), otherwise simulated annealing with a fixed seed. Results are deterministic and explainable: each radio gets a cost breakdown plus before/after scores.
+Each radio's cost is reported term by term (`own`, `external`, `dfs`, `change`, `width`) before and after; the band's `improvement` is `(before − after) / before`, with the changes counted in `after`. The width term is the width given up (the spec's `−γ · width_benefit`, shifted so every term is non-negative): the planner narrows only where the wider channel costs more than it brings.
 
-**Widths:**
-- 2.4 GHz: always 20 MHz on non-overlapping channels (1/6/11, or 1/5/9/13 where allowed).
-- 5 GHz: 80 MHz by default; drop to 40/20 MHz in crowded spectrum; 160 MHz when the spectrum is clean and DFS is allowed. In the US only two 80 MHz blocks are free of DFS.
-- 6 GHz: 160 MHz, or 320 MHz on Wi-Fi 7 when clean.
+**Search:** units of a band start at what runs and descend (one unit at a time to its best choice); bands of up to 10 units then get branch and bound over every combination (`exhaustive`, proven `optimal`; 500k nodes at most); larger ones get simulated annealing (3 rounds, fixed seeds, each from the best so far, then a descent). Ties keep the earlier answer, so equal plans don't move radios, and a plan applied and planned again changes nothing. Each radio gets its reasons (`pinned_channel`, `pinned_width`, `pinned_power`, `mesh_group`, `pin_conflict`, `no_channel`, `narrowed`, `power_lowered`, `power_raised`, `mesh_power`, `below_five_ghz`).
 
-**Power:** aim for neighbor-AP RSSI of about −65 to −72 dBm at each AP, which gives enough cell overlap for roaming. Keep 2.4 GHz below 5 GHz to bias clients toward 5 GHz, and never go below a floor.
+**Channels and widths** (each band's standard blocks, as OpenWrt derives them from a primary channel and `htmode`):
+- 2.4 GHz: always 20 MHz, on one non-overlapping set: 1/6/11, or 1/5/9/13 where every radio of the band allows 13 (both are planned and the cheaper kept; ties keep 1/6/11). Sets aren't mixed: partly overlapping channels interfere worse than a shared one.
+- 5 GHz: blocks bonded from 36 and from 149; 6 GHz from 1, with both 320 MHz layouts. Widths are **free up to the hardware** (D-110): 160 MHz (320 on Wi-Fi 7 at 6 GHz) where the air is clean, 80/40/20 where it is crowded. In the US only two 80 MHz blocks are free of DFS.
+- A block's primary channel is where the nodes hear the fewest foreign primaries, the current one unless another is clearly quieter.
+
+**Power** (before the channel search, which weighs overlaps at the planned powers): each radio whose power is `auto` aims for its loudest neighbor node to hear it at −65 to −72 dBm (enough cell overlap for roaming): lowered when heard louder, raised when nobody hears it above −72 dBm, within 10 dBm and the regulatory maximum, and only in steps of 2 dB or more. A mesh radio stays loud enough for each live peer to hear it at −70 dBm. 2.4 GHz stays 3 dB under its node's 5 GHz radio.
 
 **Apply [M6.1]:**
 1. Show a preview, then run a job.

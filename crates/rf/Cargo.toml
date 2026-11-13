@@ -1,6 +1,6 @@
 [package]
 name = "uniwrt-rf"
-description = "uniwrt RF insight: channel occupancy, interference and the inter-node RSSI matrix from scans and facts; later the channel planner"
+description = "uniwrt RF insight: channel occupancy, interference and the inter-node RSSI matrix from scans and facts; the channel, width and power planner"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

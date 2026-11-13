@@ -218,6 +218,21 @@ impl Default for RfSettings {
     }
 }
 
+/// Which DFS channels the RF planner may choose (features/wifi.md, RF planner; D-110). A pinned
+/// channel is kept whatever the policy says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum DfsPolicy {
+    /// No DFS channel.
+    Avoid,
+    /// DFS channels except the weather radar's (5600–5650 MHz, channels 120–128).
+    NonWeather,
+    /// Every DFS channel (the owner's default, D-110).
+    #[default]
+    All,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{from_value, json, to_value};

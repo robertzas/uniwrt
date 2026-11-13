@@ -533,10 +533,19 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 
 ### `uniwrt-rf` (crates/rf)
 
-RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; later the channel planner (M6.1).
+RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; and the RF planner (M6.1): each radio's channel, width and power.
 
 - `src/build.rs`: Building the [`RfReport`] from the nodes' facts, their radios' latest scans and the radar history.
-- `src/lib.rs`: RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; later the channel planner (M6.1).
+- `src/lib.rs`: RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; and the RF planner (M6.1): each radio's channel, width and power.
+- `src/plan/blocks.rs`: The channels a radio may take: each band's standard blocks of 20 MHz channels per width (the layout OpenWrt derives from a primary channel and `htmode`), filtered by what the radios allow and the DFS policy.
+- `src/plan/cost.rs`: The objective (features/wifi.md, RF planner: Objective) over one band: what each radio suffers from the site's other radios and foreign networks, DFS, moving, and the width it gives up.
+- `src/plan/input.rs`: What the planner plans from: the site's radios with their constraints, what each node hears, the channels' history and the policy.
+- `src/plan/mod.rs`: The RF planner (features/wifi.md, RF planner; M6.1 a1, D-110): each radio's channel, width and power, per band, from what the radios may do, how the nodes hear each other and the foreign networks, the channels' history and the DFS policy.
+- `src/plan/output.rs`: The plan: per band, each radio's planned channel, width and power with the cost before and after and why; the band's score before and after and how the search ran.
+- `src/plan/power.rs`: Transmit power (features/wifi.md, RF planner: Power): each radio's power set so the loudest other node hears it at −65 to −72 dBm (enough overlap to roam, not so much that cells drown each other), held up for its mesh peers, 2.4 GHz kept under 5 GHz, never under a floor.
+- `src/plan/search.rs`: The search over units' choices (features/wifi.md, RF planner: Search): a local descent from the current channels, then branch and bound over every combination where the band is small enough to finish, else simulated annealing with a fixed seed and a last descent.
+- `src/plan/tests.rs`: The planner over simulated sites (`world`): the constraints hold, the plans make sense for the air they're planned in, and the search is deterministic and finds the optimum.
+- `src/plan/world.rs`: A simulated site for the planner's tests: nodes and foreign access points placed on a floor, signals from a log-distance path loss, and the planner's inputs derived from them.
 - `src/radar.rs`: Radar hits from hostapd's log (`DFS-RADAR-DETECTED`, the `dfs-radar` pattern): where the radar was, so each channel's radar history can be told.
 - `src/report.rs`: The RF report: per band, the site's radios, each channel's occupancy, the networks heard and the inter-node RSSI matrix.
 - `src/span.rs`: The frequencies a channel occupies, how much two channels share, and how much a signal counts.
