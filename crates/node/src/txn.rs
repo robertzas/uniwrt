@@ -169,6 +169,9 @@ pub struct Checked {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Armed {
     pub timeout_s: u64,
+    /// A scheduled apply's countdown left when it answered ([`apply_at`]).
+    #[serde(default)]
+    pub wait_ms: Option<u64>,
 }
 
 /// What `bounce` answers: how many ports go down and up again.
@@ -282,6 +285,25 @@ pub fn check(id: &TxnId) -> Command<Checked> {
 /// what changed. It answers before the reload, which may cut the connection.
 pub fn apply(id: &TxnId, timeout: Duration) -> Command<Armed> {
     Command::tool("apply", &[id.as_str(), &timeout.as_secs().to_string()])
+}
+
+/// The longest countdown of [`apply_at`], which the tool enforces too.
+pub const MAX_WAIT: Duration = Duration::from_secs(600);
+
+/// [`apply`], but the reload waits `wait` from the moment the command starts (the mesh's
+/// synchronized cutover, M6.1 b2): it snapshots, arms and installs at once, stops the services
+/// that go off and reloads only then, and its timer counts from then. `wait` is clamped to
+/// [`MAX_WAIT`] and counted in milliseconds.
+pub fn apply_at(id: &TxnId, timeout: Duration, wait: Duration) -> Command<Armed> {
+    let ms = wait.min(MAX_WAIT).as_millis();
+    Command::tool(
+        "apply",
+        &[
+            id.as_str(),
+            &timeout.as_secs().to_string(),
+            &format!("+{ms}"),
+        ],
+    )
 }
 
 /// [`apply`] where the `radios` (UCI `wifi-device` sections) move live by a channel switch

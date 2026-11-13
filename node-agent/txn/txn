@@ -10,6 +10,9 @@
 #        txn apply <id> <seconds> [<radio>…]  snapshot, arm the timer, install, reload in procd;
 #                                             with radios, nothing reloads what it installs (their
 #                                             channels move live, D-113) and a rollback restarts them
+#        txn apply <id> <seconds> +<ms>       the same, but the reload (and the services going off)
+#                                             waits <ms> from the command's start, and the timer
+#                                             counts from then: the mesh's cutover (M6.1 b2)
 #        txn extend <id> <seconds>            move the open transaction's deadline
 #        txn confirm <id> | rollback <id>     end the open transaction
 #        txn status | uninstall | install <dir>
@@ -34,6 +37,8 @@ MAX_S=3600
 MAX_BLOCKS=2048
 # procd runs reload triggers PROCD_RELOAD_DELAY (1 s) after reload_config.
 TRIGGER_S=2
+# The longest countdown to a scheduled reload, in milliseconds.
+MAX_WAIT_MS=600000
 
 # --- output
 
@@ -97,6 +102,23 @@ seconds() {
 uptime_s() {
 	read -r up _ </proc/uptime
 	echo "${up%.*}"
+}
+
+# The uptime in centiseconds (/proc/uptime has two decimals; one with a leading 0 isn't octal).
+uptime_cs() {
+	read -r up _ </proc/uptime
+	cs=${up#*.}
+	echo $((${up%.*} * 100 + ${cs#0}))
+}
+
+# Sleeps until the uptime in centiseconds that file $1 holds, if any: ucode sleeps to the
+# millisecond, busybox's sleep only in whole seconds.
+wait_due() {
+	[ -f "$1" ] || return 0
+	due=$(cat "$1") || return 0
+	left=$((due - $(uptime_cs)))
+	[ "$left" -gt 0 ] || return 0
+	ucode -e "sleep($((left * 10)))" 2>/dev/null || sleep $(((left + 99) / 100))
 }
 
 # Writes $2 into file $1 atomically.
@@ -220,6 +242,15 @@ roll_back() {
 	rm -rf "$j"
 }
 
+# Stops and disables the services that the services file $1 turns off.
+stop_off() {
+	for name in $(services_in "$1" off); do
+		[ -x "/etc/init.d/$name" ] || continue
+		service "$name" stop
+		service "$name" disable
+	done
+}
+
 # Asks procd for the instances start_service declares: none once nothing is open.
 guard() {
 	"$GUARD" start >/dev/null 2>&1
@@ -288,10 +319,22 @@ cmd_check() {
 cmd_apply() {
 	valid "${1:-}" || fail bad_request "bad transaction id"
 	seconds "${2:-}" || fail bad_request "the timeout is $MIN_S to $MAX_S seconds"
+	start=$(uptime_cs)
 	id=$1
 	secs=$2
 	dir=$STAGE/$id
 	shift 2
+	wait_ms=''
+	case ${1:-} in
+	+*)
+		wait_ms=${1#+}
+		case $wait_ms in '' | *[!0-9]*) fail bad_request "the countdown is +<milliseconds>" ;; esac
+		[ ${#wait_ms} -le 6 ] && [ "$wait_ms" -le $MAX_WAIT_MS ] ||
+			fail bad_request "the countdown is at most $MAX_WAIT_MS ms"
+		shift
+		[ $# -eq 0 ] || fail bad_request "a scheduled apply moves no radio live"
+		;;
+	esac
 	for radio; do
 		valid "$radio" || fail bad_request "bad radio name: $radio"
 	done
@@ -304,6 +347,8 @@ cmd_apply() {
 	rm -rf "$j"
 	mkdir -p "$j/config" || fail failed "cannot create the journal"
 	[ $# -eq 0 ] || printf '%s\n' "$@" >"$j/radios"
+	# The countdown counts from the command's start, as the controller's does from sending it.
+	[ -z "$wait_ms" ] || echo $((start + wait_ms / 10)) >"$j/due"
 	# The snapshot: the packages it replaces and the services it switches.
 	for file in "$dir"/config/*; do
 		[ -f "$file" ] || continue
@@ -320,17 +365,14 @@ cmd_apply() {
 		[ -x "/etc/init.d/$name" ] || continue
 		if service "$name" enabled; then echo "$name on"; else echo "$name off"; fi >>"$j/before"
 	done <"$dir/services"
-	put_file "$j/deadline" $(($(uptime_s) + secs))
+	put_file "$j/deadline" $(($(uptime_s) + secs + (${wait_ms:-0} + 999) / 1000))
 	put_file "$j/state" applying
 	put_file "$JOURNAL/current" "$id"
 	sync
 	guard
-	# Services that go off stop first: a stopped one has no reload triggers left.
-	for name in $(services_in "$dir/services" off); do
-		[ -x "/etc/init.d/$name" ] || continue
-		service "$name" stop
-		service "$name" disable
-	done
+	# Services that go off stop first: a stopped one has no reload triggers left. A scheduled
+	# apply stops them when it reloads.
+	[ -n "$wait_ms" ] || stop_off "$dir/services"
 	for file in "$dir"/config/*; do
 		[ -f "$file" ] || continue
 		install_package "${file##*/}" "$file" ||
@@ -354,6 +396,11 @@ cmd_apply() {
 	sync
 	rm -rf "$STAGE"
 	guard
+	if [ -n "$wait_ms" ]; then
+		left=$(($(cat "$j/due") - $(uptime_cs)))
+		[ "$left" -ge 0 ] || left=0
+		ok "{\"timeout_s\":$secs,\"wait_ms\":$((left * 10))}"
+	fi
 	ok "{\"timeout_s\":$secs}"
 }
 
@@ -458,11 +505,17 @@ cmd_wait() {
 	done
 }
 
-# Reloads what the open transaction installed, as the guard's procd instance.
+# Reloads what the open transaction installed, as the guard's procd instance; a scheduled one
+# waits for its moment first, without the lock (extend and rollback take it meanwhile).
 cmd_reload() {
 	valid "${1:-}" || exit 1
+	wait_due "$JOURNAL/$1/due"
 	lock
 	[ "$(open_id)" = "$1" ] && [ "$(state_of "$1")" = reloading ] || exit 0
+	if [ -f "$JOURNAL/$1/due" ]; then
+		logger -t uniwrt-txn "transaction $1 reloads as scheduled"
+		stop_off "$JOURNAL/$1/services"
+	fi
 	reload_all
 	for name in $(services_in "$JOURNAL/$1/before" off); do
 		grep -qx "$name on" "$JOURNAL/$1/services" && service "$name" start

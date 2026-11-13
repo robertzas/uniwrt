@@ -61,6 +61,7 @@ fn timing() -> ApplyTiming {
         timer: Duration::from_secs(40),
         timer_uplink: Duration::from_secs(60),
         wan_wait: Duration::from_secs(30),
+        cutover_lead: Duration::from_secs(10),
     }
 }
 

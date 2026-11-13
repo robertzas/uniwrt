@@ -6,7 +6,8 @@
 //! footprint's status, install and removal, and the reads of the current packages and services
 //! ([`uniwrt_node::txn::current`]). Time is the caller's ([`Now`]): the dead-man timer expires
 //! when a command runs after its deadline, and a node that booted since its apply rolls back
-//! (reason `boot`). The reload is instant, so an apply is `applied` at once. `check` takes any
+//! (reason `boot`). The reload is instant, so an apply is `applied` at once, a scheduled one too
+//! (its countdown is kept in [`Tool::waits`] and lengthens its timer). `check` takes any
 //! staged file: the sim has no `uci` to parse them with.
 
 use std::collections::BTreeMap;
@@ -42,6 +43,8 @@ pub struct Tool {
     pub live: Vec<Vec<String>>,
     /// The radios each rollback of a live apply restarted, in order.
     pub restarted: Vec<Vec<String>>,
+    /// The countdown of each scheduled `apply` (`+<ms>`, the mesh's cutover), in order.
+    pub waits: Vec<u64>,
     stage: Option<Stage>,
     open: Option<Open>,
     last: Option<serde_json::Value>,
@@ -149,6 +152,19 @@ impl Tool {
             ("stage", [id, services @ ..]) => self.stage(id, services),
             ("put", [id, package]) => self.put(id, package, stdin.unwrap_or_default()),
             ("check", [id]) => self.check(id),
+            ("apply", [id, seconds, wait]) if wait.starts_with('+') => {
+                let wait: u64 = wait[1..].parse().ok().filter(|ms| *ms <= 600_000).ok_or((
+                    code::BAD_REQUEST,
+                    "the countdown is +<milliseconds>".to_owned(),
+                ))?;
+                let mut armed = self.apply(id, seconds, &[], now)?;
+                if let Some(open) = &mut self.open {
+                    open.deadline_s += wait.div_ceil(1000);
+                }
+                self.waits.push(wait);
+                armed["wait_ms"] = json!(wait);
+                Ok(armed)
+            }
             ("apply", [id, seconds, radios @ ..]) => self.apply(id, seconds, radios, now),
             ("extend", [id, seconds]) => {
                 let seconds = timeout(seconds)?;

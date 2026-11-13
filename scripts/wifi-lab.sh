@@ -12,7 +12,7 @@
 #
 # Usage: scripts/wifi-lab.sh up | down | test [nextest args…] | capture [collect | events]
 #   up       builds the images, starts the lab and writes target/wifi-lab.env (addresses, password)
-#   test     runs crates/node/tests/wifi.rs and backhaul.rs against a running lab, starting it first if needed,
+#   test     runs crates/node/tests/wifi.rs, backhaul.rs and cutover.rs against a running lab, starting it first if needed,
 #            then crates/system/tests/wpad.rs (the wpad swap) and crates/system/tests/wifi.rs, which renders a site onto it (and restarts a lab
 #            that was up before)
 #   capture  (both parts unless one is named) writes the collect answers of nodes a and b, from a running lab, to
@@ -294,6 +294,10 @@ test)
   # One at a time: a test that kicks the client would fail the others' checks that it is there.
   cargo nextest run --locked -p uniwrt-node --test wifi --test backhaul --run-ignored only --status-level fail \
     --hide-progress-bar --test-threads 1 "$@"
+  # The mesh's cutover (crates/node/tests/cutover.rs) moves the mesh and back, after the tests
+  # that need the client where the lab put it.
+  cargo nextest run --locked -p uniwrt-node --test cutover --run-ignored only --status-level fail \
+    --hide-progress-bar
   # Then the system harness renders a site onto a and b (crates/system/tests/wifi.rs), which
   # leaves the lab rendered: a lab that was up before is started again afterwards.
   install_agent uniwrt-wifi-a

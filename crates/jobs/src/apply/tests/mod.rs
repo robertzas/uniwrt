@@ -4,6 +4,7 @@
 mod adopted;
 mod backhaul;
 mod channels;
+mod cutover;
 pub(crate) mod facts;
 pub(crate) mod fleet;
 mod install;

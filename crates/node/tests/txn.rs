@@ -267,6 +267,76 @@ async fn a_live_apply_reloads_nothing_and_its_rollback_restarts_the_radios() {
     }
 }
 
+/// Stages `system` with a mark and dnsmasq off, then applies it with a countdown of `wait`
+/// (the mesh's cutover, M6.1 b2).
+async fn schedule(session: &Session, id: &TxnId, wait: Duration) -> txn::Armed {
+    let system = run(session, &["cat", "/etc/config/system"]).await;
+    let marked = format!("{system}\nconfig uniwrt_test 'probe'\n\toption mark '{id}'\n");
+    exec(session, &txn::stage(id, [("dnsmasq", false)]).unwrap())
+        .await
+        .unwrap();
+    exec(session, &txn::put(id, "system", marked).unwrap())
+        .await
+        .unwrap();
+    exec(session, &txn::check(id)).await.unwrap();
+    exec(session, &txn::apply_at(id, Duration::from_secs(60), wait))
+        .await
+        .unwrap()
+}
+
+/// A scheduled apply installs at once and reloads, and stops what goes off, only when its
+/// countdown ends; its timer counts from then. Rolled back before that, nothing ever stopped.
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn a_scheduled_apply_waits_for_its_countdown() {
+    let session = managed().await;
+    let id = TxnId::new("scheduled").unwrap();
+    let armed = schedule(&session, &id, Duration::from_secs(8)).await;
+    let started = Instant::now();
+    assert_eq!(armed.timeout_s, 60);
+    assert!(
+        armed.wait_ms.is_some_and(|ms| (6000..=8000).contains(&ms)),
+        "{armed:?}"
+    );
+    assert_eq!(mark(&session).await, "scheduled");
+    let open = status(&session).await.open.unwrap();
+    assert_eq!(open.state, OpenState::Reloading);
+    assert!(open.remaining_s >= 65, "{open:?}");
+    assert!(
+        shell_ok(&session, DNSMASQ_ON).await,
+        "dnsmasq stopped early"
+    );
+    wait_state(&session, OpenState::Applied).await;
+    assert!(
+        started.elapsed() >= Duration::from_secs(5),
+        "reloaded early"
+    );
+    assert!(shell_ok(&session, DNSMASQ_OFF).await);
+    let log = run(&session, &["sh", "-c", "logread -e uniwrt-txn | tail -n 1"]).await;
+    assert!(log.contains("scheduled reloads as scheduled"), "{log}");
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    wait_until(&session, "dnsmasq back on", DNSMASQ_ON).await;
+
+    // Rolled back during the countdown: dnsmasq never stops, and the reload never comes.
+    let id = TxnId::new("unscheduled").unwrap();
+    schedule(&session, &id, Duration::from_secs(5)).await;
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    assert_eq!(
+        rolled_back(&status(&session).await, &id),
+        Some(Reason::Requested)
+    );
+    tokio::time::sleep(Duration::from_secs(7)).await;
+    assert!(shell_ok(&session, DNSMASQ_ON).await, "dnsmasq stopped");
+    assert_eq!(mark(&session).await, "");
+    assert!(status(&session).await.open.is_none());
+
+    // The countdown is in milliseconds, up to ten minutes.
+    let too_long = uniwrt_node::ExecRequest::new([txn::TOOL, "apply", "x", "60", "+600001"]);
+    let out = session.exec(&too_long).await.unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains(code::BAD_REQUEST));
+}
+
 /// How often `port` lost its carrier, and whether it has one now.
 async fn carrier(session: &Session, port: &str) -> (u32, bool) {
     let dir = format!("/sys/class/net/{port}");

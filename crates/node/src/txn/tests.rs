@@ -2,7 +2,7 @@ use std::{fs, io::Write as _, path::Path, process::Command as Process, time::Dur
 
 use super::{
     Checked, Command, Done, FILES, Finished, Footprint, Open, OpenState, Outcome, Reason, Status,
-    TxnId, apply, apply_live, bounce, code, put, stage, status, uninstall,
+    TxnId, apply, apply_at, apply_live, bounce, code, put, stage, status, uninstall,
 };
 use crate::{Error, ExecOutput, ExitStatus};
 
@@ -84,6 +84,18 @@ fn commands_are_argv_arrays() {
         ["/etc/uniwrt/txn", "apply", "j42", "120", "radio1"]
     );
     assert!(apply_live(&id(), Duration::from_secs(120), ["radio 1"]).is_err());
+    // The countdown in milliseconds, at most ten minutes.
+    let at = apply_at(
+        &id(),
+        Duration::from_secs(300),
+        Duration::from_millis(14_250),
+    );
+    assert_eq!(
+        at.request.argv,
+        ["/etc/uniwrt/txn", "apply", "j42", "300", "+14250"]
+    );
+    let capped = apply_at(&id(), Duration::from_secs(300), Duration::from_secs(3600));
+    assert_eq!(capped.request.argv[4], "+600000");
     // The ports stay down for 1 to 30 s.
     let bounced = bounce(["lan1", "eth0.2"], Duration::from_secs(300)).unwrap();
     assert_eq!(

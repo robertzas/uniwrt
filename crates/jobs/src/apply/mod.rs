@@ -4,7 +4,8 @@
 //! Steps: connect (every managed node, or nothing changes) → plan ([`survey`]: read what each
 //! holds, render, diff; any refused node stops it) → install (the feed packages a node's
 //! configuration needs, [`install`]) → stage (stage and check every transaction)
-//! → apply (leaves → gateway, each with its dead-man timer) → verify (all at once, each over a
+//! → apply (leaves → gateway, each with its dead-man timer; where mesh links drop, every node
+//! at one instant instead, [`cutover`], D-114) → verify (all at once, each over a
 //! new login at the address it moves to, against its health before) → confirm (all) → settle
 //! and wan (the gateway's later transactions, D-081: dropping the old address of this
 //! controller's network once it reaches the new one, and the WAN's change last) → channels (the
@@ -23,6 +24,7 @@ mod backhaul;
 mod cables;
 mod channels;
 mod controller;
+mod cutover;
 pub(crate) mod health;
 mod install;
 mod later;
@@ -92,6 +94,9 @@ pub struct ApplyTiming {
     /// How long a WAN test waits for an address (a third of it for the link, three quarters
     /// for IPv6).
     pub wan_wait: Duration,
+    /// How far ahead the mesh's synchronized cutover sets the instant every node reloads at:
+    /// time for every node to snapshot, install and answer (D-114).
+    pub cutover_lead: Duration,
 }
 
 impl Default for ApplyTiming {
@@ -103,6 +108,7 @@ impl Default for ApplyTiming {
             timer: Duration::from_secs(120),
             timer_uplink: Duration::from_secs(300),
             wan_wait: Duration::from_secs(60),
+            cutover_lead: Duration::from_secs(15),
         }
     }
 }

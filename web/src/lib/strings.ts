@@ -3266,7 +3266,7 @@ export const strings = {
         batman_iv: "Picks paths by packet loss: for meshes that must work with older devices.",
       },
       moves:
-        "The mesh's links drop until every device has this change, so a device that reaches the gateway over the mesh's Wi-Fi alone drops off for a while. The review names them; the apply rolls everything back if the mesh doesn't come back.",
+        "The mesh's links drop while the devices take this change, all at the same moment, so a device that reaches the gateway over the mesh's Wi-Fi alone drops off for a while. The review names them; the apply rolls everything back if the mesh doesn't come back.",
       cuts: "A device that reaches the gateway over the mesh's Wi-Fi alone would lose the network: the review refuses the apply until it is connected by cable.",
       wired: "Mesh over cables",
       wiredHint:

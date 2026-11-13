@@ -283,6 +283,9 @@ impl<'a> Run<'a> {
     /// Applies every transaction in order, keeping the earlier timers alive; then the access
     /// points that move ask for a lease, and the gateway's ports bounce where it bridges.
     pub(crate) async fn apply(&mut self, progress: &mut Progress) -> Result<String, JobError> {
+        if self.cutover() {
+            return self.apply_at(progress).await;
+        }
         let active = self.active();
         for &i in &active {
             let id = self.lives[i].node.id;

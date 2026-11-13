@@ -306,6 +306,7 @@ impl Remote for FakeRemote {
 pub(crate) struct Fleet {
     _dir: tempfile::TempDir,
     pub(crate) store: Store,
+    pub(crate) vault: Vault,
     pub(crate) jobs: Jobs,
     pub(crate) watched: Arc<Watched>,
     /// The nodes in the store, and how each answers.
@@ -364,7 +365,7 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
     let jobs = Jobs::start_with(
         JobsConfig {
             store: store.clone(),
-            vault,
+            vault: vault.clone(),
             clock,
             key: ControllerKey::generate().unwrap(),
             dial: Some(Arc::new(dial)),
@@ -375,6 +376,7 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
             verify: Duration::from_millis(300),
             verify_uplink: Duration::from_millis(300),
             wan_wait: Duration::from_millis(300),
+            cutover_lead: Duration::from_millis(50),
             ..ApplyTiming::default()
         },
     )
@@ -383,6 +385,7 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
     Fleet {
         _dir: dir,
         store,
+        vault,
         jobs,
         watched,
         nodes,
@@ -395,6 +398,16 @@ pub(crate) async fn commit(
     store: &Store,
     base: Option<uniwrt_core::RevisionId>,
     config: SiteConfig,
+) -> uniwrt_core::RevisionId {
+    commit_sealed(store, base, config, Vec::new()).await
+}
+
+/// [`commit`], with the secrets `config` refers to.
+pub(crate) async fn commit_sealed(
+    store: &Store,
+    base: Option<uniwrt_core::RevisionId>,
+    config: SiteConfig,
+    secrets: Vec<uniwrt_store::SealedSecret>,
 ) -> uniwrt_core::RevisionId {
     store
         .commit_revision(
@@ -411,7 +424,7 @@ pub(crate) async fn commit(
                 message: "test".to_owned(),
                 config,
             },
-            Vec::new(),
+            secrets,
         )
         .await
         .unwrap()

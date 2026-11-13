@@ -102,6 +102,33 @@ impl FakeRadios {
 /// Gives `fake` hwsim-b's radios and phys, as Wi-Fi 6 (hwsim's Wi-Fi 7 reloads: `switch_chan`
 /// has no EHT flag).
 pub(crate) fn wifi(fake: &FakeNode) {
+    let hwsim = hwsim();
+    *fake.collect_hook.lock().unwrap() = Some(Box::new(move |_, collected| {
+        for set in ["radios", "phys"] {
+            collected["sets"][set] = hwsim["sets"][set].clone();
+        }
+    }));
+}
+
+/// [`wifi`], with batman-adv and hostapd's SAE and mesh support: the site's mesh renders.
+pub(crate) fn meshed(fake: &FakeNode) {
+    let hwsim = hwsim();
+    *fake.collect_hook.lock().unwrap() = Some(Box::new(move |_, collected| {
+        let sets = &mut collected["sets"];
+        for set in ["radios", "phys"] {
+            sets[set] = hwsim["sets"][set].clone();
+        }
+        let caps = &mut sets["capabilities"];
+        caps["software"]
+            .as_array_mut()
+            .unwrap()
+            .push("batman-adv".into());
+        caps["hostapd"] = json!(["sae", "mesh"]);
+    }));
+}
+
+/// hwsim-b's collect answer, its phys without Wi-Fi 7.
+fn hwsim() -> Value {
     let mut hwsim: Value = serde_json::from_str(HWSIM_B).unwrap();
     let wiphys = hwsim.pointer_mut("/sets/phys/wiphys").unwrap();
     for band in wiphys
@@ -117,9 +144,5 @@ pub(crate) fn wifi(fake: &FakeNode) {
                 .retain(|key, _| !key.starts_with("eht"));
         }
     }
-    *fake.collect_hook.lock().unwrap() = Some(Box::new(move |_, collected| {
-        for set in ["radios", "phys"] {
-            collected["sets"][set] = hwsim["sets"][set].clone();
-        }
-    }));
+    hwsim
 }

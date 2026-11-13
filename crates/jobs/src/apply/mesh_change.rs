@@ -36,7 +36,7 @@ impl MeshChange {
     }
 
     /// Links over the mesh drop, for a while or for good.
-    fn cuts(self) -> bool {
+    pub(crate) fn cuts(self) -> bool {
         matches!(self, Self::Moves | Self::Leaves | Self::Off)
     }
 }
@@ -140,9 +140,9 @@ pub(crate) fn review(
                 } else {
                     plan.warnings.push(note(format!(
                         "It reaches the gateway over the mesh's Wi-Fi alone, so it drops off \
-                         while the mesh changes, until the nodes on its way have the change \
-                         too. The apply waits up to {} s for the mesh to come back, and rolls \
-                         every node back if it doesn't",
+                         while the mesh changes: every node reloads at the same moment, and \
+                         the apply waits up to {} s for the mesh to come back, rolling every \
+                         node back if it doesn't",
                         window.as_secs()
                     )));
                 }
