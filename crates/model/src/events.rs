@@ -17,6 +17,7 @@ use crate::{
     event::{Attachment, SteerAction, SteerReason},
     job::JobKind,
     log::Severity,
+    rf::{BandGain, NightlySkip},
     status::StatusReason,
     wifi::{Band, ChannelWidth},
 };
@@ -305,6 +306,18 @@ pub enum EventKind {
         shaped_download_kbps: u32,
         shaped_upload_kbps: u32,
     },
+    /// The nightly optimizer saved the RF planner's plan for `bands` as `revision` and started
+    /// applying it (features/wifi.md, RF planner: Apply; D-115).
+    RfOptimized {
+        revision: RevisionId,
+        job: JobId,
+        bands: Vec<BandGain>,
+    },
+    /// The nightly optimizer left a plan worth applying for `bands` for the night.
+    RfOptimizeSkipped {
+        reason: NightlySkip,
+        bands: Vec<BandGain>,
+    },
     /// A WLAN's schedule turned it off, or on again, across the site (features/wifi.md, WLANs;
     /// D-083).
     WlanScheduled {
@@ -381,7 +394,9 @@ impl EventKind {
             | Self::ChannelClear { .. }
             | Self::WlanScheduleOk { .. }
             | Self::ClientBansOk
-            | Self::NeighborReportsOk => (C::Wifi, L::Notice),
+            | Self::NeighborReportsOk
+            | Self::RfOptimized { .. }
+            | Self::RfOptimizeSkipped { .. } => (C::Wifi, L::Notice),
             Self::WlanScheduled { .. } => (C::Wifi, L::Info),
         }
     }
@@ -418,6 +433,8 @@ impl EventKind {
             Self::ConfigDrift { .. } => "config_drift",
             Self::ConfigDriftEnded { .. } => "config_drift_ended",
             Self::SqmRatesDrifted { .. } => "sqm_rates_drifted",
+            Self::RfOptimized { .. } => "rf_optimized",
+            Self::RfOptimizeSkipped { .. } => "rf_optimize_skipped",
             Self::WlanScheduled { .. } => "wlan_scheduled",
             Self::WlanScheduleFailed { .. } => "wlan_schedule_failed",
             Self::WlanScheduleOk { .. } => "wlan_schedule_ok",

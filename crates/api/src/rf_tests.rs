@@ -60,7 +60,7 @@ async fn the_view_shows_what_the_scans_heard() {
     assert!(kinds.contains(&"own".to_owned()) && kinds.contains(&"foreign".to_owned()));
     assert_eq!(
         view["settings"],
-        json!({"scanning": true, "interval_h": 4, "dfs": "all"})
+        json!({"scanning": true, "interval_h": 4, "dfs": "all", "nightly": true, "nightly_at_min": 210})
     );
 
     let gateway = demo.ids[0].get();
@@ -115,7 +115,10 @@ async fn admins_queue_scans_and_change_the_settings() {
     let bad = json!({"scanning": true, "interval_h": 30});
     let (status, _) = send(&demo, Method::PUT, "/v1/rf/settings", Some(&bad)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let off = json!({"scanning": false, "interval_h": 8, "dfs": "non_weather"});
+    let late = json!({"scanning": true, "interval_h": 4, "nightly_at_min": 1440});
+    let (status, _) = send(&demo, Method::PUT, "/v1/rf/settings", Some(&late)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let off = json!({"scanning": false, "interval_h": 8, "dfs": "non_weather", "nightly": false, "nightly_at_min": 60});
     let (status, body) = send(&demo, Method::PUT, "/v1/rf/settings", Some(&off)).await;
     assert_eq!((status, &body), (StatusCode::OK, &off));
     let (_, view) = send(&demo, Method::GET, "/v1/rf", None).await;

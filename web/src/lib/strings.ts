@@ -1454,6 +1454,8 @@ export const strings = {
       clientBansOk: (node: string) => `${node}: keeps blocked clients off again`,
       neighborReportsFailed: (node: string) => `${node}: couldn't take its roaming neighbors`,
       neighborReportsOk: (node: string) => `${node}: takes its roaming neighbors again`,
+      rfOptimized: "The nightly optimization applied a new channel plan",
+      rfOptimizeSkipped: "The nightly optimization skipped a better channel plan",
     },
     detail: {
       by: (user: string) => `By ${user}`,
@@ -1499,6 +1501,15 @@ export const strings = {
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,
       radar: "Radar on its DFS channel made it move",
+      band: { "2g": "2.4 GHz", "5g": "5 GHz", "6g": "6 GHz", "60g": "60 GHz" },
+      bandGain: (band: string, percent: string) => `${band} ${percent} better`,
+      rfRevision: (gains: string, revision: number) => `${gains} · revision ${revision}`,
+      nightlySkip: {
+        pending_changes: "The site has changes not yet applied: apply or discard them",
+        traffic: "Heavy traffic until the window closed",
+        busy: "Another job ran until the window closed",
+        offline: "A managed device was offline until the window closed",
+      },
       busy: (percent: number) => `${percent}% busy`,
       busyFor: (percent: number, d: string) => `${percent}% busy, after ${d} congested`,
       driftSince: (revision: number) => `Differs from revision ${revision} as applied`,
@@ -1696,6 +1707,8 @@ export const strings = {
       client_bans_ok: "Blocked clients kept off again",
       neighbor_reports_failed: "Roaming neighbors not set",
       neighbor_reports_ok: "Roaming neighbors set again",
+      rf_optimized: "Nightly channel plan applied",
+      rf_optimize_skipped: "Nightly channel plan skipped",
       log_pattern: "Problem in a log",
     },
     kindGroups: {
@@ -3125,7 +3138,16 @@ export const strings = {
       score: (before: string, after: string) => `Cost ${before} → ${after}`,
       improvement: (percent: string) => `${percent} better`,
       noGain: "Already near the best",
-      threshold: "The nightly optimizer applies a plan only from 15 % better.",
+      threshold: "The nightly optimization applies a plan only from 15 % better.",
+      nightly: {
+        label: "Optimize nightly",
+        time: "Starts at",
+        hint: "Every night from this time (local, for two hours) the planner runs on every band. A band whose plan is at least 15 % better is saved as a revision and applied, with the usual rollback. It waits while a radio that would move carries traffic or a managed device is offline, and it skips the night when changes are waiting to be applied.",
+        at: (time: string) => `Optimizes nightly at ${time}`,
+        off: "No nightly optimization",
+        saved: "Nightly optimization saved",
+        failed: "The nightly optimization could not be saved",
+      },
       allObserved:
         "Every radio here is in observe mode, so the plan keeps them as they run. Manage a device's Wi-Fi to let the planner move its radios.",
       search: {

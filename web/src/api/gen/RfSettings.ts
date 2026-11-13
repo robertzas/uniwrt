@@ -13,4 +13,13 @@ scanning: boolean, interval_h: number,
 /**
  * Which DFS channels the RF planner may choose (D-110).
  */
-dfs: DfsPolicy, };
+dfs: DfsPolicy, 
+/**
+ * The nightly optimizer (features/wifi.md, RF planner: Apply; D-115): plans every night
+ * and applies the bands that improve by [`NIGHTLY_IMPROVEMENT`] or more.
+ */
+nightly: boolean, 
+/**
+ * When its window opens, in minutes after local midnight; it lasts [`NIGHTLY_WINDOW_MIN`].
+ */
+nightly_at_min: number, };

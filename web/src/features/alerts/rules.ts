@@ -73,6 +73,8 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
       "client_bans_ok",
       "neighbor_reports_failed",
       "neighbor_reports_ok",
+      "rf_optimized",
+      "rf_optimize_skipped",
     ],
   },
   {

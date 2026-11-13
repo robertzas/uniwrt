@@ -204,11 +204,61 @@ pub struct RfSettings {
     pub interval_h: u8,
     /// Which DFS channels the RF planner may choose (D-110).
     pub dfs: DfsPolicy,
+    /// The nightly optimizer (features/wifi.md, RF planner: Apply; D-115): plans every night
+    /// and applies the bands that improve by [`NIGHTLY_IMPROVEMENT`] or more.
+    pub nightly: bool,
+    /// When its window opens, in minutes after local midnight; it lasts [`NIGHTLY_WINDOW_MIN`].
+    pub nightly_at_min: u16,
 }
 
 impl RfSettings {
     pub const KEY: &'static str = "rf";
     pub const INTERVALS_H: std::ops::RangeInclusive<u8> = 1..=24;
+    /// The latest [`Self::nightly_at_min`]: a minute before midnight.
+    pub const NIGHTLY_AT_MAX: u16 = 24 * 60 - 1;
+}
+
+/// How long the nightly optimizer's window lasts: it tries again within it while traffic is
+/// heavy, then waits for the next night.
+pub const NIGHTLY_WINDOW_MIN: u16 = 120;
+/// The least improvement of a band's cost (`BandPlan::improvement`) the nightly optimizer
+/// applies: the hysteresis that keeps it from moving radios for little.
+pub const NIGHTLY_IMPROVEMENT: f32 = 0.15;
+/// Traffic that puts the nightly apply off: a radio that would move carried this much, in
+/// kbit/s, in one of its two latest samples (about a video stream; D-115).
+pub const NIGHTLY_HEAVY_KBPS: u64 = 2_000;
+
+/// A band's improvement under the RF planner's plan, in whole percent (the nightly optimizer's
+/// events).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct BandGain {
+    pub band: Band,
+    pub percent: u8,
+}
+
+/// Why the nightly optimizer left a plan worth applying for the night (D-115).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum NightlySkip {
+    /// The site has changes not yet applied: it never applies what nobody reviewed.
+    PendingChanges,
+    /// A radio that would move carried heavy traffic until the window closed.
+    Traffic,
+    /// Another job held the configuration until the window closed.
+    Busy,
+    /// A managed node was offline until the window closed (an apply needs every one).
+    Offline,
+}
+
+/// The night whose window holds `now` at a site `offset_s` east of UTC, for a window opening
+/// `at_min` minutes after local midnight: the local day it opened on, in days since the epoch.
+/// `None` outside the window.
+pub fn nightly_window(now: Timestamp, offset_s: i32, at_min: u16) -> Option<i64> {
+    let local_min = (now.as_unix_ms().div_euclid(1000) + i64::from(offset_s)).div_euclid(60);
+    let into = (local_min - i64::from(at_min)).rem_euclid(24 * 60);
+    (into < i64::from(NIGHTLY_WINDOW_MIN)).then(|| (local_min - into).div_euclid(24 * 60))
 }
 
 impl Default for RfSettings {
@@ -217,6 +267,8 @@ impl Default for RfSettings {
             scanning: true,
             interval_h: 4,
             dfs: DfsPolicy::All,
+            nightly: true,
+            nightly_at_min: 3 * 60 + 30,
         }
     }
 }
@@ -240,7 +292,9 @@ pub enum DfsPolicy {
 mod tests {
     use serde_json::{from_value, json, to_value};
 
-    use super::{DfsPolicy, RfSettings, ScanTrigger, Security};
+    use uniwrt_core::Timestamp;
+
+    use super::{DfsPolicy, RfSettings, ScanTrigger, Security, nightly_window};
 
     #[test]
     fn serde_names() {
@@ -253,11 +307,33 @@ mod tests {
                 scanning: false,
                 interval_h: 4,
                 dfs: DfsPolicy::All,
+                nightly: true,
+                nightly_at_min: 210,
             }
         );
         assert_eq!(
             to_value(DfsPolicy::NonWeather).unwrap(),
             json!("non_weather")
         );
+    }
+
+    #[test]
+    fn the_nightly_window_opens_at_its_local_time_for_two_hours() {
+        // Day 20405 at h:m UTC.
+        let at =
+            |h: i64, m: i64| Timestamp::from_unix_ms((20_405 * 86_400 + h * 3600 + m * 60) * 1000);
+        assert_eq!(nightly_window(at(3, 29), 0, 210), None);
+        assert_eq!(nightly_window(at(3, 30), 0, 210), Some(20_405));
+        assert_eq!(nightly_window(at(5, 29), 0, 210), Some(20_405));
+        assert_eq!(nightly_window(at(5, 30), 0, 210), None);
+        // Berlin in winter (UTC+1): 03:30 local is 02:30 UTC.
+        assert_eq!(nightly_window(at(2, 30), 3600, 210), Some(20_405));
+        assert_eq!(nightly_window(at(3, 30), 3600, 210), Some(20_405));
+        // New York (UTC−5): 03:30 local is 08:30 UTC.
+        assert_eq!(nightly_window(at(8, 45), -5 * 3600, 210), Some(20_405));
+        // A window opening at 23:30 runs past midnight and belongs to the day it opened.
+        assert_eq!(nightly_window(at(23, 45), 0, 1410), Some(20_405));
+        assert_eq!(nightly_window(at(24, 59), 0, 1410), Some(20_405));
+        assert_eq!(nightly_window(at(25, 30), 0, 1410), None);
     }
 }

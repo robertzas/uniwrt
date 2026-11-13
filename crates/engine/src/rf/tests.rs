@@ -208,6 +208,8 @@ async fn the_schedule_scans_each_radio_and_the_report_shows_what_they_heard() {
             .iter()
             .all(|r| !r.reasons.contains(&Reason::Observed))
     );
+    // No radio carries more than everything (the rates themselves: `radios`' tests).
+    assert!(handle.busy(u64::MAX).await.unwrap().is_empty());
     h.scanner.stop().await;
     h.engine.shutdown().await;
 }

@@ -7,7 +7,8 @@
 //!   first, without what they heard ([`ScanSummary`]).
 //! - `GET /api/v1/rf/scans/{id}`: one scan with what it heard ([`Scan`]).
 //! - `PUT /api/v1/rf/settings` (admins): background scans on or off, their interval (1 to 24
-//!   hours) and the planner's DFS policy ([`RfSettings`]).
+//!   hours), the planner's DFS policy and the nightly optimizer, on or off, and when its window
+//!   opens (minutes after local midnight; [`RfSettings`]).
 //! - `GET /api/v1/rf/plan`: the RF planner's plan for the site as it is: per band, each radio's
 //!   channel, width and power before and after, its cost term by term and the reasons
 //!   ([`Plan`]; features/wifi.md, RF planner). A preview: nothing is applied.
@@ -156,6 +157,11 @@ pub(crate) async fn put_settings(
             RfSettings::INTERVALS_H.end()
         )));
     }
+    if settings.nightly_at_min > RfSettings::NIGHTLY_AT_MAX {
+        return Err(ApiError::BadRequest(
+            "The nightly optimizer starts between 00:00 and 23:59".to_owned(),
+        ));
+    }
     api.rf()?.set_settings(settings).await.map_err(rf_error)?;
     let scans = if settings.scanning {
         format!("background scans every {} h", settings.interval_h)
@@ -167,7 +173,13 @@ pub(crate) async fn put_settings(
         DfsPolicy::NonWeather => "DFS channels but weather radar's",
         DfsPolicy::All => "every DFS channel",
     };
-    let detail = format!("{scans}; the planner may use {dfs}");
+    let nightly = if settings.nightly {
+        let at = settings.nightly_at_min;
+        format!("optimizes nightly at {:02}:{:02}", at / 60, at % 60)
+    } else {
+        "no nightly optimization".to_owned()
+    };
+    let detail = format!("{scans}; the planner may use {dfs}; {nightly}");
     audit(&api, &user, &client, AuditAction::Rf, detail).await?;
     Ok(Json(settings))
 }

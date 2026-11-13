@@ -19,6 +19,7 @@ import { SavedRevision } from "../../ui/SavedRevision";
 import { Segmented } from "../../ui/Segmented";
 import { type Column, Table } from "../../ui/Table";
 import { showToast } from "../../ui/Toast";
+import { Nightly } from "./Nightly";
 import { usable, withBandPlan } from "./planned";
 
 const t = strings.rf.plan;
@@ -64,8 +65,9 @@ function termsText(cost: Breakdown): string {
 /**
  * The RF planner's preview for the band (features/wifi.md, RF planner): planned on demand, as
  * planning a large site takes a moment; the band's cost before and after, and each radio's
- * setting now and as planned, its cost term by term and why. Admins set the DFS policy here,
- * and save a plan as the site's next revision to review and apply (D-112).
+ * setting now and as planned, its cost term by term and why. Admins set the DFS policy and the
+ * nightly optimization here, and save a plan as the site's next revision to review and apply
+ * (D-112).
  */
 export function PlanCard(props: {
   band: Band;
@@ -124,6 +126,7 @@ export function PlanCard(props: {
         description={t.description}
         actions={
           <div class="flex flex-wrap items-center justify-end gap-3 text-sm">
+            <Nightly settings={props.settings} admin={props.admin} />
             <Show when={props.band === "5g"}>
               <Show
                 when={props.admin}

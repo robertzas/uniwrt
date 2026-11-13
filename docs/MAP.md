@@ -551,6 +551,8 @@ RF insight (features/wifi.md, RF insight): what the site's radios hear and how c
 - `src/plan/cost.rs`: The objective (features/wifi.md, RF planner: Objective) over one band: what each radio suffers from the site's other radios and foreign networks, DFS, moving, and the width it gives up.
 - `src/plan/input.rs`: What the planner plans from: the site's radios with their constraints, what each node hears, the channels' history and the policy.
 - `src/plan/mod.rs`: The RF planner (features/wifi.md, RF planner; M6.1 a1, D-110): each radio's channel, width and power, per band, from what the radios may do, how the nodes hear each other and the foreign networks, the channels' history and the DFS policy.
+- `src/plan/nightly.rs`: The nightly optimizer's decision (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115) and the site's document following a band's plan (D-112, as the web's `withBandPlan`).
+- `src/plan/nightly_tests.rs`: The nightly decision over hand-made band plans: the 15 % threshold and movable radios, unapplied changes and busy radios that would move, and the document taking a band's plan and its mesh.
 - `src/plan/output.rs`: The plan: per band, each radio's planned channel, width and power with the cost before and after and why; the band's score before and after and how the search ran.
 - `src/plan/power.rs`: Transmit power (features/wifi.md, RF planner: Power): each radio's power set so the loudest other node hears it at −65 to −72 dBm (enough overlap to roam, not so much that cells drown each other), held up for its mesh peers, 2.4 GHz kept under 5 GHz, never under a floor.
 - `src/plan/search.rs`: The search over units' choices (features/wifi.md, RF planner: Search): a local descent from the current channels, then branch and bound over every combination where the band is small enough to finish, else simulated annealing with a fixed seed and a last descent.
@@ -589,6 +591,9 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/logging.rs`: Logging: `tracing` to stderr, filtered by `--log` / `UNIWRT_LOG` (`EnvFilter` syntax).
 - `src/main.rs`: The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
 - `src/master_key.rs`: The vault's master key (features/security.md, Secrets vault): from `UNIWRT_MASTER_KEY`, or from its file (`<data dir>/master.key` unless `--master-key-file` says otherwise), which the first run creates with mode 0600.
+- `src/nightly/ctx.rs`: What the nightly optimizer works with: the store, the job runner, the engine, RF insight and the API (to tell its WebSocket clients of a saved revision).
+- `src/nightly/mod.rs`: The nightly RF optimizer (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115): with `nightly` on in the `rf` settings, the site's window (03:30 local by default, for two hours) plans every band and applies the bands whose cost improves by 15 % or more ([`uniwrt_rf::plan::nightly`]): the plan is saved as a revision by the controller and applied with the usual transactions and rollback.
+- `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30.
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT.
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
@@ -820,7 +825,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (373 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (375 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -840,7 +845,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
-- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
+- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Nightly.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts

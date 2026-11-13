@@ -3154,6 +3154,7 @@ dependencies = [
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-notify",
+ "uniwrt-rf",
  "uniwrt-sim",
  "uniwrt-store",
  "uniwrt-syslog",

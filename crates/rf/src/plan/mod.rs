@@ -11,6 +11,7 @@
 pub(crate) mod blocks;
 mod cost;
 mod input;
+pub mod nightly;
 mod output;
 mod power;
 mod search;

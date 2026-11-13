@@ -30,6 +30,7 @@ mod healthcheck;
 mod http;
 mod logging;
 mod master_key;
+mod nightly;
 mod recollect;
 mod serve;
 mod tls;

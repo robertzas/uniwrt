@@ -114,7 +114,7 @@ const cafe = bss({ bssid: "aa:bb:cc:00:00:03", ssid: "Cafe", channel: 6, signal_
 
 export function rfView(): RfView {
   return {
-    settings: { scanning: true, interval_h: 4, dfs: "all" },
+    settings: { scanning: true, interval_h: 4, dfs: "all", nightly: true, nightly_at_min: 210 },
     radios: [
       radioScan({ node: 1, radio: "radio0", band: "2g" }),
       radioScan({

@@ -36,6 +36,7 @@ use crate::{
     fleet::Fleet,
     http, logging,
     master_key::{self, Source as KeySource},
+    nightly::NightlyOptimizer,
     tls::{
         self,
         listener::{Peer, PlainListener, TlsListener},
@@ -114,6 +115,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             Arc::clone(&clock),
         );
         let api = start_api(&args, &store, &vault, &fleet, &clock, &tls, &jobs).await?;
+        let nightly = NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock);
         let renewal = tokio::spawn(renewer.run());
         let app = http::router(&ui::EMBEDDED, api.clone());
         let plain = http::plain::router(
@@ -140,6 +142,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
         renewal.abort();
         autotune.stop().await;
+        nightly.stop().await;
         port_watch.stop().await;
         jobs.shutdown().await;
         fleet.stop().await;

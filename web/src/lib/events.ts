@@ -4,12 +4,13 @@
  * event. Shared by the events page and the dashboard.
  */
 import { Globe, Network, Server, ShieldAlert, Smartphone, Waypoints, Wifi } from "lucide";
+import type { BandGain } from "../api/gen/BandGain";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventRecord } from "../api/gen/EventRecord";
 import type { StatusReason } from "../api/gen/StatusReason";
 import type { EventFilter } from "./api";
-import { formatBytes, formatDuration, formatRate } from "./format";
+import { formatBytes, formatDuration, formatPercent, formatRate } from "./format";
 import { strings } from "./strings";
 
 const t = strings.events;
@@ -309,7 +310,20 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return withDetail(titles.neighborReportsFailed(node), what.error);
     case "neighbor_reports_ok":
       return { title: titles.neighborReportsOk(node) };
+    case "rf_optimized":
+      return withDetail(titles.rfOptimized, d.rfRevision(gainsText(what.bands), what.revision));
+    case "rf_optimize_skipped":
+      return withDetail(
+        titles.rfOptimizeSkipped,
+        `${d.nightlySkip[what.reason]} · ${gainsText(what.bands)}`,
+      );
   }
+}
+
+/** Each band's improvement, such as `5 GHz 23 % better`. */
+function gainsText(bands: readonly BandGain[]): string {
+  const d = t.detail;
+  return bands.map((g) => d.bandGain(d.band[g.band], formatPercent(g.percent))).join(", ");
 }
 
 /** Before and after an event, the logs page shows its entries: 5 minutes on each side. */

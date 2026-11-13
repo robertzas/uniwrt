@@ -203,8 +203,9 @@ impl Api {
         self.inner.nodes.subscribe()
     }
 
-    /// Tells the WS hub's `config` topics that a revision was committed.
-    pub(crate) fn config_changed(&self) {
+    /// Tells the WS hub's `config` topics that a revision was committed (the API's saves, and
+    /// the nightly RF optimizer's).
+    pub fn config_changed(&self) {
         self.inner
             .config
             .send_modify(|count| *count = count.wrapping_add(1));

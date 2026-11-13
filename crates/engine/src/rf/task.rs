@@ -294,6 +294,15 @@ where
                     view: Arc::clone(&self.view.borrow()),
                 });
             }
+            Command::Busy { max_kbps, done } => {
+                let busy = self
+                    .radios
+                    .iter()
+                    .filter(|(_, radio)| !radio.idle(max_kbps))
+                    .map(|(key, _)| key.clone())
+                    .collect();
+                let _ = done.send(busy);
+            }
         }
     }
 

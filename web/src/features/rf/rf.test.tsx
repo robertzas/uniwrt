@@ -12,6 +12,7 @@ import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { channel, rfPlan, rfView } from "../../test/rf";
 import { siteView } from "../../test/site";
+import { clockText, nightlyTimes } from "./Nightly";
 import { withBandPlan } from "./planned";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
@@ -149,7 +150,7 @@ describe("the RF page", () => {
       expect(calls).toContainEqual({
         method: "PUT",
         url: "/api/v1/rf/settings",
-        body: { scanning: true, interval_h: 8, dfs: "all" },
+        body: { scanning: true, interval_h: 8, dfs: "all", nightly: true, nightly_at_min: 210 },
       }),
     );
     await user.click(screen.getByRole("button", { name: "Off" }));
@@ -158,6 +159,8 @@ describe("the RF page", () => {
         scanning: false,
         interval_h: 4,
         dfs: "all",
+        nightly: true,
+        nightly_at_min: 210,
       }),
     );
   });
@@ -186,6 +189,8 @@ describe("the RF page", () => {
         scanning: true,
         interval_h: 4,
         dfs: "non_weather",
+        nightly: true,
+        nightly_at_min: 210,
       }),
     );
     // Planned again under the new policy.
@@ -243,6 +248,32 @@ describe("the RF page", () => {
     expect(screen.queryByRole("button", { name: /^Scan .* now$/ })).toBeNull();
     expect(screen.getByText("DFS channels: All")).toBeVisible();
     expect(screen.queryByRole("button", { name: "No weather radar" })).toBeNull();
+    expect(screen.getByText("Optimizes nightly at 03:30")).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: "Optimize nightly" })).toBeNull();
+  });
+
+  it("lets admins turn the nightly optimization off or start it at another time", async () => {
+    const user = userEvent.setup();
+    await renderAt("/insights/rf");
+    const card = await region("Channel plan");
+    const nightly = within(card).getByRole("checkbox", { name: "Optimize nightly" });
+    expect(nightly).toBeChecked();
+    const time = within(card).getByRole("combobox", { name: "Starts at" });
+    expect(time).toHaveValue("210");
+    await user.selectOptions(time, "120");
+    await waitFor(() =>
+      expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toMatchObject({
+        nightly: true,
+        nightly_at_min: 120,
+      }),
+    );
+    await user.click(nightly);
+    await waitFor(() =>
+      expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toMatchObject({
+        nightly: false,
+        nightly_at_min: 210,
+      }),
+    );
   });
 
   it("says so when no radio reports yet", async () => {
@@ -250,6 +281,17 @@ describe("the RF page", () => {
     view.report.bands = [];
     await renderAt("/insights/rf", view);
     expect(await screen.findByText("No radios yet.")).toBeVisible();
+  });
+});
+
+describe("the nightly start times", () => {
+  it("offer every half hour, with an odd time set elsewhere in order", () => {
+    expect(clockText(210)).toBe("03:30");
+    expect(clockText(0)).toBe("00:00");
+    const times = nightlyTimes(215);
+    expect(times).toHaveLength(49);
+    expect(times.slice(6, 9)).toEqual([180, 210, 215]);
+    expect(nightlyTimes(210)).toHaveLength(48);
   });
 });
 

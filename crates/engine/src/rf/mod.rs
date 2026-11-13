@@ -18,7 +18,11 @@
 mod radios;
 mod task;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use tokio::{
     sync::{mpsc, oneshot, watch},
@@ -103,6 +107,10 @@ enum Command {
     Snapshot {
         done: oneshot::Sender<Snapshot>,
     },
+    Busy {
+        max_kbps: u64,
+        done: oneshot::Sender<BTreeSet<(NodeId, String)>>,
+    },
 }
 
 /// What a plan is made from, as the scanner holds it.
@@ -179,6 +187,17 @@ impl Rf {
         })
         .await
         .map_err(|err| RfError::Planner(err.to_string()))
+    }
+
+    /// The radios whose stations moved `max_kbps` or more in one of the two latest samples (the
+    /// nightly optimizer's heavy traffic).
+    pub async fn busy(&self, max_kbps: u64) -> Result<BTreeSet<(NodeId, String)>, RfError> {
+        let (done, answer) = oneshot::channel();
+        self.commands
+            .send(Command::Busy { max_kbps, done })
+            .await
+            .map_err(|_| RfError::Stopped)?;
+        answer.await.map_err(|_| RfError::Stopped)
     }
 
     /// Stores the settings and applies them.

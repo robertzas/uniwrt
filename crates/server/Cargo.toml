@@ -45,6 +45,7 @@ uniwrt-jobs.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-notify.workspace = true
+uniwrt-rf.workspace = true
 uniwrt-sim.workspace = true
 uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true

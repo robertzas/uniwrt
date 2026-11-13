@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { BandGain } from "../api/gen/BandGain";
+import type { EventKind } from "../api/gen/EventKind";
 import type { EventRecord } from "../api/gen/EventRecord";
 import { admits, describeEvent, logsAround, type Names } from "./events";
 
@@ -221,6 +223,27 @@ describe("events in words", () => {
     expect(describeEvent(event({ kind: "wlan_schedule_ok", phy: "phy1" }), names).title).toBe(
       "Attic AP: follows the WLAN schedules on phy1 again",
     );
+  });
+
+  it("tells the nightly channel plan applied or skipped, with each band's gain", () => {
+    const bands: BandGain[] = [
+      { band: "5g", percent: 23 },
+      { band: "2g", percent: 16 },
+    ];
+    const applied: EventKind = { kind: "rf_optimized", revision: 8, job: 41, bands };
+    expect(describeEvent(event(applied, { node: null }), names)).toEqual({
+      title: "The nightly optimization applied a new channel plan",
+      detail: "5 GHz 23 % better, 2.4 GHz 16 % better · revision 8",
+    });
+    const skipped: EventKind = {
+      kind: "rf_optimize_skipped",
+      reason: "traffic",
+      bands: bands.slice(0, 1),
+    };
+    expect(describeEvent(event(skipped, { node: null }), names)).toEqual({
+      title: "The nightly optimization skipped a better channel plan",
+      detail: "Heavy traffic until the window closed · 5 GHz 23 % better",
+    });
   });
 
   it("tells kicks, blocks and a device that won't keep blocked clients off", () => {
