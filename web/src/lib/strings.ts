@@ -3159,7 +3159,41 @@ export const strings = {
       title: "Mesh backhaul",
       description:
         "batman-adv links the access points to the gateway over the air and, where two of them share a cable, over that cable too.",
+      enabled: "Mesh on",
+      enabledHint:
+        "Each managed device's mesh radio restarts once to join it, so its Wi-Fi clients reconnect. Devices without batman-adv or 802.11s get them when you apply.",
       off: "The mesh is off, so no cable carries it either: these settings wait until it is on.",
+      meshId: "Mesh ID",
+      meshIdHint: "The 802.11s mesh's name, which every device shares: 1 to 32 bytes.",
+      meshIdError: "A mesh ID is 1 to 32 bytes",
+      key: "Key",
+      keyHint: "A new key is generated when the mesh turns on. Or type one: 8 to 63 characters.",
+      keyKeep: "Leave empty to keep the current one.",
+      keyError: "A key is 8 to 63 printable ASCII characters",
+      generate: "Generate",
+      generateLabel: "Generate a new key",
+      band: "Band",
+      bands: {
+        auto: "Auto",
+        "2g": "2.4 GHz",
+        "5g": "5 GHz",
+        "6g": "6 GHz",
+      },
+      bandHints: {
+        auto: "5 GHz; a device with two 5 GHz radios gives the mesh the one that reaches the highest channel.",
+        "2g": "The last resort: slow and crowded. Choose it only where 5 GHz doesn't reach.",
+        "5g": "The usual backhaul. On a dual-band device it shares the radio and its airtime with Wi-Fi clients.",
+        "6g": "The cleanest spectrum, but every device needs a 6 GHz radio: one without it leaves the mesh.",
+      },
+      routing: "Routing",
+      routings: { batman_v: "BATMAN V", batman_iv: "BATMAN IV" },
+      routingHints: {
+        batman_v: "Picks paths by measured throughput: the best for most meshes.",
+        batman_iv: "Picks paths by packet loss: for meshes that must work with older devices.",
+      },
+      moves:
+        "The mesh's links drop until every device has this change, so a device that reaches the gateway over the mesh's Wi-Fi alone drops off for a while. The review names them; the apply rolls everything back if the mesh doesn't come back.",
+      cuts: "A device that reaches the gateway over the mesh's Wi-Fi alone would lose the network: the review refuses the apply until it is connected by cable.",
       wired: "Mesh over cables",
       wiredHint:
         "A cable between two managed devices carries the mesh on a VLAN of its own and leaves the LAN: about 4 s without LAN between them when it switches. A port opts out on its device's Ports tab.",
@@ -3169,6 +3203,10 @@ export const strings = {
       vlanTaken: (name: string) => `${name} uses this VLAN: choose another`,
       message: (wired: boolean, vlan: number) =>
         wired ? `Mesh over cables on VLAN ${vlan}` : "Mesh over cables off",
+      turnedOn: "Mesh on",
+      turnedOff: "Mesh off",
+      settings: (what: string[]) => `Mesh ${what.join(", ")}`,
+      parts: { meshId: "ID", key: "key", band: "band", routing: "routing" },
       save: "Save",
       cancel: "Cancel",
     },

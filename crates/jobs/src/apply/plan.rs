@@ -32,6 +32,7 @@ use uniwrt_uci::Package;
 use super::{
     ApplyTiming, address,
     address::Bridge,
+    mesh_change::{self, MeshChange},
     round::{Round, WAN_PACKAGES, bridge_ports, bridge_round, wan_last},
 };
 
@@ -78,9 +79,30 @@ pub(crate) struct Part {
     /// Its dead-man timer, longer when it changes the WAN or the mesh (`uplink`) or bridges.
     pub(crate) timeout: Duration,
     pub(crate) uplink: bool,
+    /// What the revision does to its mesh.
+    pub(crate) mesh: MeshChange,
 }
 
 impl Part {
+    /// Nothing planned yet: unchanged, with the ordinary timer.
+    fn new(node: &Node, timing: &ApplyTiming) -> Self {
+        Self {
+            plan: idle(node, PlanAction::Unchanged, ""),
+            files: Vec::new(),
+            held: BTreeMap::new(),
+            services: Vec::new(),
+            installs: None,
+            address: None,
+            bridge: None,
+            bounce: Vec::new(),
+            renew: None,
+            next: Vec::new(),
+            timeout: timing.timer,
+            uplink: false,
+            mesh: MeshChange::Same,
+        }
+    }
+
     /// Nothing to apply, but an address to follow: an access point whose network renumbers
     /// around it.
     pub(crate) fn follows(&self) -> bool {
@@ -147,20 +169,7 @@ pub(crate) fn plan(
     timing: &ApplyTiming,
 ) -> Part {
     let node = report.node;
-    let mut part = Part {
-        plan: idle(node, PlanAction::Unchanged, ""),
-        files: Vec::new(),
-        held: BTreeMap::new(),
-        services: Vec::new(),
-        installs: None,
-        address: None,
-        bridge: None,
-        bounce: Vec::new(),
-        renew: None,
-        next: Vec::new(),
-        timeout: timing.timer,
-        uplink: false,
-    };
+    let mut part = Part::new(node, timing);
     part.plan.reason = None;
     part.plan.raw = raw_overrides(site, node);
     let current = parsed(report.files, &mut part.plan.issues);
@@ -185,6 +194,7 @@ pub(crate) fn plan(
         }
     };
     part.plan.warnings = rendered.warnings.into_iter().map(from_render).collect();
+    part.mesh = mesh_of(&current, &rendered.packages);
     let (round, deferred) = first_round(
         site,
         report,
@@ -249,6 +259,25 @@ pub(crate) fn plan(
         }
     }
     part
+}
+
+/// What the rendered packages do to the mesh `current` holds; a package not rendered stays.
+fn mesh_of(
+    current: &BTreeMap<String, Package>,
+    rendered: &BTreeMap<ManagedPackage, Package>,
+) -> MeshChange {
+    let next = |package: ManagedPackage| {
+        rendered
+            .get(&package)
+            .or_else(|| current.get(package.name()))
+    };
+    mesh_change::change(
+        (current.get("network"), current.get("wireless")),
+        (
+            next(ManagedPackage::Network),
+            next(ManagedPackage::Wireless),
+        ),
+    )
 }
 
 /// The packages of the node's first transaction, and the services a later one switches: the

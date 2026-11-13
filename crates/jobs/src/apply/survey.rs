@@ -8,8 +8,9 @@ use std::{
 };
 
 use futures_util::future::join_all;
+use uniwrt_core::NodeId;
 use uniwrt_model::{
-    apply::{ApplyPlan, CableEnd, PlanAction, PlanIssue},
+    apply::{ApplyPlan, CableEnd, NodePlan, PlanAction, PlanIssue},
     facts::NodeFacts,
     job::{JobError, JobErrorCode},
     node::{Node, NodeMode, NodeRole},
@@ -28,6 +29,7 @@ use zeroize::Zeroizing;
 use super::{
     cables,
     health::{self, Health},
+    mesh_change::{self, MeshChange},
     order,
     plan::{self, Part, Report},
 };
@@ -415,6 +417,7 @@ pub(crate) async fn plan_all(
     let mut found = find_cables(site, &read, &topology, &failures);
     let mut plans = Vec::new();
     let mut members = Vec::new();
+    let mut changes = BTreeMap::new();
     for (login, reading) in logins.into_iter().zip(readings) {
         let reading = match reading {
             Ok(reading) => reading,
@@ -445,10 +448,12 @@ pub(crate) async fn plan_all(
             .filter(|drift| drift.node == login.node.id)
             .map(|drift| drift.package.clone())
             .collect();
+        changes.insert(login.node.id, part.mesh);
+        let baseline = baseline(&login.node, &reading, part.mesh);
         plans.push(part.plan.clone());
         members.push(Member {
-            baseline: Health::measure(login.node.role, &reading.facts, reading.dns),
             login,
+            baseline,
             part,
             reading,
             backhaul,
@@ -464,13 +469,14 @@ pub(crate) async fn plan_all(
             "Observe mode: turn management on to apply to it",
         ));
     }
-    order::sort(&mut plans);
-    let position = |member: &Member| {
-        plans
-            .iter()
-            .position(|plan| plan.node == member.login.node.id)
-    };
-    members.sort_by_key(|member| position(member));
+    let air = order::over_the_air_only(&topology);
+    order_and_review(
+        &mut plans,
+        &mut members,
+        &changes,
+        &air,
+        shared.timing.verify_uplink,
+    );
     Ok(Survey {
         plan: ApplyPlan {
             revision: revision.meta.id,
@@ -480,6 +486,36 @@ pub(crate) async fn plan_all(
         secrets,
         probes: found.probes,
     })
+}
+
+/// The health a node is verified against: as read now, without the mesh neighbors where
+/// batman-adv goes (they are meant to).
+fn baseline(node: &Node, reading: &Reading, mesh: MeshChange) -> Health {
+    let mut baseline = Health::measure(node.role, &reading.facts, reading.dns);
+    if mesh == MeshChange::Off {
+        baseline.mesh_neighbors.clear();
+    }
+    baseline
+}
+
+/// Reviews what the mesh's changes cut ([`mesh_change::review`]), then puts the plans in the
+/// order they apply and the members in theirs, each with its reviewed plan.
+fn order_and_review(
+    plans: &mut [NodePlan],
+    members: &mut [Member],
+    changes: &BTreeMap<NodeId, MeshChange>,
+    air: &BTreeSet<NodeId>,
+    window: std::time::Duration,
+) {
+    mesh_change::review(plans, changes, air, window);
+    order::sort(plans);
+    let position = |id: NodeId| plans.iter().position(|plan| plan.node == id);
+    members.sort_by_key(|member| position(member.login.node.id));
+    for member in members {
+        if let Some(plan) = plans.iter().find(|p| p.node == member.login.node.id) {
+            member.part.plan.clone_from(plan);
+        }
+    }
 }
 
 /// The cables the apply brings over ([`cables::find`]), from what the nodes read hold.

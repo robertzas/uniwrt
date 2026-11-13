@@ -183,3 +183,30 @@ async fn a_cable_whose_far_end_stays_silent_goes_back_to_a_trunk() {
     );
     assert!(bridged(&fleet, 0) && bridged(&fleet, 1));
 }
+
+#[tokio::test]
+async fn turning_the_mesh_off_brings_the_cable_back_as_a_trunk_without_missing_its_neighbors() {
+    let fleet = cabled().await;
+    let job = fleet.apply().await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    assert!(!bridged(&fleet, 0));
+    let head = fleet.head().await;
+    let mut site = head.config.clone();
+    site.mesh.enabled = false;
+    commit(&fleet.store, Some(head.meta.id), site).await;
+    // Neither node reaches the gateway over the air: nothing is refused or warned of.
+    let plan = fleet.jobs.plan().await.unwrap();
+    assert!(
+        plan.nodes
+            .iter()
+            .all(|n| n.issues.is_empty() && n.warnings.iter().all(|w| w.path != "mesh")),
+        "{plan:?}"
+    );
+    let off = fleet.apply().await;
+    assert_eq!(off.state, JobState::Succeeded, "{:?}", off.error);
+    for i in 0..2 {
+        let network = fleet.fake(i).file("network").unwrap();
+        assert!(!network.contains("batadv"), "{network}");
+        assert!(bridged(&fleet, i), "{network}");
+    }
+}

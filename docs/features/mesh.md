@@ -105,6 +105,14 @@ config interface 'bat0'
 
 What M3.3 renders (`crates/render`, D-067): `bat0` as above (`gw_mode server` on the gateway, `off` on APs; `ap_isolation` when the untagged network isolates), the `uw_mesh` hard interface (MTU 1532), and the `uw_mesh` mesh point on the mesh radio, which needs batman-adv and hostapd's 802.11s (`mesh`) on the node. The mesh's band is the configured one, else 5 GHz; a node with two radios of that band gives the mesh the one that reaches the highest channel and keeps its WLANs off it. Every peer needs one channel, so the mesh radio takes the band's fixed channel, else a default (1, 36 or 37) with a warning; a radio override can't move it. Wired links stay plain trunks with Bridge Loop Avoidance unless the apply stages them as a wired backhaul (above, M5.3); backhaul radio selection and key rotation are not rendered yet.
 
+## Mesh settings (M5.5, D-109)
+
+- **Where:** `/wifi`'s Mesh backhaul card (`web/src/features/wifi/MeshCard.tsx`, the draft in `mesh.ts`) turns the mesh on and off and sets its 802.11s ID (1–32 bytes), key, band (Auto, 2.4, 5 or 6 GHz, each with what it costs) and routing algorithm (BATMAN V or IV), beside the wired links and their VLAN; one save is one revision. Settings edited while the mesh is off wait for it.
+- **Key:** turning the mesh on without a key generates one in the browser (32 letters and digits from `crypto.getRandomValues`), sent as the `mesh/key` secret; the admin may type one (8–63 printable ASCII) or generate a new one. The field stays empty: leaving it so keeps the stored key.
+- **What a change cuts** (the apply's `mesh_change`, from what each node holds and what renders): its mesh point **joins** (no link drops), **moves** (another ID, key, band or channel, or another routing algorithm: its links drop until the peers have the change), **leaves** (batman-adv stays over cables), or batman-adv goes **off**. Where links drop, the nodes that reach the gateway **over the mesh's Wi-Fi alone** (every path the topology finds crosses an 802.11s link, `order::over_the_air_only`) are **warned** of in the review: they drop off until the nodes on their way have the change, and the two-phase commit (D-069) waits the uplink window for the mesh to come back before rolling every node back. Where such a node would leave the mesh for good, the plan **refuses** it ("Connect it by cable first"), since verify could only roll back. Nodes in observe mode, which keep their mesh, are warned too. The card says the same before saving.
+- **Health:** a node whose batman-adv goes off isn't held to its baseline's mesh neighbors.
+- Not yet: a key change applies like any other (the links drop until every node has it), not the two-phase rotation below; turning the mesh on restarts each node's mesh radio once (its clients reconnect).
+
 ## Mesh lifecycle operations
 
 - **Join:** a new node receives mesh credentials during adoption on the bench, then can be placed wirelessly.

@@ -2,7 +2,7 @@
 //! wired and mesh hops from the gateway in the topology the nodes' facts describe, so that no
 //! node's change cuts the controller off from one not applied yet.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use uniwrt_core::NodeId;
 use uniwrt_model::{
@@ -11,7 +11,7 @@ use uniwrt_model::{
     node::{Node, NodeRole},
     status::NodeState,
 };
-use uniwrt_topo::{Member, TopoKind, Topology, build};
+use uniwrt_topo::{Medium, Member, TopoEdge, TopoKind, Topology, build};
 
 /// The topology the nodes' facts describe.
 pub(crate) fn topology(nodes: &[(&Node, &NodeFacts)]) -> Topology {
@@ -32,6 +32,24 @@ pub(crate) fn topology(nodes: &[(&Node, &NodeFacts)]) -> Topology {
 /// way: links run between nodes and through inferred switches, which cost nothing (a node
 /// behind one is as near as one on the gateway's port), never through clients or the internet.
 pub(crate) fn hops(topology: &Topology) -> BTreeMap<NodeId, u32> {
+    reach(topology, |_| true)
+}
+
+/// The nodes that reach the gateway over the mesh's Wi-Fi alone: every path [`hops`] finds
+/// crosses an 802.11s link, so a change of the mesh's radio side cuts them off until it
+/// re-forms (features/mesh.md, Mesh settings).
+pub(crate) fn over_the_air_only(topology: &Topology) -> BTreeSet<NodeId> {
+    let grounded = reach(topology, |edge| {
+        !(edge.medium == Medium::Mesh && edge.band.is_some())
+    });
+    hops(topology)
+        .into_keys()
+        .filter(|node| !grounded.contains_key(node))
+        .collect()
+}
+
+/// [`hops`] over the links `usable` keeps.
+fn reach(topology: &Topology, usable: impl Fn(&TopoEdge) -> bool) -> BTreeMap<NodeId, u32> {
     // The vertices a path may cross, with the node each one is (`None` for a switch).
     let infrastructure: BTreeMap<&str, Option<NodeId>> = topology
         .nodes
@@ -58,7 +76,7 @@ pub(crate) fn hops(topology: &Topology) -> BTreeMap<NodeId, u32> {
         if best.get(at).is_some_and(|&known| known < cost) {
             continue;
         }
-        for edge in &topology.edges {
+        for edge in topology.edges.iter().filter(|edge| usable(edge)) {
             let other = if edge.a == at {
                 edge.b.as_str()
             } else if edge.b == at {
@@ -143,5 +161,54 @@ mod tests {
         sort(&mut plans);
         let order: Vec<i64> = plans.iter().map(|plan| plan.node.get()).collect();
         assert_eq!(order, [4, 3, 2, 6, 1, 5]);
+    }
+}
+
+#[cfg(test)]
+mod reach_tests {
+    use std::collections::BTreeSet;
+
+    use serde_json::json;
+    use uniwrt_core::NodeId;
+    use uniwrt_topo::{TopoEdge, TopoNode, Topology};
+
+    use super::{hops, over_the_air_only};
+
+    fn vertex(id: &str, kind: &str, node: Option<i64>) -> TopoNode {
+        serde_json::from_value(json!({"id": id, "kind": kind, "node": node, "ips": []})).unwrap()
+    }
+
+    fn edge(a: &str, b: &str, medium: &str, band: Option<&str>) -> TopoEdge {
+        serde_json::from_value(json!({
+            "id": format!("{a}~{b}"), "a": a, "b": b, "medium": medium, "up": true, "band": band,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn only_nodes_every_path_of_which_crosses_an_802_11s_link_are_over_the_air() {
+        let topology = Topology {
+            nodes: vec![
+                vertex("gw", "gateway", Some(1)),
+                vertex("sw", "switch", None),
+                vertex("n2", "ap", Some(2)),
+                vertex("n3", "ap", Some(3)),
+                vertex("n4", "ap", Some(4)),
+                vertex("n5", "ap", Some(5)),
+            ],
+            edges: vec![
+                edge("gw", "sw", "ethernet", None),
+                edge("sw", "n2", "ethernet", None),
+                edge("n2", "n3", "mesh", Some("5g")),
+                // batman-adv over a cable, besides the air.
+                edge("n3", "n4", "mesh", Some("5g")),
+                edge("n2", "n4", "mesh", None),
+                edge("gw", "n5", "mesh", Some("5g")),
+            ],
+            ..Topology::default()
+        };
+        assert_eq!(hops(&topology).len(), 5);
+        let air: BTreeSet<NodeId> = [3, 5].into_iter().map(NodeId::new).collect();
+        assert_eq!(over_the_air_only(&topology), air);
     }
 }

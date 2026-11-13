@@ -10,62 +10,80 @@ import { Checkbox } from "../../ui/Checkbox";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
+import { Segmented } from "../../ui/Segmented";
 import { TextField } from "../../ui/TextField";
-import { wiredVlanError } from "./summary";
+import {
+  MESH_BANDS,
+  type MeshDraft,
+  type MeshErrors,
+  meshChanged,
+  meshCut,
+  meshDraftOf,
+  meshErrors,
+  meshSave,
+  ROUTINGS,
+  randomMeshKey,
+} from "./mesh";
 
 const t = strings.wifi.mesh;
 
-/** The card's edit: whether the mesh runs over cables, and the VLAN it takes there. */
-type Draft = { wired: boolean; vlan: string };
+/** A line of the card's notes: information, or a warning. */
+function Note(props: { warn?: boolean; text: string }) {
+  return (
+    <p class={["flex items-start gap-2 text-xs", props.warn ? "text-warn" : "text-fg-muted"]}>
+      <Icon icon={props.warn ? TriangleAlert : Info} class="mt-px size-3.5 shrink-0" />
+      {props.text}
+    </p>
+  );
+}
 
 /**
- * The mesh backhaul's settings (features/mesh.md, Wired backhaul; D-094): whether batman-adv
- * takes over the cables between managed devices, and the VLAN it runs on there, saved as one
- * revision. Ports opt out on their device's Ports tab.
+ * The mesh's settings (features/mesh.md, Mesh settings; D-100): on or off, its 802.11s ID and
+ * key, band and routing algorithm, and whether batman-adv takes over the cables between
+ * managed devices on a VLAN of its own (D-094), saved as one revision. A change that cuts the
+ * mesh's links says so; the review names the devices it cuts off, and refuses to strand one.
  */
 export function MeshCard(props: { view: SiteView; admin: boolean }) {
-  const [draft, setDraft] = createSignal<Draft>();
-  const [error, setError] = createSignal<string>();
+  const [draft, setDraft] = createSignal<MeshDraft>();
+  const [errors, setErrors] = createSignal<MeshErrors>({});
   const [failure, setFailure] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
   const [saved, setSaved] = createSignal<number>();
   const mesh = () => props.view.config.mesh;
-  const current = (): Draft => ({ wired: mesh().wired, vlan: String(mesh().wired_vlan) });
-  const shown = () => draft() ?? current();
+  const shown = () => draft() ?? meshDraftOf(mesh());
   const changed = () => {
     const now = draft();
-    return now !== undefined && (now.wired !== mesh().wired || now.vlan.trim() !== current().vlan);
+    return now !== undefined && meshChanged(now, mesh());
   };
-  const change = (next: Partial<Draft>) => {
+  const cut = () => meshCut(shown(), mesh());
+  const locked = () => !props.admin || busy();
+  const change = (next: Partial<MeshDraft>) => {
     setDraft({ ...shown(), ...next });
-    setError(undefined);
+    setErrors({});
     setSaved(undefined);
   };
-  /** The saved document's wired backhaul issues, while nothing is edited. */
+  /** The saved document's mesh issues, while nothing is edited. */
   const issues = () =>
     changed()
       ? []
-      : props.view.issues.filter((i) => i.path.startsWith("mesh/wired")).map((i) => i.message);
+      : props.view.issues.filter((i) => i.path.startsWith("mesh")).map((i) => i.message);
 
   const save = async () => {
     const next = draft();
     if (next === undefined) return;
-    const invalid = next.wired ? wiredVlanError(next.vlan, props.view.config.networks) : undefined;
-    if (invalid) {
-      setError(invalid);
+    const invalid = meshErrors(next, props.view.config.networks);
+    if (Object.keys(invalid).length > 0) {
+      setErrors(invalid);
       return;
     }
-    // Turning wired links off leaves the VLAN as saved.
-    const vlan = next.wired ? Number(next.vlan.trim()) : undefined;
     setBusy(true);
     setFailure(undefined);
     try {
+      const { mesh: edited, secrets, message } = meshSave(next, mesh());
       const view = await saveSite(
-        (config) => ({
-          ...config,
-          mesh: { ...config.mesh, wired: next.wired, wired_vlan: vlan ?? config.mesh.wired_vlan },
-        }),
-        t.message(next.wired, vlan ?? mesh().wired_vlan),
+        (config) => ({ ...config, mesh: { ...edited, key: config.mesh.key } }),
+        message,
+        secrets,
       );
       setSaved(view.revision.id);
       setDraft(undefined);
@@ -79,18 +97,83 @@ export function MeshCard(props: { view: SiteView; admin: boolean }) {
   return (
     <Card aria-label={t.title}>
       <CardHeader title={t.title} description={t.description} />
-      <div class="flex flex-col gap-3 px-4 pb-4">
-        <Show when={!mesh().enabled}>
-          <p class="flex items-start gap-2 text-fg-muted text-xs">
-            <Icon icon={Info} class="mt-px size-3.5 shrink-0" />
-            {t.off}
-          </p>
+      <div class="flex flex-col gap-4 px-4 pb-4">
+        <Checkbox
+          label={t.enabled}
+          hint={t.enabledHint}
+          checked={shown().enabled}
+          disabled={locked()}
+          onChange={(enabled) => change({ enabled })}
+        />
+        <Show when={!shown().enabled}>
+          <Note text={t.off} />
         </Show>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <TextField
+            label={t.meshId}
+            name="mesh-id"
+            value={shown().meshId}
+            hint={t.meshIdHint}
+            error={errors().meshId}
+            disabled={locked()}
+            onInput={(meshId) => change({ meshId })}
+          />
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <TextField
+                label={t.key}
+                name="mesh-key"
+                type="password"
+                autocomplete="new-password"
+                value={shown().key}
+                hint={mesh().key === null ? t.keyHint : t.keyKeep}
+                error={errors().key}
+                disabled={locked()}
+                onInput={(key) => change({ key })}
+              />
+            </div>
+            <Button
+              class="mt-6.5"
+              variant="ghost"
+              aria-label={t.generateLabel}
+              disabled={locked()}
+              onClick={() => change({ key: randomMeshKey() })}
+            >
+              {t.generate}
+            </Button>
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="flex flex-col gap-1.5">
+            <span class="font-medium text-fg text-sm">{t.band}</span>
+            <Segmented
+              class="self-start"
+              label={t.band}
+              value={shown().band}
+              options={MESH_BANDS.map((value) => ({ value, label: t.bands[value] }))}
+              disabled={locked()}
+              onChange={(band) => change({ band })}
+            />
+            <p class="text-fg-muted text-xs">{t.bandHints[shown().band]}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <span class="font-medium text-fg text-sm">{t.routing}</span>
+            <Segmented
+              class="self-start"
+              label={t.routing}
+              value={shown().routing}
+              options={ROUTINGS.map((value) => ({ value, label: t.routings[value] }))}
+              disabled={locked()}
+              onChange={(routing) => change({ routing })}
+            />
+            <p class="text-fg-muted text-xs">{t.routingHints[shown().routing]}</p>
+          </div>
+        </div>
         <Checkbox
           label={t.wired}
           hint={t.wiredHint}
           checked={shown().wired}
-          disabled={!props.admin || busy()}
+          disabled={locked()}
           onChange={(wired) => change({ wired })}
         />
         <Show when={shown().wired}>
@@ -99,27 +182,23 @@ export function MeshCard(props: { view: SiteView; admin: boolean }) {
               label={t.vlan}
               value={shown().vlan}
               hint={t.vlanHint}
-              error={error()}
-              disabled={!props.admin || busy()}
+              error={errors().vlan}
+              disabled={locked()}
               onInput={(vlan) => change({ vlan })}
             />
           </div>
         </Show>
-        <For each={issues()}>
-          {(issue) => (
-            <p class="flex items-center gap-2 text-warn text-xs">
-              <Icon icon={TriangleAlert} class="size-3.5 shrink-0" />
-              {issue}
-            </p>
-          )}
-        </For>
+        <Show when={changed() && cut()}>
+          {(kind) => <Note warn text={kind() === "off" ? t.cuts : t.moves} />}
+        </Show>
+        <For each={issues()}>{(issue) => <Note warn text={issue} />}</For>
         <Show when={changed()}>
           <div class="flex justify-end gap-2">
             <Button
               variant="ghost"
               onClick={() => {
                 setDraft(undefined);
-                setError(undefined);
+                setErrors({});
               }}
               disabled={busy()}
             >

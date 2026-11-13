@@ -17,9 +17,13 @@ export function Segmented<T extends string>(props: {
   options: readonly SegmentedOption<T>[];
   onChange: (value: T) => void;
   class?: string;
+  disabled?: boolean;
 }) {
   return (
-    <fieldset class={["flex rounded-control border border-edge p-0.5", props.class]}>
+    <fieldset
+      disabled={props.disabled}
+      class={["flex rounded-control border border-edge p-0.5 disabled:opacity-60", props.class]}
+    >
       <legend class="sr-only">{props.label}</legend>
       <For each={props.options}>
         {(option) => (

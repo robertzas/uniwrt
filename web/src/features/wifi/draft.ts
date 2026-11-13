@@ -157,10 +157,10 @@ export function idOf(ssid: string, taken: readonly string[]): string {
 /** The modes 6 GHz allows. */
 const SIX_GHZ: readonly WlanSecurity[] = ["wpa3", "owe", "owe_transition"];
 
-const bytes = (text: string) => new TextEncoder().encode(text).length;
+export const bytes = (text: string) => new TextEncoder().encode(text).length;
 
 /** A passphrase the server takes: 8 to 63 printable ASCII characters, or a 64-digit hex key. */
-function passphraseOk(value: string): boolean {
+export function passphraseOk(value: string): boolean {
   return /^[\x20-\x7e]{8,63}$/.test(value) || /^[0-9a-fA-F]{64}$/.test(value);
 }
 
