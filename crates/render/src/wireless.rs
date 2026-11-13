@@ -1,5 +1,6 @@
 //! The `wireless` package: a `wifi-device` per radio (its channel, width and power from the
-//! band's policy and the node's overrides, within what its phy supports), each WLAN's
+//! node's overrides and the band's policy, and where those leave it on Auto from the RF plan the
+//! site follows, D-112; within what its phy supports), each WLAN's
 //! `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the
 //! mesh point.
 
@@ -7,7 +8,7 @@ use uniwrt_model::{
     facts::{PhyBand, RadioFacts, WifiFeature},
     site::{
         node::RadioOverride,
-        wireless::{Channel, TxPower, Wlan, WlanSecurity},
+        wireless::{Channel, PlannedRadio, TxPower, Wlan, WlanSecurity},
     },
     wifi::{Band, ChannelWidth, WifiStandard},
 };
@@ -119,15 +120,36 @@ fn device(
     };
     let policy = plan.site.radio.bands.iter().find(|p| p.band == radio.band);
     let phy = phy_band(plan, radio);
-    let channel = channel(plan, radio, tweak, phy, &at);
+    let planned = plan
+        .site
+        .radio
+        .plan
+        .radios
+        .iter()
+        .find(|p| p.node == plan.config.node && p.radio == radio.name && p.band == radio.band);
+    let channel = channel(plan, radio, tweak, phy, planned, &at);
+    // The plan's width goes with its channel: the mesh's on every node, else the radio's own.
+    let mesh_width = plan
+        .mesh
+        .as_ref()
+        .filter(|m| m.radio.name == radio.name)
+        .and_then(|m| m.width);
     let width = tweak
         .and_then(|t| t.width)
+        .or(mesh_width)
+        .or(planned
+            .filter(|p| channel == p.channel.to_string())
+            .map(|p| p.width))
         .or(policy.map(|p| p.width))
         .unwrap_or(ChannelWidth::Mhz20);
     let htmode = htmode(radio, phy, width);
-    let power = tweak
+    let power = match tweak
         .and_then(|t| t.tx_power)
-        .or(policy.map(|p| p.tx_power));
+        .or(policy.map(|p| p.tx_power))
+    {
+        Some(TxPower::Dbm(dbm)) => Some(TxPower::Dbm(dbm)),
+        Some(TxPower::Auto) | None => planned.map(|p| p.tx_power),
+    };
     Some(
         section
             .with("band", band_key(radio.band))
@@ -150,6 +172,7 @@ fn channel(
     radio: &RadioFacts,
     tweak: Option<&RadioOverride>,
     phy: Option<&PhyBand>,
+    planned: Option<&PlannedRadio>,
     at: &str,
 ) -> String {
     let wanted = tweak.and_then(|t| t.channel);
@@ -179,7 +202,22 @@ fn channel(
             Channel::Fixed(n) if Some(n) == mesh_channel => Channel::Auto,
             channel => channel,
         });
-    match wanted.or(policy).unwrap_or(Channel::Auto) {
+    let chosen = wanted.or(policy).unwrap_or(Channel::Auto);
+    // Left on Auto, the radio takes the RF plan's channel (D-112).
+    if chosen == Channel::Auto
+        && let Some(n) = planned
+            .map(|p| p.channel)
+            .filter(|n| Some(*n) != mesh_channel)
+    {
+        if phy.is_none_or(|phy| phy.channels.iter().any(|c| c.number == n)) {
+            return n.to_string();
+        }
+        plan.warnings.push(Issue::new(
+            at,
+            format!("The radio can't use the RF plan's channel {n}: plan again"),
+        ));
+    }
+    match chosen {
         Channel::Fixed(n) => {
             if phy.is_some_and(|phy| !phy.channels.iter().any(|c| c.number == n)) {
                 plan.errors

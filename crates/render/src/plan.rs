@@ -20,7 +20,7 @@ use uniwrt_model::{
         node::NodeConfig,
         wireless::Channel,
     },
-    wifi::Band,
+    wifi::{Band, ChannelWidth},
 };
 
 /// The bridge every network joins.
@@ -97,6 +97,8 @@ pub(crate) struct Mesh<'a> {
     /// The radio carries only the mesh (a tri-band node's second radio of the band).
     pub dedicated: bool,
     pub channel: u16,
+    /// The RF plan's width for the mesh, when it runs on the plan's channel (D-112).
+    pub width: Option<ChannelWidth>,
     pub key: String,
 }
 
@@ -526,7 +528,9 @@ fn mesh<'a>(
             Channel::Fixed(n) => Some(n),
             Channel::Auto => None,
         });
-    let channel = fixed.unwrap_or_else(|| {
+    // The RF plan's channel where the band leaves it to the planner (D-112).
+    let planned = site.radio.plan.mesh.filter(|p| p.band == band);
+    let channel = fixed.or(planned.map(|p| p.channel)).unwrap_or_else(|| {
         let channel = mesh_default_channel(band);
         warnings.push(Issue::new(
             "mesh",
@@ -553,6 +557,7 @@ fn mesh<'a>(
         radio,
         dedicated: candidates.len() > 1,
         channel,
+        width: planned.filter(|p| p.channel == channel).map(|p| p.width),
         key,
     })
 }

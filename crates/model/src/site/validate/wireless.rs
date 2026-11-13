@@ -218,6 +218,45 @@ pub(super) fn radio(config: &SiteConfig, issues: &mut Issues) {
         }
         tx_power(policy.tx_power, &format!("{at}/tx_power"), issues);
     }
+    plan(config, issues);
+}
+
+/// The RF plan: one entry per radio, each a channel and width of its band.
+fn plan(config: &SiteConfig, issues: &mut Issues) {
+    let mut radios = BTreeSet::new();
+    for (i, planned) in config.radio.plan.radios.iter().enumerate() {
+        let at = format!("radio/plan/radios/{i}");
+        if !radios.insert((planned.node, planned.radio.as_str())) {
+            issues.error(&at, "The plan lists the radio twice");
+        }
+        planned_channel(planned.band, planned.channel, planned.width, &at, issues);
+        tx_power(planned.tx_power, &format!("{at}/tx_power"), issues);
+    }
+    if let Some(mesh) = config.radio.plan.mesh {
+        planned_channel(
+            mesh.band,
+            mesh.channel,
+            mesh.width,
+            "radio/plan/mesh",
+            issues,
+        );
+    }
+}
+
+fn planned_channel(band: Band, channel: u16, width: ChannelWidth, at: &str, issues: &mut Issues) {
+    if band == Band::G60 {
+        issues.error(at, "60 GHz is not supported");
+    } else if !channel_fits(band, channel) {
+        issues.error(
+            format!("{at}/channel"),
+            format!("{channel} is not a {} channel", band_name(band)),
+        );
+    } else if !width_fits(band, width) {
+        issues.error(
+            format!("{at}/width"),
+            format!("{} channels are not that wide", band_name(band)),
+        );
+    }
 }
 
 pub(super) fn tx_power(power: TxPower, at: &str, issues: &mut Issues) {

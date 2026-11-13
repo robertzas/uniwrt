@@ -46,7 +46,7 @@ use self::{
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 10;
+pub const SCHEMA_VERSION: u32 = 11;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,5 +333,7 @@ mod adoption_tests;
 mod firewall_tests;
 #[cfg(test)]
 mod lan_tests;
+#[cfg(test)]
+mod plan_tests;
 #[cfg(test)]
 mod tests;

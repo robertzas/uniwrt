@@ -6,10 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetricsResponse } from "../../api/gen/MetricsResponse";
 import type { Plan } from "../../api/gen/Plan";
 import type { RfView } from "../../api/gen/RfView";
+import type { SiteView } from "../../api/gen/SiteView";
 import { createAppRouter } from "../../app/routes";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { channel, rfPlan, rfView } from "../../test/rf";
+import { siteView } from "../../test/site";
+import { withBandPlan } from "./planned";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
 let plan: Plan;
@@ -38,6 +41,11 @@ beforeEach(() => {
       }
       if (method === "PUT" && url === "/api/v1/rf/settings") return Response.json(body);
       if (url === "/api/v1/rf/plan") return Response.json(plan);
+      if (url === "/api/v1/site" && method === "PUT") {
+        const save = body as { config: SiteView["config"] };
+        return Response.json(siteView(8, save.config));
+      }
+      if (url === "/api/v1/site") return Response.json(siteView(7));
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );
@@ -185,6 +193,39 @@ describe("the RF page", () => {
     expect(within(card).queryByText(/Every radio here is in observe mode/)).toBeNull();
   });
 
+  it("lets admins save the band's plan as the next revision, to review and apply", async () => {
+    const user = userEvent.setup();
+    await renderAt("/insights/rf");
+    const card = await region("Channel plan");
+    await user.click(within(card).getByRole("button", { name: "Preview plan" }));
+    await user.click(await within(card).findByRole("button", { name: "Use this plan" }));
+    expect(await within(card).findByText(/Saved as revision 8/)).toBeVisible();
+    expect(within(card).getByRole("link", { name: /Review/ })).toHaveAttribute("href", "/changes");
+    const put = calls.find((c) => c.method === "PUT" && c.url === "/api/v1/site");
+    expect(put?.body).toMatchObject({
+      base: 7,
+      message: "RF plan for 5 GHz: 1 radio changed",
+      config: {
+        radio: {
+          plan: {
+            // The observed radio isn't stored: it keeps what it runs.
+            radios: [
+              {
+                node: 1,
+                radio: "radio1",
+                band: "5g",
+                channel: 149,
+                width: 80,
+                tx_power: { dbm: 20 },
+              },
+            ],
+            mesh: null,
+          },
+        },
+      },
+    });
+  });
+
   it("says why nothing moves when every radio is in observe mode", async () => {
     for (const radio of plan.bands[1]?.radios ?? []) radio.reasons = [{ kind: "observed" }];
     const user = userEvent.setup();
@@ -192,6 +233,7 @@ describe("the RF page", () => {
     const card = await region("Channel plan");
     await user.click(within(card).getByRole("button", { name: "Preview plan" }));
     expect(await within(card).findByText(/Every radio here is in observe mode/)).toBeVisible();
+    expect(within(card).queryByRole("button", { name: "Use this plan" })).toBeNull();
   });
 
   it("shows viewers the schedule without the controls", async () => {
@@ -208,5 +250,34 @@ describe("the RF page", () => {
     view.report.bands = [];
     await renderAt("/insights/rf", view);
     expect(await screen.findByText("No radios yet.")).toBeVisible();
+  });
+});
+
+describe("withBandPlan", () => {
+  it("replaces the band's radios, keeps the others' and takes the mesh's channel from its group", () => {
+    const config = siteView().config;
+    config.radio.plan = {
+      radios: [
+        { node: 1, radio: "radio0", band: "2g", channel: 6, width: 20, tx_power: "auto" },
+        { node: 3, radio: "radio1", band: "5g", channel: 36, width: 80, tx_power: "auto" },
+      ],
+      mesh: { band: "5g", channel: 36, width: 80 },
+    };
+    const band = rfPlan().bands[1];
+    if (!band) throw new Error("no 5 GHz plan");
+    const kept = withBandPlan(config, band);
+    // No mesh radio in this plan: the stored mesh stays.
+    expect(kept.radio.plan.mesh).toEqual({ band: "5g", channel: 36, width: 80 });
+    expect(kept.radio.plan.radios.map((r) => `${r.node}/${r.radio}/${r.channel}`)).toEqual([
+      "1/radio0/6",
+      "1/radio1/149",
+    ]);
+    const first = band.radios[0];
+    if (!first) throw new Error("no radio");
+    first.reasons = [{ kind: "mesh_group", radios: 2 }];
+    first.planned.tx_power_dbm = null;
+    const meshed = withBandPlan(config, band);
+    expect(meshed.radio.plan.mesh).toEqual({ band: "5g", channel: 149, width: 80 });
+    expect(meshed.radio.plan.radios[1]?.tx_power).toBe("auto");
   });
 });

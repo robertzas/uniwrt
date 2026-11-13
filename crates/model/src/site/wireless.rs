@@ -278,11 +278,12 @@ pub enum MeshRouting {
     BatmanV,
 }
 
-/// The radios' defaults per band.
+/// The radios' defaults per band, and the RF plan the site follows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RadioPolicy {
     pub bands: Vec<BandPolicy>,
+    pub plan: RfPlan,
 }
 
 impl Default for RadioPolicy {
@@ -299,6 +300,7 @@ impl Default for RadioPolicy {
                 band(Band::G5, ChannelWidth::Mhz80),
                 band(Band::G6, ChannelWidth::Mhz160),
             ],
+            plan: RfPlan::default(),
         }
     }
 }
@@ -313,7 +315,44 @@ pub struct BandPolicy {
     pub tx_power: TxPower,
 }
 
-/// A radio's channel: chosen by the node (later the RF planner, M6.1), or fixed.
+/// The RF planner's plan the site follows (M6.1 b1a, D-112; features/wifi.md, RF planner:
+/// Apply): where the site leaves a radio's channel or power on Auto, render takes the plan's,
+/// and a radio on its planned channel takes the planned width unless it fixes its own. Pins
+/// always win, so a plan never undoes what the owner set.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct RfPlan {
+    /// One per radio, by node, then radio.
+    pub radios: Vec<PlannedRadio>,
+    /// The mesh's channel and width, the same on every node (a node the plan doesn't list yet
+    /// takes it too).
+    pub mesh: Option<PlannedChannel>,
+}
+
+/// A radio as planned.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct PlannedRadio {
+    pub node: NodeId,
+    /// The radio's UCI `wifi-device` name, such as `radio0`.
+    pub radio: String,
+    pub band: Band,
+    /// The primary 20 MHz channel.
+    pub channel: u16,
+    pub width: ChannelWidth,
+    pub tx_power: TxPower,
+}
+
+/// A band's channel and width.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct PlannedChannel {
+    pub band: Band,
+    pub channel: u16,
+    pub width: ChannelWidth,
+}
+
+/// A radio's channel: chosen by the node or the RF planner (M6.1), or fixed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(rename = "RadioChannel"))]

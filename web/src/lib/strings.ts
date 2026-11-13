@@ -3140,6 +3140,15 @@ export const strings = {
         `${channel} · ${width} MHz · ${power}`,
       terms: { own: "own", external: "neighbors", dfs: "DFS", change: "move", width: "width" },
       skipped: (radios: string) => `Left out (no channel to choose): ${radios}`,
+      use: "Use this plan",
+      using: "Saving",
+      useHint:
+        "Saves the plan as the site's next revision; review and apply it. Radios left on Auto take its channel, width and power; what you fixed in the settings stays.",
+      useFailed: "The plan could not be saved",
+      message: (band: string, changed: number) =>
+        `RF plan for ${band}: ${changed} ${changed === 1 ? "radio" : "radios"} changed`,
+      savedNote:
+        "Radios that move restart, and their clients reconnect within seconds; a new mesh channel drops the mesh's links until every device has it.",
       dfs: {
         label: "DFS channels",
         hint: "Which radar-shared 5 GHz channels the planner may choose. Channels where radar was just seen are avoided either way, and a channel fixed in the settings is kept.",

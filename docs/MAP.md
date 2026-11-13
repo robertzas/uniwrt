@@ -377,6 +377,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/mod.rs`: Desired state (features/lifecycle.md, Desired state & revisions): the one typed document the controller owns, [`SiteConfig`], and its history of [`revision`]s.
 - `src/site/network.rs`: Networks (features/network.md, Networks): a VLAN with its subnet, DHCP and IPv6 mode, which every node carries and the gateway routes.
 - `src/site/node.rs`: Per-node desired state: which UCI packages the controller owns on the node (D-011), its radios' overrides, and raw UCI sections (the validated escape hatch, also where brownfield import keeps what it cannot map).
+- `src/site/plan_tests.rs`: The RF plan the site follows (schema v11, D-112): its migration and validation.
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
@@ -524,10 +525,11 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/upnp.rs`: The `upnpd` package (miniupnpd; features/network.md, Firewall policy; D-079): UPnP IGD and NAT-PMP/PCP for the chosen networks, in secure mode (a client maps ports only to itself), with OpenWrt's stock permissions (ports from 1024 only) and lease file, which the agent's `leases` set reads for the live mappings.
 - `src/usteer.rs`: The `usteer` package (features/wifi.md, Steering & balancing; D-090): usteer on each node that carries a steered WLAN, set by the site's profile, exchanging what it sees with the other nodes' over the management network (UDP 16720, which that network's zone accepts).
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
-- `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the band's policy and the node's overrides, within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
+- `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the node's overrides and the band's policy, and where those leave it on Auto from the RF plan the site follows, D-112; within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
 - `tests/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port taken out of the LAN into `br-adopt`, with its own zone and no DHCP, and the ports and uplinks that can't serve.
 - `tests/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node can't give it.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
+- `tests/rf_plan.rs`: The RF plan the site follows (M6.1 b1a, D-112): render takes its channel, width and power where the site leaves a radio on Auto, and the mesh's channel on every node.
 - `tests/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): usteer's package per profile, where it runs, and what is left when steering goes off.
 - `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
 
@@ -808,7 +810,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (370 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (373 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -828,7 +830,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
-- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
+- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts

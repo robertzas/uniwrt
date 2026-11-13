@@ -94,6 +94,7 @@ export function siteConfig(): SiteConfig {
           tx_power: "auto",
         },
       ],
+      plan: { radios: [], mesh: null },
     },
     steering: { profile: "off" },
     wan: {

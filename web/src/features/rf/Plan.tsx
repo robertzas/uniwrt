@@ -10,13 +10,16 @@ import type { RfSettings } from "../../api/gen/RfSettings";
 import type { Setting } from "../../api/gen/Setting";
 import { api, errorText } from "../../lib/api";
 import { formatPercent } from "../../lib/format";
+import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
+import { SavedRevision } from "../../ui/SavedRevision";
 import { Segmented } from "../../ui/Segmented";
 import { type Column, Table } from "../../ui/Table";
 import { showToast } from "../../ui/Toast";
+import { usable, withBandPlan } from "./planned";
 
 const t = strings.rf.plan;
 const POLICIES: readonly DfsPolicy[] = ["avoid", "non_weather", "all"];
@@ -61,7 +64,8 @@ function termsText(cost: Breakdown): string {
 /**
  * The RF planner's preview for the band (features/wifi.md, RF planner): planned on demand, as
  * planning a large site takes a moment; the band's cost before and after, and each radio's
- * setting now and as planned, its cost term by term and why. Admins set the DFS policy here.
+ * setting now and as planned, its cost term by term and why. Admins set the DFS policy here,
+ * and save a plan as the site's next revision to review and apply (D-112).
  */
 export function PlanCard(props: {
   band: Band;
@@ -72,8 +76,12 @@ export function PlanCard(props: {
   const [plan, setPlan] = createSignal<Plan>();
   const [planning, setPlanning] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
+  const [using, setUsing] = createSignal(false);
+  /** The revision a band's plan was saved as. */
+  const [saved, setSaved] = createSignal<{ band: Band; revision: number }>();
   const run = () => {
     setPlanning(true);
+    setSaved(undefined);
     api.rf
       .plan()
       .then((answer) => setPlan(() => answer))
@@ -96,6 +104,19 @@ export function PlanCard(props: {
       .finally(() => setSaving(false));
   };
   const banded = () => plan()?.bands.find((b) => b.band === props.band);
+  const use = (band: BandPlan) => {
+    setUsing(true);
+    const changed = band.radios.filter((r) => r.changed).length;
+    saveSite(
+      (config) => withBandPlan(config, band),
+      t.message(strings.device.radios.band[band.band], changed),
+    )
+      .then((view) => setSaved({ band: band.band, revision: view.revision.id }))
+      .catch((error: unknown) =>
+        showToast({ title: t.useFailed, description: errorText(error), tone: "crit" }),
+      )
+      .finally(() => setUsing(false));
+  };
   return (
     <Card aria-label={t.title}>
       <CardHeader
@@ -132,7 +153,28 @@ export function PlanCard(props: {
       />
       <Show when={plan()}>
         <Show when={banded()} fallback={<p class="px-4 pb-4 text-fg-subtle text-sm">{t.empty}</p>}>
-          {(b) => <BandPlanView plan={b()} nodeName={props.nodeName} />}
+          {(b) => (
+            <>
+              <BandPlanView plan={b()} nodeName={props.nodeName} />
+              <Show when={props.admin && usable(b())}>
+                <div class="flex flex-col gap-3 px-4 pb-4">
+                  <Show
+                    when={saved()?.band === props.band ? saved()?.revision : undefined}
+                    fallback={
+                      <div class="flex flex-wrap items-center gap-3">
+                        <Button size="sm" disabled={using()} onClick={() => use(b())}>
+                          {using() ? `${t.using}…` : t.use}
+                        </Button>
+                        <span class="text-fg-subtle text-xs">{t.useHint}</span>
+                      </div>
+                    }
+                  >
+                    {(revision) => <SavedRevision revision={revision()} note={t.savedNote} />}
+                  </Show>
+                </div>
+              </Show>
+            </>
+          )}
         </Show>
       </Show>
     </Card>
