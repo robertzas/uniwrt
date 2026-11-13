@@ -16,7 +16,7 @@ describe("Shell", () => {
       ),
     );
     const user = userEvent.setup();
-    const history = memoryHistory("/insights/floor-plans");
+    const history = memoryHistory("/updates");
     const Router = createAppRouter(history);
     const { socket } = openTestSocket();
     render(() => (
@@ -42,7 +42,7 @@ describe("Shell", () => {
       vi.fn(async () => Response.json({})),
     );
     const user = userEvent.setup();
-    const history = memoryHistory("/insights/floor-plans");
+    const history = memoryHistory("/updates");
     const Router = createAppRouter(history);
     const { socket } = openTestSocket();
     render(() => (
@@ -55,8 +55,8 @@ describe("Shell", () => {
 
     await user.keyboard("{Control>}k{/Control}");
     const input = await screen.findByRole("combobox", { name: "Command palette" });
-    await user.type(input, "updates{Enter}");
-    await waitFor(() => expect(history.get()).toBe("/updates"));
+    await user.type(input, "clients{Enter}");
+    await waitFor(() => expect(history.get()).toBe("/clients"));
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 });

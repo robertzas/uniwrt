@@ -37,6 +37,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
+- `src/floors/image.rs`: What an uploaded floor plan is, from its header alone: PNG or still WebP, and its size.
+- `src/floors/mod.rs`: Floor plans (features/wifi.md, Coverage & floor plans; D-117).
+- `src/floors/tests.rs`: The floor plan routes over the demo: floors added, edited and deleted, a plan uploaded and served, nodes placed and taken off, and what is refused.
 - `src/health.rs`: `GET /api/v1/health`: liveness plus the build identity.
 - `src/import.rs`: Brownfield import, with an admin's session (features/lifecycle.md, Brownfield import; D-072, D-073):
 - `src/import/tests.rs`: (no header comment)
@@ -364,6 +367,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
 - `src/firmware.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog of releases and device profiles, and the zero-touch images the controller asks ASU (OpenWrt's public Attended Sysupgrade service) to build.
+- `src/floor.rs`: Floor plans (features/wifi.md, Coverage & floor plans; D-117): each floor's image, its scale and where nodes are placed on it.
 - `src/import.rs`: A brownfield import's preview (features/lifecycle.md, Brownfield import; D-072, D-073): what accepting the configuration the adopted nodes hold would change in the site, and per node how well the model holds it, for the review screen, before anything is saved.
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
@@ -684,6 +688,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/events.rs`: [`EventRepo`] on SQLite: the `events` table.
 - `src/repo/events_tests.rs`: Events over a real database: recording and folding, filters and pages, the conditions still raised, and retention by age and count.
 - `src/repo/facts.rs`: [`FactsRepo`] on SQLite: the `node_facts` table, one JSON snapshot per node.
+- `src/repo/floors.rs`: [`FloorRepo`] on SQLite: the `floors` and `floor_nodes` tables.
+- `src/repo/floors_tests.rs`: Floors over a real database: created, listed by level, edited, given an image that carries what was drawn on it, nodes placed and moved, and gone with their floor or node.
 - `src/repo/host_keys.rs`: [`HostKeyRepo`] on SQLite: the `node_host_keys` table, one pinned host key per node.
 - `src/repo/jobs.rs`: [`JobRepo`] on SQLite: the `jobs` table, each job's steps and error as JSON.
 - `src/repo/logs.rs`: [`LogRepo`] on SQLite: the `logs`, `logs_fts`, `log_sources` and `log_searches` tables.
@@ -828,7 +834,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (375 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (385 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -844,6 +850,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
+- `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
@@ -860,6 +867,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
+- `viz/floorplan/`: PlanCanvas.tsx
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts
 - `viz/topology/`: TopologyCanvas.tsx, graph.ts, health.ts, scene.ts
 - `viz/topology/layout/`: client.ts, force.ts, tree.ts, worker.ts

@@ -23,6 +23,8 @@ import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
 import type { FirmwareProfile } from "../api/gen/FirmwareProfile";
 import type { FirmwareReleases } from "../api/gen/FirmwareReleases";
+import type { Floor } from "../api/gen/Floor";
+import type { FloorFields } from "../api/gen/FloorFields";
 import type { FoundGateways } from "../api/gen/FoundGateways";
 import type { Health } from "../api/gen/Health";
 import type { ImageBuild } from "../api/gen/ImageBuild";
@@ -56,6 +58,7 @@ import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { Plan } from "../api/gen/Plan";
+import type { Point as PlanPoint } from "../api/gen/Point";
 import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
@@ -134,6 +137,8 @@ export function onSessionEnded(handler: () => void): () => void {
 interface Options {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  /** A binary body sent as is, typed by the blob (a floor's plan). */
+  blob?: Blob;
   signal?: AbortSignal | undefined;
   /** A 401 means the session ended (default); false for sign-in, whose 401 is a wrong password. */
   session?: boolean;
@@ -145,10 +150,12 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
   // Every state-changing request carries the CSRF header (security.md).
   if (method !== "GET") headers.set("x-uniwrt-csrf", "1");
   if (options.body !== undefined) headers.set("content-type", "application/json");
+  if (options.blob) headers.set("content-type", options.blob.type);
   const response = await fetch(`/api/v1${path}`, {
     method,
     headers,
     ...(options.body !== undefined && { body: JSON.stringify(options.body) }),
+    ...(options.blob && { body: options.blob }),
     ...(options.signal && { signal: options.signal }),
   });
   if (!response.ok) {
@@ -605,6 +612,23 @@ export const api = {
         `/backhaul/failures/${a.node}/${encodeURIComponent(a.port)}/${b.node}/${encodeURIComponent(b.port)}`,
         { method: "DELETE" },
       ),
+  },
+  /** Floor plans (D-117): everyone reads; admins edit, and each edit answers with the floor. */
+  floors: {
+    list: (signal?: AbortSignal) => request<Floor[]>("/floors", { signal }),
+    create: (fields: FloorFields) => request<Floor>("/floors", { method: "POST", body: fields }),
+    update: (id: number, fields: FloorFields) =>
+      request<Floor>(`/floors/${id}`, { method: "PUT", body: fields }),
+    remove: (id: number) => request<void>(`/floors/${id}`, { method: "DELETE" }),
+    /** The plan, as the browser normalized it (WebP, else PNG). */
+    upload: (id: number, plan: Blob) =>
+      request<Floor>(`/floors/${id}/image`, { method: "PUT", blob: plan }),
+    /** Where the plan's version is served; each version has its own URL, cached for good. */
+    imageUrl: (id: number, version: number) => `/api/v1/floors/${id}/image?v=${version}`,
+    place: (id: number, node: number, at: PlanPoint) =>
+      request<Floor>(`/floors/${id}/nodes/${node}`, { method: "PUT", body: at }),
+    unplace: (id: number, node: number) =>
+      request<void>(`/floors/${id}/nodes/${node}`, { method: "DELETE" }),
   },
   /** The live topology comes over the WS topic `topology`; these serve its replay and layout. */
   topology: {

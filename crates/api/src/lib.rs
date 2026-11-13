@@ -42,7 +42,9 @@
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the cables
 //!   that failed the wired backhaul's probe (`GET v1/backhaul/failures`, and an admin's
-//!   `DELETE v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}`; see `backhaul`), the clients
+//!   `DELETE v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}`; see `backhaul`), the floor
+//!   plans (`GET`/`POST v1/floors`, an admin's edits of a floor, its image and the nodes placed
+//!   on it; see `floors`), the clients
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]) and `PUT`/`DELETE
@@ -100,6 +102,7 @@ mod clients;
 mod discovered;
 mod drift;
 mod events;
+mod floors;
 mod health;
 mod import;
 mod ipam;
@@ -257,6 +260,7 @@ pub fn router(api: Api) -> Router {
         .merge(config_routes())
         .merge(adoption_routes())
         .merge(ztp::routes())
+        .merge(floors::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",

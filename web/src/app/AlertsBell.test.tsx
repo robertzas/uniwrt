@@ -26,7 +26,7 @@ beforeEach(() => {
 
 function renderShell(role: "admin" | "viewer" = "admin") {
   const { socket, ws } = openTestSocket();
-  const Router = createAppRouter(memoryHistory("/insights/floor-plans"));
+  const Router = createAppRouter(memoryHistory("/updates"));
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
       <SignedInProviders socket={socket} role={role}>

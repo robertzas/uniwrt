@@ -63,10 +63,10 @@ mod writer;
 pub use error::{Error, Result};
 pub use repo::{
     Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, ClientRepo, DriftRepo, EventRepo,
-    EventsPrune, FactsRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo, LogsPrune, MetricsPrune,
-    MetricsRepo, NewSession, NodeRepo, NotifierRepo, Pin, RevisionRepo, RfRepo, Secret,
-    SessionRepo, SettingsRepo, SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
-    ZtpRepo,
+    EventsPrune, FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo, LogsPrune,
+    MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo, NotifierRepo, Pin,
+    RevisionRepo, RfRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo, TopologyFrame,
+    TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

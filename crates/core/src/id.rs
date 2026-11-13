@@ -65,6 +65,8 @@ ids! {
     ScanId = "scan";
     /// A revision of the site's desired state; ids grow in the order revisions were saved.
     RevisionId = "rev";
+    /// A floor of the site's floor plans.
+    FloorId = "floor";
 }
 
 #[cfg(test)]

@@ -10,6 +10,9 @@ mod clients;
 mod drift;
 mod events;
 mod facts;
+mod floors;
+#[cfg(test)]
+mod floors_tests;
 mod host_keys;
 mod jobs;
 mod logs;
@@ -27,8 +30,8 @@ mod users;
 mod ztp;
 
 use uniwrt_core::{
-    AlertId, EventId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RuleId, ScanId,
-    SearchId, Timestamp, UserId, WindowId,
+    AlertId, EventId, FloorId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RuleId,
+    ScanId, SearchId, Timestamp, UserId, WindowId,
 };
 use uniwrt_model::{
     alerts::{
@@ -40,6 +43,7 @@ use uniwrt_model::{
     drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
+    floor::{Floor, FloorFields, FloorImage, ImageKind, Placement},
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
@@ -86,6 +90,72 @@ pub trait BackhaulRepo: Send + Sync {
         &self,
         ends: [CableEnd; 2],
     ) -> impl Future<Output = Result<bool>> + Send;
+}
+
+/// A floor's new image, checked by the caller: its kind and size come from its header.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewFloorImage {
+    pub kind: ImageKind,
+    pub width_px: u32,
+    pub height_px: u32,
+    pub data: Vec<u8>,
+}
+
+/// Floor plans (features/wifi.md, Coverage & floor plans; D-117): floors by level, each with its
+/// image, scale and the nodes placed on it. Every write stamps the floor's `updated_at`.
+pub trait FloorRepo: Send + Sync {
+    /// Every floor by level, with its placements but without its image's data.
+    fn floors(&self) -> impl Future<Output = Result<Vec<Floor>>> + Send;
+
+    fn floor(&self, id: FloorId) -> impl Future<Output = Result<Option<Floor>>> + Send;
+
+    /// Adds a floor with the checked `fields`; [`Error::Conflict`] when another floor has its
+    /// level (`what` names the level) or `max` floors exist (`what` is "the most floors").
+    ///
+    /// [`Error::Conflict`]: crate::Error::Conflict
+    fn create_floor(
+        &self,
+        fields: FloorFields,
+        max: usize,
+    ) -> impl Future<Output = Result<Floor>> + Send;
+
+    /// Replaces a floor's own fields; None when it doesn't exist, a conflict as for
+    /// [`create_floor`](Self::create_floor) when another floor has the level.
+    fn update_floor(
+        &self,
+        id: FloorId,
+        fields: FloorFields,
+    ) -> impl Future<Output = Result<Option<Floor>>> + Send;
+
+    /// Deletes a floor with its image and placements; false when it didn't exist.
+    fn delete_floor(&self, id: FloorId) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Replaces a floor's image and bumps its version. The scale's line and the placements are
+    /// stretched to the new size on each axis, as for the same drawing at another resolution.
+    /// None when the floor doesn't exist.
+    fn set_floor_image(
+        &self,
+        id: FloorId,
+        image: NewFloorImage,
+    ) -> impl Future<Output = Result<Option<Floor>>> + Send;
+
+    /// A floor's image and its data; None without a floor or an image.
+    fn floor_image(
+        &self,
+        id: FloorId,
+    ) -> impl Future<Output = Result<Option<(FloorImage, Vec<u8>)>>> + Send;
+
+    /// Places a node on a floor, moving it from any other; None when the floor doesn't exist,
+    /// [`Error::NotFound`](crate::Error::NotFound) when the node doesn't. Positions are the
+    /// caller's to check.
+    fn place_node(
+        &self,
+        floor: FloorId,
+        placement: Placement,
+    ) -> impl Future<Output = Result<Option<Floor>>> + Send;
+
+    /// Takes a node off its floor; false when it was on none.
+    fn unplace_node(&self, node: NodeId) -> impl Future<Output = Result<bool>> + Send;
 }
 
 /// Drift (features/lifecycle.md, Drift): what the controller confirmed on each node, the

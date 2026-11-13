@@ -92,6 +92,9 @@ pub enum AuditAction {
     /// A user pre-approved a zero-touch device's MAC, withdrew it, or dismissed a device from
     /// the inbox (the detail says which; D-102).
     Ztp,
+    /// A user added, changed or deleted a floor plan, replaced its image, or placed a node on it
+    /// or took one off (the detail says which; D-117).
+    FloorPlan,
 }
 
 /// One audit log entry.

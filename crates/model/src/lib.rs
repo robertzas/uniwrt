@@ -32,7 +32,8 @@
 //!   [`discovery`] is what discovery reports: unadopted OpenWrt devices the adopted nodes see
 //!   ([`discovery::Discovered`]); [`ztp`] is zero-touch provisioning's hello, pending inbox and
 //!   pre-approvals (D-102); [`firmware`] is OpenWrt's catalog and the zero-touch images ASU builds
-//!   (D-104).
+//!   (D-104); [`floor`] is the floor plans: each floor's image, scale and the nodes placed on it
+//!   ([`floor::Floor`], D-117).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -55,6 +56,7 @@ pub mod event;
 pub mod events;
 pub mod facts;
 pub mod firmware;
+pub mod floor;
 pub mod import;
 pub mod inventory;
 pub mod job;
