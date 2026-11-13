@@ -22,7 +22,7 @@
     "@tanstack/virtual-core": "3.19.11",
     "d3-force": "3.0.1",
     "lucide": "1.71.0",
-    "solid-js": "2.0.0-rc.20",
+    "solid-js": "2.0.0-rc.21",
     "uplot": "1.6.32",
     "uqr": "0.1.3"
   },
