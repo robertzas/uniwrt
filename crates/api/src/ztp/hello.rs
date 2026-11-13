@@ -2,8 +2,8 @@
 //! device's call home. The hello is checked ([`ZtpHello`]: a unicast MAC, an OpenSSH host key,
 //! short printable strings), kept in the inbox under its MAC with the request's address (at
 //! most [`MAX_PENDING`] devices, the least recently seen dropped), and answered with the
-//! device's state. A pre-approved MAC's first hello uses up its approval and starts the
-//! adoption. Each client (IPv6: its /64) may send [`PER_WINDOW`] hellos per [`WINDOW`]; the
+//! device's state. A hello with a one-liner's fetched token (Path D, D-103), else a
+//! pre-approved MAC's first hello, uses it up and starts the adoption. Each client (IPv6: its /64) may send [`PER_WINDOW`] hellos per [`WINDOW`]; the
 //! device's script sends one a minute.
 
 use std::{
@@ -22,7 +22,7 @@ use tracing::{info, warn};
 use uniwrt_model::{
     job::JobState,
     user::{AuditAction, AuditEntry},
-    ztp::{HelloAnswer, HelloState, PendingDevice, ZtpHello},
+    ztp::{HelloAnswer, HelloState, PendingDevice, ZtpApproval, ZtpHello, ZtpOneLiner},
 };
 use uniwrt_node::HostKey;
 use uniwrt_store::{AuditRepo as _, NodeRepo as _, ZtpRepo as _};
@@ -65,11 +65,35 @@ pub(crate) async fn hello(
         Some(JobState::Succeeded) => return answer(HelloState::Adopted),
         Some(JobState::Failed) | None => {}
     }
-    let Some(approval) = api.store().take_ztp_approval(mac, api.now()).await? else {
-        info!(%mac, address = %stored.address, "a ZTP device waits for adoption");
-        return answer(HelloState::Pending);
+    let now = api.now();
+    // A one-liner's token first, then a pre-approval of the MAC.
+    let redeemed = hello
+        .token
+        .as_deref()
+        .and_then(|token| api.one_liners().redeem(token, mac, now));
+    let grant = if let Some(one_liner) = redeemed {
+        Grant::OneLiner(one_liner)
+    } else {
+        let Some(approval) = api.store().take_ztp_approval(mac, now).await? else {
+            info!(%mac, address = %stored.address, "a ZTP device waits for adoption");
+            return answer(HelloState::Pending);
+        };
+        Grant::Approval(approval)
     };
-    let (name, role) = (approval.name.clone(), approval.role);
+    let (name, role, by, how) = match &grant {
+        Grant::OneLiner(one) => (
+            one.name.clone(),
+            Some(one.role),
+            &one.created_by,
+            "a one-liner",
+        ),
+        Grant::Approval(approval) => (
+            approval.name.clone(),
+            approval.role,
+            &approval.created_by,
+            "pre-approved",
+        ),
+    };
     match super::start(&api, &stored, name, role, None).await {
         Ok(job) => {
             api.store()
@@ -77,11 +101,11 @@ pub(crate) async fn hello(
                     at: api.now(),
                     action: AuditAction::Adopt,
                     user_id: None,
-                    username: approval.created_by.clone(),
+                    username: by.clone(),
                     ip: Some(client.ip.to_string()),
                     detail: Some(format!(
-                        "{mac} pre-approved by {}, at {}, job {}",
-                        approval.created_by.as_deref().unwrap_or("an admin"),
+                        "{mac} {how} by {}, at {}, job {}",
+                        by.as_deref().unwrap_or("an admin"),
                         stored.address,
                         job.id
                     )),
@@ -91,11 +115,20 @@ pub(crate) async fn hello(
         }
         Err(err) => {
             // Not used after all: the next hello tries again.
-            warn!(%mac, %err, "cannot adopt a pre-approved ZTP device");
-            api.store().put_ztp_approval(approval).await?;
+            warn!(%mac, %err, "cannot adopt a {how} ZTP device");
+            match grant {
+                Grant::OneLiner(one) => api.one_liners().restore(&one.token, api.now()),
+                Grant::Approval(approval) => api.store().put_ztp_approval(approval).await?,
+            }
             answer(HelloState::Pending)
         }
     }
+}
+
+/// What lets a hello start its device's adoption.
+enum Grant {
+    OneLiner(ZtpOneLiner),
+    Approval(ZtpApproval),
 }
 
 /// The hello as the inbox keeps it, or why it is refused.

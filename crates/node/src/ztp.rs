@@ -2,7 +2,9 @@
 //! `node-agent/ztp/first-boot.sh` with the controller's values written in. It goes into an
 //! image's `/etc/uci-defaults` (the OpenWrt Firmware Selector's "script to run on first boot",
 //! or an ASU build), with `node-agent/ztp/uniwrt-hello`, the call-home loop it installs. It
-//! holds no secrets: the controller's public key and its addresses.
+//! holds no secrets: the controller's public key and its addresses. With a one-liner's token
+//! (Path D), it runs on a live device: the hello carries the token, and the changes take
+//! effect once the script has ended.
 
 use uniwrt_model::node::NodeRole;
 
@@ -22,7 +24,8 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    fn url(&self) -> String {
+    /// `https://<host>:<port>`, an IPv6 host in brackets.
+    pub fn url(&self) -> String {
         if self.host.contains(':') {
             format!("https://[{}]:{}", self.host, self.port)
         } else {
@@ -52,14 +55,17 @@ pub enum ScriptError {
     BadHost(String),
     #[error("the controller's key is not one OpenSSH line")]
     BadKey,
+    #[error("a one-liner's token holds only letters, digits, `-` and `_`")]
+    BadToken,
 }
 
 /// The script for an image of `role`, trusting `controller_key` (an `authorized_keys` line)
-/// and calling home to `endpoints` in order.
+/// and calling home to `endpoints` in order; for the one-liner with its `token`.
 pub fn first_boot(
     controller_key: &str,
     endpoints: &[Endpoint],
     role: NodeRole,
+    token: Option<&str>,
 ) -> Result<String, ScriptError> {
     if endpoints.is_empty() {
         return Err(ScriptError::NoEndpoint);
@@ -76,9 +82,17 @@ pub fn first_boot(
     if !key_ok {
         return Err(ScriptError::BadKey);
     }
+    let token = token.unwrap_or_default();
+    let token_ok = token.len() <= 64
+        && token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'));
+    if !token_ok {
+        return Err(ScriptError::BadToken);
+    }
     let urls: Vec<String> = endpoints.iter().map(Endpoint::url).collect();
     let values = format!(
-        "CONTROLLER_KEY='{key}'\nURLS='{}'\nROLE='{}'\n",
+        "CONTROLLER_KEY='{key}'\nURLS='{}'\nROLE='{}'\nTOKEN='{token}'\n",
         urls.join(" "),
         role_name(role)
     );
@@ -96,6 +110,29 @@ pub fn first_boot(
     ))
 }
 
+/// Where the one-liner leaves the script before checking it.
+const ONE_LINER_FILE: &str = "/tmp/uniwrt.sh";
+
+/// The one-liner (Path D) that fetches `script` from `endpoint` with `token`: over HTTPS that
+/// OpenWrt can't check (D-102), so it runs the script only when its SHA-256 matches the one
+/// written in the command (D-103). Returns the command and the script's hash (hex).
+pub fn one_liner(endpoint: &Endpoint, token: &str, script: &str) -> (String, String) {
+    let sha256 = data_encoding::HEXLOWER
+        .encode(ring::digest::digest(&ring::digest::SHA256, script.as_bytes()).as_ref());
+    // IPv4 for names, as the hello does (musl fails a lookup whose AAAA query is refused).
+    let family = if endpoint.host.contains(':') {
+        "-6"
+    } else {
+        "-4"
+    };
+    let url = endpoint.url();
+    let command = format!(
+        "uclient-fetch {family} --no-check-certificate -qO {ONE_LINER_FILE} '{url}/b/{token}' \
+         && echo '{sha256}  {ONE_LINER_FILE}' | sha256sum -cs && sh {ONE_LINER_FILE}"
+    );
+    (command, sha256)
+}
+
 fn role_name(role: NodeRole) -> &'static str {
     match role {
         NodeRole::Gateway => "gateway",
@@ -108,7 +145,7 @@ fn role_name(role: NodeRole) -> &'static str {
 mod tests {
     use uniwrt_model::node::NodeRole;
 
-    use super::{Endpoint, ScriptError, first_boot};
+    use super::{Endpoint, ScriptError, first_boot, one_liner};
 
     const KEY: &str =
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK0wmN/Cr3JXqmLW7u+g9pTh+wyqDHpSQEIQczXkVx9q uniwrt";
@@ -126,12 +163,14 @@ mod tests {
             KEY,
             &[endpoint("uniwrt.lan", 8443), endpoint("fd00::5", 443)],
             NodeRole::Ap,
+            None,
         )
         .unwrap();
         assert!(script.starts_with("#!/bin/sh\n"));
         assert!(script.contains(&format!("\nCONTROLLER_KEY='{KEY}'\n")));
         assert!(script.contains("\nURLS='https://uniwrt.lan:8443 https://[fd00::5]:443'\n"));
         assert!(script.contains("\nROLE='ap'\n"));
+        assert!(script.contains("\nTOKEN=''\n"));
         assert_eq!(script.matches("CONTROLLER_KEY='").count(), 1);
         assert!(!script.contains("ExampleOnly"));
         assert!(script.ends_with("exit 0\n"));
@@ -142,12 +181,13 @@ mod tests {
 
     #[test]
     fn nothing_a_shell_reads_gets_in() {
-        let bad = |host: &str| first_boot(KEY, &[endpoint(host, 443)], NodeRole::Ap).unwrap_err();
+        let bad =
+            |host: &str| first_boot(KEY, &[endpoint(host, 443)], NodeRole::Ap, None).unwrap_err();
         for host in ["a'b", "$(reboot)", "a b", "-x", "", "a;b", "a/b"] {
             assert_eq!(bad(host), ScriptError::BadHost(host.to_owned()), "{host}");
         }
         assert_eq!(
-            first_boot(KEY, &[], NodeRole::Ap).unwrap_err(),
+            first_boot(KEY, &[], NodeRole::Ap, None).unwrap_err(),
             ScriptError::NoEndpoint
         );
         for key in [
@@ -157,10 +197,44 @@ mod tests {
             "ssh-ed25519 AAAA\nx",
         ] {
             assert_eq!(
-                first_boot(key, &[endpoint("uniwrt.lan", 443)], NodeRole::Ap).unwrap_err(),
+                first_boot(key, &[endpoint("uniwrt.lan", 443)], NodeRole::Ap, None).unwrap_err(),
                 ScriptError::BadKey,
                 "{key:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_one_liner_carries_its_token() {
+        let lan = [endpoint("uniwrt.lan", 443)];
+        let script = first_boot(KEY, &lan, NodeRole::Ap, Some("Xk3_a-9")).unwrap();
+        assert!(script.contains("\nTOKEN='Xk3_a-9'\n"));
+        for token in ["a'b", "$(x)", "a b", &"a".repeat(65)] {
+            assert_eq!(
+                first_boot(KEY, &lan, NodeRole::Ap, Some(token)).unwrap_err(),
+                ScriptError::BadToken,
+                "{token}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_one_liner_checks_what_it_fetched() {
+        let (command, sha256) = one_liner(&endpoint("10.0.0.5", 8443), "Xk3", "echo hi\n");
+        assert_eq!(
+            sha256,
+            "ab08508fdf5ca4da5c4995987bc41c56c048aaa5eeb046417ae4049b7d40286e"
+        );
+        assert_eq!(
+            command,
+            format!(
+                "uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh \
+                 'https://10.0.0.5:8443/b/Xk3' && echo '{sha256}  /tmp/uniwrt.sh' \
+                 | sha256sum -cs && sh /tmp/uniwrt.sh"
+            )
+        );
+        let (v6, _) = one_liner(&endpoint("fd00::5", 443), "Xk3", "");
+        assert!(v6.starts_with("uclient-fetch -6 "));
+        assert!(v6.contains("'https://[fd00::5]:443/b/Xk3'"));
     }
 }

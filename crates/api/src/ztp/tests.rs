@@ -258,3 +258,117 @@ async fn the_script_calls_home_where_the_admin_reached_the_controller() {
     let res = demo.send(demo.get("/v1/ztp/script?role=router")).await;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 }
+
+async fn fetch(demo: &Demo, token: &str) -> (StatusCode, String) {
+    use tower::ServiceExt as _;
+    let request = axum::http::Request::get(format!("/b/{token}"))
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let res = crate::bootstrap(demo.api.clone())
+        .oneshot(crate::testing::with_client(request))
+        .await
+        .unwrap();
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    (status, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+#[tokio::test]
+async fn a_one_liner_serves_its_script_once_and_its_hello_adopts() {
+    let demo = Demo::start().await;
+    let cookie = Some(demo.cookie.as_str());
+    let gateway = json!({ "role": "gateway" });
+    let res = demo
+        .send(post("/v1/ztp/one-liners", &gateway, cookie))
+        .await;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    let res = demo
+        .send(post(
+            "/v1/ztp/one-liners",
+            &json!({ "role": "bridge", "name": "Attic" }),
+            cookie,
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let made = body(res).await;
+    let token = made["token"].as_str().unwrap().to_owned();
+    assert_eq!(token.len(), 22, "128 bits");
+    assert_eq!(made["state"], "waiting");
+    let sha256 = made["sha256"].as_str().unwrap();
+    // The test client addressed uniwrt.lan:8443 and the gateway holds no record.
+    assert_eq!(
+        made["command"],
+        format!(
+            "uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh \
+             'https://uniwrt.lan:8443/b/{token}' && echo '{sha256}  /tmp/uniwrt.sh' \
+             | sha256sum -cs && sh /tmp/uniwrt.sh"
+        )
+    );
+
+    // The script, with its token, once; its hash is the command's.
+    let (status, script) = fetch(&demo, &token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(script.contains(&format!("\nTOKEN='{token}'\n")));
+    assert!(script.contains("\nROLE='bridge'\n"));
+    let digest = ring::digest::digest(&ring::digest::SHA256, script.as_bytes());
+    assert_eq!(data_encoding::HEXLOWER.encode(digest.as_ref()), sha256);
+    assert_eq!(fetch(&demo, &token).await.0, StatusCode::NOT_FOUND);
+    let state = body(
+        demo.send(demo.get(&format!("/v1/ztp/one-liners/{token}")))
+            .await,
+    )
+    .await;
+    assert_eq!(state["state"], "fetched");
+    assert_eq!(state["fetched_from"], "192.168.1.20");
+
+    // The hello with the token adopts, once.
+    let mac = "94:83:c4:00:00:09";
+    let mut with_token = hello(mac);
+    with_token["token"] = json!(token);
+    assert_eq!(say(&demo, &with_token).await.1["state"], "adopting");
+    let state = body(
+        demo.send(demo.get(&format!("/v1/ztp/one-liners/{token}")))
+            .await,
+    )
+    .await;
+    assert_eq!(
+        (state["state"].as_str(), state["device"].as_str()),
+        (Some("used"), Some(mac))
+    );
+    let audit = demo.store.audit_log(10).await.unwrap();
+    let adopted = audit
+        .iter()
+        .find(|entry| entry.action == AuditAction::Adopt)
+        .unwrap();
+    assert!(
+        adopted
+            .detail
+            .as_deref()
+            .unwrap()
+            .contains("a one-liner by admin")
+    );
+    let mut thief = hello("94:83:c4:00:00:0a");
+    thief["token"] = json!(token);
+    assert_eq!(say(&demo, &thief).await.1["state"], "pending", "used up");
+
+    // Withdrawn: nothing to fetch.
+    let res = demo
+        .send(post("/v1/ztp/one-liners", &json!({}), cookie))
+        .await;
+    let other = body(res).await;
+    assert_eq!(other["role"], "ap");
+    let other = other["token"].as_str().unwrap().to_owned();
+    let uri = format!("/v1/ztp/one-liners/{other}");
+    let res = demo.send(request(Method::DELETE, &uri, None, cookie)).await;
+    assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    assert_eq!(fetch(&demo, &other).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        body(demo.send(demo.get(&uri)).await).await["state"],
+        "expired"
+    );
+    let res = demo.send(demo.get("/v1/ztp/one-liners/nope")).await;
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}

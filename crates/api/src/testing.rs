@@ -391,7 +391,7 @@ pub(crate) fn request(
     request.body(body).unwrap()
 }
 
-fn with_client(mut request: Request) -> Request {
+pub(crate) fn with_client(mut request: Request) -> Request {
     request.extensions_mut().insert(Client {
         ip: "192.168.1.20".parse().unwrap(),
         secure: true,

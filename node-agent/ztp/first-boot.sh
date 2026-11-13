@@ -4,11 +4,14 @@
 # the controller's public key and where to find it. It makes the device safe to plug in anywhere
 # (a DHCP client on its LAN bridge, no DHCP server, Wi-Fi off), lets in only the controller's
 # key, and installs a service that calls the controller home until it is adopted (D-102).
+# The one-liner (Path D) runs it on a live device with a TOKEN: the hello carries it, which
+# pre-approves the device, and the changes take effect once the script has ended.
 
 # --- values (the controller writes these) ---
 CONTROLLER_KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleOnlyExampleOnlyExampleOnlyExam uniwrt'
 URLS='https://uniwrt.lan:443'
 ROLE='ap'
+TOKEN=''
 # --- end of values ---
 
 # The controller's key, the only way in until adoption.
@@ -68,7 +71,7 @@ uci commit
 
 # The call home.
 mkdir -p /etc/uniwrt
-printf "URLS='%s'\nROLE='%s'\n" "$URLS" "$ROLE" >/etc/uniwrt/ztp.conf
+printf "URLS='%s'\nROLE='%s'\nTOKEN='%s'\n" "$URLS" "$ROLE" "$TOKEN" >/etc/uniwrt/ztp.conf
 
 # The controller writes node-agent/ztp/uniwrt-hello in here.
 cat >/usr/sbin/uniwrt-hello <<'HELLO'
@@ -88,8 +91,21 @@ start_service() {
 }
 SERVICE
 chmod 755 /etc/init.d/uniwrt-hello
-# Enabled for later boots, and started now: procd listed /etc/rc.d before this ran.
 /etc/init.d/uniwrt-hello enable
-/etc/init.d/uniwrt-hello start
+if [ -z "$TOKEN" ]; then
+	# The first boot: procd listed /etc/rc.d before this ran, so start it now.
+	/etc/init.d/uniwrt-hello start
+	exit 0
+fi
 
+# The one-liner on a live device: name the host key the controller will pin, then apply the
+# changes and call home once the shell that ran this is done. The new address cuts its session,
+# so the reload runs in its own session, deaf to the hangup.
+fingerprint=$(dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key 2>/dev/null |
+	sed -n 's/^Fingerprint: //p')
+echo "uniwrt: this device calls the controller home in a moment. Its host key is"
+echo "uniwrt:   ${fingerprint:-unknown}"
+echo "uniwrt: the controller shows the same one. This session ends once the network reloads."
+setsid sh -c 'trap "" HUP; sleep 3; reload_config; sleep 10; /etc/init.d/uniwrt-hello start' \
+	</dev/null >/dev/null 2>&1 &
 exit 0

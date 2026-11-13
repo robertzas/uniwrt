@@ -17,6 +17,7 @@ import { AdoptDialog } from "./adopt/AdoptDialog";
 import { BatchDialog } from "./adopt/BatchDialog";
 import { DiscoveredCard } from "./adopt/DiscoveredCard";
 import { ModeBadge, StatusBadge } from "./status";
+import { ZtpCard } from "./ztp/ZtpCard";
 
 const c = strings.devices.columns;
 
@@ -75,7 +76,8 @@ type AdoptParams = { adopt?: string; host?: string };
 
 /**
  * Every adopted node with its live status and headline numbers; a row opens the node. Below them,
- * the discovered devices, and the adoption wizard for one device or several.
+ * the discovered devices, the adoption wizard for one device or several, and for admins the
+ * devices that called home (ZTP) with the ways to set up new ones.
  */
 export function DevicesPage() {
   const live = useContext(LiveContext);
@@ -148,6 +150,9 @@ export function DevicesPage() {
           </Card>
           {/* Below the list, so that it appearing never moves the rows. */}
           <DiscoveredCard jobs={jobs} onAdopt={openAdopt} onAdoptMany={setBatch} />
+          <Show when={session.user.role === "admin"}>
+            <ZtpCard jobs={jobs} addJob={(job) => addJobs([job])} />
+          </Show>
         </Show>
       </Show>
       <AdoptDialog

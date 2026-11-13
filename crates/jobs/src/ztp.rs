@@ -10,19 +10,28 @@ use uniwrt_store::{DriftRepo as _, NodeRepo as _, RevisionRepo as _};
 
 use crate::{Error, Jobs, Result};
 
+/// A first-boot script, and the endpoints it calls home to, in order: `uniwrt.<domain>`, then
+/// an IP address when one is known.
+#[derive(Debug, Clone)]
+pub struct ZtpScript {
+    pub text: String,
+    pub endpoints: Vec<Endpoint>,
+}
+
 /// The domain of a site without a revision yet (the site's default).
 const DEFAULT_DOMAIN: &str = "lan";
 
 impl Jobs {
     /// The script for an image of `role` that calls home on HTTPS `port`. `seen_at` is the
     /// address the admin reached the controller at, the fallback when the gateway holds no
-    /// record of it.
+    /// record of it. With a one-liner's `token`, the script runs on a live device (Path D).
     pub async fn ztp_script(
         &self,
         role: NodeRole,
         port: u16,
         seen_at: Option<IpAddr>,
-    ) -> Result<String> {
+        token: Option<&str>,
+    ) -> Result<ZtpScript> {
         let store = &self.shared.store;
         let domain = store
             .head_revision()
@@ -46,7 +55,9 @@ impl Jobs {
             self.shared.key.authorized_key().map_err(|err| {
                 Error::Failed(format!("cannot encode the controller's key: {err}"))
             })?;
-        first_boot(&key, &endpoints, role).map_err(|err| Error::Failed(err.to_string()))
+        let text = first_boot(&key, &endpoints, role, token)
+            .map_err(|err| Error::Failed(err.to_string()))?;
+        Ok(ZtpScript { text, endpoints })
     }
 
     /// The controller's address in the gateway's `uniwrt` record, as the last apply confirmed
@@ -97,9 +108,17 @@ mod tests {
         let setup = setup(true).await;
         let script = setup
             .jobs
-            .ztp_script(NodeRole::Bridge, 8443, "192.168.1.20".parse().ok())
+            .ztp_script(
+                NodeRole::Bridge,
+                8443,
+                "192.168.1.20".parse().ok(),
+                Some("tok"),
+            )
             .await
             .unwrap();
+        assert_eq!(script.endpoints.len(), 2);
+        assert!(script.text.contains("\nTOKEN='tok'\n"));
+        let script = script.text;
         assert!(script.contains("\nURLS='https://uniwrt.lan:8443 https://192.168.1.20:8443'\n"));
         assert!(script.contains("\nROLE='bridge'\n"));
         let key = setup.key.authorized_key().unwrap();
@@ -107,9 +126,10 @@ mod tests {
 
         let named_only = setup
             .jobs
-            .ztp_script(NodeRole::Ap, 443, None)
+            .ztp_script(NodeRole::Ap, 443, None, None)
             .await
-            .unwrap();
+            .unwrap()
+            .text;
         assert!(named_only.contains("\nURLS='https://uniwrt.lan:443'\n"));
     }
 
@@ -163,9 +183,10 @@ mod tests {
             .unwrap();
         let script = setup
             .jobs
-            .ztp_script(NodeRole::Ap, 443, "192.168.1.20".parse().ok())
+            .ztp_script(NodeRole::Ap, 443, "192.168.1.20".parse().ok(), None)
             .await
-            .unwrap();
+            .unwrap()
+            .text;
         assert!(script.contains("\nURLS='https://uniwrt.home.arpa:443 https://10.0.0.5:443'\n"));
     }
 }

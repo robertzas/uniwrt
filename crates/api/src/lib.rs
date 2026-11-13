@@ -32,7 +32,10 @@
 //!   OpenWrt devices the adopted nodes see), zero-touch provisioning (admins: `GET
 //!   v1/ztp/pending` ([`ZtpInbox`](uniwrt_model::ztp::ZtpInbox)), `DELETE v1/ztp/pending/{mac}`,
 //!   `POST v1/ztp/pending/{mac}/adopt` ([`ZtpAdoptBody`], a job), `PUT` and `DELETE
-//!   v1/ztp/approvals/{mac}` ([`ZtpApprovalBody`]), `GET v1/ztp/script?role=`; D-102),
+//!   v1/ztp/approvals/{mac}` ([`ZtpApprovalBody`]), `GET v1/ztp/script?role=`; D-102), the
+//!   one-liners (`POST v1/ztp/one-liners` ([`ZtpOneLinerBody`]), `GET` and `DELETE
+//!   v1/ztp/one-liners/{token}`; D-103), and [`bootstrap`], the public `GET /b/{token}` the
+//!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
 //!   `DELETE v1/topology/layout`, `PUT` and `DELETE v1/topology/layout/{vertex}`), the cables
@@ -173,7 +176,10 @@ pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
 pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
-pub use ztp::{HelloAnswer, ZtpAdoptBody, ZtpApprovalBody};
+pub use ztp::{
+    HelloAnswer, ZtpAdoptBody, ZtpApprovalBody,
+    one_liner::{ZtpOneLinerBody, bootstrap},
+};
 
 /// The API's routes, to nest under `/api`.
 pub fn router(api: Api) -> Router {

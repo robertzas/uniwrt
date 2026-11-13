@@ -7,12 +7,15 @@
 //!   /api/v1/ztp/pending/{mac}` (dismiss), `POST /api/v1/ztp/pending/{mac}/adopt`
 //!   ([`ZtpAdoptBody`]; 202 with the job), `PUT` and `DELETE /api/v1/ztp/approvals/{mac}`
 //!   ([`ZtpApprovalBody`]; single-use, 7 days), and `GET /api/v1/ztp/script?role=` (the
-//!   first-boot script, [`script`]).
+//!   first-boot script, [`script`]), and the one-liners (Path D, D-103; [`one_liner`]).
+//! - Public: `GET /b/{token}`, a one-liner's script ([`one_liner::bootstrap`]), served at the
+//!   root.
 //!
 //! Adopting from the inbox is Path A's job with the controller's key (the image trusts it), the
 //! host key from the hello pinned, and the hello's board and MAC checked on the node.
 
 pub(crate) mod hello;
+pub(crate) mod one_liner;
 pub(crate) mod script;
 #[cfg(test)]
 mod tests;
@@ -57,6 +60,11 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/ztp/pending/{mac}/adopt", post(adopt))
         .route("/v1/ztp/approvals/{mac}", put(approve).delete(withdraw))
         .route("/v1/ztp/script", get(script::script))
+        .route("/v1/ztp/one-liners", post(one_liner::create))
+        .route(
+            "/v1/ztp/one-liners/{token}",
+            get(one_liner::get).delete(one_liner::withdraw),
+        )
 }
 
 /// Adopting a device from the inbox.

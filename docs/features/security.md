@@ -13,7 +13,7 @@ Milestones: M1.6 (TLS, vault), M1.6b (auth and sessions), M3.1 (vault for config
 | Hostile data from clients or nodes (hostnames, SSIDs, DHCP options, log lines) | Treated as untrusted: strict parsing, size limits, no `innerHTML` (Solid escapes by default), a strict CSP |
 | Command injection through config values | Agent ops take argv arrays and JSON, never shell strings; the UCI serializer validates and escapes values |
 | A compromised node feeding bogus telemetry | Everything is validated and bounded; a node can't affect other nodes' config; anomalies raise alerts |
-| A rogue device getting adopted | Adoption needs explicit admin approval: a click in the ZTP inbox, or a single-use pre-approval of a MAC that expires after 7 days, whose node must match the hello's board and MAC (D-102); host-key fingerprints are shown |
+| A rogue device getting adopted | Adoption needs explicit admin approval: a click in the ZTP inbox, or a single-use pre-approval of a MAC that expires after 7 days, whose node must match the hello's board and MAC (D-102), or a one-liner's single-use 15-minute token whose script runs only with the SHA-256 in the command (D-103); host-key fingerprints are shown (the one-liner's device prints its own) |
 | Supply-chain compromise | Locked dependencies, cargo-deny, Dependabot, SBOM and provenance attestations, signed images |
 
 ## Controller authentication & sessions

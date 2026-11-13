@@ -1,7 +1,8 @@
 //! Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed
 //! with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending
 //! adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC
-//! ([`ZtpApproval`]). Nothing here is secret: the hello is unauthenticated, so the owner's
+//! ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D). Nothing
+//! here is secret but a one-liner's token: the hello is unauthenticated, so the owner's
 //! approval and the host key the controller pins are what adoption trusts.
 
 use std::net::IpAddr;
@@ -31,6 +32,10 @@ pub struct ZtpHello {
     /// The role its image was built for; the controller infers one when `None`.
     #[serde(default)]
     pub role: Option<NodeRole>,
+    /// The one-liner's token it was set up with (Path D): a valid one pre-approves it.
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub token: Option<String>,
 }
 
 /// What the controller answers a hello: the script stops calling once adopted.
@@ -105,4 +110,50 @@ pub struct ZtpInbox {
     pub pending: Vec<PendingDevice>,
     /// The approvals not used or expired yet, by MAC.
     pub approvals: Vec<ZtpApproval>,
+}
+
+/// A one-liner (Path D): a command to paste into an OpenWrt shell, which fetches the first-boot
+/// script with a single-use token and runs it if its SHA-256 matches (D-103). The device's
+/// first hello carrying the token starts its adoption.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct ZtpOneLiner {
+    pub token: String,
+    /// An access point or a bridge.
+    pub role: NodeRole,
+    /// The display name to adopt it with; its hostname when `None`.
+    pub name: Option<String>,
+    pub command: String,
+    /// The script's, in hex: what the command checks.
+    pub sha256: String,
+    pub created_at: Timestamp,
+    /// When the next step must come by: the fetch, then the hello.
+    pub expires_at: Timestamp,
+    pub state: OneLinerState,
+    /// Who fetched the script.
+    #[cfg_attr(feature = "ts", ts(as = "Option<String>"))]
+    pub fetched_from: Option<IpAddr>,
+    /// The device whose hello used the token.
+    pub device: Option<MacAddr>,
+    /// The admin who made it.
+    pub created_by: Option<String>,
+}
+
+impl ZtpOneLiner {
+    /// For the fetch, then again for the hello.
+    pub const LIFETIME: std::time::Duration = std::time::Duration::from_mins(15);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum OneLinerState {
+    /// Waiting for the device to fetch the script.
+    Waiting,
+    /// Fetched: waiting for the device's hello.
+    Fetched,
+    /// A hello used it: the device is being adopted.
+    Used,
+    /// Not used in time, or withdrawn.
+    Expired,
 }

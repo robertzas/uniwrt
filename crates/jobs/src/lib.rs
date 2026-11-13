@@ -104,6 +104,7 @@ pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
 pub use speed_test::SpeedTestRequest;
 pub use wan_test::WanTest;
+pub use ztp::ZtpScript;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

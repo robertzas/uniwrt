@@ -83,6 +83,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
 - `src/ztp/hello.rs`: `POST /api/v1/ztp/hello`, without a session (features/adoption.md, Path B; D-102): a ZTP device's call home.
 - `src/ztp/mod.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102):
+- `src/ztp/one_liner.rs`: The one-liner (features/adoption.md, Path D; D-103): a command to paste into any OpenWrt shell that fetches the first-boot script with a single-use token, checks its SHA-256 and runs it on the live device.
 - `src/ztp/script.rs`: `GET /api/v1/ztp/script?role=ap|bridge|gateway` (admins; D-102): the first-boot script of a zero-touch image, for the OpenWrt Firmware Selector's "script to run on first boot" or an image builder's `/etc/uci-defaults`.
 - `src/ztp/tests.rs`: Zero-touch provisioning through the router, against the simulated fleet's API: hellos checked, kept, limited and answered; pre-approvals used once; adopting and dismissing from the inbox; the first-boot script.
 
@@ -366,7 +367,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
-- `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC ([`ZtpApproval`]).
+- `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D).
 
 ### `uniwrt-node` (crates/node)
 
@@ -527,7 +528,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications, the alert engine and RF insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode scans sooner and busy or not).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
-- `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and the middleware both share.
+- `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api` and its one-liners' `/b/{token}`, the embedded UI as the fallback, and the middleware both share.
 - `src/http/plain.rs`: The plain HTTP listener (features/security.md, TLS; D-039): it redirects to HTTPS, except for the health check (Docker probes it) and for requests from a trusted reverse proxy, which terminates TLS itself and gets the whole application.
 - `src/logging.rs`: Logging: `tracing` to stderr, filtered by `--log` / `UNIWRT_LOG` (`EnvFilter` syntax).
 - `src/main.rs`: The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
@@ -758,7 +759,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (349 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (352 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -772,6 +773,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
+- `features/devices/ztp/`: SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts

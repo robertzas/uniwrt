@@ -98,6 +98,8 @@ struct Inner {
     limiter: LoginLimiter,
     /// ZTP hellos per client (`ztp/hello.rs`).
     hellos: crate::ztp::hello::HelloLimiter,
+    /// The one-liners (`ztp/one_liner.rs`).
+    one_liners: crate::ztp::one_liner::OneLiners,
     setup: Setup,
     /// True once the server stops: the WS connections close.
     closing: watch::Sender<bool>,
@@ -122,6 +124,7 @@ impl Api {
                 passwords,
                 limiter: LoginLimiter::default(),
                 hellos: crate::ztp::hello::HelloLimiter::default(),
+                one_liners: crate::ztp::one_liner::OneLiners::default(),
                 setup: Setup::new(has_users, config.setup_window),
                 store: config.store,
                 fleet: config.fleet,
@@ -291,6 +294,10 @@ impl Api {
 
     pub(crate) fn hellos(&self) -> &crate::ztp::hello::HelloLimiter {
         &self.inner.hellos
+    }
+
+    pub(crate) fn one_liners(&self) -> &crate::ztp::one_liner::OneLiners {
+        &self.inner.one_liners
     }
 
     pub(crate) fn setup(&self) -> &Setup {

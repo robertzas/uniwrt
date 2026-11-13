@@ -1,4 +1,5 @@
-//! The HTTP surface: the API (`uniwrt-api`) under `/api`, the embedded UI as the fallback, and
+//! The HTTP surface: the API (`uniwrt-api`) under `/api` and its one-liners' `/b/{token}`, the
+//! embedded UI as the fallback, and
 //! the middleware both share. The HTTPS listener serves [`https`] around [`router`], the plain
 //! HTTP listener [`plain::router`]; each tells the API who the client is ([`Client`]).
 
@@ -21,6 +22,7 @@ use crate::{
 /// The application router. `assets` is the embedded UI (`ui::EMBEDDED`, or a table in tests).
 pub(crate) fn router(assets: &'static Assets, api: Api) -> Router {
     Router::new()
+        .merge(uniwrt_api::bootstrap(api.clone()))
         .nest("/api", uniwrt_api::router(api))
         .fallback(
             move |method: Method, uri: Uri, headers: HeaderMap| async move {

@@ -38,9 +38,10 @@ pub(crate) async fn script(
         .filter(|ip| !ip.is_loopback() && !ip.is_unspecified());
     let script = api
         .jobs()
-        .ztp_script(query.role.unwrap_or(NodeRole::Ap), port, seen_at)
+        .ztp_script(query.role.unwrap_or(NodeRole::Ap), port, seen_at, None)
         .await
-        .map_err(jobs_error)?;
+        .map_err(jobs_error)?
+        .text;
     Ok((
         [
             (header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"),
@@ -55,7 +56,7 @@ pub(crate) async fn script(
 }
 
 /// The host and port of a `Host` value (`name`, `name:port`, `[v6]:port`); 443 without one.
-fn split_host(host: Option<&str>) -> (Option<&str>, u16) {
+pub(crate) fn split_host(host: Option<&str>) -> (Option<&str>, u16) {
     let Some(host) = host else {
         return (None, 443);
     };

@@ -424,6 +424,89 @@ export const strings = {
       fingerprint: "Host key",
     },
   },
+  /** Zero-touch provisioning: the inbox, pre-approvals, and setting up new devices (adoption.md, Paths B and D). */
+  ztp: {
+    title: "Waiting for adoption",
+    description:
+      "New devices set up for uniwrt call home here. Check each one's host key, then adopt it.",
+    add: "Set up a device",
+    empty:
+      "No device is waiting. Set one up with a one-liner or a first-boot script, and it calls home here.",
+    loadFailed: "The devices waiting for adoption could not be loaded.",
+    seen: (when: string) => `Last called ${when}`,
+    builtFor: (role: string) => `Built as ${role.toLowerCase()}`,
+    adopt: "Adopt",
+    dismiss: "Dismiss",
+    dismissHint: "It shows up again when it next calls home.",
+    adopting: "Adopting",
+    retry: "Try again",
+    approvals: {
+      title: "Pre-approved",
+      description: "Devices adopted as soon as they call home. Each approval is used once.",
+      add: "Pre-approve a device",
+      expires: (when: string) => `Expires ${when}`,
+      withdraw: "Withdraw",
+      by: (user: string) => `by ${user}`,
+    },
+    form: {
+      mac: "MAC address",
+      macHint: "The address on the device's label, such as 94:83:c4:12:34:56.",
+      macInvalid: "Enter a MAC address, such as 94:83:c4:12:34:56.",
+      name: "Name",
+      nameHint: "Optional: the device's hostname is used otherwise.",
+      role: "Role",
+      roleImage: "As built",
+      roleImageHint: "The role its image or command was made for; else detected.",
+      cancel: "Cancel",
+      approve: "Pre-approve for 7 days",
+      approving: "Saving…",
+    },
+    confirm: {
+      title: (name: string) => `Adopt ${name}`,
+      description:
+        "uniwrt logs in with its own key, which the device trusts, pins this host key and replaces the root password with one the vault keeps.",
+      fingerprint: "Host key fingerprint",
+      details: (model: string, release: string) => `${model} · OpenWrt ${release}`,
+      submit: "It matches, adopt",
+      starting: "Starting…",
+    },
+    setup: {
+      title: "Set up a new device",
+      description:
+        "The device gets uniwrt's key, a random root password, a DHCP client on all its ports, no DHCP server and no Wi-Fi, then calls home.",
+      role: "Role",
+      tabs: { oneLiner: "One-liner", script: "First-boot script" },
+      oneLiner: {
+        intro:
+          "For a device already running OpenWrt: plug its WAN port into your network, open a shell on it (SSH or the console), and paste this command.",
+        make: "Make a command",
+        making: "Making…",
+        copy: "Copy",
+        copied: "Copied",
+        another: "Make another",
+        withdraw: "Withdraw",
+        expires: (when: string) => `Single-use; expires ${when}.`,
+        state: {
+          waiting: "Waiting for the device to fetch the script.",
+          fetched: (from: string) => `Fetched from ${from}. Waiting for the device to call home.`,
+          used: (mac: string) => `${mac} called home and is being adopted below.`,
+          expired: "This command expired or was withdrawn: make another.",
+        },
+        safety:
+          "The command runs the script only if its SHA-256 matches, so nobody on the network can swap it. Its token is only good once, for 15 minutes.",
+        after:
+          "The device prints its host key, then reloads its network, which ends your session. Compare the key with the one shown here before adopting.",
+        noGateway: "The one-liner sets up access points and bridges.",
+      },
+      script: {
+        intro:
+          'For a new image: add the script as "Script to run on first boot (uci-defaults)" in the OpenWrt Firmware Selector, or as files/etc/uci-defaults/99-uniwrt in the Image Builder. Flash the image, plug the device in, and it calls home.',
+        download: "Download the script",
+        noSecrets: "The script holds no secrets: uniwrt's public key and where to find it.",
+      },
+      close: "Close",
+    },
+  },
   clients: {
     title: "Clients",
     loading: "Loading the clients",

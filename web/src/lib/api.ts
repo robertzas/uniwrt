@@ -83,6 +83,12 @@ import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UserInfo } from "../api/gen/UserInfo";
 import type { WanTestBody } from "../api/gen/WanTestBody";
 import type { WindowList } from "../api/gen/WindowList";
+import type { ZtpAdoptBody } from "../api/gen/ZtpAdoptBody";
+import type { ZtpApproval } from "../api/gen/ZtpApproval";
+import type { ZtpApprovalBody } from "../api/gen/ZtpApprovalBody";
+import type { ZtpInbox } from "../api/gen/ZtpInbox";
+import type { ZtpOneLiner } from "../api/gen/ZtpOneLiner";
+import type { ZtpOneLinerBody } from "../api/gen/ZtpOneLinerBody";
 
 /** A failed API call. Problem details (RFC 9457) from the server fill `title` and `message`. */
 export class ApiError extends Error {
@@ -548,6 +554,29 @@ export const api = {
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),
+  /** Zero-touch provisioning (admins; adoption.md, Paths B and D): the inbox, pre-approvals and one-liners. */
+  ztp: {
+    inbox: (signal?: AbortSignal) => request<ZtpInbox>("/ztp/pending", { signal }),
+    /** Starts adopting a waiting device; the job is followed on the WS topic `jobs`. */
+    adopt: (mac: string, body: ZtpAdoptBody) =>
+      request<Job>(`/ztp/pending/${encodeURIComponent(mac)}/adopt`, { method: "POST", body }),
+    dismiss: (mac: string) =>
+      request<void>(`/ztp/pending/${encodeURIComponent(mac)}`, { method: "DELETE" }),
+    approve: (mac: string, body: ZtpApprovalBody) =>
+      request<ZtpApproval>(`/ztp/approvals/${encodeURIComponent(mac)}`, { method: "PUT", body }),
+    withdraw: (mac: string) =>
+      request<void>(`/ztp/approvals/${encodeURIComponent(mac)}`, { method: "DELETE" }),
+    /** Where the first-boot script downloads from (a link, not a request). */
+    scriptUrl: (role: "ap" | "bridge" | "gateway") => `/api/v1/ztp/script?role=${role}`,
+    oneLiners: {
+      create: (body: ZtpOneLinerBody) =>
+        request<ZtpOneLiner>("/ztp/one-liners", { method: "POST", body }),
+      get: (token: string, signal?: AbortSignal) =>
+        request<ZtpOneLiner>(`/ztp/one-liners/${encodeURIComponent(token)}`, { signal }),
+      withdraw: (token: string) =>
+        request<void>(`/ztp/one-liners/${encodeURIComponent(token)}`, { method: "DELETE" }),
+    },
+  },
   /** Cables that failed the wired backhaul's probe (D-097); forgetting one (admins) has the next apply probe it again. */
   backhaul: {
     failures: (signal?: AbortSignal) =>

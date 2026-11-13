@@ -33,6 +33,7 @@ hello() {
 	json_add_string release "$version"
 	json_add_string host_key "$key"
 	[ -z "$ROLE" ] || json_add_string role "$ROLE"
+	[ -z "$TOKEN" ] || json_add_string token "$TOKEN"
 	body=$(json_dump)
 	for url in $URLS; do
 		# IPv4 for names: uniwrt.<domain> has an A record only, and musl fails a lookup whose

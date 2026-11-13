@@ -44,7 +44,8 @@ Batch mode (M1.7b, D-044): once the gateway is adopted, the other nodes appear u
    - The owner clicks Adopt (`POST /api/v1/ztp/pending/{mac}/adopt`, with an optional name and role; a job), or dismisses it (`DELETE /api/v1/ztp/pending/{mac}`; it comes back at its next hello).
    - Or **pre-approves the device by MAC** before it calls home (`PUT /api/v1/ztp/approvals/{mac}`, with an optional name and role; `DELETE` withdraws it): its first hello uses the approval up and starts the adoption. Approvals are single-use and expire after 7 days (D-102). A failed adoption leaves the device in the inbox.
    - The adoption is Path A's job with the controller's key (the image trusts it) and the host key from the hello pinned. Before anything changes, the node must be the hello's board, and the hello's MAC must be its identity or one of its devices' (`identity_mismatch` otherwise). Root's password, the image's unknown one, is replaced with one the vault keeps. Approvals, withdrawals, dismissals (`ztp`) and adoptions (`adopt`, by the approver for a pre-approval) are audited.
-   - Later (M5.4 b2): the inbox in the UI, and the controller pushing secrets (root password, mesh key, Wi-Fi) and the full config as a transaction.
+   - **In the UI** (M5.4 b2): Devices › Waiting for adoption (admins; read every 5 s while open): each device with its hostname, model, MAC, the role it was built for, when it last called, its address and fingerprint; Adopt opens a dialog with the whole fingerprint, model and release, a name and a role (as built, access point, bridge, gateway); the job's progress shows on the row, and a failure its reason with Try again and Dismiss. Pre-approve a device takes a MAC (any case, `-` or `:`), a name and a role; the approvals list shows each one's expiry and who made it, with Withdraw. Set up a device offers the one-liner (Path D) and the first-boot script's download by role.
+   - Later: the controller pushing secrets (root password, mesh key, Wi-Fi) and the full config as a transaction.
 5. For wireless-only placement, adopt the device once on the bench over a cable. After it has the mesh credentials, place it anywhere within mesh range.
 
 Why no secrets: ASU is a public build service, and build requests and results may be cached on third-party servers.
@@ -64,7 +65,18 @@ Limitation: one factory-default device at a time, because they all answer at 192
 
 ## Path D: bootstrap one-liner [M5.4]
 
-The UI shows a short-lived command to paste into any OpenWrt shell, for example `uclient-fetch -qO- 'https://<controller>:8443/b/<token>' | sh`. The token is single-use and expires after 15 minutes. The device must be able to reach the controller, for example with its WAN port plugged into the site LAN (outbound traffic is allowed by the default firewall). The script is the ZTP first-boot script plus the token, so the device shows up pre-approved in the inbox.
+For a device already running OpenWrt (M5.4 b2, D-103). Devices › Set up a device › One-liner (`POST /api/v1/ztp/one-liners` with a role, access point or bridge, and an optional name; admins, audited) shows a command to paste into the device's shell:
+
+```sh
+uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh 'https://<controller>:<port>/b/<token>' \
+  && echo '<sha256>  /tmp/uniwrt.sh' | sha256sum -cs && sh /tmp/uniwrt.sh
+```
+
+- **Integrity (D-103, the owner's choice):** OpenWrt can't check the controller's certificate (D-102), so the command runs the script only if its SHA-256 matches the one written in it: nobody on the network can swap what root runs. The token stays hidden from passive listeners (HTTPS).
+- **The token** (128 random bits) is single-use: `GET /b/<token>` (public, outside `/api` to keep the command short) serves the script once, within 15 minutes; the device's hello must then carry it within 15 minutes of the fetch. A hello with a fetched token starts the adoption with the one-liner's name and role (audited as `adopt`, "a one-liner by <admin>"); another hello with it lands in the inbox as usual. One-liners live in memory with the script they serve (at most 16, readable for an hour; a restart withdraws them); `GET` and `DELETE /api/v1/ztp/one-liners/{token}` follow and withdraw one. The dialog follows it: waiting, fetched (from which address), used (by which MAC), expired.
+- **The host:** the gateway's record of the controller, else the IP the admin reached it at, else the name the admin used, else `uniwrt.<domain>`; on the admin's HTTPS port.
+- **The script** is the first-boot script with the token (`TOKEN`), which the hello sends. On a live device it prints the dropbear host key's fingerprint (compare it with the inbox's), then in its own session, deaf to the hangup, waits 3 s, runs `reload_config` and starts the call-home service 10 s later: the new address cuts the shell's SSH session. The device must reach the controller, for example with its WAN port plugged into the site LAN; an AP or bridge joins that port to its bridge, which then takes a lease. Not for a gateway: its WAN firewall would refuse the adoption's SSH.
+- **Residual risk:** an active attacker on the LAN who intercepts the fetch learns the token and could race the device's hello with its own; the real device then waits in the inbox, and the fingerprint the device printed tells them apart.
 
 ## Path E: first run with a factory-default gateway [M4.3]
 
