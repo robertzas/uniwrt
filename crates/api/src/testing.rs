@@ -62,6 +62,7 @@ pub(crate) async fn api(store: Store, fleet: Arc<dyn Fleet>, clock: Arc<dyn Cloc
             connect_timeout: Duration::from_secs(2),
             ..SshConfig::default()
         },
+        via: None,
     };
     api_with(store, fleet, clock, Some(Arc::new(dial))).await
 }
@@ -262,6 +263,7 @@ impl Demo {
                     connect_timeout: Duration::from_secs(2),
                     ..SshConfig::default()
                 },
+                via: None,
             }) as Arc<dyn Dial>
         });
         let notify = Some((notifications.handle(), vault));

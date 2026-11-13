@@ -2,20 +2,33 @@
 import type { JobId } from "./JobId";
 import type { MacAddr } from "./MacAddr";
 import type { NodeRole } from "./NodeRole";
+import type { PendingSource } from "./PendingSource";
 import type { Timestamp } from "./Timestamp";
 
 /**
- * A device in the pending adoption inbox: its latest hello, and where it came from.
+ * A device in the pending adoption inbox: its latest hello (or what the adoption port read of
+ * it), and where it came from. What a locked device's port couldn't read is empty.
  */
-export type PendingDevice = { mac: MacAddr, board_name: string, model: string, hostname: string, release: string, 
+export type PendingDevice = { 
+/**
+ * Its identity: the label MAC, else its LAN bridge's (a locked device's, from the
+ * gateway's ARP table).
+ */
+mac: MacAddr, board_name: string, model: string, hostname: string, release: string, 
 /**
  * The role its image was built for.
  */
 role: NodeRole | null, 
 /**
- * The hello's source address: where adoption connects (SSH on port 22).
+ * Where adoption connects (SSH on port 22): the hello's source address, or 192.168.1.1
+ * through the gateway.
  */
-address: string, 
+address: string, source: PendingSource, 
+/**
+ * Root has a password, so nothing was read and adopting it needs that password (only the
+ * adoption port finds such devices).
+ */
+locked: boolean, 
 /**
  * In OpenSSH form.
  */

@@ -1,7 +1,8 @@
 //! How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login. Over SSH in
-//! production ([`SshDial`]); tests script them.
+//! production ([`SshDial`]); tests script them. A login's [`Remote::dial`] reaches devices
+//! through that node (`direct-tcpip`), such as one on the gateway's adoption port.
 
-use std::{pin::Pin, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 use serde_json::value::RawValue;
 
@@ -63,6 +64,13 @@ pub trait Remote: Send + Sync {
         })
     }
 
+    /// A dial whose connections this node makes (`direct-tcpip`): it reaches devices on a
+    /// segment only the node reaches, such as the adoption port's. `None` where this login
+    /// can't tunnel.
+    fn dial(&self) -> Option<Arc<dyn Dial>> {
+        None
+    }
+
     /// Logs out; the agent, if started, exits with it.
     fn close(&self) -> BoxFuture<'_, ()>;
 }
@@ -85,16 +93,18 @@ pub(crate) async fn request<O: Op>(
 #[derive(Debug, Clone, Default)]
 pub struct SshDial {
     pub config: SshConfig,
+    /// The session whose node makes the connections; `None` connects directly.
+    pub via: Option<Session>,
 }
 
 impl Dial for SshDial {
     fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
         let timeout = BANNER_TIMEOUT.min(self.config.connect_timeout);
-        Box::pin(uniwrt_node::banner(target, timeout))
+        Box::pin(uniwrt_node::banner(target, self.via.as_ref(), timeout))
     }
 
     fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
-        Box::pin(uniwrt_node::probe(target, None, &self.config))
+        Box::pin(uniwrt_node::probe(target, self.via.as_ref(), &self.config))
     }
 
     fn connect<'a>(
@@ -104,10 +114,17 @@ impl Dial for SshDial {
         credential: &'a Credential,
     ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
         Box::pin(async move {
-            let session =
-                Session::connect(target, None, host_key, credential, &self.config).await?;
+            let session = Session::connect(
+                target,
+                self.via.as_ref(),
+                host_key,
+                credential,
+                &self.config,
+            )
+            .await?;
             Ok(Box::new(SshRemote {
                 session,
+                config: self.config.clone(),
                 agent: OnceCell::new(),
             }) as Box<dyn Remote>)
         })
@@ -116,6 +133,7 @@ impl Dial for SshDial {
 
 struct SshRemote {
     session: Session,
+    config: SshConfig,
     agent: OnceCell<Agent>,
 }
 
@@ -163,6 +181,13 @@ impl Remote for SshRemote {
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Box<RawValue>>> {
         Box::pin(async move { self.agent().await?.call(op, args, timeout).await })
+    }
+
+    fn dial(&self) -> Option<Arc<dyn Dial>> {
+        Some(Arc::new(SshDial {
+            config: self.config.clone(),
+            via: Some(self.session.clone()),
+        }))
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {

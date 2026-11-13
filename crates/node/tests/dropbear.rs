@@ -41,7 +41,7 @@ for (let line = stdin.read("line"); length(line); line = stdin.read("line")) {
 async fn adoption_installs_the_controller_key_and_logs_in_with_it() {
     let (session, node) = adopt().await;
     // Discovery tells OpenWrt apart by its SSH banner.
-    let line = banner(&node.target, LONG).await.unwrap().unwrap();
+    let line = banner(&node.target, None, LONG).await.unwrap().unwrap();
     assert!(line.starts_with("SSH-2.0-dropbear"), "{line}");
     let release = run(&session, &["cat", "/etc/openwrt_release"]).await;
     assert!(release.contains("DISTRIB_ID='OpenWrt'"), "{release}");
@@ -163,6 +163,18 @@ async fn a_jump_through_the_node_reaches_ssh_behind_it() {
     let (session, node) = adopt().await;
     let behind = Target::new("127.0.0.1", 22);
     let config = SshConfig::default();
+    let version = banner(&behind, Some(&session), Duration::from_secs(3))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(version.contains("dropbear"), "{version}");
+    // Nothing listens there: the jump host refuses the channel.
+    let closed = Target::new("127.0.0.1", 1);
+    assert!(
+        banner(&closed, Some(&session), Duration::from_secs(3))
+            .await
+            .is_err()
+    );
     assert_eq!(
         probe(&behind, Some(&session), &config).await.unwrap(),
         node.host_key

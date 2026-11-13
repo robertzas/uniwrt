@@ -1,11 +1,11 @@
 //! [`ZtpRepo`] on SQLite: the `ztp_pending` and `ztp_approvals` tables (features/adoption.md,
-//! Path B; D-102).
+//! Path B; D-102), and the devices the adoption port finds (Path C; D-106).
 
 use std::future::Future;
 
 use rusqlite::{OptionalExtension as _, Row, params};
-use uniwrt_core::{JobId, MacAddr, Timestamp};
-use uniwrt_model::ztp::{PendingDevice, ZtpApproval};
+use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp};
+use uniwrt_model::ztp::{PendingDevice, PendingSource, ZtpApproval};
 
 use crate::{
     Result, Store,
@@ -14,8 +14,8 @@ use crate::{
 
 /// The pending adoption inbox and the pre-approvals by MAC.
 pub trait ZtpRepo: Send + Sync {
-    /// Records a device's hello: a new row, or the latest hello of one in the inbox (its first
-    /// sighting and job kept). Then keeps the `keep` most recently seen, so a flood of hellos
+    /// Records a device's hello, or the adoption port's sighting of it: a new row, or the latest
+    /// of one in the inbox (its first sighting and job kept). Then keeps the `keep` most recently seen, so a flood of hellos
     /// can't grow the inbox. Returns the row as stored.
     fn ztp_hello(
         &self,
@@ -58,7 +58,7 @@ pub trait ZtpRepo: Send + Sync {
 }
 
 const PENDING_COLUMNS: &str = "mac, board_name, model, hostname, release, role, address, \
-     host_key, fingerprint, first_seen, last_seen, job_id";
+     host_key, fingerprint, first_seen, last_seen, job_id, gateway, port, locked";
 
 fn pending(row: &Row<'_>) -> rusqlite::Result<PendingDevice> {
     Ok(PendingDevice {
@@ -76,6 +76,17 @@ fn pending(row: &Row<'_>) -> rusqlite::Result<PendingDevice> {
         first_seen: timestamp_column(row, 9)?,
         last_seen: timestamp_column(row, 10)?,
         job: row.get::<_, Option<i64>>(11)?.map(JobId::new),
+        source: match (
+            row.get::<_, Option<i64>>(12)?,
+            row.get::<_, Option<String>>(13)?,
+        ) {
+            (Some(gateway), Some(port)) => PendingSource::Port {
+                gateway: NodeId::new(gateway),
+                port,
+            },
+            _ => PendingSource::Hello,
+        },
+        locked: row.get(14)?,
     })
 }
 
@@ -103,16 +114,22 @@ fn optional_enum<T: serde::de::DeserializeOwned>(
 impl ZtpRepo for Store {
     async fn ztp_hello(&self, device: PendingDevice, keep: usize) -> Result<PendingDevice> {
         let keep = i64::try_from(keep).unwrap_or(i64::MAX);
+        let (gateway, port) = match &device.source {
+            PendingSource::Hello => (None, None),
+            PendingSource::Port { gateway, port } => (Some(gateway.get()), Some(port.clone())),
+        };
         self.write(move |conn| {
             let stored = conn
                 .prepare_cached(&format!(
                     "INSERT INTO ztp_pending ({PENDING_COLUMNS})
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, NULL)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, NULL, ?11, ?12, ?13)
                      ON CONFLICT (mac) DO UPDATE SET board_name = excluded.board_name,
                          model = excluded.model, hostname = excluded.hostname,
                          release = excluded.release, role = excluded.role,
                          address = excluded.address, host_key = excluded.host_key,
-                         fingerprint = excluded.fingerprint, last_seen = excluded.last_seen
+                         fingerprint = excluded.fingerprint, last_seen = excluded.last_seen,
+                         gateway = excluded.gateway, port = excluded.port,
+                         locked = excluded.locked
                      RETURNING {PENDING_COLUMNS}"
                 ))?
                 .query_row(
@@ -127,6 +144,9 @@ impl ZtpRepo for Store {
                         device.host_key,
                         device.fingerprint,
                         device.last_seen.as_unix_ms(),
+                        gateway,
+                        port,
+                        device.locked,
                     ],
                     pending,
                 )?;
@@ -246,10 +266,10 @@ impl ZtpRepo for Store {
 mod tests {
     use std::time::Duration;
 
-    use uniwrt_core::{JobId, MacAddr, Timestamp};
+    use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp};
     use uniwrt_model::{
         node::NodeRole,
-        ztp::{PendingDevice, ZtpApproval},
+        ztp::{PendingDevice, PendingSource, ZtpApproval},
     };
 
     use super::ZtpRepo as _;
@@ -277,7 +297,33 @@ mod tests {
             first_seen: at(seen),
             last_seen: at(seen),
             job: None,
+            source: PendingSource::Hello,
+            locked: false,
         }
+    }
+
+    #[tokio::test]
+    async fn the_adoption_port_s_sightings_keep_their_gateway_and_lock() {
+        let (_dir, store, _) = testing::open().await;
+        let port = PendingSource::Port {
+            gateway: NodeId::new(1),
+            port: "lan4".to_owned(),
+        };
+        let locked = PendingDevice {
+            source: port.clone(),
+            locked: true,
+            ..device(1, 0)
+        };
+        let stored = store.ztp_hello(locked.clone(), 2).await.unwrap();
+        assert_eq!(stored, locked);
+        // Unlocked, then calling home: the latest sighting says where it is.
+        let open = PendingDevice {
+            locked: false,
+            ..locked
+        };
+        assert_eq!(store.ztp_hello(open.clone(), 2).await.unwrap(), open);
+        let hello = store.ztp_hello(device(1, 5), 2).await.unwrap();
+        assert_eq!((hello.source, hello.locked), (PendingSource::Hello, false));
     }
 
     #[tokio::test]

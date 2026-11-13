@@ -1,7 +1,7 @@
 //! `POST /api/v1/ztp/hello`, without a session (features/adoption.md, Path B; D-102): a ZTP
 //! device's call home. The hello is checked ([`ZtpHello`]: a unicast MAC, an OpenSSH host key,
 //! short printable strings), kept in the inbox under its MAC with the request's address (at
-//! most [`MAX_PENDING`] devices, the least recently seen dropped), and answered with the
+//! most [`ZtpInbox::MAX_PENDING`] devices, the least recently seen dropped), and answered with the
 //! device's state. A hello with a one-liner's fetched token (Path D, D-103), else a
 //! pre-approved MAC's first hello, uses it up and starts the adoption. Each client (IPv6: its /64) may send [`PER_WINDOW`] hellos per [`WINDOW`]; the
 //! device's script sends one a minute.
@@ -22,15 +22,16 @@ use tracing::{info, warn};
 use uniwrt_model::{
     job::JobState,
     user::{AuditAction, AuditEntry},
-    ztp::{HelloAnswer, HelloState, PendingDevice, ZtpApproval, ZtpHello, ZtpOneLiner},
+    ztp::{
+        HelloAnswer, HelloState, PendingDevice, PendingSource, ZtpApproval, ZtpHello, ZtpInbox,
+        ZtpOneLiner,
+    },
 };
 use uniwrt_node::HostKey;
 use uniwrt_store::{AuditRepo as _, NodeRepo as _, ZtpRepo as _};
 
 use crate::{Api, ApiError, ApiResult, Client};
 
-/// The inbox's bound.
-pub(crate) const MAX_PENDING: usize = 64;
 pub(crate) const WINDOW: Duration = Duration::from_mins(10);
 pub(crate) const PER_WINDOW: usize = 20;
 const MAX_TRACKED: usize = 10_000;
@@ -59,7 +60,7 @@ pub(crate) async fn hello(
         api.store().forget_ztp_pending(mac).await?;
         return answer(HelloState::Adopted);
     }
-    let stored = api.store().ztp_hello(device, MAX_PENDING).await?;
+    let stored = api.store().ztp_hello(device, ZtpInbox::MAX_PENDING).await?;
     match super::job_state(&api, &stored).await? {
         Some(JobState::Running) => return answer(HelloState::Adopting),
         Some(JobState::Succeeded) => return answer(HelloState::Adopted),
@@ -151,6 +152,8 @@ fn checked(hello: &ZtpHello, address: IpAddr, api: &Api) -> ApiResult<PendingDev
         release: text("release", &hello.release, true)?,
         role: hello.role,
         address,
+        source: PendingSource::Hello,
+        locked: false,
         host_key: host_key.to_openssh().to_owned(),
         fingerprint: host_key.fingerprint().to_owned(),
         first_seen: now,

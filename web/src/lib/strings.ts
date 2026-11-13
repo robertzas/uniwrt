@@ -428,13 +428,24 @@ export const strings = {
   ztp: {
     title: "Waiting for adoption",
     description:
-      "New devices set up for uniwrt call home here. Check each one's host key, then adopt it.",
+      "New devices set up for uniwrt call home here, and factory-default ones plugged into the adoption port show up. Check each one's host key, then adopt it.",
     add: "Set up a device",
     empty:
       "No device is waiting. Set one up with a one-liner or a first-boot script, and it calls home here.",
     loadFailed: "The devices waiting for adoption could not be loaded.",
     seen: (when: string) => `Last called ${when}`,
     builtFor: (role: string) => `Built as ${role.toLowerCase()}`,
+    unnamed: "Unnamed device",
+    /** A device found on the gateway's adoption port (Path C). */
+    port: {
+      seen: (when: string) => `Last seen ${when}`,
+      on: (port: string) => `On the adoption port (${port})`,
+      locked: "Root password set",
+      lockedHint:
+        "Its root password is set, so nothing more could be read. Adopting it needs that password.",
+      soon: "Adopting from the adoption port isn't available yet.",
+      dismissHint: "It shows up again when it's plugged in again.",
+    },
     adopt: "Adopt",
     dismiss: "Dismiss",
     dismissHint: "It shows up again when it next calls home.",

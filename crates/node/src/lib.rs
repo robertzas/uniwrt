@@ -5,7 +5,7 @@
 //! - **API:** [`ControllerKey`] (the controller's ed25519 identity, kept in the vault as OpenSSH
 //!   text); [`HostKey`] and [`probe`] (trust on first use: read a node's host key so the user can
 //!   confirm its fingerprint before it is pinned); [`banner`] (an SSH server's version line, read
-//!   without a handshake, for discovery); [`Session`] (one authenticated connection,
+//!   without a handshake, for discovery, directly or through a jump session); [`Session`] (one authenticated connection,
 //!   direct or through a jump session over `direct-tcpip`) with [`Session::exec`],
 //!   [`Session::stream`] and [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
 //!   agent's stdio, see [`proto`]); [`proto::ops`] (the typed ops, sent with
@@ -20,7 +20,8 @@
 //!   packages' parser, D-100); [`wpad`] (the commands that swap a node's basic wpad for
 //!   the full one, D-089); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
-//!   zero-touch images, D-102); [`Error`]. A [`Credential::Password`] that is
+//!   zero-touch images, D-102); [`adoption_port`] (the gateway's segment and the device found
+//!   on it: the reads and their parsers, D-106); [`Error`]. A [`Credential::Password`] that is
 //!   empty logs in with SSH's `none` method first, as factory-default OpenWrt lets root in.
 //! - **Invariants:** every connection checks the host key against its pin; a mismatch is
 //!   [`Error::HostKeyMismatch`] and quarantines the link ([`LinkState::Quarantined`]), never a
@@ -40,6 +41,7 @@
 //!   `tests/agent.rs` (`just test-agent`) against the agent on OpenWrt booted with procd, and
 //!   `tests/wifi.rs` (`just test-wifi`) against the hwsim lab's radios and mesh.
 
+pub mod adoption_port;
 mod agent;
 mod backoff;
 mod bundle;

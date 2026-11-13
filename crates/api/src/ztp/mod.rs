@@ -42,7 +42,7 @@ use uniwrt_model::{
     job::{Job, JobState},
     node::NodeRole,
     user::{AuditAction, AuditEntry, Role, User},
-    ztp::{PendingDevice, ZtpApproval, ZtpInbox},
+    ztp::{PendingDevice, PendingSource, ZtpApproval, ZtpInbox},
 };
 use uniwrt_node::{HostKey, Target};
 use uniwrt_store::{AuditRepo as _, NodeRepo as _, ZtpRepo as _};
@@ -266,6 +266,12 @@ pub(crate) async fn start(
     role: Option<NodeRole>,
     by: Option<UserId>,
 ) -> ApiResult<Job> {
+    if let PendingSource::Port { .. } = device.source {
+        // Path C's staged adoption, through the gateway, is M5.4 c2.
+        return Err(ApiError::Conflict(
+            "Adopting a device found on the adoption port isn't available yet".to_owned(),
+        ));
+    }
     let host_key = HostKey::parse(&device.host_key)
         .map_err(|_| ApiError::Internal("a stored hello holds no host key".to_owned()))?;
     let request = AdoptRequest {

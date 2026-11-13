@@ -53,6 +53,8 @@ pub(crate) struct FakeNode {
     pub(crate) script: Mutex<Option<Script>>,
     /// What the agent collects, when not the capture.
     pub(crate) collected: Mutex<Option<String>>,
+    /// The device a login's [`Remote::dial`] reaches behind this node, if one answers.
+    pub(crate) behind: Mutex<Option<Arc<FakeNode>>>,
 }
 
 /// A test's answers to commands, by argv.
@@ -72,7 +74,15 @@ impl FakeNode {
             open_txn: Mutex::default(),
             script: Mutex::default(),
             collected: Mutex::default(),
+            behind: Mutex::default(),
         })
+    }
+
+    /// Another node: factory defaults (root without a password) unless told otherwise.
+    pub(crate) fn factory() -> Arc<Self> {
+        let node = Self::new();
+        node.password.lock().unwrap().clear();
+        node
     }
 
     pub(crate) fn commands(&self) -> Vec<String> {
@@ -241,8 +251,50 @@ impl Remote for FakeRemote {
         })
     }
 
+    fn dial(&self) -> Option<Arc<dyn Dial>> {
+        Some(Arc::new(Behind(self.0.behind.lock().unwrap().clone())))
+    }
+
     fn close(&self) -> BoxFuture<'_, ()> {
         Box::pin(async {})
+    }
+}
+
+/// What a fake login reaches through its node: the device behind it, or nothing answering.
+struct Behind(Option<Arc<FakeNode>>);
+
+impl Behind {
+    fn device(&self, target: &Target) -> Result<FakeDial> {
+        self.0
+            .as_ref()
+            .map(|node| FakeDial(Arc::clone(node)))
+            .ok_or_else(|| uniwrt_node::Error::Timeout {
+                what: format!("connecting to {target}"),
+                after: std::time::Duration::from_secs(3),
+            })
+    }
+}
+
+impl Dial for Behind {
+    fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
+        Box::pin(async move { self.device(target)?.banner(target).await })
+    }
+
+    fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
+        Box::pin(async move { self.device(target)?.probe(target).await })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        target: &'a Target,
+        host_key: &'a HostKey,
+        credential: &'a Credential,
+    ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
+        Box::pin(async move {
+            self.device(target)?
+                .connect(target, host_key, credential)
+                .await
+        })
     }
 }
 

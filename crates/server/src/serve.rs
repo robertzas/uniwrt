@@ -105,6 +105,8 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;
         fleet.record_events(&store, &vault, &jobs).await;
+        let port_watch =
+            crate::adoption_port::PortWatch::start(store.clone(), jobs.clone(), &fleet.engine);
         let autotune = crate::autotune::Autotune::start(
             store.clone(),
             jobs.clone(),
@@ -138,6 +140,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
         renewal.abort();
         autotune.stop().await;
+        port_watch.stop().await;
         jobs.shutdown().await;
         fleet.stop().await;
         served?;

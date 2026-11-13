@@ -1,15 +1,17 @@
 //! [`banner`]: the version line an SSH server sends as soon as a client connects (RFC 4253,
 //! 4.2), read without starting a handshake, so that discovery can tell dropbear, and so likely
-//! OpenWrt, from other hosts with one cheap connection.
+//! OpenWrt, from other hosts with one cheap connection. Through a jump session, the connection
+//! is a `direct-tcpip` channel, as for [`probe`](super::probe).
 
 use std::time::Duration;
 
 use tokio::{
-    io::AsyncReadExt as _,
+    io::{AsyncRead, AsyncReadExt as _},
     net::TcpStream,
     time::{Instant, timeout_at},
 };
 
+use super::Session;
 use crate::{Error, Result, Target};
 
 /// A server may send other lines before its version line; one that sends more than this is not
@@ -19,23 +21,47 @@ const MAX_READ: usize = 1024;
 const MAX_LINE: usize = 255;
 
 /// The version line of the server at `target`, such as `SSH-2.0-dropbear_2024.86`, within
-/// `timeout`; `None` when what listens there is not an SSH server.
-pub async fn banner(target: &Target, timeout: Duration) -> Result<Option<String>> {
+/// `timeout`; `None` when what listens there is not an SSH server. Through `via`, the jump host
+/// connects.
+pub async fn banner(
+    target: &Target,
+    via: Option<&Session>,
+    timeout: Duration,
+) -> Result<Option<String>> {
     let deadline = Instant::now() + timeout;
     let timed_out = || Error::Timeout {
         what: format!("reading the SSH banner of {target}"),
         after: timeout,
     };
-    let mut stream = timeout_at(
-        deadline,
-        TcpStream::connect((target.host.as_str(), target.port)),
-    )
-    .await
-    .map_err(|_| timed_out())?
-    .map_err(|source| Error::Connect {
-        target: target.to_string(),
-        source,
-    })?;
+    match via {
+        None => {
+            let stream = timeout_at(
+                deadline,
+                TcpStream::connect((target.host.as_str(), target.port)),
+            )
+            .await
+            .map_err(|_| timed_out())?
+            .map_err(|source| Error::Connect {
+                target: target.to_string(),
+                source,
+            })?;
+            read(stream, deadline, timed_out).await
+        }
+        Some(via) => {
+            let stream = timeout_at(deadline, via.tunnel(target))
+                .await
+                .map_err(|_| timed_out())??;
+            read(stream, deadline, timed_out).await
+        }
+    }
+}
+
+/// Reads the version line from a connected `stream` by `deadline`.
+async fn read(
+    mut stream: impl AsyncRead + Unpin,
+    deadline: Instant,
+    timed_out: impl Fn() -> Error,
+) -> Result<Option<String>> {
     let mut buf = Vec::with_capacity(256);
     let mut chunk = [0; 256];
     loop {
@@ -125,24 +151,26 @@ mod tests {
         let timeout = Duration::from_secs(5);
         let dropbear = serve(b"SSH-2.0-dropbear_2024.86\r\n").await;
         assert_eq!(
-            banner(&dropbear, timeout).await.unwrap().as_deref(),
+            banner(&dropbear, None, timeout).await.unwrap().as_deref(),
             Some("SSH-2.0-dropbear_2024.86")
         );
         let http = serve(b"HTTP/1.1 400 Bad Request\r\n\r\n").await;
         assert_eq!(
-            banner(&http, Duration::from_millis(100)).await.unwrap(),
+            banner(&http, None, Duration::from_millis(100))
+                .await
+                .unwrap(),
             None
         );
         let silent = serve(b"").await;
         assert!(matches!(
-            banner(&silent, Duration::from_millis(100)).await,
+            banner(&silent, None, Duration::from_millis(100)).await,
             Err(Error::Timeout { .. })
         ));
         let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = closed.local_addr().unwrap().port();
         drop(closed);
         assert!(matches!(
-            banner(&Target::new("127.0.0.1", port), timeout).await,
+            banner(&Target::new("127.0.0.1", port), None, timeout).await,
             Err(Error::Connect { .. })
         ));
     }

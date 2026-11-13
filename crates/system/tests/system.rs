@@ -250,7 +250,9 @@ fn forwards_dmz_and_upnp() {
 #[test]
 #[ignore = "needs scripts/test-system.sh's topology"]
 fn the_adoption_port_reaches_a_factory_device_and_nothing_more() {
+    use uniwrt_core::MacAddr;
     use uniwrt_model::site::adoption::AdoptionPort;
+    use uniwrt_node::adoption_port as port;
     let mut site = site::defaults(Uplink::Dhcp);
     site.adoption_port = Some(AdoptionPort::new("eth2"));
     let gw = gateway(&site);
@@ -262,6 +264,34 @@ fn the_adoption_port_reaches_a_factory_device_and_nothing_more() {
     // address from its DHCP server or router advertisements.
     gw.sh("ping -c 1 -W 3 192.168.1.1", &[]);
     let fac = Node::new("uniwrt-system-fac");
+    // What the controller's look reads (uniwrt_node::adoption_port), on both ends.
+    let status = gw.sh("ubus call network.interface.uw_adopt status", &[]);
+    assert!(port::segment_up(&status, AdoptionPort::DEFAULT), "{status}");
+    let lan_mac: MacAddr = fac
+        .sh("cat /sys/class/net/br-lan/address", &[])
+        .trim()
+        .parse()
+        .unwrap();
+    let arp = gw.sh("cat /proc/net/arp", &[]);
+    assert_eq!(
+        port::neighbor(&arp, AdoptionPort::FACTORY, port::BRIDGE),
+        Some(lan_mac),
+        "{arp}"
+    );
+    let identity = fac.sh(&port::identity().argv[2], &[]);
+    let label = fac.sh(
+        "jsonfilter -q -i /etc/board.json -e '@.system.label_macaddr' || true",
+        &[],
+    );
+    if label.trim().is_empty() {
+        assert_eq!(port::identity_mac(&identity), Some(lan_mac), "{identity}");
+    }
+    let board = port::Board::parse(&fac.sh("ubus call system board", &[])).unwrap();
+    let release = std::env::var("UNIWRT_SYSTEM_RELEASE").unwrap_or_default();
+    assert!(
+        !board.release.version.is_empty() && release.contains(&board.release.version),
+        "{board:?} on {release}"
+    );
     std::thread::sleep(Duration::from_secs(5));
     assert_eq!(
         ipv4(&gw.interface("uw_adopt").unwrap()),

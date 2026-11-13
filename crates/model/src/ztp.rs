@@ -1,6 +1,7 @@
 //! Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed
 //! with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending
-//! adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC
+//! adoption inbox it lands in ([`PendingDevice`]; the gateway's adoption port puts the
+//! factory-default devices it finds there too, Path C, D-106), and the owner's pre-approvals by MAC
 //! ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D). Nothing
 //! here is secret but a one-liner's token: the hello is unauthenticated, so the owner's
 //! approval and the host key the controller pins are what adoption trusts.
@@ -8,7 +9,7 @@
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
-use uniwrt_core::{JobId, MacAddr, Timestamp};
+use uniwrt_core::{JobId, MacAddr, NodeId, Timestamp};
 
 use crate::node::NodeRole;
 
@@ -57,10 +58,13 @@ pub enum HelloState {
     Adopted,
 }
 
-/// A device in the pending adoption inbox: its latest hello, and where it came from.
+/// A device in the pending adoption inbox: its latest hello (or what the adoption port read of
+/// it), and where it came from. What a locked device's port couldn't read is empty.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PendingDevice {
+    /// Its identity: the label MAC, else its LAN bridge's (a locked device's, from the
+    /// gateway's ARP table).
     pub mac: MacAddr,
     pub board_name: String,
     pub model: String,
@@ -68,9 +72,14 @@ pub struct PendingDevice {
     pub release: String,
     /// The role its image was built for.
     pub role: Option<NodeRole>,
-    /// The hello's source address: where adoption connects (SSH on port 22).
+    /// Where adoption connects (SSH on port 22): the hello's source address, or 192.168.1.1
+    /// through the gateway.
     #[cfg_attr(feature = "ts", ts(as = "String"))]
     pub address: IpAddr,
+    pub source: PendingSource,
+    /// Root has a password, so nothing was read and adopting it needs that password (only the
+    /// adoption port finds such devices).
+    pub locked: bool,
     /// In OpenSSH form.
     pub host_key: String,
     /// SHA-256, as OpenSSH shows it.
@@ -79,6 +88,18 @@ pub struct PendingDevice {
     pub last_seen: Timestamp,
     /// The latest adoption job started for it.
     pub job: Option<JobId>,
+}
+
+/// How a pending device reached the inbox.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PendingSource {
+    /// Its first-boot script called home (ZTP or a one-liner).
+    Hello,
+    /// It answered at 192.168.1.1 on the gateway's adoption port (Path C): reached through
+    /// the gateway's SSH session.
+    Port { gateway: NodeId, port: String },
 }
 
 /// The owner's approval of a device by MAC before it calls home: its first hello starts the
@@ -97,6 +118,11 @@ pub struct ZtpApproval {
     pub created_by: Option<String>,
 }
 
+impl ZtpInbox {
+    /// The devices kept; the least recently seen go first.
+    pub const MAX_PENDING: usize = 64;
+}
+
 impl ZtpApproval {
     /// Seven days (D-102).
     pub const LIFETIME: std::time::Duration = std::time::Duration::from_hours(7 * 24);
@@ -106,7 +132,7 @@ impl ZtpApproval {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct ZtpInbox {
-    /// Newest hello first.
+    /// Newest first.
     pub pending: Vec<PendingDevice>,
     /// The approvals not used or expired yet, by MAC.
     pub approvals: Vec<ZtpApproval>,

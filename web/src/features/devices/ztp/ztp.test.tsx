@@ -21,6 +21,8 @@ const device: PendingDevice = {
   release: "24.10.4",
   role: "ap",
   address: "10.0.0.47",
+  source: { kind: "hello" },
+  locked: false,
   host_key: "ssh-ed25519 AAAA",
   fingerprint: "SHA256:M+sb+ikwtPDQxF10CkImjS44GcoH92RcQ6sj8kVW+r8",
   first_seen: NOW - 120_000,
@@ -126,6 +128,44 @@ describe("Waiting for adoption", () => {
     });
     expect(await within(card).findByText("board differs")).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("shows devices on the adoption port, locked or not, without adopting them yet", async () => {
+    const port = { kind: "port", gateway: 1, port: "lan4" } as const;
+    const factory: PendingDevice = {
+      ...device,
+      mac: "94:83:c4:00:00:09",
+      hostname: "OpenWrt",
+      role: null,
+      address: "192.168.1.1",
+      source: port,
+    };
+    const locked: PendingDevice = {
+      ...factory,
+      mac: "02:42:ac:11:00:03",
+      board_name: "",
+      model: "",
+      hostname: "",
+      release: "",
+      locked: true,
+    };
+    stubApi({ "GET /api/v1/ztp/pending": () => ({ pending: [factory, locked], approvals: [] }) });
+    renderDevices();
+    const card = await screen.findByRole("region", { name: "Waiting for adoption" });
+    const open = (await within(card).findByText("OpenWrt")).closest("li") as HTMLElement;
+    expect(open).toHaveTextContent("On the adoption port (lan4) · Last seen");
+    expect(open).not.toHaveTextContent("Root password set");
+    const adopt = within(open).getByRole("button", { name: "Adopt" });
+    expect(adopt).toBeDisabled();
+    expect(adopt).toHaveAttribute("title", "Adopting from the adoption port isn't available yet.");
+    expect(within(open).getByRole("button", { name: "Dismiss" })).toHaveAttribute(
+      "title",
+      "It shows up again when it's plugged in again.",
+    );
+    const shut = within(card).getByText("Unnamed device").closest("li") as HTMLElement;
+    expect(shut).toHaveTextContent("02:42:ac:11:00:03");
+    expect(shut).toHaveTextContent("Root password set");
+    expect(within(shut).getByRole("button", { name: "Adopt" })).toBeDisabled();
   });
 
   it("dismisses, pre-approves by MAC and withdraws", async () => {

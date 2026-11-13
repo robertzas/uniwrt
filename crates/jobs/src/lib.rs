@@ -14,7 +14,9 @@
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
-//!   ([`bootstrap`], D-080);
+//!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
+//!   device on the gateway's adoption port through the gateway and puts it in the pending
+//!   inbox ([`PortLook`], D-106);
 //!   [`Jobs::job`], [`Jobs::jobs`] and [`Jobs::subscribe`] follow jobs; [`Jobs::shutdown`] stops
 //!   them. [`SshDial`] reaches nodes over SSH; [`Remote`] is one login. Errors are [`Error`];
 //!   why a job failed is its `JobError`, a code the UI can act on plus a message.
@@ -78,6 +80,9 @@
 //!   (`just test-agent`).
 
 mod adopt;
+mod adoption_port;
+#[cfg(test)]
+mod adoption_port_tests;
 mod apply;
 pub mod bootstrap;
 mod discovery;
@@ -98,6 +103,7 @@ mod wpad;
 mod ztp;
 
 pub use adopt::{AdoptRequest, ZtpClaim};
+pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};

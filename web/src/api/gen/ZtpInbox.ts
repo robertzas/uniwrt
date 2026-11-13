@@ -7,7 +7,7 @@ import type { ZtpApproval } from "./ZtpApproval";
  */
 export type ZtpInbox = { 
 /**
- * Newest hello first.
+ * Newest first.
  */
 pending: Array<PendingDevice>, 
 /**

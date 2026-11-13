@@ -13,7 +13,7 @@ use std::{
 
 use bytes::Bytes;
 use russh::{
-    Disconnect,
+    ChannelStream, Disconnect,
     client::{self as russh_client, AuthResult, Handle},
 };
 use tokio::{net::TcpStream, sync::watch};
@@ -238,6 +238,19 @@ impl Session {
         Ok(())
     }
 
+    /// A TCP connection that this node makes to `target` (`direct-tcpip`), such as to a device
+    /// on a segment only it reaches.
+    async fn tunnel(&self, target: &Target) -> Result<ChannelStream<russh_client::Msg>> {
+        let name = format!("{target} via {}", self.0.name);
+        let channel = self
+            .0
+            .handle
+            .channel_open_direct_tcpip(target.host.clone(), u32::from(target.port), "127.0.0.1", 0)
+            .await
+            .map_err(|err| Error::ssh(&name, err))?;
+        Ok(channel.into_stream())
+    }
+
     pub fn is_closed(&self) -> bool {
         self.0.handle.is_closed()
     }
@@ -320,19 +333,7 @@ async fn handshake(
             russh_client::connect_stream(config.russh(), stream, client).await
         }
         Some(via) => {
-            let name = format!("{target} via {}", via.0.name);
-            let tunnel = via
-                .0
-                .handle
-                .channel_open_direct_tcpip(
-                    target.host.clone(),
-                    u32::from(target.port),
-                    "127.0.0.1",
-                    0,
-                )
-                .await
-                .map_err(|err| Error::ssh(&name, err))?;
-            russh_client::connect_stream(config.russh(), tunnel.into_stream(), client).await
+            russh_client::connect_stream(config.russh(), via.tunnel(target).await?, client).await
         }
     };
     let presented = presented

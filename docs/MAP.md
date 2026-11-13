@@ -256,6 +256,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/login.rs`: How adoption logs in, and root's password on a node that had none (features/adoption.md, Identity, credentials, trust).
 - `src/adopt/mod.rs`: The adopt job (features/adoption.md, Path A): log in with the host key the user confirmed, check the node, install the controller's key, read its inventory, take a backup, record it all, and start watching.
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
+- `src/adoption_port.rs`: A look on the adoption port (features/adoption.md, Path C; D-106): whether a factory-default OpenWrt device answers at 192.168.1.1 on the gateway's adoption port, and if so, its entry in the pending inbox.
+- `src/adoption_port_tests.rs`: Looks on the adoption port over a fake gateway and the fake device behind it.
 - `src/apply/address.rs`: Where the controller finds a node once an apply renumbers it (the owner's choice: follow the new address, features/lifecycle.md).
 - `src/apply/backhaul.rs`: The apply's backhaul round (features/mesh.md, Wired backhaul; D-094, D-097): each cable the first round brought over as an overlay is probed from both ends, once batman-adv hears the far end over the cable's VLAN; one that passes carries the mesh alone from then on, one that fails goes back to a plain trunk and is remembered, so later applies leave it so.
 - `src/apply/cables.rs`: Which cables an apply brings over to the wired backhaul (features/mesh.md, Wired backhaul; D-094, D-097), pure: the direct Ethernet links between two managed nodes that the topology sees, on ports render accepts at both ends, and the backhauls the nodes hold.
@@ -386,12 +388,13 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
-- `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]), and the owner's pre-approvals by MAC ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D).
+- `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]; the gateway's adoption port puts the factory-default devices it finds there too, Path C, D-106), and the owner's pre-approvals by MAC ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D).
 
 ### `uniwrt-node` (crates/node)
 
 The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, its embedded bundle and the parsers of what it collects), and the [`NodeLink`] trait through which the engine talks to a node.
 
+- `src/adoption_port.rs`: The adoption port (features/adoption.md, Path C; D-105, D-106): what the controller reads on the gateway (whether its segment is up, a device's MAC in its ARP table) and on a factory-default device found there (its board, its identity MAC as ZTP's hello reports it).
 - `src/agent.rs`: The agent's RPC multiplexer: requests go to the agent's stdin with an id, and answers, events and ticks come back on its stdout (see [`proto`](crate::proto)).
 - `src/agent/tests.rs`: The multiplexer against an in-memory fake agent.
 - `src/backoff.rs`: Jittered exponential backoff for reconnects (ARCHITECTURE.md, Node protocol: 1 s doubling to 60 s).
@@ -539,6 +542,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `build/main.rs`: Build script: the build identity (`meta`) and the embedded web UI (`ui`), written to `$OUT_DIR`.
 - `build/meta.rs`: Build identity: `$OUT_DIR/build_info.rs` with the version, commit, build time and target.
 - `build/ui.rs`: Embeds the web UI: every file plus brotli and gzip variants, and a lookup table sorted by path (`$OUT_DIR/ui.rs`, included by `src/ui/assets.rs`).
+- `src/adoption_port.rs`: The adoption port's watch (features/adoption.md, Path C; D-106): when the gateway's agent reports a link on the site's adoption port (or its bridge, `br-adopt`), and when the gateway comes online (a device may have been plugged in meanwhile), the jobs look for a factory-default device there ([`Jobs::look_on_adoption_port`]).
 - `src/autotune.rs`: SQM's autotune (features/wan.md, SQM; D-076): with autotune on in the latest revision, a test of the line (SQM bypassed) once a week in the site's night, kept in the history.
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
@@ -655,7 +659,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/speed.rs`: [`SpeedTestRepo`] on SQLite: the `speed_tests` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
 - `src/repo/users.rs`: [`UserRepo`] on SQLite: the `users` table.
-- `src/repo/ztp.rs`: [`ZtpRepo`] on SQLite: the `ztp_pending` and `ztp_approvals` tables (features/adoption.md, Path B; D-102).
+- `src/repo/ztp.rs`: [`ZtpRepo`] on SQLite: the `ztp_pending` and `ztp_approvals` tables (features/adoption.md, Path B; D-102), and the devices the adoption port finds (Path C; D-106).
 - `src/store.rs`: The store handle: opening with migrations, reads through the pool, writes through the writer.
 - `src/testing.rs`: Test support: a fresh store in a temporary directory, on a manual clock.
 - `src/vault/backup.rs`: Configuration backups, sealed like secrets: [`Vault::seal_backup`] before they are stored (with the node at adoption, [`Adoption`](crate::Adoption)), [`Vault::open_backup`] to read one back.
@@ -780,7 +784,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (360 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (361 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

@@ -1,4 +1,4 @@
-import { BadgeCheck, Fingerprint, LoaderCircle, PackagePlus, X } from "lucide";
+import { BadgeCheck, Cable, Fingerprint, LoaderCircle, Lock, PackagePlus, X } from "lucide";
 import { createSignal, For, Match, onSettled, Show, Switch } from "solid-js";
 import type { Job } from "../../../api/gen/Job";
 import type { PendingDevice } from "../../../api/gen/PendingDevice";
@@ -64,9 +64,9 @@ function pollInbox() {
 }
 
 /**
- * The pending adoption inbox (adoption.md, Path B): devices that called home, each adopted
- * after its host key is checked or dismissed, and the MACs pre-approved to be adopted at their
- * first hello. Admins only.
+ * The pending adoption inbox (adoption.md, Paths B and C): devices that called home or that
+ * answer on the gateway's adoption port, each adopted after its host key is checked or
+ * dismissed, and the MACs pre-approved to be adopted at their first hello. Admins only.
  */
 export function ZtpCard(props: { jobs: JobsState; addJob: (job: Job) => void }) {
   const { inbox, error, now, refresh } = pollInbox();
@@ -178,20 +178,51 @@ function Row(props: {
   onDismiss: () => void;
 }) {
   const job = () => (props.device.job === null ? undefined : props.jobs.byId[props.device.job]);
-  const name = () => props.device.hostname || props.device.mac;
+  const name = () => props.device.hostname || t.unnamed;
+  const port = () => (props.device.source.kind === "port" ? props.device.source.port : undefined);
+  const dismissHint = () => (port() === undefined ? t.dismissHint : t.port.dismissHint);
+  const adopt = () => (
+    <Button
+      size="sm"
+      onClick={props.onAdopt}
+      disabled={port() !== undefined}
+      title={port() === undefined ? undefined : t.port.soon}
+    >
+      {job()?.state === "failed" ? t.retry : t.adopt}
+    </Button>
+  );
+  const dismiss = () => (
+    <Button size="sm" variant="ghost" icon={X} title={dismissHint()} onClick={props.onDismiss}>
+      {t.dismiss}
+    </Button>
+  );
   return (
     <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
       <div class="flex min-w-56 flex-1 items-center gap-2.5">
-        <Icon icon={PackagePlus} class="size-4 shrink-0 text-fg-subtle" />
+        <Icon
+          icon={port() === undefined ? PackagePlus : Cable}
+          class="size-4 shrink-0 text-fg-subtle"
+        />
         <div class="min-w-0">
           <p class="truncate font-medium text-sm">
             {name()}
             <span class="ml-2 font-normal text-fg-muted">{props.device.model}</span>
+            <Show when={props.device.locked}>
+              <span class="ml-2 inline-flex align-middle" title={t.port.lockedHint}>
+                <Badge icon={Lock} tone="warn">
+                  {t.port.locked}
+                </Badge>
+              </span>
+            </Show>
           </p>
           <p class="truncate text-fg-subtle text-xs">
             <span class="font-mono">{props.device.mac}</span>
             {" · "}
-            {t.seen(relative(props.device.last_seen, props.now))}
+            <Show when={port()} fallback={t.seen(relative(props.device.last_seen, props.now))}>
+              {(name) =>
+                `${t.port.on(name())} · ${t.port.seen(relative(props.device.last_seen, props.now))}`
+              }
+            </Show>
             <Show when={props.device.role}>
               {(role) => ` · ${t.builtFor(strings.devices.role[role()])}`}
             </Show>
@@ -209,18 +240,8 @@ function Row(props: {
         <Switch
           fallback={
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={X}
-                title={t.dismissHint}
-                onClick={props.onDismiss}
-              >
-                {t.dismiss}
-              </Button>
-              <Button size="sm" onClick={props.onAdopt}>
-                {t.adopt}
-              </Button>
+              {dismiss()}
+              {adopt()}
             </>
           }
         >
@@ -235,18 +256,8 @@ function Row(props: {
             )}
           </Match>
           <Match when={job()?.state === "failed"}>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={X}
-              title={t.dismissHint}
-              onClick={props.onDismiss}
-            >
-              {t.dismiss}
-            </Button>
-            <Button size="sm" onClick={props.onAdopt}>
-              {t.retry}
-            </Button>
+            {dismiss()}
+            {adopt()}
           </Match>
         </Switch>
       </div>
