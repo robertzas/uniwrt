@@ -132,6 +132,7 @@ pub(super) fn radio(
         pin: None,
         pin_width: None,
         tx_power: TxPower::Auto,
+        observed: false,
         mesh: false,
         clients: 0,
     }

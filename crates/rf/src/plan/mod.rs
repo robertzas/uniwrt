@@ -14,6 +14,7 @@ mod input;
 mod output;
 mod power;
 mod search;
+mod sources;
 
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ use self::{
 pub use self::{
     input::{ChannelStat, Current, Heard, Link, PlanInputs, PlanRadio},
     output::{BandPlan, Breakdown, Plan, RadioPlan, RadioRef, Reason, Search, Setting},
+    sources::{Gathered, Sources, gather},
 };
 use crate::span::Span;
 
@@ -211,6 +213,16 @@ fn start(model: &Model<'_>, u: usize, costs: &[f32]) -> usize {
 fn reasons(model: &Model<'_>, i: usize, choice: Choice, power: &Power) -> Vec<Reason> {
     let radio = model.radios[i];
     let unit = &model.units[model.unit_of[i]];
+    if radio.observed {
+        // Pinned to what it runs: the pins are the controller's, not the site's.
+        let mut out = vec![Reason::Observed];
+        if radio.mesh {
+            out.push(Reason::MeshGroup {
+                radios: u16::try_from(unit.radios.len()).unwrap_or(u16::MAX),
+            });
+        }
+        return out;
+    }
     let mut out = Vec::new();
     match unit.pin {
         Some((by, pin)) if by != i && radio.pin.is_some_and(|p| p != pin) => {

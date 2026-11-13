@@ -202,6 +202,8 @@ pub struct RfSettings {
     /// Manual scans run either way.
     pub scanning: bool,
     pub interval_h: u8,
+    /// Which DFS channels the RF planner may choose (D-110).
+    pub dfs: DfsPolicy,
 }
 
 impl RfSettings {
@@ -214,6 +216,7 @@ impl Default for RfSettings {
         Self {
             scanning: true,
             interval_h: 4,
+            dfs: DfsPolicy::All,
         }
     }
 }
@@ -237,7 +240,7 @@ pub enum DfsPolicy {
 mod tests {
     use serde_json::{from_value, json, to_value};
 
-    use super::{RfSettings, ScanTrigger, Security};
+    use super::{DfsPolicy, RfSettings, ScanTrigger, Security};
 
     #[test]
     fn serde_names() {
@@ -248,8 +251,13 @@ mod tests {
             settings,
             RfSettings {
                 scanning: false,
-                interval_h: 4
+                interval_h: 4,
+                dfs: DfsPolicy::All,
             }
+        );
+        assert_eq!(
+            to_value(DfsPolicy::NonWeather).unwrap(),
+            json!("non_weather")
         );
     }
 }

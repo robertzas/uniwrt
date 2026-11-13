@@ -544,6 +544,8 @@ RF insight (features/wifi.md, RF insight): what the site's radios hear and how c
 - `src/plan/output.rs`: The plan: per band, each radio's planned channel, width and power with the cost before and after and why; the band's score before and after and how the search ran.
 - `src/plan/power.rs`: Transmit power (features/wifi.md, RF planner: Power): each radio's power set so the loudest other node hears it at −65 to −72 dBm (enough overlap to roam, not so much that cells drown each other), held up for its mesh peers, 2.4 GHz kept under 5 GHz, never under a floor.
 - `src/plan/search.rs`: The search over units' choices (features/wifi.md, RF planner: Search): a local descent from the current channels, then branch and bound over every combination where the band is small enough to finish, else simulated annealing with a fixed seed and a last descent.
+- `src/plan/sources.rs`: The planner's inputs from what the controller knows (M6.1 a2, D-111): the nodes' facts and modes, the RF report, the radios' latest scans, the site's radio policy and overrides, and the DFS policy.
+- `src/plan/sources_tests.rs`: Gathering over the small site of `build::tests`: nodes 1 and 2 with a 5 GHz radio on 36 at 80 MHz carrying an AP and the mesh, node 2 peered with node 1, node 1's scan.
 - `src/plan/tests.rs`: The planner over simulated sites (`world`): the constraints hold, the plans make sense for the air they're planned in, and the search is deterministic and finds the optimum.
 - `src/plan/world.rs`: A simulated site for the planner's tests: nodes and foreign access points placed on a floor, signals from a log-distance path loss, and the planner's inputs derived from them.
 - `src/radar.rs`: Radar hits from hostapd's log (`DFS-RADAR-DETECTED`, the `dfs-radar` pattern): where the radar was, so each channel's radar history can be told.
@@ -806,7 +808,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (361 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (370 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -826,7 +828,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
-- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
+- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts

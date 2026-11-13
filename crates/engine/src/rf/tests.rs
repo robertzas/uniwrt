@@ -3,17 +3,22 @@
 //! background schedule scans each radio and the report shows what they heard; with scanning off,
 //! only an admin's scans run, and a radio whose driver cannot scan waits a day.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use uniwrt_core::{ManualClock, NodeId, Timestamp};
 use uniwrt_model::{
+    node::NodeMode,
     rf::{RfSettings, ScanState, ScanTrigger},
+    site::{
+        SiteConfig,
+        node::{ManagedPackage, NodeConfig},
+    },
     wifi::Band,
 };
 use uniwrt_node::Error;
-use uniwrt_rf::{NeighborKind, RfView};
+use uniwrt_rf::{NeighborKind, RfView, plan::Reason};
 use uniwrt_store::{NodeRepo as _, RfRepo as _, Store};
 
 use super::{RfConfig, RfScanner};
@@ -179,6 +184,30 @@ async fn the_schedule_scans_each_radio_and_the_report_shows_what_they_heard() {
     let stored = h.store.latest_scans(NOW).await.unwrap();
     assert_eq!(stored.len(), 2);
     assert_eq!(h.scanner.handle().view().radios.len(), 2);
+
+    // The planner sees both radios: observed, they keep what they run; managed, they're its.
+    let handle = h.scanner.handle();
+    let mut site = SiteConfig::defaults(None);
+    let plan = handle.plan(site.clone(), BTreeMap::new()).await.unwrap();
+    let radios: Vec<_> = plan.bands.iter().flat_map(|b| &b.radios).collect();
+    assert_eq!(radios.len(), 2);
+    assert!(
+        radios
+            .iter()
+            .all(|r| !r.changed && r.reasons[0] == Reason::Observed)
+    );
+    let mut config = NodeConfig::new(h.node);
+    config.managed.insert(ManagedPackage::Wireless);
+    site.nodes.push(config);
+    let modes = BTreeMap::from([(h.node, NodeMode::Managed)]);
+    let plan = handle.plan(site, modes).await.unwrap();
+    let radios: Vec<_> = plan.bands.iter().flat_map(|b| &b.radios).collect();
+    assert_eq!(radios.len(), 2);
+    assert!(
+        radios
+            .iter()
+            .all(|r| !r.reasons.contains(&Reason::Observed))
+    );
     h.scanner.stop().await;
     h.engine.shutdown().await;
 }
@@ -188,6 +217,7 @@ async fn with_scanning_off_only_an_admin_s_scans_run_and_unsupported_ones_wait_a
     let off = RfSettings {
         scanning: false,
         interval_h: 4,
+        ..RfSettings::default()
     };
     let mut h = Harness::start(Some(off)).await;
     h.script.answer(|op, args| {
@@ -229,6 +259,7 @@ async fn with_scanning_off_only_an_admin_s_scans_run_and_unsupported_ones_wait_a
         .set_settings(RfSettings {
             scanning: true,
             interval_h: 6,
+            ..RfSettings::default()
         })
         .await
         .unwrap();

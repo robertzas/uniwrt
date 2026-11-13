@@ -55,6 +55,7 @@ import type { NotifierList } from "../api/gen/NotifierList";
 import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
+import type { Plan } from "../api/gen/Plan";
 import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
@@ -556,6 +557,8 @@ export const api = {
     scanById: (id: number, signal?: AbortSignal) => request<Scan>(`/rf/scans/${id}`, { signal }),
     settings: (settings: RfSettings) =>
       request<RfSettings>("/rf/settings", { method: "PUT", body: settings }),
+    /** The RF planner's plan for the site as it is (a preview: nothing is applied). */
+    plan: (signal?: AbortSignal) => request<Plan>("/rf/plan", { signal }),
   },
   /** The unadopted OpenWrt devices the adopted nodes see; waits up to 3 s for new probes. */
   discovered: (signal?: AbortSignal) => request<DiscoveryReport>("/discovered", { signal }),

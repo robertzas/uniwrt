@@ -12,6 +12,7 @@ import { Segmented } from "../../ui/Segmented";
 import { Channels } from "./Channels";
 import { Matrix } from "./Matrix";
 import { Networks } from "./Networks";
+import { PlanCard } from "./Plan";
 import { RadioCards } from "./RadioCards";
 import { Scanning, startScans } from "./Scanning";
 import { Spectrum } from "./Spectrum";
@@ -124,6 +125,16 @@ export function RfPage() {
                 onScan={(node, radio) => void startScans(node, radio)}
                 onSelect={setSelected}
               />
+              <Show when={view()}>
+                {(v) => (
+                  <PlanCard
+                    band={b().band}
+                    settings={v().settings}
+                    admin={admin()}
+                    nodeName={nodeName}
+                  />
+                )}
+              </Show>
               <div class="grid min-w-0 items-start gap-4 xl:grid-cols-[3fr_2fr]">
                 <Channels band={b()} nodeName={nodeName} now={now()} />
                 <Matrix band={b()} nodeName={nodeName} />

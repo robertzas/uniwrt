@@ -274,7 +274,7 @@ pub(crate) fn message(message: Option<String>) -> ApiResult<String> {
     Ok(message.to_owned())
 }
 
-fn no_site() -> ApiError {
+pub(crate) fn no_site() -> ApiError {
     ApiError::Unavailable("The site has no configuration yet".to_owned())
 }
 

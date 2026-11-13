@@ -453,4 +453,4 @@ fn round(value: f32) -> f32 {
 
 #[cfg(test)]
 #[path = "tests.rs"]
-mod tests;
+pub(crate) mod tests;

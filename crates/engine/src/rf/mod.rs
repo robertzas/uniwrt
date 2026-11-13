@@ -10,20 +10,32 @@
 //! and kept 30 days; the report is built again from the nodes' facts, each radio's latest scan
 //! and the radar history (the `dfs-radar` log events of 30 days) at most every `rebuild_after`,
 //! and announced as [`Event::Rf`] when it changed.
+//!
+//! [`Rf::plan`] runs the RF planner (features/wifi.md, RF planner; M6.1) on what the scanner
+//! holds (the facts, the report, each radio's latest scan, the DFS policy of the settings) and
+//! the site's radio policy and overrides, off the async threads.
 
 mod radios;
 mod task;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
 use uniwrt_core::NodeId;
-use uniwrt_model::rf::{RadioScan, RfSettings};
+use uniwrt_model::{
+    facts::NodeFacts,
+    node::NodeMode,
+    rf::{RadioScan, RfSettings, Scan},
+    site::SiteConfig,
+};
 use uniwrt_node::NodeLink;
-use uniwrt_rf::RfView;
+use uniwrt_rf::{
+    RfView,
+    plan::{Plan, Sources},
+};
 use uniwrt_store::{EventRepo, RfRepo, SettingsRepo};
 
 use self::task::Task;
@@ -74,6 +86,8 @@ pub enum RfError {
     NoRadio,
     #[error("the settings cannot be stored: {0}")]
     Store(String),
+    #[error("the planner failed: {0}")]
+    Planner(String),
 }
 
 enum Command {
@@ -86,6 +100,16 @@ enum Command {
         settings: RfSettings,
         done: oneshot::Sender<Result<(), RfError>>,
     },
+    Snapshot {
+        done: oneshot::Sender<Snapshot>,
+    },
+}
+
+/// What a plan is made from, as the scanner holds it.
+struct Snapshot {
+    facts: Vec<(NodeId, Arc<NodeFacts>)>,
+    scans: Vec<Scan>,
+    view: Arc<RfView>,
 }
 
 /// The API's way to RF insight. Clones share it.
@@ -119,6 +143,42 @@ impl Rf {
             .await
             .map_err(|_| RfError::Stopped)?;
         answer.await.map_err(|_| RfError::Stopped)?
+    }
+
+    /// Plans the site's radios from the latest facts, report and scans, the settings' DFS policy,
+    /// `site`'s radio policy and overrides and each node's mode (a node `modes` lacks is taken
+    /// as observed: the plan keeps its radios as they run).
+    pub async fn plan(
+        &self,
+        site: SiteConfig,
+        modes: BTreeMap<NodeId, NodeMode>,
+    ) -> Result<Plan, RfError> {
+        let (done, answer) = oneshot::channel();
+        self.commands
+            .send(Command::Snapshot { done })
+            .await
+            .map_err(|_| RfError::Stopped)?;
+        let snapshot = answer.await.map_err(|_| RfError::Stopped)?;
+        tokio::task::spawn_blocking(move || {
+            let nodes: Vec<(NodeId, &NodeFacts, NodeMode)> = snapshot
+                .facts
+                .iter()
+                .map(|(node, facts)| {
+                    let mode = modes.get(node).copied().unwrap_or(NodeMode::Observe);
+                    (*node, &**facts, mode)
+                })
+                .collect();
+            let gathered = uniwrt_rf::plan::gather(&Sources {
+                nodes: &nodes,
+                report: &snapshot.view.report,
+                scans: &snapshot.scans,
+                site: &site,
+                dfs: snapshot.view.settings.dfs,
+            });
+            uniwrt_rf::plan::plan(&gathered.inputs())
+        })
+        .await
+        .map_err(|err| RfError::Planner(err.to_string()))
     }
 
     /// Stores the settings and applies them.

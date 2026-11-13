@@ -27,7 +27,7 @@ use uniwrt_rf::{Inputs, RadarHit, RfView};
 use uniwrt_store::{EventRepo, RfRepo, SettingsRepo};
 
 use super::{
-    Command, RfConfig, RfError,
+    Command, RfConfig, RfError, Snapshot,
     radios::{self, Key, Radio},
 };
 use crate::{Engine, Event};
@@ -277,6 +277,22 @@ where
                 self.settings = settings;
                 self.publish();
                 let _ = done.send(Ok(()));
+            }
+            Command::Snapshot { done } => {
+                if self.dirty {
+                    self.publish();
+                }
+                let facts = self
+                    .engine
+                    .all()
+                    .into_iter()
+                    .filter_map(|(node, view)| Some((node, view.facts?)))
+                    .collect();
+                let _ = done.send(Snapshot {
+                    facts,
+                    scans: self.scans.values().cloned().collect(),
+                    view: Arc::clone(&self.view.borrow()),
+                });
             }
         }
     }

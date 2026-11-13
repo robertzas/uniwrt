@@ -6,7 +6,7 @@ use uniwrt_core::NodeId;
 use uniwrt_model::wifi::{Band, ChannelWidth};
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Plan {
     /// In band order.
     pub bands: Vec<BandPlan>,
@@ -104,6 +104,8 @@ pub enum Reason {
     PinnedWidth,
     /// The site fixes its power.
     PinnedPower,
+    /// Its node is in observe mode, or the site doesn't manage its Wi-Fi: it keeps what it runs.
+    Observed,
     /// It carries the mesh, so it takes the channel of the band's `radios` mesh radios.
     MeshGroup { radios: u16 },
     /// Its pin differs from the mesh's, which follows another mesh radio's pin.

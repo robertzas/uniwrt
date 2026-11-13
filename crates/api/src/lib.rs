@@ -253,6 +253,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans", get(rf::scans).post(rf::scan))
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
+        .route("/v1/rf/plan", get(rf::plan))
         .merge(config_routes())
         .merge(adoption_routes())
         .merge(ztp::routes())

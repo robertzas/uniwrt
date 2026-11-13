@@ -4,12 +4,16 @@
  * was seen on 52, and the nodes hear each other (2 → 1 over the live mesh). On 2.4 GHz a café
  * sits on channel 6.
  */
+import type { Breakdown } from "../api/gen/Breakdown";
 import type { Bss } from "../api/gen/Bss";
 import type { ChannelReport } from "../api/gen/ChannelReport";
+import type { ChannelWidth } from "../api/gen/ChannelWidth";
 import type { Neighbor } from "../api/gen/Neighbor";
+import type { Plan } from "../api/gen/Plan";
 import type { RadioReport } from "../api/gen/RadioReport";
 import type { RadioScan } from "../api/gen/RadioScan";
 import type { RfView } from "../api/gen/RfView";
+import type { Setting } from "../api/gen/Setting";
 
 export const RF_NOW = Date.now();
 const HOUR = 3_600_000;
@@ -110,7 +114,7 @@ const cafe = bss({ bssid: "aa:bb:cc:00:00:03", ssid: "Cafe", channel: 6, signal_
 
 export function rfView(): RfView {
   return {
-    settings: { scanning: true, interval_h: 4 },
+    settings: { scanning: true, interval_h: 4, dfs: "all" },
     radios: [
       radioScan({ node: 1, radio: "radio0", band: "2g" }),
       radioScan({
@@ -213,5 +217,72 @@ export function rfView(): RfView {
         },
       ],
     },
+  };
+}
+
+/**
+ * A plan for {@link rfView}'s site: on 5 GHz the gateway moves off the crowded 36 to 149 at
+ * 80 MHz and turns down; the attic AP, in observe mode, stays. 2.4 GHz has nothing to gain.
+ */
+export function rfPlan(): Plan {
+  const cost = (total: number, extra: Partial<Breakdown> = {}): Breakdown => ({
+    own: 0,
+    external: total,
+    dfs: 0,
+    change: 0,
+    width: 0,
+    total,
+    ...extra,
+  });
+  const setting = (channel: number, width: ChannelWidth, power: number | null): Setting => ({
+    channel,
+    width,
+    center_frequency_mhz: 5000 + 5 * channel,
+    tx_power_dbm: power,
+  });
+  return {
+    bands: [
+      {
+        band: "2g",
+        radios: [],
+        before: 0,
+        after: 0,
+        improvement: 0,
+        search: "fixed",
+        optimal: true,
+        skipped: [],
+      },
+      {
+        band: "5g",
+        radios: [
+          {
+            node: 1,
+            radio: "radio1",
+            current: setting(36, 80, 23),
+            planned: setting(149, 80, 20),
+            changed: true,
+            before: cost(1.4),
+            after: cost(0.3, { external: 0.2, change: 0.1 }),
+            reasons: [{ kind: "power_lowered", heard_dbm: -58 }],
+          },
+          {
+            node: 2,
+            radio: "radio1",
+            current: setting(149, 20, 20),
+            planned: setting(149, 20, 20),
+            changed: false,
+            before: cost(0.2),
+            after: cost(0.2),
+            reasons: [{ kind: "observed" }],
+          },
+        ],
+        before: 1.6,
+        after: 0.5,
+        improvement: 0.69,
+        search: "exhaustive",
+        optimal: true,
+        skipped: [{ node: 2, radio: "radio2" }],
+      },
+    ],
   };
 }

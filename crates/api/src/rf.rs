@@ -6,8 +6,11 @@
 //! - `GET /api/v1/rf/scans?node=<id>&radio=<name>&before=<id>&limit=<n>`: stored scans, newest
 //!   first, without what they heard ([`ScanSummary`]).
 //! - `GET /api/v1/rf/scans/{id}`: one scan with what it heard ([`Scan`]).
-//! - `PUT /api/v1/rf/settings` (admins): background scans on or off and their interval
-//!   ([`RfSettings`], 1 to 24 hours).
+//! - `PUT /api/v1/rf/settings` (admins): background scans on or off, their interval (1 to 24
+//!   hours) and the planner's DFS policy ([`RfSettings`]).
+//! - `GET /api/v1/rf/plan`: the RF planner's plan for the site as it is: per band, each radio's
+//!   channel, width and power before and after, its cost term by term and the reasons
+//!   ([`Plan`]; features/wifi.md, RF planner). A preview: nothing is applied.
 
 use axum::{
     Json,
@@ -19,11 +22,11 @@ use ts_rs::TS;
 use uniwrt_core::{NodeId, ScanId};
 use uniwrt_engine::RfError;
 use uniwrt_model::{
-    rf::{RadioScan, RfSettings, Scan, ScanSummary},
+    rf::{DfsPolicy, RadioScan, RfSettings, Scan, ScanSummary},
     user::AuditAction,
 };
-use uniwrt_rf::RfView;
-use uniwrt_store::RfRepo as _;
+use uniwrt_rf::{RfView, plan::Plan};
+use uniwrt_store::{NodeRepo as _, RevisionRepo as _, RfRepo as _};
 
 use crate::{
     Api, ApiError, ApiResult, Client, CurrentUser,
@@ -35,6 +38,24 @@ const MAX_LIMIT: usize = 500;
 
 pub(crate) async fn get(State(api): State<Api>, _: CurrentUser) -> ApiResult<Json<RfView>> {
     Ok(Json(RfView::clone(&api.rf()?.view())))
+}
+
+pub(crate) async fn plan(State(api): State<Api>, _: CurrentUser) -> ApiResult<Json<Plan>> {
+    let rf = api.rf()?;
+    let site = api
+        .store()
+        .head_revision()
+        .await?
+        .ok_or_else(crate::site::no_site)?
+        .config;
+    let modes = api
+        .store()
+        .nodes()
+        .await?
+        .into_iter()
+        .map(|node| (node.id, node.mode))
+        .collect();
+    Ok(Json(rf.plan(site, modes).await.map_err(rf_error)?))
 }
 
 /// Which radios to scan: all, a node's, or one.
@@ -136,11 +157,17 @@ pub(crate) async fn put_settings(
         )));
     }
     api.rf()?.set_settings(settings).await.map_err(rf_error)?;
-    let detail = if settings.scanning {
+    let scans = if settings.scanning {
         format!("background scans every {} h", settings.interval_h)
     } else {
         "background scans off".to_owned()
     };
+    let dfs = match settings.dfs {
+        DfsPolicy::Avoid => "no DFS channels",
+        DfsPolicy::NonWeather => "DFS channels but weather radar's",
+        DfsPolicy::All => "every DFS channel",
+    };
+    let detail = format!("{scans}; the planner may use {dfs}");
     audit(&api, &user, &client, AuditAction::Rf, detail).await?;
     Ok(Json(settings))
 }
@@ -149,6 +176,6 @@ fn rf_error(err: RfError) -> ApiError {
     match err {
         RfError::NoRadio => ApiError::NotFound("No radio matches".to_owned()),
         RfError::Stopped => ApiError::Unavailable("RF insight is not running".to_owned()),
-        RfError::Store(why) => ApiError::Internal(why),
+        RfError::Store(why) | RfError::Planner(why) => ApiError::Internal(why),
     }
 }

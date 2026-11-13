@@ -4,16 +4,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetricsResponse } from "../../api/gen/MetricsResponse";
+import type { Plan } from "../../api/gen/Plan";
 import type { RfView } from "../../api/gen/RfView";
 import { createAppRouter } from "../../app/routes";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
-import { channel, rfView } from "../../test/rf";
+import { channel, rfPlan, rfView } from "../../test/rf";
 
 let calls: { method: string; url: string; body: unknown }[] = [];
+let plan: Plan;
 
 beforeEach(() => {
   calls = [];
+  plan = rfPlan();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -34,6 +37,7 @@ beforeEach(() => {
         return Response.json({ queued: [rfView().radios[1]] }, { status: 202 });
       }
       if (method === "PUT" && url === "/api/v1/rf/settings") return Response.json(body);
+      if (url === "/api/v1/rf/plan") return Response.json(plan);
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );
@@ -137,7 +141,7 @@ describe("the RF page", () => {
       expect(calls).toContainEqual({
         method: "PUT",
         url: "/api/v1/rf/settings",
-        body: { scanning: true, interval_h: 8 },
+        body: { scanning: true, interval_h: 8, dfs: "all" },
       }),
     );
     await user.click(screen.getByRole("button", { name: "Off" }));
@@ -145,8 +149,49 @@ describe("the RF page", () => {
       expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toEqual({
         scanning: false,
         interval_h: 4,
+        dfs: "all",
       }),
     );
+  });
+
+  it("previews the channel plan on demand, and lets admins set the DFS policy", async () => {
+    const user = userEvent.setup();
+    await renderAt("/insights/rf");
+    const card = await region("Channel plan");
+    // Planned only when asked.
+    expect(calls.some((c) => c.url === "/api/v1/rf/plan")).toBe(false);
+    await user.click(within(card).getByRole("button", { name: "Preview plan" }));
+    const table = await within(card).findByRole("table", { name: "Planned settings" });
+    expect(within(card).getByText("Cost 1.60 → 0.50")).toBeVisible();
+    expect(within(card).getByText("69 % better")).toBeVisible();
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent(/Gateway.*36 · 80 MHz · 23 dBm.*149 · 80 MHz · 20 dBm/);
+    expect(rows[0]).toHaveTextContent("1.40 → 0.30");
+    expect(rows[0]).toHaveTextContent("neighbors 0.20 · move 0.10");
+    expect(rows[0]).toHaveTextContent("Quieter: the nearest device hears it at -58 dBm");
+    expect(rows[1]).toHaveTextContent(/Attic AP.*Unchanged.*Observe mode: kept as it runs/);
+    expect(within(card).getByText(/Left out .*: Attic AP radio2/)).toBeVisible();
+
+    await user.click(within(card).getByRole("button", { name: "No weather radar" }));
+    await waitFor(() =>
+      expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toEqual({
+        scanning: true,
+        interval_h: 4,
+        dfs: "non_weather",
+      }),
+    );
+    // Planned again under the new policy.
+    await waitFor(() => expect(calls.filter((c) => c.url === "/api/v1/rf/plan")).toHaveLength(2));
+    expect(within(card).queryByText(/Every radio here is in observe mode/)).toBeNull();
+  });
+
+  it("says why nothing moves when every radio is in observe mode", async () => {
+    for (const radio of plan.bands[1]?.radios ?? []) radio.reasons = [{ kind: "observed" }];
+    const user = userEvent.setup();
+    await renderAt("/insights/rf");
+    const card = await region("Channel plan");
+    await user.click(within(card).getByRole("button", { name: "Preview plan" }));
+    expect(await within(card).findByText(/Every radio here is in observe mode/)).toBeVisible();
   });
 
   it("shows viewers the schedule without the controls", async () => {
@@ -154,6 +199,8 @@ describe("the RF page", () => {
     expect(await screen.findByText("Background scans: Every 4 h")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Scan now" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Scan .* now$/ })).toBeNull();
+    expect(screen.getByText("DFS channels: All")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "No weather radar" })).toBeNull();
   });
 
   it("says so when no radio reports yet", async () => {

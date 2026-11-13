@@ -49,6 +49,9 @@ pub struct PlanRadio {
     pub mesh: bool,
     /// The clients it serves: a busier radio's interference counts more.
     pub clients: u16,
+    /// Its node is in observe mode (or the site doesn't manage its Wi-Fi): the controller can't
+    /// change it, so it comes pinned to what it runs, and its reasons say why.
+    pub observed: bool,
 }
 
 /// A radio's operating channel and power.

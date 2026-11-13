@@ -16,7 +16,9 @@
 //!   widths, pins and mesh role, the inter-node links, the foreign networks heard, the channels'
 //!   survey and radar history, the DFS policy): a [`plan::Plan`] with each radio's planned
 //!   setting, its cost term by term before and after, the reasons, and the band's score and
-//!   improvement.
+//!   improvement. [`plan::gather`] builds those inputs from the controller's [`plan::Sources`]
+//!   (the facts and modes, the report, the latest scans, the site's radio policy and overrides,
+//!   the DFS policy; D-111) as [`plan::Gathered`].
 //! - **Invariants:** pure and deterministic: no IO and no clock. A network's impact on a radio
 //!   is `weight(signal) × overlap`, with the signal its own node heard; networks the radio's node
 //!   did not hear do not count against it. Numbers are rounded to two decimals. The planner is
@@ -26,7 +28,8 @@
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, serde; ts-rs with the `ts` feature.
 //! - **Tests:** next to each concept and in `tests.rs` over a small site made in code; the
 //!   planner's over simulated floors (`plan/world.rs`, log-distance path loss) in
-//!   `plan/tests.rs` (`cargo nextest run -p uniwrt-rf`).
+//!   `plan/tests.rs`; gathering over the small site in `plan/sources_tests.rs`
+//!   (`cargo nextest run -p uniwrt-rf`).
 
 mod build;
 pub mod plan;

@@ -58,7 +58,10 @@ async fn the_view_shows_what_the_scans_heard() {
         .map(|n| n["kind"].as_str().unwrap().to_owned())
         .collect();
     assert!(kinds.contains(&"own".to_owned()) && kinds.contains(&"foreign".to_owned()));
-    assert_eq!(view["settings"], json!({"scanning": true, "interval_h": 4}));
+    assert_eq!(
+        view["settings"],
+        json!({"scanning": true, "interval_h": 4, "dfs": "all"})
+    );
 
     let gateway = demo.ids[0].get();
     let (status, scans) = send(
@@ -112,9 +115,30 @@ async fn admins_queue_scans_and_change_the_settings() {
     let bad = json!({"scanning": true, "interval_h": 30});
     let (status, _) = send(&demo, Method::PUT, "/v1/rf/settings", Some(&bad)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let off = json!({"scanning": false, "interval_h": 8});
+    let off = json!({"scanning": false, "interval_h": 8, "dfs": "non_weather"});
     let (status, body) = send(&demo, Method::PUT, "/v1/rf/settings", Some(&off)).await;
     assert_eq!((status, &body), (StatusCode::OK, &off));
     let (_, view) = send(&demo, Method::GET, "/v1/rf", None).await;
     assert_eq!(view["settings"], off);
+}
+
+#[tokio::test]
+async fn the_plan_previews_each_band_s_radios() {
+    let demo = Demo::start_with(false).await;
+    scanned(&demo).await;
+    let (status, plan) = send(&demo, Method::GET, "/v1/rf/plan", None).await;
+    assert_eq!(status, StatusCode::OK, "{plan}");
+    let bands = plan["bands"].as_array().unwrap();
+    let names: Vec<_> = bands.iter().map(|b| b["band"].clone()).collect();
+    assert_eq!(names, [json!("2g"), json!("5g")]);
+    for band in bands {
+        assert!(band["improvement"].is_number() && band["search"].is_string());
+        let radios = band["radios"].as_array().unwrap();
+        assert!(!radios.is_empty(), "{band}");
+        for radio in radios {
+            assert!(radio["planned"]["channel"].is_u64(), "{radio}");
+            assert!(radio["after"]["total"].is_number(), "{radio}");
+            assert!(radio["reasons"].is_array(), "{radio}");
+        }
+    }
 }

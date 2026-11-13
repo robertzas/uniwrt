@@ -14,13 +14,13 @@ use uniwrt_model::{
 use super::{Inputs, report};
 use crate::{MatrixSource, NeighborKind, RadarHit, Span};
 
-const AT: Timestamp = Timestamp::from_unix_ms(1_760_000_000_000);
+pub(crate) const AT: Timestamp = Timestamp::from_unix_ms(1_760_000_000_000);
 
-fn mac(text: &str) -> MacAddr {
+pub(crate) fn mac(text: &str) -> MacAddr {
     text.parse().unwrap()
 }
 
-fn iface(mode: WifiIfaceMode, name: &str, bssid: &str) -> WifiIfaceFacts {
+pub(crate) fn iface(mode: WifiIfaceMode, name: &str, bssid: &str) -> WifiIfaceFacts {
     WifiIfaceFacts {
         name: Some(name.to_owned()),
         section: None,
@@ -34,7 +34,7 @@ fn iface(mode: WifiIfaceMode, name: &str, bssid: &str) -> WifiIfaceFacts {
     }
 }
 
-fn radio(n: u8, band: Band, busy: Option<f32>) -> RadioFacts {
+pub(crate) fn radio(n: u8, band: Band, busy: Option<f32>) -> RadioFacts {
     RadioFacts {
         name: "radio1".to_owned(),
         phy: Some("phy1".to_owned()),
@@ -66,7 +66,7 @@ fn radio(n: u8, band: Band, busy: Option<f32>) -> RadioFacts {
     }
 }
 
-fn channel(number: u16, dfs_state: Option<DfsState>) -> Channel {
+pub(crate) fn channel(number: u16, dfs_state: Option<DfsState>) -> Channel {
     Channel {
         number,
         frequency_mhz: Band::G5.frequency(number),
@@ -77,7 +77,7 @@ fn channel(number: u16, dfs_state: Option<DfsState>) -> Channel {
     }
 }
 
-fn facts(n: u8) -> NodeFacts {
+pub(crate) fn facts(n: u8) -> NodeFacts {
     let mut facts = NodeFacts {
         collected_at: AT,
         ..NodeFacts::default()
@@ -144,7 +144,7 @@ fn bss(
     }
 }
 
-fn scan() -> Scan {
+pub(crate) fn scan() -> Scan {
     let survey = |number, busy| ChannelSurvey {
         channel: number,
         frequency_mhz: Band::G5.frequency(number),
@@ -202,7 +202,7 @@ fn scan() -> Scan {
     }
 }
 
-fn built() -> crate::RfReport {
+pub(crate) fn built() -> crate::RfReport {
     let (one, two) = (facts(1), facts(2));
     let nodes = [(NodeId::new(1), &one), (NodeId::new(2), &two)];
     let scans = [scan()];
