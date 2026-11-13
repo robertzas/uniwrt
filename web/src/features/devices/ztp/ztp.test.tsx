@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ImageBuild } from "../../../api/gen/ImageBuild";
 import type { PendingDevice } from "../../../api/gen/PendingDevice";
 import type { ZtpInbox } from "../../../api/gen/ZtpInbox";
 import type { ZtpOneLiner } from "../../../api/gen/ZtpOneLiner";
@@ -229,6 +230,94 @@ describe("Waiting for adoption", () => {
     expect(within(dialog).getByRole("link", { name: "Download the script" })).toHaveAttribute(
       "href",
       "/api/v1/ztp/script?role=gateway",
+    );
+  }, 15_000);
+  it("builds an image of a model through ASU and lists its downloads", async () => {
+    const user = userEvent.setup();
+    const hash = "0123456789abcdef0123456789abcdef";
+    const sha256 = "a25a05977027deae000b10b025b75ed3e9c12a4b7d42ae57e8d5a8a019493658";
+    const queued: ImageBuild = {
+      hash,
+      state: "queued",
+      queue_position: 2,
+      step: null,
+      error: null,
+      images: [],
+    };
+    const calls = stubApi({
+      "GET /api/v1/ztp/pending": () => ({ pending: [], approvals: [] }),
+      "GET /api/v1/ztp/releases": () => ({ releases: ["25.12.6", "24.10.8"] }),
+      "GET /api/v1/ztp/profiles?release=25.12.6": () => [
+        { id: "glinet_gl-mt3000", target: "mediatek/filogic", titles: ["GL.iNet GL-MT3000"] },
+        { id: "glinet_gl-mt6000", target: "mediatek/filogic", titles: ["GL.iNet GL-MT6000"] },
+      ],
+      "POST /api/v1/ztp/builds": () => ({
+        packages: ["-wpad-basic-mbedtls", "wpad-mbedtls", "kmod-batman-adv", "batctl-default"],
+        build: queued,
+      }),
+      [`GET /api/v1/ztp/builds/${hash}`]: () => ({
+        ...queued,
+        state: "done",
+        queue_position: null,
+        images: [
+          {
+            name: "openwrt-squashfs-factory.bin",
+            kind: "factory",
+            filesystem: "squashfs",
+            size_bytes: 39_797_056,
+            sha256,
+            url: `https://sysupgrade.openwrt.org/store/${hash}/openwrt-squashfs-factory.bin`,
+          },
+        ],
+      }),
+    });
+    renderDevices();
+    const card = await screen.findByRole("region", { name: "Waiting for adoption" });
+    await user.click(within(card).getByRole("button", { name: "Set up a device" }));
+    const dialog = await screen.findByRole("dialog", { name: "Set up a new device" });
+    await user.click(within(dialog).getByRole("tab", { name: "Build an image" }));
+    const release = await within(dialog).findByLabelText("OpenWrt release");
+    await waitFor(() => expect(release).toHaveDisplayValue("25.12.6 (latest)"));
+    const search = await within(dialog).findByLabelText("Model");
+    await waitFor(() => expect(search).toBeEnabled());
+    expect(within(dialog).getByRole("button", { name: "Build the image" })).toBeDisabled();
+    await user.type(search, "mt6000");
+    await user.click(within(dialog).getByRole("button", { name: /GL\.iNet GL-MT6000/ }));
+    expect(within(dialog).getByTestId("ztp-model")).toHaveTextContent("GL.iNet GL-MT6000");
+    await user.click(within(dialog).getByRole("button", { name: "Bridge" }));
+    await user.click(within(dialog).getByRole("button", { name: "Build the image" }));
+
+    expect(await within(dialog).findByText("Queued at ASU: 2 ahead.")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Adds wpad-mbedtls, kmod-batman-adv, batctl-default, replacing wpad-basic-mbedtls.",
+      ),
+    ).toBeInTheDocument();
+    expect(calls).toEqual([
+      [
+        "POST /api/v1/ztp/builds",
+        {
+          release: "25.12.6",
+          target: "mediatek/filogic",
+          profile: "glinet_gl-mt6000",
+          role: "bridge",
+        },
+      ],
+    ]);
+    const download = await within(dialog).findByRole(
+      "link",
+      { name: "Download Factory image" },
+      { timeout: 5_000 },
+    );
+    expect(download).toHaveAttribute(
+      "href",
+      `https://sysupgrade.openwrt.org/store/${hash}/openwrt-squashfs-factory.bin`,
+    );
+    expect(within(dialog).getByText(`SHA-256 ${sha256}`)).toBeInTheDocument();
+    expect(within(dialog).getByText("39.8 MB")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "How to flash this model" })).toHaveAttribute(
+      "href",
+      "https://openwrt.org/start?do=search&q=GL.iNet%20GL-MT6000",
     );
   }, 15_000);
 });

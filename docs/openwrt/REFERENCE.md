@@ -222,10 +222,13 @@ Render's assumptions, checked by the system harness (M3.3b, `crates/system`) on 
 - The image is staged in `/tmp`, so free RAM must exceed the image size plus a margin.
 - `-T` tests an image without flashing it.
 
-## Attended Sysupgrade (ASU) API ⚠️
+## Attended Sysupgrade (ASU) API
 
-- `POST {asu}/api/v1/build` with JSON fields `target`, `profile`, `version`, `packages[]`, `defaults` (first-boot uci-defaults script), optional `rootfs_size_mb`, and `diff_packages`.
-  - Returns 200 for a cached build, or 202 when queued (poll), with a `request_hash`.
-- `GET {asu}/api/v1/build/{request_hash}` returns the images, each with a `sha256`. Download them from `{asu}/store/{bin_dir}/{name}`.
-- Public instance: https://sysupgrade.openwrt.org. Never send secrets to it.
-- Catalog: https://downloads.openwrt.org/.versions.json plus per-target `profiles.json`.
+Read from ASU's OpenAPI (`/openapi.json`) and source (`asu/routers/api.py`, `asu/build.py`), and its live JSON (2026-11-12); the build itself is checked only against `uniwrt_firmware::testing::FakeAsu` ⚠️.
+
+- `POST {asu}/api/v1/build` with JSON fields `version`, `target` (`mediatek/filogic`), `profile` (the image builder's, `glinet_gl-mt6000`), `packages[]` (added to the defaults; `-name` removes one, unless `diff_packages` makes the list absolute, which can drop Wi-Fi drivers), `defaults` (the first-boot uci-defaults script, at most 40960 bytes; the public server allows it: `server.allow_defaults`), `client` (`uniwrt/<version>`), optional `rootfs_size_mb`, `filesystem`, `repositories`.
+  - Answers 200 with the build when it has it (cached by request: the same request returns at once), 202 while queued (`detail: "queued"`, `queue_position`) or started (`imagebuilder_status`: `init`, `container_setup`, `validate_revision`, `validate_manifest`, `building_image`, `signing_images`), 500 when it failed (`detail`, `stderr`), 400 when invalid (`detail`: unsupported version, target or profile), 422 for a malformed body (FastAPI's list of `{msg}`), 529 when its queue is full. Every answer carries `request_hash` (hex).
+- `GET {asu}/api/v1/build/{request_hash}` answers the same way, and 404 once the build is gone. A done build holds the profile's `profiles.json` entry: `images[]` (`name`, `type` such as `factory`, `sysupgrade`, `kernel`, `combined-efi`; `filesystem`, `size`, `sha256`), `bin_dir` (the hash), `version_code`, `manifest`. Download images from `{asu}/store/{bin_dir}/{name}`.
+- Public instance: https://sysupgrade.openwrt.org. Never send secrets to it (D-022).
+- Catalog: `{asu}/json/v1/overview.json` gives `latest` (each branch's latest release: `["25.12.6","24.10.8"]`), `branches` (each with `versions`, release candidates and `-SNAPSHOT` included) and `upstream_url` (`https://downloads.openwrt.org`). `{upstream}/releases/<release>/.overview.json` lists every device of a release (about 1,900 for 25.12: `id`, `target`, `titles[]` of `vendor`, `model`, `variant`, or a `title` of its own such as `Generic x86/64`; about 390 KB). `{asu}/json/v1/releases/<release>/targets/<target>/<profile>.json` is one device's: `default_packages`, `device_packages` (`-name` removes a default), `images`, `supported_devices` (board names, `glinet,gl-mt6000`), `titles`. `{upstream}/.versions.json` lists every release, older ones included.
+- Package variants: `batctl-tiny` lacks the debug tables and JSON queries; `batctl-default` has them (`*_json`), `batctl-full` adds extra tools (openwrt/routing `batctl/Makefile`).

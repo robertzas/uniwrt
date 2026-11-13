@@ -29,7 +29,7 @@ pub(crate) struct Cli {
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     /// Run the controller (the default).
-    Serve(ServeArgs),
+    Serve(Box<ServeArgs>),
     /// Exit 0 if the local server answers `GET /api/v1/health` with 200, else 1 (for Docker).
     Healthcheck(HealthcheckArgs),
     /// Print the version and build information.
@@ -69,6 +69,15 @@ pub(crate) struct ServeArgs {
     /// `0.0.0.0:5514`, and off in demo mode.
     #[arg(long, env = "UNIWRT_SYSLOG_LISTEN", value_name = "ADDR:PORT|off", value_parser = parse_syslog_listen)]
     pub(crate) syslog_listen: Option<SyslogListen>,
+    /// The Attended Sysupgrade (ASU) service that builds zero-touch images, or `off`. Nothing
+    /// secret is sent to it.
+    #[arg(
+        long,
+        env = "UNIWRT_ASU_URL",
+        value_name = "URL|off",
+        default_value = uniwrt_firmware::Asu::PUBLIC
+    )]
+    pub(crate) asu_url: String,
     /// The vault's master key file (default: `master.key` in the data directory), created on
     /// the first run. `UNIWRT_MASTER_KEY` may hold the key itself (64 hexadecimal digits).
     #[arg(long, env = "UNIWRT_MASTER_KEY_FILE", value_name = "FILE")]

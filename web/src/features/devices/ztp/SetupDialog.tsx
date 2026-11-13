@@ -10,6 +10,7 @@ import { Icon } from "../../../ui/Icon";
 import { JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { Tab, TabList, TabPanel, Tabs } from "../../../ui/Tabs";
 import { TextField } from "../../../ui/TextField";
+import { ImageTab } from "./ImageTab";
 import { RolePicker } from "./ZtpDialogs";
 
 const t = strings.ztp.setup;
@@ -28,8 +29,9 @@ const scriptRoles = [...oneLinerRoles, { value: "gateway", label: role.gateway }
 
 /**
  * Setting up a new device to call home (adoption.md, Paths B and D): a one-liner to paste into
- * a running OpenWrt, followed until the device calls home, or the first-boot script for an
- * image. `onCalledHome` refreshes the inbox once a one-liner was used.
+ * a running OpenWrt, followed until the device calls home, an image built by ASU, or the
+ * first-boot script for an image built elsewhere. `onCalledHome` refreshes the inbox once a
+ * one-liner was used.
  */
 export function SetupDialog(props: {
   open: boolean;
@@ -48,10 +50,14 @@ export function SetupDialog(props: {
         <Tabs defaultValue="one-liner" aria-label={t.title}>
           <TabList>
             <Tab value="one-liner">{t.tabs.oneLiner}</Tab>
+            <Tab value="image">{t.tabs.image}</Tab>
             <Tab value="script">{t.tabs.script}</Tab>
           </TabList>
           <TabPanel value="one-liner" class="pt-4">
             <OneLiner open={props.open} onCalledHome={props.onCalledHome} />
+          </TabPanel>
+          <TabPanel value="image" class="pt-4">
+            <ImageTab open={props.open} />
           </TabPanel>
           <TabPanel value="script" class="pt-4">
             <Script />

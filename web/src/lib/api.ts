@@ -21,8 +21,13 @@ import type { DriftTarget } from "../api/gen/DriftTarget";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
+import type { FirmwareProfile } from "../api/gen/FirmwareProfile";
+import type { FirmwareReleases } from "../api/gen/FirmwareReleases";
 import type { FoundGateways } from "../api/gen/FoundGateways";
 import type { Health } from "../api/gen/Health";
+import type { ImageBuild } from "../api/gen/ImageBuild";
+import type { ImageBuildBody } from "../api/gen/ImageBuildBody";
+import type { ImageBuildStarted } from "../api/gen/ImageBuildStarted";
 import type { ImportAccept } from "../api/gen/ImportAccept";
 import type { ImportPreview } from "../api/gen/ImportPreview";
 import type { ImportRequest } from "../api/gen/ImportRequest";
@@ -568,6 +573,17 @@ export const api = {
       request<void>(`/ztp/approvals/${encodeURIComponent(mac)}`, { method: "DELETE" }),
     /** Where the first-boot script downloads from (a link, not a request). */
     scriptUrl: (role: "ap" | "bridge" | "gateway") => `/api/v1/ztp/script?role=${role}`,
+    releases: (signal?: AbortSignal) => request<FirmwareReleases>("/ztp/releases", { signal }),
+    profiles: (release: string, signal?: AbortSignal) =>
+      request<FirmwareProfile[]>(`/ztp/profiles?release=${encodeURIComponent(release)}`, {
+        signal,
+      }),
+    builds: {
+      create: (body: ImageBuildBody) =>
+        request<ImageBuildStarted>("/ztp/builds", { method: "POST", body }),
+      get: (hash: string, signal?: AbortSignal) =>
+        request<ImageBuild>(`/ztp/builds/${encodeURIComponent(hash)}`, { signal }),
+    },
     oneLiners: {
       create: (body: ZtpOneLinerBody) =>
         request<ZtpOneLiner>("/ztp/one-liners", { method: "POST", body }),

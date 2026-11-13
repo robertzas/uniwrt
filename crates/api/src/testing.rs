@@ -114,6 +114,7 @@ pub(crate) struct Handles {
     pub(crate) rf: Option<Rf>,
     pub(crate) drift: Option<Drifts>,
     pub(crate) bans: Option<Bans>,
+    pub(crate) asu: Option<uniwrt_firmware::Asu>,
 }
 
 /// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
@@ -131,6 +132,7 @@ pub(crate) async fn api_full(
         rf,
         drift,
         bans,
+        asu,
     } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -155,6 +157,7 @@ pub(crate) async fn api_full(
         rf,
         drift,
         bans,
+        asu,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -278,6 +281,7 @@ impl Demo {
             rf: Some(rf.handle()),
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
+            asu: None,
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

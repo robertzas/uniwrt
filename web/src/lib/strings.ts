@@ -475,7 +475,55 @@ export const strings = {
       description:
         "The device gets uniwrt's key, a random root password, a DHCP client on all its ports, no DHCP server and no Wi-Fi, then calls home.",
       role: "Role",
-      tabs: { oneLiner: "One-liner", script: "First-boot script" },
+      tabs: { image: "Build an image", oneLiner: "One-liner", script: "First-boot script" },
+      image: {
+        intro:
+          "For a new device: uniwrt asks OpenWrt's build service (ASU) for an image of its model with the mesh packages and the first-boot script. Flash it, plug any of its ports into your network, and it appears under Waiting for adoption.",
+        release: "OpenWrt release",
+        latest: "latest",
+        model: "Model",
+        search: "Search by vendor or model",
+        searchHint: (count: number) => `${count.toLocaleString()} models in this release.`,
+        loadingModels: "Loading the models…",
+        noMatch: "No model matches. Try the vendor's name or part of the model number.",
+        more: (count: number) => `${count.toLocaleString()} more: keep typing to narrow down.`,
+        change: "Change",
+        build: "Build the image",
+        starting: "Asking ASU…",
+        another: "Build another",
+        tryAgain: "Try again",
+        state: {
+          queued: (position: number | null) =>
+            position ? `Queued at ASU: ${position} ahead.` : "Queued at ASU.",
+          building: (step: string) => `ASU is building the image: ${step}.`,
+          done: "The image is ready.",
+          failed: "ASU couldn't build the image.",
+        },
+        step: {
+          init: "starting",
+          container_setup: "preparing the image builder",
+          validate_revision: "checking the release",
+          validate_manifest: "checking the packages",
+          building_image: "building",
+          signing_images: "signing",
+        } as Record<string, string>,
+        wait: "This takes a minute or a few, more when ASU is busy. You can close this dialog and build again later: ASU keeps the image.",
+        kind: {
+          factory: "Factory image",
+          sysupgrade: "Sysupgrade image",
+        } as Record<string, string>,
+        kindHint: {
+          factory: "For the first flash, from the vendor's firmware.",
+          sysupgrade: "For a device already running OpenWrt.",
+        } as Record<string, string>,
+        download: "Download",
+        sha256: "SHA-256",
+        packages: (added: string[], removed: string[]) =>
+          `Adds ${added.join(", ")}${removed.length ? `, replacing ${removed.join(", ")}` : ""}.`,
+        flashing: "How to flash this model",
+        noSecrets:
+          "ASU is a public service: the image holds no secrets, only uniwrt's public key and where to find it.",
+      },
       oneLiner: {
         intro:
           "For a device already running OpenWrt: plug its WAN port into your network, open a shell on it (SSH or the console), and paste this command.",

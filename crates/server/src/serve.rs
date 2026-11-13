@@ -155,6 +155,17 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// ASU at `url`, unless it is `off`.
+fn asu(url: &str) -> anyhow::Result<Option<uniwrt_firmware::Asu>> {
+    if url.eq_ignore_ascii_case("off") {
+        return Ok(None);
+    }
+    let client = format!("uniwrt/{}", build_info::VERSION);
+    uniwrt_firmware::Asu::new(url, &client)
+        .map(Some)
+        .with_context(|| format!("cannot use the ASU at {url}"))
+}
+
 /// The fleet: the simulated one in demo mode, else the adopted nodes.
 /// The API over the running fleet; demo mode's admin, or a reminder to finish setup.
 async fn start_api(
@@ -174,6 +185,7 @@ async fn start_api(
         bans: fleet.bans(),
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
+        asu: asu(&args.asu_url)?,
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

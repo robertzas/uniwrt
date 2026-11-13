@@ -34,7 +34,9 @@
 //!   `POST v1/ztp/pending/{mac}/adopt` ([`ZtpAdoptBody`], a job), `PUT` and `DELETE
 //!   v1/ztp/approvals/{mac}` ([`ZtpApprovalBody`]), `GET v1/ztp/script?role=`; D-102), the
 //!   one-liners (`POST v1/ztp/one-liners` ([`ZtpOneLinerBody`]), `GET` and `DELETE
-//!   v1/ztp/one-liners/{token}`; D-103), and [`bootstrap`], the public `GET /b/{token}` the
+//!   v1/ztp/one-liners/{token}`; D-103), images built by ASU (`GET v1/ztp/releases`, `GET
+//!   v1/ztp/profiles?release=`, `POST v1/ztp/builds` ([`ImageBuildBody`]), `GET
+//!   v1/ztp/builds/{hash}`; D-104), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -178,6 +180,7 @@ pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 pub use ztp::{
     HelloAnswer, ZtpAdoptBody, ZtpApprovalBody,
+    image::ImageBuildBody,
     one_liner::{ZtpOneLinerBody, bootstrap},
 };
 

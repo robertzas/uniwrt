@@ -22,6 +22,7 @@ uniwrt-clients = { workspace = true, features = ["ts"] }
 uniwrt-core = { workspace = true, features = ["ts"] }
 uniwrt-engine.workspace = true
 uniwrt-events.workspace = true
+uniwrt-firmware.workspace = true
 uniwrt-isp = { workspace = true, features = ["ts"] }
 uniwrt-jobs.workspace = true
 uniwrt-metrics.workspace = true
@@ -44,6 +45,7 @@ tempfile.workspace = true
 tokio-tungstenite = { workspace = true, features = ["handshake"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 tower = { workspace = true, features = ["util"] }
+uniwrt-firmware = { workspace = true, features = ["testing"] }
 uniwrt-sim.workspace = true
 
 [lints]

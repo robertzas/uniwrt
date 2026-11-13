@@ -7,7 +7,9 @@
 //!   /api/v1/ztp/pending/{mac}` (dismiss), `POST /api/v1/ztp/pending/{mac}/adopt`
 //!   ([`ZtpAdoptBody`]; 202 with the job), `PUT` and `DELETE /api/v1/ztp/approvals/{mac}`
 //!   ([`ZtpApprovalBody`]; single-use, 7 days), and `GET /api/v1/ztp/script?role=` (the
-//!   first-boot script, [`script`]), and the one-liners (Path D, D-103; [`one_liner`]).
+//!   first-boot script, [`script`]), the one-liners (Path D, D-103; [`one_liner`]), and images
+//!   built by ASU: `GET v1/ztp/releases`, `GET v1/ztp/profiles?release=`, `POST v1/ztp/builds`
+//!   and `GET v1/ztp/builds/{hash}` (D-104; [`image`]).
 //! - Public: `GET /b/{token}`, a one-liner's script ([`one_liner::bootstrap`]), served at the
 //!   root.
 //!
@@ -15,6 +17,9 @@
 //! host key from the hello pinned, and the hello's board and MAC checked on the node.
 
 pub(crate) mod hello;
+pub(crate) mod image;
+#[cfg(test)]
+mod image_tests;
 pub(crate) mod one_liner;
 pub(crate) mod script;
 #[cfg(test)]
@@ -60,6 +65,10 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/ztp/pending/{mac}/adopt", post(adopt))
         .route("/v1/ztp/approvals/{mac}", put(approve).delete(withdraw))
         .route("/v1/ztp/script", get(script::script))
+        .route("/v1/ztp/releases", get(image::releases))
+        .route("/v1/ztp/profiles", get(image::profiles))
+        .route("/v1/ztp/builds", post(image::build))
+        .route("/v1/ztp/builds/{hash}", get(image::status))
         .route("/v1/ztp/one-liners", post(one_liner::create))
         .route(
             "/v1/ztp/one-liners/{token}",

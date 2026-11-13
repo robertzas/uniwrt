@@ -82,6 +82,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, nodes and the site's revisions after jobs and saves, the rate of deltas, and closing.
 - `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
 - `src/ztp/hello.rs`: `POST /api/v1/ztp/hello`, without a session (features/adoption.md, Path B; D-102): a ZTP device's call home.
+- `src/ztp/image.rs`: Zero-touch images built by ASU (features/adoption.md, Path B; D-022, D-104), for admins:
+- `src/ztp/image_tests.rs`: Zero-touch images through the router, against the fake ASU on loopback: the catalog, a build with the role's first-boot script, its progress, audits, and who may ask.
 - `src/ztp/mod.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102):
 - `src/ztp/one_liner.rs`: The one-liner (features/adoption.md, Path D; D-103): a command to paste into any OpenWrt shell that fetches the first-boot script with a single-use token, checks its SHA-256 and runs it on the live device.
 - `src/ztp/script.rs`: `GET /api/v1/ztp/script?role=ap|bridge|gateway` (admins; D-102): the first-boot script of a zero-touch image, for the OpenWrt Firmware Selector's "script to run on first boot" or an image builder's `/etc/uci-defaults`.
@@ -198,6 +200,19 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/steer.rs`: Client steering ([`Deriver::steered`]): what usteer did to a client, or how the client answered a transition request, as a `client_steered` event of the node, with the access point it was steered to placed among the nodes. usteer names another node's access point by the address its usteer talks from, a client's answer by BSSID: each node's facts tell both.
 - `src/steer_tests.rs`: (no header comment)
 - `src/tests.rs`: The deriver over hand-made statuses, facts, topologies, clients, log entries and jobs.
+
+### `uniwrt-firmware` (crates/firmware)
+
+Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zero-touch images built by ASU, OpenWrt's public Attended Sysupgrade service.
+
+- `src/asu.rs`: The ASU client: OpenWrt's catalog, kept a while in memory, and zero-touch image builds.
+- `src/build.rs`: ASU's build API (pure): the request for a zero-touch image, and its answers read as an [`ImageBuild`].
+- `src/catalog.rs`: OpenWrt's catalog, as ASU and OpenWrt's download server describe it (pure): the releases a zero-touch image can be built for, the devices of a release, and one device's packages.
+- `src/http.rs`: HTTP(S) GETs and JSON POSTs to ASU and OpenWrt's download server: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed, and a bounded read of the answer.
+- `src/lib.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zero-touch images built by ASU, OpenWrt's public Attended Sysupgrade service.
+- `src/packages.rs`: The packages a zero-touch image adds to its profile's defaults (pure; D-104): the mesh essentials, the same for every role, since a gateway meshes too.
+- `src/testing.rs`: A fake ASU and download server on loopback (HTTP), for tests: two releases, three devices (one with the basic wpad, one without Wi-Fi, one ASU refuses), and builds that are queued, then building, then done.
+- `src/tests.rs`: The ASU client against the fake on loopback: the catalog, a build from request to images, and what it refuses before asking.
 
 ### `uniwrt-import` (crates/import)
 
@@ -329,6 +344,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
+- `src/firmware.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog of releases and device profiles, and the zero-touch images the controller asks ASU (OpenWrt's public Attended Sysupgrade service) to build.
 - `src/import.rs`: A brownfield import's preview (features/lifecycle.md, Brownfield import; D-072, D-073): what accepting the configuration the adopted nodes hold would change in the site, and per node how well the model holds it, for the review screen, before anything is saved.
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
@@ -759,7 +775,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (352 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (359 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -773,7 +789,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
-- `features/devices/ztp/`: SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx
+- `features/devices/ztp/`: ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts

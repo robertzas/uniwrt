@@ -32,16 +32,7 @@ pub(crate) async fn script(
 ) -> ApiResult<Response> {
     super::admin(&user.user, "download the first-boot script")?;
     let Query(query) = query.map_err(|err| ApiError::BadRequest(err.body_text()))?;
-    let (host, port) = split_host(client.host.as_deref());
-    let seen_at = host
-        .and_then(|host| host.parse::<IpAddr>().ok())
-        .filter(|ip| !ip.is_loopback() && !ip.is_unspecified());
-    let script = api
-        .jobs()
-        .ztp_script(query.role.unwrap_or(NodeRole::Ap), port, seen_at, None)
-        .await
-        .map_err(jobs_error)?
-        .text;
+    let script = first_boot(&api, &client, query.role.unwrap_or(NodeRole::Ap)).await?;
     Ok((
         [
             (header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"),
@@ -53,6 +44,21 @@ pub(crate) async fn script(
         script,
     )
         .into_response())
+}
+
+/// The first-boot script of an image of `role`, calling home where the admin's `client`
+/// reached the controller.
+pub(crate) async fn first_boot(api: &Api, client: &Client, role: NodeRole) -> ApiResult<String> {
+    let (host, port) = split_host(client.host.as_deref());
+    let seen_at = host
+        .and_then(|host| host.parse::<IpAddr>().ok())
+        .filter(|ip| !ip.is_loopback() && !ip.is_unspecified());
+    Ok(api
+        .jobs()
+        .ztp_script(role, port, seen_at, None)
+        .await
+        .map_err(jobs_error)?
+        .text)
 }
 
 /// The host and port of a `Host` value (`name`, `name:port`, `[v6]:port`); 443 without one.

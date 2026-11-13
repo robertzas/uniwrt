@@ -66,7 +66,7 @@ flowchart TB
 | L1 adapters | `store` | SQLite: revisions, inventory, events, jobs, metrics, logs (FTS5), vault | core, model |
 | L1 | `node` | SSH transport (russh), agent protocol, `NodeLink` trait, embedded agent bundle, the transaction tool's commands and footprint (`txn`) | core, model |
 | L1 | `syslog` | RFC 3164/5424 receiver and parser; log annotations (`log-patterns.toml`) | core, model |
-| L1 | `firmware` | release catalog, ASU client, image cache and verification | core, model |
+| L1 | `firmware` | release catalog (ASU's overview and the download server's per-release device list, kept in memory), ASU client (zero-touch builds with the mesh essentials, D-104); image cache and verification later (M7) | core, model |
 | L1 | `notify` | notifiers: alerts in words, rendered for ntfy, webhooks (Discord, Slack, Teams, Home Assistant, uniwrt's JSON, the user's template) and email; delivery over HTTP(S) (hyper, rustls, Mozilla's roots) and SMTP (lettre); the policy of what to send when (D-063) | core, model |
 | L2 services | `engine` | node actors, telemetry ingest, live state and topology, event bus, alerts, schedulers | L0, L1 |
 | L2 | `jobs` | orchestrations on nodes, kept as history: adopt (M1.7), manage and unmanage (M3.4a1), apply (M3.4a2a: plan, stage, apply, verify, confirm across the fleet), the WAN test (M4.1: a trial on the gateway, always rolled back), the speed test (M4.1b), the wpad swap (M5.2, D-089: the full wpad downloaded first, then swapped on the node by itself, offline, falling back to the old one); upgrade, rf-apply, backup later | L0, L1 |

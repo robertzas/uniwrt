@@ -7,6 +7,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
+use uniwrt_firmware::Asu;
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
@@ -36,6 +37,8 @@ pub struct ApiConfig {
     pub drift: Option<Drifts>,
     /// The client bans, when they run (kicks).
     pub bans: Option<Bans>,
+    /// ASU, which builds zero-touch images; without it, the catalog and builds answer 503.
+    pub asu: Option<Asu>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
     /// A new site's first revision instead of the defaults (demo mode's).
@@ -67,6 +70,7 @@ impl ApiConfig {
             rf: None,
             drift: None,
             bans: None,
+            asu: None,
             vault: None,
             first_site: None,
             password_cost: PasswordCost::default(),
@@ -93,6 +97,7 @@ struct Inner {
     rf: Option<Rf>,
     drift: Option<Drifts>,
     bans: Option<Bans>,
+    asu: Option<Asu>,
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
@@ -140,6 +145,7 @@ impl Api {
                 rf: config.rf,
                 drift: config.drift,
                 bans: config.bans,
+                asu: config.asu,
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
             }),
@@ -258,6 +264,13 @@ impl Api {
             .drift
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("Drift detection is not running".to_owned()))
+    }
+
+    pub(crate) fn asu(&self) -> Result<&Asu, ApiError> {
+        self.inner
+            .asu
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("Image builds are off".to_owned()))
     }
 
     pub(crate) fn bans(&self) -> Result<&Bans, ApiError> {

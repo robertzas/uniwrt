@@ -3149,6 +3149,7 @@ dependencies = [
  "uniwrt-api",
  "uniwrt-core",
  "uniwrt-engine",
+ "uniwrt-firmware",
  "uniwrt-import",
  "uniwrt-jobs",
  "uniwrt-model",
@@ -3184,6 +3185,7 @@ dependencies = [
  "uniwrt-core",
  "uniwrt-engine",
  "uniwrt-events",
+ "uniwrt-firmware",
  "uniwrt-isp",
  "uniwrt-jobs",
  "uniwrt-metrics",
@@ -3261,6 +3263,25 @@ dependencies = [
  "uniwrt-core",
  "uniwrt-model",
  "uniwrt-topo",
+]
+
+[[package]]
+name = "uniwrt-firmware"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "rustls",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uniwrt-model",
+ "webpki-roots",
 ]
 
 [[package]]

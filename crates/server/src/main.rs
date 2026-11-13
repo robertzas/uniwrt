@@ -48,7 +48,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         None => serve::run(cli.serve),
-        Some(Command::Serve(args)) => serve::run(args),
+        Some(Command::Serve(args)) => serve::run(*args),
         Some(Command::Healthcheck(args)) => healthcheck::run(&args),
         Some(Command::Version(args)) => version::run(&args),
     };
