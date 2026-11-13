@@ -95,7 +95,7 @@ pub(crate) async fn hello(
             "pre-approved",
         ),
     };
-    match super::start(&api, &stored, name, role, None).await {
+    match super::start(&api, &stored, name, role, None, None).await {
         Ok(job) => {
             api.store()
                 .record(AuditEntry {

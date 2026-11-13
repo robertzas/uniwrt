@@ -16,7 +16,8 @@
 # them, writes the packages and checks that uci, fw4 and netifd take them, through
 # `docker exec`; crates/system/tests/apply/ drives the controller's apply job onto both (the
 # transaction tool, the agent and the health checks; a confirm, two rollbacks,
-# a renumbering and the cable between them brought over to the wired backhaul).
+# a renumbering and the cable between them brought over to the wired backhaul), and the adopt
+# job onto `fac` through the gateway's adoption port (the agent runs on `fac` too).
 #
 # Linking the containers and loading the kernel's 8021q, pppoe and batman-adv modules need root, which a
 # privileged helper container provides, as in the hwsim lab (D-035).
@@ -142,7 +143,7 @@ up() {
   # had read the boot's list of services before uci-defaults ran).
   docker exec uniwrt-system-isp /bin/sh -c '/etc/init.d/firewall stop; /etc/init.d/odhcpd stop
     /etc/init.d/pppoe-server start' >/dev/null 2>&1
-  for role in gw ap; do
+  for role in gw ap fac; do
     docker exec "uniwrt-system-$role" sh -c 'rm -rf /tmp/uniwrt/agent && mkdir -p /tmp/uniwrt/agent'
     docker cp -q node-agent/. "uniwrt-system-$role:/tmp/uniwrt/agent/"
     docker exec "uniwrt-system-$role" sh -c 'echo system >/tmp/uniwrt/agent/VERSION'

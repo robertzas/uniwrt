@@ -37,7 +37,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uniwrt_core::{MacAddr, UserId};
-use uniwrt_jobs::{AdoptRequest, ZtpClaim};
+use uniwrt_jobs::{AdoptRequest, PortPath, ZtpClaim};
 use uniwrt_model::{
     job::{Job, JobState},
     node::NodeRole,
@@ -46,6 +46,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::{HostKey, Target};
 use uniwrt_store::{AuditRepo as _, NodeRepo as _, ZtpRepo as _};
+use zeroize::Zeroizing;
 
 pub use uniwrt_model::ztp::HelloAnswer;
 
@@ -85,10 +86,16 @@ pub struct ZtpAdoptBody {
     #[serde(default)]
     #[ts(optional)]
     pub name: Option<String>,
-    /// The role its image was built for, else inferred, when left out.
+    /// The role its image was built for, else inferred, when left out. A device on the
+    /// adoption port needs one: an access point or a bridge.
     #[serde(default)]
     #[ts(optional)]
     pub role: Option<NodeRole>,
+    /// A locked device's root password (one on the adoption port whose root has a password);
+    /// kept in the vault.
+    #[serde(default)]
+    #[ts(optional)]
+    pub password: Option<String>,
 }
 
 /// Pre-approving a MAC: its first hello adopts it with these.
@@ -161,7 +168,8 @@ pub(crate) async fn adopt(
         .ztp_pending_device(mac)
         .await?
         .ok_or_else(|| not_pending(mac))?;
-    let job = start(&api, &device, name, body.role, Some(user.id)).await?;
+    let password = body.password.filter(|password| !password.is_empty());
+    let job = start(&api, &device, name, body.role, password, Some(user.id)).await?;
     api.store()
         .record(AuditEntry {
             at: api.now(),
@@ -258,34 +266,55 @@ pub(crate) async fn withdraw(
 }
 
 /// Starts adopting a device from the inbox (by an admin, or by its pre-approval when `by` is
-/// `None`), and notes the job on its row.
+/// `None`), and notes the job on its row. A device on the adoption port is reached through its
+/// gateway, as an access point or a bridge (Path C, D-107); a locked one with the `password`
+/// given, else with the controller's key, which a failed adoption leaves on it.
 pub(crate) async fn start(
     api: &Api,
     device: &PendingDevice,
     name: Option<String>,
     role: Option<NodeRole>,
+    password: Option<String>,
     by: Option<UserId>,
 ) -> ApiResult<Job> {
-    if let PendingSource::Port { .. } = device.source {
-        // Path C's staged adoption, through the gateway, is M5.4 c2.
-        return Err(ApiError::Conflict(
-            "Adopting a device found on the adoption port isn't available yet".to_owned(),
-        ));
-    }
     let host_key = HostKey::parse(&device.host_key)
         .map_err(|_| ApiError::Internal("a stored hello holds no host key".to_owned()))?;
-    let request = AdoptRequest {
-        target: Target::new(device.address.to_string(), 22),
-        host_key,
-        // The image trusts the controller's key.
-        password: None,
-        remember_password: false,
-        name,
-        role: role.or(device.role),
-        ztp: Some(ZtpClaim {
-            mac: device.mac,
-            board_name: device.board_name.clone(),
-        }),
+    let role = role.or(device.role);
+    let claim = ZtpClaim {
+        mac: device.mac,
+        board_name: device.board_name.clone(),
+    };
+    let request = match &device.source {
+        PendingSource::Port { gateway, .. } => {
+            if !matches!(role, Some(NodeRole::Ap | NodeRole::Bridge)) {
+                return Err(ApiError::BadRequest(
+                    "A device on the adoption port is adopted as an access point or a bridge"
+                        .to_owned(),
+                ));
+            }
+            AdoptRequest {
+                target: Target::new(device.address.to_string(), 22),
+                host_key,
+                remember_password: password.is_some(),
+                password: password.map(Zeroizing::new),
+                name,
+                role,
+                // A locked device showed neither its board nor its identity.
+                ztp: (!device.locked).then_some(claim),
+                port: Some(PortPath { gateway: *gateway }),
+            }
+        }
+        PendingSource::Hello => AdoptRequest {
+            target: Target::new(device.address.to_string(), 22),
+            host_key,
+            // The image trusts the controller's key.
+            password: None,
+            remember_password: false,
+            name,
+            role,
+            ztp: Some(claim),
+            port: None,
+        },
     };
     let job = api.jobs().adopt(request, by).await.map_err(jobs_error)?;
     api.store().set_ztp_job(device.mac, job.id).await?;

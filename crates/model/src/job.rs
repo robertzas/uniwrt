@@ -207,6 +207,8 @@ pub enum StepName {
     Download,
     /// The upload rate, and round trips while uploading.
     Upload,
+    /// Lend the gateway's adoption port to the LAN and find the device's lease there (D-107).
+    Lease,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

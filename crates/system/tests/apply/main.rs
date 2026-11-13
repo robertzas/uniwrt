@@ -5,7 +5,7 @@
 //! apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a
 //! lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a
 //! host behind the gateway; and the cable between them brought over to the wired backhaul
-//! ([`backhaul`]).
+//! ([`backhaul`]); and a factory device adopted through the gateway's adoption port ([`port`]).
 //!
 //! Each test starts from the same ground: no open transaction, the defaults behind DHCP written
 //! directly (`Node::apply`), the nodes adopted into a new store with that site as revision 1.
@@ -13,6 +13,7 @@
 
 mod backhaul;
 mod dial;
+mod port;
 
 use std::{
     collections::BTreeMap,
@@ -47,6 +48,8 @@ use self::dial::DockerDial;
 
 const GW: &str = "uniwrt-system-gw";
 const AP_CONTAINER: &str = "uniwrt-system-ap";
+/// Stock OpenWrt on the gateway's adoption port ([`port`]).
+const FAC: &str = "uniwrt-system-fac";
 const UP: Duration = Duration::from_secs(45);
 
 /// The tool's shortest timer (`txn::MIN_TIMEOUT`, plus margin) and verify windows within it.
@@ -170,6 +173,11 @@ fn reset(base: &SiteConfig, gw: &Node, ap: &Node) -> String {
 }
 
 async fn lab() -> Lab {
+    lab_with(&[]).await
+}
+
+/// [`lab`], whose dial also reaches the `extra` containers.
+async fn lab_with(extra: &[&str]) -> Lab {
     settle(GW).await;
     settle(AP_CONTAINER).await;
     let (gw, ap) = (Node::new(GW), Node::new(AP_CONTAINER));
@@ -183,7 +191,7 @@ async fn lab() -> Lab {
     let vault = Vault::open(&store, &MasterKey::generate().expect("a key"))
         .await
         .expect("the vault opens");
-    let dial = DockerDial::new(&[GW, AP_CONTAINER]).await;
+    let dial = DockerDial::new(&[&[GW, AP_CONTAINER], extra].concat()).await;
     for (i, (name, container, host, role, id)) in [
         ("gw", GW, "10.0.0.1".to_owned(), NodeRole::Gateway, GATEWAY),
         ("ap", AP_CONTAINER, ap_host, NodeRole::Ap, AP),

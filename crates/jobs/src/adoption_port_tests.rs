@@ -20,7 +20,7 @@ use crate::{
     testing::{FakeNode, PASSWORD, Setup, setup},
 };
 
-const UP: &str = r#"{"up":true,"ipv4-address":[{"address":"192.168.1.250","mask":24}]}"#;
+pub(crate) const UP: &str = r#"{"up":true,"ipv4-address":[{"address":"192.168.1.250","mask":24}]}"#;
 const ARP: &str = "\
 IP address       HW type     Flags       HW address            Mask     Device
 192.168.1.1      0x1         0x2         02:42:ac:11:00:03     *        br-adopt
@@ -29,7 +29,7 @@ const BOARD: &str = r#"{"model":"GL.iNet GL-MT6000","hostname":"OpenWrt",
     "board_name":"glinet,gl-mt6000","release":{"version":"24.10.4"}}"#;
 const LABEL: &str = "94:83:c4:00:00:09";
 
-fn ok(stdout: &str) -> ExecOutput {
+pub(crate) fn ok(stdout: &str) -> ExecOutput {
     ExecOutput {
         status: ExitStatus::Code(0),
         stdout: stdout.as_bytes().to_vec(),
@@ -39,7 +39,7 @@ fn ok(stdout: &str) -> ExecOutput {
 
 /// Adopts the fake node as the gateway, saves a site with `port` as its adoption port, and has
 /// the gateway answer for its segment with `status`.
-async fn gateway(setup: &Setup, port: Option<&str>, status: &'static str) -> NodeId {
+pub(crate) async fn gateway(setup: &Setup, port: Option<&str>, status: &'static str) -> NodeId {
     let mut request = setup.request(Some(PASSWORD));
     request.role = Some(NodeRole::Gateway);
     let (job, _) = setup.adopt(request).await;

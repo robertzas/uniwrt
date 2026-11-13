@@ -125,6 +125,7 @@ pub(crate) async fn adopt(
         name: body.name.map(|name| display_name(&name)).transpose()?,
         role: body.role,
         ztp: None,
+        port: None,
     };
     let user = user.user;
     let job = api

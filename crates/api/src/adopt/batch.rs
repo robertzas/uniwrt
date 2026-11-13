@@ -116,6 +116,7 @@ pub(crate) async fn adopt(
                 .map_err(numbered)?,
             role: node.role,
             ztp: None,
+            port: None,
             target,
         });
     }

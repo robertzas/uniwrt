@@ -279,6 +279,7 @@ mod tests {
             name: None,
             role: None,
             ztp: None,
+            port: None,
         };
 
         let rejected = jobs.adopt(request("root"), None).await.unwrap();
@@ -328,6 +329,7 @@ mod tests {
             // The wizard says so: with no internet yet, nothing else tells a gateway.
             role: Some(uniwrt_model::node::NodeRole::Gateway),
             ztp: None,
+            port: None,
         }
     }
 

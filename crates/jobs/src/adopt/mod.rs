@@ -2,10 +2,15 @@
 //! check the node, install the controller's key, read its inventory, take a backup, record it
 //! all, and start watching. In observe mode, `authorized_keys` is the only thing it changes on
 //! the node (directive 8), but for root's password on a node that had none ([`login`]); the
-//! agent runs from `/tmp`.
+//! agent runs from `/tmp`. A factory-default device on the gateway's adoption port takes
+//! [`port`]'s path instead (Path C): the same steps through the gateway, then staged, managed
+//! and confirmed at its lease on the LAN.
 
 pub(crate) mod check;
 mod login;
+mod port;
+#[cfg(test)]
+mod port_tests;
 #[cfg(test)]
 mod tests;
 
@@ -23,8 +28,10 @@ use uniwrt_store::{Adoption, NodeRepo as _, VaultRepo as _};
 use zeroize::Zeroizing;
 
 use self::login::Login;
+pub use self::port::PortPath;
+pub(crate) use self::port::STEPS as PORT_STEPS;
 use crate::{
-    Remote,
+    Dial, Remote,
     errors::{chain, internal, node_error, unsupported},
     progress::Progress,
     runner::Shared,
@@ -74,6 +81,9 @@ pub struct AdoptRequest {
     /// What a zero-touch device said it is when it called home (D-102): the node must match,
     /// and root's password, the image's random one that nobody knows, is replaced.
     pub ztp: Option<ZtpClaim>,
+    /// A factory-default device on the gateway's adoption port (Path C, D-107): reached through
+    /// the gateway, staged, and confirmed at its lease on the LAN; `target` is 192.168.1.1.
+    pub port: Option<PortPath>,
 }
 
 /// A zero-touch device's hello, as far as adoption checks it.
@@ -108,8 +118,31 @@ async fn adopt(
     request: &AdoptRequest,
     progress: &mut Progress,
 ) -> Result<(), JobError> {
-    let found = on_node(shared, request, progress).await?;
+    if let Some(path) = &request.port {
+        return port::adopt(shared, request, path, progress).await;
+    }
+    let Some(dial) = &shared.dial else {
+        return Err(internal("no way to reach nodes", &"no dial"));
+    };
+    let (found, remote) = on_node(shared, dial.as_ref(), request, progress).await?;
+    remote.close().await;
+    let host = request.target.host.clone();
+    let facts = found.facts.clone();
+    let node = record(shared, request, found, host, false, progress).await?;
+    watch(shared, request, node, facts, progress).await;
+    Ok(())
+}
 
+/// Records the node at `host`, managed or in observe mode, and moves its root password to its
+/// name.
+async fn record(
+    shared: &Shared,
+    request: &AdoptRequest,
+    found: Found,
+    host: String,
+    managed: bool,
+    progress: &mut Progress,
+) -> Result<uniwrt_model::node::Node, JobError> {
     progress.start(StepName::Record).await;
     let Found {
         facts,
@@ -131,16 +164,16 @@ async fn adopt(
             name,
             mac,
             board_name: facts.board.board_name.clone(),
-            host: request.target.host.clone(),
+            host,
             port: request.target.port,
             role,
         },
         pin: request.host_key.pin(shared.clock.now()),
-        facts: facts.clone(),
+        facts,
         inventory,
         backup: Some(backup),
     };
-    let node = shared
+    let mut node = shared
         .store
         .adopt_node(adoption)
         .await
@@ -149,7 +182,23 @@ async fn adopt(
             err => internal("cannot record the node", &err),
         })?;
     progress.set_node(node.id);
-    let mut detail = format!("Recorded as {} in observe mode", node.name);
+    if managed {
+        node = shared
+            .store
+            .set_node_mode(node.id, uniwrt_model::node::NodeMode::Managed)
+            .await
+            .map_err(|err| internal("recording the node's mode", &err))?
+            .ok_or_else(|| internal("recording the node's mode", &"the node is gone"))?;
+    }
+    let mut detail = format!(
+        "Recorded as {}{}",
+        node.name,
+        if managed {
+            ", managed"
+        } else {
+            " in observe mode"
+        }
+    );
     match login::keep_pending(shared, node.mac, node.id).await {
         Ok(true) => detail.push_str("; its root password is kept in the vault"),
         Ok(false) => {}
@@ -178,27 +227,33 @@ async fn adopt(
         }
     }
     progress.done(Some(detail)).await;
+    Ok(node)
+}
 
+async fn watch(
+    shared: &Shared,
+    request: &AdoptRequest,
+    node: uniwrt_model::node::Node,
+    facts: NodeFacts,
+    progress: &mut Progress,
+) {
     progress.start(StepName::Watch).await;
     shared
         .watch
         .watch(node, request.host_key.clone(), facts)
         .await;
     progress.done(None).await;
-    Ok(())
 }
 
-/// The steps on the node, from logging in to the backup; logs out at the end.
+/// The steps on the node through `dial`, from logging in to the backup; returns the login.
 async fn on_node(
     shared: &Shared,
+    dial: &dyn Dial,
     request: &AdoptRequest,
     progress: &mut Progress,
-) -> Result<Found, JobError> {
-    let Some(dial) = &shared.dial else {
-        return Err(internal("no way to reach nodes", &"no dial"));
-    };
+) -> Result<(Found, Box<dyn Remote>), JobError> {
     progress.start(StepName::Connect).await;
-    let (first, login) = login::first(shared, dial.as_ref(), request).await?;
+    let (first, login) = login::first(shared, dial, request).await?;
     progress.done(Some(login.detail().to_owned())).await;
 
     let checked = match check(shared, request, progress, first.as_ref()).await {
@@ -208,7 +263,7 @@ async fn on_node(
             return Err(err);
         }
     };
-    let remote = match key_login(shared, request, progress, first.as_ref(), login).await {
+    let remote = match key_login(shared, dial, request, progress, first.as_ref(), login).await {
         Ok(Some(second)) => {
             first.close().await;
             second
@@ -234,9 +289,13 @@ async fn on_node(
             .skip(StepName::SetPassword, "Root has a password already")
             .await;
     }
-    let found = inspect(shared, progress, remote.as_ref(), checked).await;
-    remote.close().await;
-    found
+    match inspect(shared, progress, remote.as_ref(), checked).await {
+        Ok(found) => Ok((found, remote)),
+        Err(err) => {
+            remote.close().await;
+            Err(err)
+        }
+    }
 }
 
 /// What the check found: the facts, the node's identity, and notes for the inventory step.
@@ -313,6 +372,7 @@ async fn check(
 /// returns that second login.
 async fn key_login(
     shared: &Shared,
+    dial: &dyn Dial,
     request: &AdoptRequest,
     progress: &mut Progress,
     remote: &dyn Remote,
@@ -348,9 +408,6 @@ async fn key_login(
         .await;
 
     progress.start(StepName::VerifyKey).await;
-    let Some(dial) = &shared.dial else {
-        return Err(internal("no way to reach nodes", &"demo mode"));
-    };
     let second = dial
         .connect(
             &request.target,

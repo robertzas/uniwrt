@@ -161,17 +161,25 @@ impl Jobs {
             return Err(Error::Unavailable);
         }
         let target = request.target.to_string();
-        let key = target.to_lowercase();
+        let mut keys = vec![target.to_lowercase()];
+        let steps = match &request.port {
+            // The lend changes the gateway's network: no other job there meanwhile.
+            Some(path) => {
+                keys.push(manage::target(path.gateway));
+                adopt::PORT_STEPS.to_vec()
+            }
+            None => STEPS.to_vec(),
+        };
         let job = NewJob {
             kind: JobKind::Adopt,
             target,
             node: None,
             revision: None,
             created_by: by,
-            steps: STEPS.to_vec(),
+            steps,
             nodes: Vec::new(),
         };
-        self.spawn(vec![key], job, |shared, progress| {
+        self.spawn(keys, job, |shared, progress| {
             adopt::run(shared, request, progress)
         })
         .await

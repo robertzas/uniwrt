@@ -102,7 +102,7 @@ mod wan_test;
 mod wpad;
 mod ztp;
 
-pub use adopt::{AdoptRequest, ZtpClaim};
+pub use adopt::{AdoptRequest, PortPath, ZtpClaim};
 pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};

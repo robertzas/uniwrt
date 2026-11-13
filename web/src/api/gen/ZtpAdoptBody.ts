@@ -10,6 +10,12 @@ export type ZtpAdoptBody = {
  */
 name?: string, 
 /**
- * The role its image was built for, else inferred, when left out.
+ * The role its image was built for, else inferred, when left out. A device on the
+ * adoption port needs one: an access point or a bridge.
  */
-role?: NodeRole, };
+role?: NodeRole, 
+/**
+ * A locked device's root password (one on the adoption port whose root has a password);
+ * kept in the vault.
+ */
+password?: string, };

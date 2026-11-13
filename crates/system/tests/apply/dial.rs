@@ -39,6 +39,9 @@ struct Faults {
     /// The container that stands in for the controller's host: the gateway sees the logins
     /// come from its LAN address.
     controller: Option<String>,
+    /// The container a login's tunnel (`Remote::dial`) reaches: a device on the gateway's
+    /// adoption port.
+    behind: Option<String>,
 }
 
 struct Inner {
@@ -94,6 +97,13 @@ impl DockerDial {
         faults.controller = Some(name.to_owned());
     }
 
+    /// Has the logins' tunnels reach `name` (only), as the gateway's reach a device on its
+    /// adoption port.
+    pub(crate) fn behind(&self, name: &str) {
+        let mut faults = self.0.faults.lock().expect("faults");
+        faults.behind = Some(name.to_owned());
+    }
+
     /// Cuts `name` off once the tool applies a transaction on it.
     pub(crate) fn lose_after_apply(&self, name: &str) {
         let mut faults = self.0.faults.lock().expect("faults");
@@ -108,10 +118,15 @@ impl Inner {
 
     /// The container that holds `address` on one of its interfaces now.
     async fn holding(&self, address: &str) -> Option<&Container> {
+        self.holding_among(address, None).await
+    }
+
+    /// [`holding`](Self::holding) among `only`, when given.
+    async fn holding_among(&self, address: &str, only: Option<&str>) -> Option<&Container> {
         let request = ExecRequest::new(["ip", "-4", "-o", "addr", "show"]);
         let needle = format!(" inet {address}/");
         for container in &self.containers {
-            if self.lost(&container.name) {
+            if self.lost(&container.name) || only.is_some_and(|only| only != container.name) {
                 continue;
             }
             let Ok(output) = exec(&container.name, &request).await else {
@@ -153,23 +168,73 @@ impl Dial for DockerDial {
         host_key: &'a HostKey,
         _credential: &'a Credential,
     ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
+        Box::pin(login(&self.0, target, host_key, None))
+    }
+}
+
+/// A login to the container holding `target`'s address (among `only`), presenting `host_key`.
+async fn login(
+    inner: &Arc<Inner>,
+    target: &Target,
+    host_key: &HostKey,
+    only: Option<&str>,
+) -> Result<Box<dyn Remote>> {
+    let container = inner
+        .holding_among(&target.host, only)
+        .await
+        .ok_or_else(|| refused(target))?;
+    if container.host_key != *host_key {
+        return Err(Error::HostKeyMismatch {
+            target: target.to_string(),
+            presented: container.host_key.clone(),
+            pinned: host_key.clone(),
+        });
+    }
+    Ok(Box::new(DockerRemote {
+        dial: Arc::clone(inner),
+        container: container.name.clone(),
+    }) as Box<dyn Remote>)
+}
+
+/// A login's `direct-tcpip` tunnel: it reaches only the container [`DockerDial::behind`] names,
+/// with dropbear's banner where it holds the address.
+struct Tunnel(Arc<Inner>);
+
+impl Tunnel {
+    fn behind(&self) -> Option<String> {
+        self.0.faults.lock().expect("faults").behind.clone()
+    }
+
+    async fn holding(&self, target: &Target) -> Result<&Container> {
+        let behind = self.behind().ok_or_else(|| refused(target))?;
+        self.0
+            .holding_among(&target.host, Some(&behind))
+            .await
+            .ok_or_else(|| refused(target))
+    }
+}
+
+impl Dial for Tunnel {
+    fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
         Box::pin(async move {
-            let container = self
-                .0
-                .holding(&target.host)
-                .await
-                .ok_or_else(|| refused(target))?;
-            if container.host_key != *host_key {
-                return Err(Error::HostKeyMismatch {
-                    target: target.to_string(),
-                    presented: container.host_key.clone(),
-                    pinned: host_key.clone(),
-                });
-            }
-            Ok(Box::new(DockerRemote {
-                dial: Arc::clone(&self.0),
-                container: container.name.clone(),
-            }) as Box<dyn Remote>)
+            self.holding(target).await?;
+            Ok(Some("SSH-2.0-dropbear".to_owned()))
+        })
+    }
+
+    fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
+        Box::pin(async move { Ok(self.holding(target).await?.host_key.clone()) })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        target: &'a Target,
+        host_key: &'a HostKey,
+        _credential: &'a Credential,
+    ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
+        Box::pin(async move {
+            let behind = self.behind().ok_or_else(|| refused(target))?;
+            login(&self.0, target, host_key, Some(&behind)).await
         })
     }
 }
@@ -245,6 +310,10 @@ impl Remote for DockerRemote {
             let ok = answer.get("ok").ok_or_else(|| protocol(line.to_owned()))?;
             serde_json::value::to_raw_value(ok).map_err(|e| protocol(e.to_string()))
         })
+    }
+
+    fn dial(&self) -> Option<Arc<dyn Dial>> {
+        Some(Arc::new(Tunnel(Arc::clone(&self.dial))))
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {

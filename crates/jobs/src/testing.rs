@@ -2,6 +2,7 @@
 //! of OpenWrt 24.10 in a container) and the transaction tool, and a temporary store.
 
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -55,6 +56,8 @@ pub(crate) struct FakeNode {
     pub(crate) collected: Mutex<Option<String>>,
     /// The device a login's [`Remote::dial`] reaches behind this node, if one answers.
     pub(crate) behind: Mutex<Option<Arc<FakeNode>>>,
+    /// Other nodes a [`FakeDial`] of this one reaches, by host.
+    pub(crate) hosts: Mutex<BTreeMap<String, Arc<FakeNode>>>,
 }
 
 /// A test's answers to commands, by argv.
@@ -75,6 +78,7 @@ impl FakeNode {
             script: Mutex::default(),
             collected: Mutex::default(),
             behind: Mutex::default(),
+            hosts: Mutex::default(),
         })
     }
 
@@ -172,13 +176,21 @@ fn script_of(request: &ExecRequest) -> String {
 
 pub(crate) struct FakeDial(pub(crate) Arc<FakeNode>);
 
+impl FakeDial {
+    /// The node at `target`: one of [`FakeNode::hosts`], else this one.
+    fn at(&self, target: &Target) -> Self {
+        let other = self.0.hosts.lock().unwrap().get(&target.host).cloned();
+        Self(other.unwrap_or_else(|| Arc::clone(&self.0)))
+    }
+}
+
 impl Dial for FakeDial {
     fn banner<'a>(&'a self, _target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
         Box::pin(async { Ok(Some("SSH-2.0-dropbear_2024.86".to_owned())) })
     }
 
-    fn probe<'a>(&'a self, _target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
-        Box::pin(async { Ok(self.0.host_key.clone()) })
+    fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
+        Box::pin(async move { Ok(self.at(target).0.host_key.clone()) })
     }
 
     fn connect<'a>(
@@ -188,20 +200,21 @@ impl Dial for FakeDial {
         credential: &'a Credential,
     ) -> BoxFuture<'a, Result<Box<dyn Remote>>> {
         Box::pin(async move {
-            let gate = self.0.gate.lock().unwrap().clone();
+            let this = self.at(target);
+            let gate = this.0.gate.lock().unwrap().clone();
             if let Some(gate) = gate {
                 gate.notified().await;
             }
-            if *host_key != self.0.host_key {
+            if *host_key != this.0.host_key {
                 return Err(uniwrt_node::Error::HostKeyMismatch {
                     target: target.to_string(),
-                    presented: self.0.host_key.clone(),
+                    presented: this.0.host_key.clone(),
                     pinned: host_key.clone(),
                 });
             }
             let accepted = match credential {
                 Credential::Password(password) => {
-                    password.as_str() == self.0.password.lock().unwrap().as_str()
+                    password.as_str() == this.0.password.lock().unwrap().as_str()
                 }
                 Credential::Key(key) => self
                     .0
@@ -218,7 +231,7 @@ impl Dial for FakeDial {
                     method: "password",
                 });
             }
-            Ok(Box::new(FakeRemote(Arc::clone(&self.0))) as Box<dyn Remote>)
+            Ok(Box::new(FakeRemote(Arc::clone(&this.0))) as Box<dyn Remote>)
         })
     }
 }
@@ -252,7 +265,7 @@ impl Remote for FakeRemote {
     }
 
     fn dial(&self) -> Option<Arc<dyn Dial>> {
-        Some(Arc::new(Behind(self.0.behind.lock().unwrap().clone())))
+        Some(Arc::new(Behind(Arc::clone(&self.0))))
     }
 
     fn close(&self) -> BoxFuture<'_, ()> {
@@ -260,12 +273,16 @@ impl Remote for FakeRemote {
     }
 }
 
-/// What a fake login reaches through its node: the device behind it, or nothing answering.
-struct Behind(Option<Arc<FakeNode>>);
+/// What a fake login reaches through its node: the device behind it at the time, or nothing
+/// answering.
+struct Behind(Arc<FakeNode>);
 
 impl Behind {
     fn device(&self, target: &Target) -> Result<FakeDial> {
         self.0
+            .behind
+            .lock()
+            .unwrap()
             .as_ref()
             .map(|node| FakeDial(Arc::clone(node)))
             .ok_or_else(|| uniwrt_node::Error::Timeout {
@@ -328,6 +345,11 @@ pub(crate) struct Setup {
 }
 
 pub(crate) async fn setup(dial: bool) -> Setup {
+    setup_timed(dial, crate::ApplyTiming::default()).await
+}
+
+/// [`setup`] with the apply's `timing`.
+pub(crate) async fn setup_timed(dial: bool, timing: crate::ApplyTiming) -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let clock = Arc::new(ManualClock::new(Timestamp::from_unix_secs(1_793_059_200)));
     let store = Store::open(dir.path().join("test.db"), clock.clone())
@@ -339,14 +361,17 @@ pub(crate) async fn setup(dial: bool) -> Setup {
     let key = ControllerKey::generate().unwrap();
     let node = FakeNode::new();
     let watched = Arc::new(Watched::default());
-    let jobs = Jobs::start(JobsConfig {
-        store: store.clone(),
-        vault: vault.clone(),
-        clock,
-        key: key.clone(),
-        dial: dial.then(|| Arc::new(FakeDial(Arc::clone(&node))) as Arc<dyn Dial>),
-        watch: Arc::clone(&watched) as Arc<dyn Watch>,
-    })
+    let jobs = Jobs::start_with(
+        JobsConfig {
+            store: store.clone(),
+            vault: vault.clone(),
+            clock,
+            key: key.clone(),
+            dial: dial.then(|| Arc::new(FakeDial(Arc::clone(&node))) as Arc<dyn Dial>),
+            watch: Arc::clone(&watched) as Arc<dyn Watch>,
+        },
+        timing,
+    )
     .await
     .unwrap();
     Setup {
@@ -370,6 +395,7 @@ impl Setup {
             name: None,
             role: None,
             ztp: None,
+            port: None,
         }
     }
 

@@ -372,3 +372,64 @@ async fn a_one_liner_serves_its_script_once_and_its_hello_adopts() {
     let res = demo.send(demo.get("/v1/ztp/one-liners/nope")).await;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn a_device_on_the_adoption_port_adopts_through_its_gateway_as_an_ap_or_a_bridge() {
+    use uniwrt_model::ztp::{PendingDevice, PendingSource, ZtpInbox};
+    use uniwrt_store::ZtpRepo as _;
+
+    let demo = Demo::start().await;
+    let cookie = Some(demo.cookie.as_str());
+    let now = uniwrt_core::Timestamp::from_unix_secs(1_793_059_200);
+    let key = ControllerKey::generate().unwrap().authorized_key().unwrap();
+    let host_key = uniwrt_node::HostKey::parse(&key).unwrap();
+    let device = PendingDevice {
+        mac: "94:83:c4:00:00:09".parse().unwrap(),
+        board_name: String::new(),
+        model: String::new(),
+        hostname: String::new(),
+        release: String::new(),
+        role: None,
+        address: "192.168.1.1".parse().unwrap(),
+        source: PendingSource::Port {
+            gateway: demo.ids[0],
+            port: "lan4".to_owned(),
+        },
+        locked: true,
+        host_key: host_key.to_openssh().to_owned(),
+        fingerprint: host_key.fingerprint().to_owned(),
+        first_seen: now,
+        last_seen: now,
+        job: None,
+    };
+    demo.store
+        .ztp_hello(device, ZtpInbox::MAX_PENDING)
+        .await
+        .unwrap();
+    let adopt = "/v1/ztp/pending/94:83:c4:00:00:09/adopt";
+    for role in [json!(null), json!("gateway")] {
+        let res = demo
+            .send(post(adopt, &json!({ "role": role }), cookie))
+            .await;
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "{role}");
+    }
+    let res = demo
+        .send(post(
+            adopt,
+            &json!({ "role": "bridge", "password": "its own" }),
+            cookie,
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let job = body(res).await;
+    assert_eq!(job["kind"], "adopt");
+    assert_eq!(job["target"], "root@192.168.1.1:22");
+    let steps: Vec<_> = job["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|step| step["name"].as_str().unwrap())
+        .collect();
+    assert!(steps.contains(&"lease"), "{steps:?}");
+    assert_eq!(inbox(&demo).await["pending"][0]["job"], job["id"]);
+}

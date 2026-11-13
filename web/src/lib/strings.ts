@@ -310,10 +310,18 @@ export const strings = {
       upload: "Upload",
       fetch: "Download the packages",
       swap: "Swap the wpad",
+      lease: "Take a lease on the LAN",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
       apply: { record: "Record the revision" },
+      // Path C's staging (D-107); Path A has none of these steps.
+      adopt: {
+        stage: "Stage the staging config",
+        apply: "Apply it and leave 192.168.1.1",
+        verify: "Log in on the LAN",
+        confirm: "Confirm",
+      },
       wan_test: {
         connect: "Log in to the gateway",
         plan: "Prepare the WAN",

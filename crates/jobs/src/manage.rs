@@ -149,7 +149,7 @@ async fn status(remote: &dyn Remote) -> Result<Option<txn::Status>, JobError> {
         .map_err(|err| txn_error(&err, "Reading the transaction tool's status"))
 }
 
-async fn install(remote: &dyn Remote, progress: &mut Progress) -> Result<(), JobError> {
+pub(crate) async fn install(remote: &dyn Remote, progress: &mut Progress) -> Result<(), JobError> {
     progress.start(StepName::InstallTool).await;
     let footprint = Footprint::get();
     let before = status(remote).await?;
