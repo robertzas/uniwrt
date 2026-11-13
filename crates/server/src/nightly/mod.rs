@@ -5,10 +5,13 @@
 //! with the usual transactions and rollback. It never applies what nobody reviewed (unapplied
 //! changes skip the night), and it waits while a radio that would move carries heavy traffic,
 //! a managed node is offline or another job holds the configuration; a window that closes
-//! while it waits is noted as skipped.
+//! while it waits is noted as skipped. Then, and every night the optimizer is off, the window
+//! restarts the radios still catching up after a channel switch ([`catch_up`], M6.1 b3b,
+//! D-116).
 //!
 //! The decisions run over [`Site`], what the controller holds ([`ctx::Ctx`]), so tests script it.
 
+mod catch_up;
 mod ctx;
 #[cfg(test)]
 mod tests;
@@ -101,9 +104,9 @@ enum SaveError {
     Failed(String),
 }
 
-/// Why an apply didn't start.
-enum ApplyError {
-    /// Another job holds the configuration.
+/// Why a job (an apply, a radio restart) didn't start.
+enum StartError {
+    /// Another job holds the configuration or a node.
     Busy,
     Failed(String),
 }
@@ -117,13 +120,17 @@ trait Site: Send + Sync {
     async fn nodes(
         &self,
     ) -> Result<(BTreeMap<NodeId, NodeMode>, BTreeMap<NodeId, RevisionId>), String>;
-    /// The plan of the site as it runs, and the radios carrying heavy traffic.
+    /// The plan of the site as it runs.
     async fn plan(
         &self,
         config: SiteConfig,
         modes: BTreeMap<NodeId, NodeMode>,
-    ) -> Result<(Plan, BTreeSet<(NodeId, String)>), String>;
+    ) -> Result<Plan, String>;
+    /// The radios carrying heavy traffic, by node and name.
+    async fn busy(&self) -> Result<BTreeSet<(NodeId, String)>, String>;
     fn offline(&self, node: NodeId) -> bool;
+    /// The radios of `node` still catching up after a channel switch, by name.
+    fn catching_up(&self, node: NodeId) -> Vec<String>;
     async fn job_running(&self) -> bool;
     /// Validates `config` and saves it after `base` as the controller's revision.
     async fn save(
@@ -132,7 +139,9 @@ trait Site: Send + Sync {
         config: SiteConfig,
         message: String,
     ) -> Result<RevisionId, SaveError>;
-    async fn apply(&self, revision: RevisionId) -> Result<JobId, ApplyError>;
+    async fn apply(&self, revision: RevisionId) -> Result<JobId, StartError>;
+    /// Starts restarting the radios catching up on `nodes`, one node at a time.
+    async fn restart(&self, nodes: Vec<NodeId>) -> Result<JobId, StartError>;
     fn note(&self, kind: EventKind);
 }
 
@@ -146,6 +155,8 @@ struct State {
     /// Forgotten once its apply starts, so an apply that fails (rolled back) is never tried
     /// again by itself: later nights skip until someone applies or discards it.
     ours: Option<RevisionId>,
+    /// The nodes whose radios a restart job took this night (or failed to): once a night each.
+    restarted: Option<(i64, BTreeSet<NodeId>)>,
 }
 
 /// How an attempt ended.
@@ -158,7 +169,6 @@ async fn look(site: &impl Site, state: &mut State) {
     let settings = site.settings();
     if !settings.nightly {
         state.waiting = None;
-        return;
     }
     let head = match site.head().await {
         Ok(Some(head)) => head,
@@ -178,16 +188,20 @@ async fn look(site: &impl Site, state: &mut State) {
         site.note(EventKind::RfOptimizeSkipped { reason, bands });
     }
     let Some(night) = window else { return };
-    if state.done == Some(night) {
-        return;
-    }
-    match attempt(site, head, state).await {
-        Attempt::Done => {
-            state.done = Some(night);
-            state.waiting = None;
+    if settings.nightly && state.done != Some(night) {
+        match attempt(site, head, state).await {
+            Attempt::Done => {
+                state.done = Some(night);
+                state.waiting = None;
+            }
+            Attempt::Wait(reason, bands) => {
+                state.waiting = Some((night, reason, bands));
+                return;
+            }
         }
-        Attempt::Wait(reason, bands) => state.waiting = Some((night, reason, bands)),
     }
+    // After tonight's apply, which may have switched radios itself (it holds a job meanwhile).
+    catch_up::catch_up(site, state, night).await;
 }
 
 async fn attempt(site: &impl Site, head: Head, state: &mut State) -> Attempt {
@@ -205,7 +219,11 @@ async fn attempt(site: &impl Site, head: Head, state: &mut State) -> Attempt {
         .collect();
     let pending =
         state.ours != Some(head.id) && managed.iter().any(|node| holds.get(node) != Some(&head.id));
-    let (plan, busy) = match site.plan(head.config.clone(), modes).await {
+    let planned = match site.plan(head.config.clone(), modes).await {
+        Ok(plan) => site.busy().await.map(|busy| (plan, busy)),
+        Err(err) => Err(err),
+    };
+    let (plan, busy) = match planned {
         Ok(planned) => planned,
         Err(err) => {
             warn!(%err, "nightly RF: cannot plan");
@@ -286,8 +304,8 @@ async fn apply(
             });
             Attempt::Done
         }
-        Err(ApplyError::Busy) => Attempt::Wait(NightlySkip::Busy, bands),
-        Err(ApplyError::Failed(err)) => {
+        Err(StartError::Busy) => Attempt::Wait(NightlySkip::Busy, bands),
+        Err(StartError::Failed(err)) => {
             warn!(%err, "nightly RF: cannot start the apply");
             Attempt::Done
         }

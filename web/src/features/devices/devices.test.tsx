@@ -37,6 +37,8 @@ function wirelessFacts(): NodeFacts {
       band: "5g",
       up: true,
       disabled: false,
+      // Moved by a channel switch; the nightly window restarts it (D-116).
+      restart_pending: true,
       channel: 36,
       frequency_mhz: 5180,
       center_frequency_mhz: 5210,
@@ -179,6 +181,7 @@ describe("Devices", () => {
     expect(screen.getByTitle(/^Read-only/)).toHaveTextContent("Observe");
     expect(screen.getByText("5 GHz")).toBeInTheDocument();
     expect(screen.getByText("Channel 36 · 80 MHz · Wi-Fi 6")).toBeInTheDocument();
+    expect(screen.getByText("Restarts tonight")).toBeInTheDocument();
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("1 mesh peer")).toBeInTheDocument();
 

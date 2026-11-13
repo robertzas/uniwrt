@@ -2,7 +2,10 @@
 //! (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim
 //! capture's wiphys).
 
-use std::{collections::BTreeSet, sync::LazyLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::LazyLock,
+};
 
 use serde_json::{Map, Value, json};
 
@@ -96,6 +99,7 @@ pub(super) fn radios(
     n: usize,
     aps: &[(String, String, String)],
     off: &BTreeSet<String>,
+    netifd: &BTreeMap<usize, u8>,
 ) -> Value {
     let node = &world.nodes[n];
     let mut wireless = Map::new();
@@ -160,7 +164,8 @@ pub(super) fn radios(
                 "up": true,
                 "pending": false,
                 "disabled": false,
-                "config": {"band": band.uci(), "channel": radio.channel.to_string(), "htmode": htmode, "country": "US", "path": path},
+                "config": {"band": band.uci(), "channel": netifd.get(&index).unwrap_or(&radio.channel).to_string(), "htmode": htmode, "country": "US", "path": path},
+                "saved": {"channel": radio.channel.to_string(), "htmode": htmode},
                 "interfaces": ifaces,
             }),
         );

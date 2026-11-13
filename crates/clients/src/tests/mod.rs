@@ -143,6 +143,7 @@ fn node(id: u8) -> NodeFacts {
         band: Band::G5,
         up: true,
         disabled: false,
+        restart_pending: false,
         channel: Some(36),
         frequency_mhz: Some(5180),
         center_frequency_mhz: Some(5210),

@@ -1,5 +1,6 @@
 //! A fake node's radios for the Channels round (D-113): hostapd's `switch_chan` (taken, refused
-//! or stuck), the kernel's channel the agent's `radios` set reports (nl80211's), and
+//! or stuck), the kernel's channel the agent's `radios` set reports (nl80211's), netifd's
+//! channel left behind by a switch until a restart (D-113's catching up, D-116), and
 //! `wifi reload`, which restarts the radios on what they were switched to.
 
 use std::collections::BTreeMap;
@@ -36,6 +37,9 @@ pub(crate) struct FakeRadios {
     pub(crate) reloads: usize,
     /// The kernel's channel by interface: frequency, center and nl80211's width.
     running: BTreeMap<String, (u64, u64, u64)>,
+    /// The interfaces switched since the last reload, whose radios netifd holds on the old
+    /// channel.
+    catching_up: BTreeMap<String, u64>,
 }
 
 impl FakeRadios {
@@ -53,6 +57,8 @@ impl FakeRadios {
         self.switches.push((ifname.clone(), args["data"].clone()));
         if self.answer == Switching::Takes {
             self.run(&ifname, &args["data"]);
+            let freq = args["data"]["freq"].as_u64().unwrap_or_default();
+            self.catching_up.insert(ifname, freq);
         }
         Ok(json!({}))
     }
@@ -60,6 +66,7 @@ impl FakeRadios {
     /// `wifi reload`: every radio switched restarts where the configuration puts it.
     pub(crate) fn reload(&mut self) -> ExecOutput {
         self.reloads += 1;
+        self.catching_up.clear();
         for (ifname, data) in self.switches.clone() {
             self.run(&ifname, &data);
         }
@@ -80,8 +87,31 @@ impl FakeRadios {
         );
     }
 
-    /// Reports the kernel's channels in a collect.
+    /// Reports the kernel's channels in a collect, and UCI's channel of each radio catching up
+    /// (netifd's stays the fixture's).
     pub(crate) fn patch(&self, collected: &mut Value) {
+        if let Some(wireless) = collected
+            .pointer_mut("/sets/radios/wireless")
+            .and_then(Value::as_object_mut)
+        {
+            for radio in wireless.values_mut() {
+                let switched = radio["interfaces"].as_array().and_then(|ifaces| {
+                    ifaces.iter().find_map(|iface| {
+                        self.catching_up
+                            .get(iface["ifname"].as_str().unwrap_or_default())
+                    })
+                });
+                if let Some(&freq) = switched {
+                    let channel = if freq < 5000 {
+                        (freq - 2407) / 5
+                    } else {
+                        (freq - 5000) / 5
+                    };
+                    let htmode = radio["config"]["htmode"].clone();
+                    radio["saved"] = json!({"channel": channel.to_string(), "htmode": htmode});
+                }
+            }
+        }
         let Some(ifaces) = collected
             .pointer_mut("/sets/radios/interfaces")
             .and_then(Value::as_array_mut)

@@ -80,6 +80,9 @@ function RadioRow(props: { radio: RadioFacts; clients: number }) {
           fallback={<Badge tone="neutral">{radio().disabled ? r.disabled : r.off}</Badge>}
         >
           <span class="text-fg-muted text-sm">{tuning()}</span>
+          <Show when={radio().restart_pending}>
+            <Badge tone="info">{r.restartPending}</Badge>
+          </Show>
         </Show>
       </div>
       <Show when={on()}>

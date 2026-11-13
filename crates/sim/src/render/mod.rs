@@ -73,7 +73,13 @@ pub(crate) fn collect(world: &World, node: usize, sets: &[Set], disk: &Disk) -> 
                 Set::Config => config::hashes(files),
                 Set::Interfaces => net::interfaces(world, node, files),
                 Set::Leases => l2::leases(world, node, files),
-                Set::Radios => wifi::radios(world, node, &config::aps(files), off),
+                Set::Radios => wifi::radios(
+                    world,
+                    node,
+                    &config::aps(files),
+                    off,
+                    &disk.netifd_channels(),
+                ),
                 Set::Stations => wifi::stations(world, node, off),
                 Set::Capabilities => {
                     system::capabilities(&world.nodes[node], disk.wpad, &disk.mesh_software())
@@ -98,7 +104,7 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Leases => l2::leases(world, n, &BTreeMap::new()),
         Set::Neighbors => l2::neighbors(world, n),
         Set::Phys => wifi::phys(),
-        Set::Radios => wifi::radios(world, n, &[], &BTreeSet::new()),
+        Set::Radios => wifi::radios(world, n, &[], &BTreeSet::new(), &BTreeMap::new()),
         Set::Stations => wifi::stations(world, n, &BTreeSet::new()),
         Set::System => system::system(world, node),
     }

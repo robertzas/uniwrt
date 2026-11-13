@@ -37,6 +37,7 @@ pub(crate) fn radio(name: &str, up: bool, disabled: bool) -> RadioFacts {
         band: Band::G5,
         up,
         disabled,
+        restart_pending: false,
         channel: None,
         frequency_mhz: None,
         center_frequency_mhz: None,

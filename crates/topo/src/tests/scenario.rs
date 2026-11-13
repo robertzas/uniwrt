@@ -133,6 +133,7 @@ impl Node {
             band,
             up: true,
             disabled: false,
+            restart_pending: false,
             channel: None,
             frequency_mhz: None,
             center_frequency_mhz: None,

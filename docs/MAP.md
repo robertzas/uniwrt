@@ -293,7 +293,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/tests/install.rs`: The apply's install step (D-076) over a scripted gateway: what SQM needs is installed before anything is staged, its service kept off until the transaction switches it on; a failed install changes nothing.
 - `src/apply/tests/jobs.rs`: Applies over the scripted fleet: the two-phase commit, its failures and rollbacks.
 - `src/apply/tests/mod.rs`: The apply job's tests: unit-test facts, and jobs over scripted nodes that run the simulated transaction tool.
-- `src/apply/tests/radios.rs`: A fake node's radios for the Channels round (D-113): hostapd's `switch_chan` (taken, refused or stuck), the kernel's channel the agent's `radios` set reports (nl80211's), and `wifi reload`, which restarts the radios on what they were switched to.
+- `src/apply/tests/radios.rs`: A fake node's radios for the Channels round (D-113): hostapd's `switch_chan` (taken, refused or stuck), the kernel's channel the agent's `radios` set reports (nl80211's), netifd's channel left behind by a switch until a restart (D-113's catching up, D-116), and `wifi reload`, which restarts the radios on what they were switched to.
 - `src/apply/tests/roaming.rs`: The 802.11r keys an apply renders with (D-085): one per WLAN that fast-roams, derived from the controller's roaming key, which is made only once some WLAN needs it.
 - `src/apply/tests/rounds.rs`: The gateway's later transactions (D-081) over the scripted fleet: the network this controller sits on renumbers make-before-break, and the WAN changes last and alone.
 - `src/apply/verify.rs`: The verify phase of an apply (features/lifecycle.md, Render → diff → apply, step 4): every node at once over a new login at the address it moves to; it applied and reloaded, its timer is extended, the bridging gateway sees this controller come from the new subnet (D-081), and its health holds against the baseline.
@@ -309,6 +309,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
+- `src/restart.rs`: Restarting the radios still catching up after a channel switch (features/wifi.md, RF planner: Apply, step 4; M6.1 b3b, D-113, D-116).
+- `src/restart/tests.rs`: The radio restart over the scripted node of [`crate::testing`], adopted and managed, with a 5 GHz radio moved by a channel switch from 36 to 44.
 - `src/role.rs`: A node's role, changed after adoption (D-100): the router that becomes a dumb access point, or the access point promoted to the site's gateway.
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `src/speed_test/measure.rs`: What the speed test's script prints, read (pure): the WAN device's byte counters each second while loading, and the ping replies; rates from the counters past the warm-up (TCP's slow start), the median round trip idle and the 90th percentile under load.
@@ -591,9 +593,10 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/logging.rs`: Logging: `tracing` to stderr, filtered by `--log` / `UNIWRT_LOG` (`EnvFilter` syntax).
 - `src/main.rs`: The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
 - `src/master_key.rs`: The vault's master key (features/security.md, Secrets vault): from `UNIWRT_MASTER_KEY`, or from its file (`<data dir>/master.key` unless `--master-key-file` says otherwise), which the first run creates with mode 0600.
-- `src/nightly/ctx.rs`: What the nightly optimizer works with: the store, the job runner, the engine, RF insight and the API (to tell its WebSocket clients of a saved revision).
+- `src/nightly/catch_up.rs`: The radios still catching up after a channel switch (features/wifi.md, RF planner: Apply, step 4; M6.1 b3b, D-113, D-116): moved by hostapd's `switch_chan`, a radio runs its new channel while netifd and hostapd hold the old one until it restarts.
+- `src/nightly/ctx.rs`: What the nightly optimizer works with: the store, the job runner, the engine (each node's facts), RF insight and the API (to tell its WebSocket clients of a saved revision).
 - `src/nightly/mod.rs`: The nightly RF optimizer (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115): with `nightly` on in the `rf` settings, the site's window (03:30 local by default, for two hours) plans every band and applies the bands whose cost improves by 15 % or more ([`uniwrt_rf::plan::nightly`]): the plan is saved as a revision by the controller and applied with the usual transactions and rollback.
-- `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30.
+- `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30; its radio1 catches up after a channel switch where the test says so.
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT.
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
@@ -657,7 +660,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
 - `tests/rrm.rs`: The simulated agent's `rrm` op: each access point's own neighbor report, and lists that are set once and left alone when sent again.
-- `tests/switch.rs`: The simulated agent's channel switch (D-113): hostapd's `switch_chan` over the `ubus` op moves the access point's radio, which the `radios` set then reports.
+- `tests/switch.rs`: The simulated agent's channel switch (D-113): hostapd's `switch_chan` over the `ubus` op moves the access point's radio, which the `radios` set then reports, with its restart pending (netifd holds the old channel) until `wifi reload` restarts it.
 
 ### `uniwrt-store` (crates/store)
 
@@ -804,7 +807,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/leases.uc`: The `leases` set: DHCP leases from dnsmasq's lease files (each `dnsmasq` section's `leasefile`, /tmp/dhcp.leases by default) and from odhcpd over ubus (`dhcp ipv6leases`, and `ipv4leases` where odhcpd serves DHCPv4), with the node's clock, which dnsmasq's expiry times are on; and miniupnpd's lease file (`upnpd.config.upnp_lease_file`), the ports clients opened, where miniupnpd is set up.
 - `collect/neighbors.uc`: The `neighbors` set: the IPv4 and IPv6 neighbor caches and the bridges' forwarding databases.
 - `collect/phys.uc`: The `phys` set: the radio hardware (nl80211 `GET_WIPHY`) per band: its channels with their regulatory flags and power limits, and its HT, VHT, HE and EHT capabilities.
-- `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
+- `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`) with its channel and width as saved in UCI (netifd's differ until the radio restarts after a channel switch, D-113), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
 - `collect/stations.uc`: The `stations` set: the stations of every Wi-Fi interface (nl80211 `GET_STATION`): an AP's clients, mesh peers and a station interface's AP, with signal, rates, counters and airtime; and for APs, the capabilities hostapd saw in each client's association (`get_clients`).
 - `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.

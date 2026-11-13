@@ -94,6 +94,7 @@ fn radio(name: &str, phy: &str, band: Band, path: &str) -> RadioFacts {
         band,
         up: true,
         disabled: false,
+        restart_pending: false,
         channel: Some(if band == Band::G2 { 6 } else { 36 }),
         frequency_mhz: None,
         center_frequency_mhz: None,

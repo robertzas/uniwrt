@@ -48,7 +48,12 @@ impl SimLink {
             let data: Value = field(op, args, "data")?;
             let freq = data["freq"].as_u64().unwrap_or_default();
             let channel = (1..=196u8).find(|c| u64::from(radio.band.freq(*c)) == freq);
-            radio.channel = channel.ok_or_else(|| bad_request(op, "freq"))?;
+            let channel = channel.ok_or_else(|| bad_request(op, "freq"))?;
+            if channel != radio.channel {
+                lock(&self.shared.nodes[self.node].disk)
+                    .switched(radio.band.index(), radio.channel);
+            }
+            radio.channel = channel;
             return Ok(json!({}));
         }
         if path != "usteer" || method != "get_client_info" {

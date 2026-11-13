@@ -1,7 +1,7 @@
 //! The Channels round over the scripted fleet (D-113): access points whose radios' channels
 //! alone change move after the rest, one at a time, by a channel switch, falling back to a
 //! reload; their power goes with the fleet's transactions; a failure rolls back that node alone
-//! and restarts its radios.
+//! and restarts its radios. A switched radio then catches up in the radio restart job (D-116).
 
 use uniwrt_model::{
     job::{Job, JobErrorCode, JobNodeState, JobState, StepName, StepState},
@@ -235,4 +235,47 @@ async fn a_mesh_radio_moves_with_the_fleet() {
     assert_eq!(step(&job, StepName::Channels).0, StepState::Skipped);
     assert_eq!(fleet.fake(1).tool.lock().unwrap().live.len(), 0);
     assert!(states(&job).contains(&(StepName::Channels, StepState::Skipped)));
+}
+
+/// Restarts the radios catching up on `fleet`'s access point and waits for the job to end.
+async fn restart(fleet: &Fleet) -> Job {
+    use uniwrt_store::JobRepo as _;
+    let started = fleet
+        .jobs
+        .restart_radios(&[fleet.nodes[1].0.id])
+        .await
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let job = fleet.store.job(started.id).await.unwrap().unwrap();
+            if job.state != JobState::Running {
+                return job;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the restart ends")
+}
+
+#[tokio::test]
+async fn a_switched_radio_catches_up_in_the_restart_job() {
+    let fleet = applied(&[AP1]).await;
+    plan(&fleet, 6, TxPower::Auto).await;
+    let job = fleet.apply().await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    assert_eq!(fleet.fake(1).radios.lock().unwrap().reloads, 0);
+
+    let job = restart(&fleet).await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    assert_eq!(fleet.fake(1).radios.lock().unwrap().reloads, 1);
+    let (state, detail) = node_detail(&job, 0);
+    assert_eq!(
+        (state, detail.as_str()),
+        (JobNodeState::Verified, "Restarted radio1 on channel 6")
+    );
+    // Caught up: another restart leaves it alone.
+    let again = restart(&fleet).await;
+    assert_eq!(again.nodes[0].state, JobNodeState::Unchanged);
+    assert_eq!(fleet.fake(1).radios.lock().unwrap().reloads, 1);
 }

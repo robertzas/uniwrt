@@ -275,6 +275,7 @@ export const strings = {
       wan_test: (target: string) => `Testing the internet connection on ${target}`,
       speed_test: (target: string) => `Measuring the internet speed from ${target}`,
       wpad: (target: string) => `Installing the full wpad on ${target}`,
+      radio_restart: (target: string) => `Restarting ${target}`,
     },
     step: {
       connect: "Log in",
@@ -314,6 +315,7 @@ export const strings = {
       lease: "Take a lease on the LAN",
       prepare: "Bring the mesh's packages",
       configure: "Set it up on the LAN",
+      restart: "Restart the radios, one device at a time",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -897,6 +899,8 @@ export const strings = {
       width: (mhz: number) => `${mhz} MHz`,
       off: "Off",
       disabled: "Disabled",
+      /** Moved by a channel switch; the nightly window restarts it to catch up (D-116). */
+      restartPending: "Restarts tonight",
       txPower: "Transmit power",
       noise: "Noise",
       busy: "Channel busy",
@@ -1497,6 +1501,7 @@ export const strings = {
         wan_test: "testing the internet connection",
         speed_test: "measuring the internet speed",
         wpad: "installing the full wpad",
+        radio_restart: "restarting radios after a channel switch",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,

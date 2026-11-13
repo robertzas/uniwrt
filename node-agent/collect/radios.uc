@@ -1,14 +1,17 @@
 // The `radios` set: each radio's configuration and state from netifd (`network.wireless
-// status`), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's
+// status`) with its channel and width as saved in UCI (netifd's differ until the radio restarts
+// after a channel switch, D-113), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's
 // channel with the share of time it was busy since the previous collection. netifd's reply holds
 // the Wi-Fi keys, so only the options that facts use are kept.
 
+import * as uci from "uci";
 import * as bus from "../bus.uc";
 import { NOT_FOUND } from "../proto.uc";
 import { phys, request, interfaces } from "../wifi.uc";
 import { pick } from "../util.uc";
 
 const RADIO = ["band", "channel", "htmode", "country", "txpower", "path", "phy"];
+const SAVED = ["channel", "htmode"];
 const IFACE = ["mode", "ssid", "mesh_id", "encryption", "network", "hidden"];
 const NL_IFACE = ["ifname", "wiphy", "iftype", "mac", "ssid", "wiphy_freq", "channel_width", "center_freq1",
 	"center_freq2", "wiphy_tx_power_level"];
@@ -20,6 +23,19 @@ const MIN_TIME_MS = 1000;
 // The previous survey sample of each phy: { frequency, time, busy, percent }.
 let samples = {};
 
+// Each radio's channel and width as saved in UCI, by section. A radio with uncommitted changes
+// has none: a cursor reads them over the saved values.
+function saved() {
+	let cursor = uci.cursor(), staged = {}, found = {};
+	for (let change in cursor.changes("wireless")?.wireless ?? [])
+		staged[change[1]] = true;
+	cursor.foreach("wireless", "wifi-device", (s) => {
+		if (!staged[s[".name"]])
+			found[s[".name"]] = pick(s, SAVED);
+	});
+	return found;
+}
+
 function wireless() {
 	let reply = bus.call("network.wireless", "status");
 	// Without wifi-scripts (25.12 images without Wi-Fi), netifd has no wireless object.
@@ -27,13 +43,14 @@ function wireless() {
 		return {};
 	if (reply.code)
 		die(`ubus network.wireless status: ${reply.msg}`);
-	let radios = {};
+	let radios = {}, uci_saved = saved();
 	for (let name, radio in reply.ok ?? {})
 		radios[name] = {
 			up: radio.up,
 			pending: radio.pending,
 			disabled: radio.disabled,
 			config: pick(radio.config, RADIO),
+			saved: uci_saved[name],
 			interfaces: map(radio.interfaces ?? [], (i) => ({
 				section: i.section,
 				ifname: i.ifname,

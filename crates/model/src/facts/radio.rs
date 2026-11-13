@@ -22,6 +22,11 @@ pub struct RadioFacts {
     pub up: bool,
     /// Disabled in the configuration.
     pub disabled: bool,
+    /// Running another channel or width than its saved configuration: moved by a channel
+    /// switch, it catches up at its next restart (D-113), which the nightly window does
+    /// (D-116).
+    #[serde(default)]
+    pub restart_pending: bool,
     /// The operating channel; unknown while the radio is down.
     pub channel: Option<u16>,
     pub frequency_mhz: Option<u32>,

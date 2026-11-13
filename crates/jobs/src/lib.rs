@@ -9,6 +9,8 @@
 //!   managed node's basic wpad for the full one (D-089); [`Jobs::set_role`] changes a node's
 //!   role (D-100); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
+//!   [`Jobs::restart_radios`] restarts the radios still catching up after a channel switch,
+//!   node by node (D-116);
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
@@ -96,6 +98,7 @@ mod manage;
 mod manage_tests;
 mod progress;
 mod remote;
+mod restart;
 mod role;
 mod runner;
 mod speed_test;

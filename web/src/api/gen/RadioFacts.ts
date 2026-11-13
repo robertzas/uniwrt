@@ -26,6 +26,12 @@ path: string | null, band: Band, up: boolean,
  */
 disabled: boolean, 
 /**
+ * Running another channel or width than its saved configuration: moved by a channel
+ * switch, it catches up at its next restart (D-113), which the nightly window does
+ * (D-116).
+ */
+restart_pending: boolean, 
+/**
  * The operating channel; unknown while the radio is down.
  */
 channel: number | null, frequency_mhz: number | null, 

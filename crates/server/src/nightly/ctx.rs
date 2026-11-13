@@ -1,5 +1,5 @@
-//! What the nightly optimizer works with: the store, the job runner, the engine, RF insight
-//! and the API (to tell its WebSocket clients of a saved revision).
+//! What the nightly optimizer works with: the store, the job runner, the engine (each node's
+//! facts), RF insight and the API (to tell its WebSocket clients of a saved revision).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -25,7 +25,7 @@ use uniwrt_model::{
 use uniwrt_rf::plan::Plan;
 use uniwrt_store::{ApplyRepo as _, NodeRepo as _, RevisionRepo as _, Store};
 
-use super::{ApplyError, Head, SaveError, Site};
+use super::{Head, SaveError, Site, StartError};
 use crate::fleet_link::FleetLink;
 
 pub(super) struct Ctx {
@@ -77,24 +77,33 @@ impl Site for Ctx {
         &self,
         config: SiteConfig,
         modes: BTreeMap<NodeId, NodeMode>,
-    ) -> Result<(Plan, BTreeSet<(NodeId, String)>), String> {
-        let plan = self
-            .rf
-            .plan(config, modes)
-            .await
-            .map_err(|e| e.to_string())?;
-        let busy = self
-            .rf
+    ) -> Result<Plan, String> {
+        self.rf.plan(config, modes).await.map_err(|e| e.to_string())
+    }
+
+    async fn busy(&self) -> Result<BTreeSet<(NodeId, String)>, String> {
+        self.rf
             .busy(NIGHTLY_HEAVY_KBPS)
             .await
-            .map_err(|e| e.to_string())?;
-        Ok((plan, busy))
+            .map_err(|e| e.to_string())
     }
 
     fn offline(&self, node: NodeId) -> bool {
         self.engine
             .node(node)
             .is_none_or(|view| view.status.state == NodeState::Offline)
+    }
+
+    fn catching_up(&self, node: NodeId) -> Vec<String> {
+        let Some(facts) = self.engine.node(node).and_then(|view| view.facts) else {
+            return Vec::new();
+        };
+        facts
+            .radios
+            .iter()
+            .filter(|radio| radio.up && radio.restart_pending)
+            .map(|radio| radio.name.clone())
+            .collect()
     }
 
     async fn job_running(&self) -> bool {
@@ -140,11 +149,19 @@ impl Site for Ctx {
         }
     }
 
-    async fn apply(&self, revision: RevisionId) -> Result<JobId, ApplyError> {
+    async fn apply(&self, revision: RevisionId) -> Result<JobId, StartError> {
         match self.jobs.apply(revision, None).await {
             Ok(job) => Ok(job.id),
-            Err(uniwrt_jobs::Error::Busy { .. }) => Err(ApplyError::Busy),
-            Err(err) => Err(ApplyError::Failed(err.to_string())),
+            Err(uniwrt_jobs::Error::Busy { .. }) => Err(StartError::Busy),
+            Err(err) => Err(StartError::Failed(err.to_string())),
+        }
+    }
+
+    async fn restart(&self, nodes: Vec<NodeId>) -> Result<JobId, StartError> {
+        match self.jobs.restart_radios(&nodes).await {
+            Ok(job) => Ok(job.id),
+            Err(uniwrt_jobs::Error::Busy { .. }) => Err(StartError::Busy),
+            Err(err) => Err(StartError::Failed(err.to_string())),
         }
     }
 

@@ -30,7 +30,7 @@ use crate::{
     discovery::Discovery,
     manage,
     progress::Progress,
-    wpad,
+    restart, wpad,
 };
 
 /// How many job updates a slow subscriber may fall behind before it lags.
@@ -265,6 +265,32 @@ impl Jobs {
             job,
             move |shared, progress| wpad::run(shared, node, progress),
         )
+        .await
+    }
+
+    /// Starts restarting the radios still catching up after a channel switch on `nodes`, one
+    /// node at a time (D-116; the nightly window's), and returns the job as it starts. Every
+    /// node must be managed; it holds each of them like any job on it.
+    pub async fn restart_radios(&self, nodes: &[NodeId]) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        if nodes.is_empty() {
+            return Err(Error::Failed("no node to restart radios on".to_owned()));
+        }
+        let mut found = Vec::with_capacity(nodes.len());
+        for &id in nodes {
+            let node = self.shared.store.node(id).await?.ok_or(Error::NoNode(id))?;
+            if node.mode != uniwrt_model::node::NodeMode::Managed {
+                return Err(Error::Observed(node.id));
+            }
+            found.push(node);
+        }
+        let job = restart::job(&found);
+        let keys = found.iter().map(|node| manage::target(node.id)).collect();
+        self.spawn(keys, job, move |shared, progress| {
+            restart::run(shared, found, progress)
+        })
         .await
     }
 

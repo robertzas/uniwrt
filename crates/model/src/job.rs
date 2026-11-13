@@ -99,6 +99,9 @@ pub enum JobKind {
     /// Swapping a node's basic wpad for the full one, which adds 802.11v (features/wifi.md,
     /// Roaming; D-085, D-089).
     Wpad,
+    /// Restarting the radios still catching up after a channel switch, one node at a time, in
+    /// the nightly window (features/wifi.md, RF planner: Apply; D-113, D-116).
+    RadioRestart,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -218,6 +221,9 @@ pub enum StepName {
     /// Apply the revision the gateway holds to the new node on the LAN, as an apply job of its
     /// own: its packages, mesh and WLANs (D-107).
     Configure,
+    /// Restart each node's radios that run another channel than saved, one node at a time,
+    /// until netifd runs the saved one (D-116).
+    Restart,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -1,7 +1,9 @@
 //! The `radios` set: netifd's `network.wireless status` (each radio's configuration and state),
 //! nl80211's interfaces (channel, width, power and addresses) and each phy's channel survey. A
 //! radio's phy is the phy of its interfaces; while it has none, the one its `phy` option names or
-//! whose device is its `path`.
+//! whose device is its `path`. A radio's restart is pending when netifd runs another channel or
+//! width than UCI saved (a channel switch, D-113); the agent reports UCI's values
+//! (none for a radio with uncommitted changes), and without them nothing is pending.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -32,13 +34,34 @@ struct Radio {
     disabled: bool,
     #[serde(default)]
     config: RadioConfig,
+    /// UCI's channel and width.
+    #[serde(default)]
+    saved: Option<Saved>,
     #[serde(default)]
     interfaces: Vec<Iface>,
 }
 
 #[derive(Default, Deserialize)]
+struct Saved {
+    #[serde(default, deserialize_with = "text")]
+    channel: Option<String>,
+    htmode: Option<String>,
+}
+
+/// A UCI value netifd may report as a number.
+fn text<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<String>, D::Error> {
+    Ok(match Option::<serde_json::Value>::deserialize(de)? {
+        Some(serde_json::Value::String(text)) => Some(text),
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        _ => None,
+    })
+}
+
+#[derive(Default, Deserialize)]
 struct RadioConfig {
     band: Option<String>,
+    #[serde(default, deserialize_with = "text")]
+    channel: Option<String>,
     htmode: Option<String>,
     country: Option<String>,
     path: Option<String>,
@@ -135,6 +158,7 @@ pub(super) fn parse(raw: Raw) -> Vec<RadioFacts> {
                 band,
                 up: radio.up,
                 disabled: radio.disabled,
+                restart_pending: radio.up && restart_pending(&radio.config, radio.saved.as_ref()),
                 channel: frequency_mhz.and_then(|mhz| band.channel(mhz)),
                 frequency_mhz,
                 center_frequency_mhz: live.and_then(|nl| nl.center_freq1),
@@ -158,6 +182,18 @@ pub(super) fn parse(raw: Raw) -> Vec<RadioFacts> {
             })
         })
         .collect()
+}
+
+/// Whether netifd runs another channel or width than UCI saved. A value missing on either side
+/// is taken as equal: only a known difference restarts a radio.
+fn restart_pending(running: &RadioConfig, saved: Option<&Saved>) -> bool {
+    let Some(saved) = saved else {
+        return false;
+    };
+    let differs =
+        |a: Option<&str>, b: Option<&str>| a.zip(b).is_some_and(|(a, b)| a.trim() != b.trim());
+    differs(running.channel.as_deref(), saved.channel.as_deref())
+        || differs(running.htmode.as_deref(), saved.htmode.as_deref())
 }
 
 /// The phy whose device is a radio's `path`. Phys that share a device (two radios on one card)
@@ -221,7 +257,42 @@ fn wifi_iface(iface: &Iface, nl: Option<&NlIface>, radio_up: bool) -> Option<Wif
 mod tests {
     use uniwrt_model::wifi::WifiStandard;
 
-    use super::{Phy, by_path, standard};
+    use super::{Phy, RadioConfig, Saved, by_path, restart_pending, standard};
+
+    #[test]
+    fn a_radio_restarts_pending_only_where_netifd_runs_another_channel_or_width_than_saved() {
+        let running = RadioConfig {
+            channel: Some("36".into()),
+            htmode: Some("HE80".into()),
+            ..RadioConfig::default()
+        };
+        let saved = |channel: Option<&str>, htmode: Option<&str>| Saved {
+            channel: channel.map(Into::into),
+            htmode: htmode.map(Into::into),
+        };
+        assert!(!restart_pending(&running, None));
+        assert!(!restart_pending(
+            &running,
+            Some(&saved(Some("36"), Some("HE80")))
+        ));
+        assert!(restart_pending(
+            &running,
+            Some(&saved(Some("44"), Some("HE80")))
+        ));
+        assert!(restart_pending(
+            &running,
+            Some(&saved(Some("36"), Some("HE40")))
+        ));
+        // Unknown on one side: nothing to restart for.
+        assert!(!restart_pending(&running, Some(&saved(None, None))));
+        let raw: super::Radio = serde_json::from_value(serde_json::json!({
+            "up": true,
+            "config": {"channel": 36, "htmode": "HE80"},
+            "saved": {"channel": "149", "htmode": "HE80"},
+        }))
+        .unwrap();
+        assert!(restart_pending(&raw.config, raw.saved.as_ref()));
+    }
 
     #[test]
     fn htmodes_name_their_standard() {

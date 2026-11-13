@@ -1,5 +1,6 @@
 //! The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan
-//! improves the band by 30 %, at 03:40 local in the window opening at 03:30.
+//! improves the band by 30 %, at 03:40 local in the window opening at 03:30; its radio1 catches
+//! up after a channel switch where the test says so.
 
 // The fake answers at once.
 #![allow(clippy::unused_async_trait_impl)]
@@ -19,7 +20,7 @@ use uniwrt_model::{
 };
 use uniwrt_rf::plan::{BandPlan, Breakdown, Plan, RadioPlan, Search, Setting};
 
-use super::{ApplyError, Head, SaveError, Site, State, look};
+use super::{Head, SaveError, Site, StartError, State, look};
 
 const NODE: NodeId = NodeId::new(1);
 /// Day 20405, 03:40 UTC.
@@ -59,6 +60,8 @@ fn plan(improvement: f32) -> Plan {
     }
 }
 
+// The fake's switches, one per thing a test turns on.
+#[allow(clippy::struct_excessive_bools)]
 struct World {
     settings: RfSettings,
     now: Timestamp,
@@ -69,6 +72,11 @@ struct World {
     busy: bool,
     offline: bool,
     apply_busy: bool,
+    /// Set by an apply that starts, as the real job holds the configuration until it ends.
+    job_running: bool,
+    catching_up: Vec<String>,
+    restart_busy: bool,
+    restarts: Vec<Vec<NodeId>>,
     saved: Vec<(RevisionId, String)>,
     applied: Vec<RevisionId>,
     notes: Vec<EventKind>,
@@ -90,6 +98,10 @@ impl Fake {
             busy: false,
             offline: false,
             apply_busy: false,
+            job_running: false,
+            catching_up: Vec::new(),
+            restart_busy: false,
+            restarts: Vec::new(),
             saved: Vec::new(),
             applied: Vec::new(),
             notes: Vec::new(),
@@ -128,15 +140,21 @@ impl Site for Fake {
         }))
     }
 
-    async fn plan(
-        &self,
-        _: SiteConfig,
-        _: BTreeMap<NodeId, NodeMode>,
-    ) -> Result<(Plan, BTreeSet<(NodeId, String)>), String> {
+    async fn plan(&self, _: SiteConfig, _: BTreeMap<NodeId, NodeMode>) -> Result<Plan, String> {
+        Ok(self.with(|w| w.plan.clone()))
+    }
+
+    async fn busy(&self) -> Result<BTreeSet<(NodeId, String)>, String> {
         Ok(self.with(|w| {
-            let busy = w.busy.then(|| (NODE, "radio1".to_owned()));
-            (w.plan.clone(), busy.into_iter().collect())
+            w.busy
+                .then(|| (NODE, "radio1".to_owned()))
+                .into_iter()
+                .collect()
         }))
+    }
+
+    fn catching_up(&self, _: NodeId) -> Vec<String> {
+        self.with(|w| w.catching_up.clone())
     }
 
     fn offline(&self, _: NodeId) -> bool {
@@ -144,7 +162,7 @@ impl Site for Fake {
     }
 
     async fn job_running(&self) -> bool {
-        false
+        self.with(|w| w.job_running)
     }
 
     async fn save(
@@ -164,13 +182,24 @@ impl Site for Fake {
         })
     }
 
-    async fn apply(&self, revision: RevisionId) -> Result<JobId, ApplyError> {
+    async fn apply(&self, revision: RevisionId) -> Result<JobId, StartError> {
         self.with(|w| {
             if w.apply_busy {
-                return Err(ApplyError::Busy);
+                return Err(StartError::Busy);
             }
             w.applied.push(revision);
+            w.job_running = true;
             Ok(JobId::new(40 + i64::try_from(w.applied.len()).unwrap_or(0)))
+        })
+    }
+
+    async fn restart(&self, nodes: Vec<NodeId>) -> Result<JobId, StartError> {
+        self.with(|w| {
+            if w.restart_busy {
+                return Err(StartError::Busy);
+            }
+            w.restarts.push(nodes);
+            Ok(JobId::new(60))
         })
     }
 
@@ -296,4 +325,61 @@ async fn an_apply_that_cannot_start_starts_later_from_the_revision_already_saved
         assert_eq!(w.saved.len(), 1, "not saved again");
         assert_eq!(w.applied, vec![RevisionId::new(8)]);
     });
+}
+
+#[tokio::test]
+async fn radios_catching_up_restart_after_tonights_apply_once_a_night() {
+    let site = Fake::new();
+    let mut state = State::default();
+    site.with(|w| w.catching_up = vec!["radio1".to_owned()]);
+    look(&site, &mut state).await;
+    site.with(|w| {
+        assert_eq!(w.applied.len(), 1);
+        assert!(w.restarts.is_empty(), "not while tonight's apply runs");
+    });
+    site.with(|w| (w.job_running, w.now) = (false, at(3, 50)));
+    look(&site, &mut state).await;
+    assert_eq!(site.with(|w| w.restarts.clone()), vec![vec![NODE]]);
+    // Still catching up later that night (the restart failed): not restarted again.
+    site.with(|w| w.now = at(4, 0));
+    look(&site, &mut state).await;
+    assert_eq!(site.with(|w| w.restarts.len()), 1);
+    // The next night it is, even though the optimizer skips (its revision unapplied).
+    site.with(|w| w.now = at(27, 40));
+    look(&site, &mut state).await;
+    assert_eq!(site.with(|w| w.restarts.len()), 2);
+}
+
+#[tokio::test]
+async fn with_the_optimizer_off_the_window_still_restarts_radios_once_quiet() {
+    let site = Fake::new();
+    let mut state = State::default();
+    site.with(|w| {
+        w.settings.nightly = false;
+        w.catching_up = vec!["radio1".to_owned()];
+        w.busy = true;
+        w.now = at(3, 20);
+    });
+    look(&site, &mut state).await;
+    assert!(site.with(|w| w.restarts.is_empty()), "not before 03:30");
+    site.with(|w| w.now = at(3, 40));
+    look(&site, &mut state).await;
+    assert!(
+        site.with(|w| w.restarts.is_empty()),
+        "not with heavy traffic"
+    );
+    // Quiet, but another job took the node; then the next look starts it.
+    site.with(|w| (w.busy, w.restart_busy, w.now) = (false, true, at(3, 50)));
+    look(&site, &mut state).await;
+    assert!(site.with(|w| w.restarts.is_empty()));
+    site.with(|w| (w.restart_busy, w.now) = (false, at(4, 0)));
+    look(&site, &mut state).await;
+    site.with(|w| {
+        assert_eq!(w.restarts, vec![vec![NODE]]);
+        assert!(w.saved.is_empty() && w.applied.is_empty() && w.notes.is_empty());
+    });
+    // An offline node is left alone.
+    site.with(|w| (w.offline, w.now) = (true, at(28, 0)));
+    look(&site, &mut state).await;
+    assert_eq!(site.with(|w| w.restarts.len()), 1);
 }

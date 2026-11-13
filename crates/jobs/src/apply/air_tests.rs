@@ -24,6 +24,7 @@ fn radio(name: &str, band: Band, modes: &[WifiIfaceMode]) -> RadioFacts {
         band,
         up: true,
         disabled: false,
+        restart_pending: false,
         channel: Some(36),
         frequency_mhz: Some(5180),
         center_frequency_mhz: Some(5210),

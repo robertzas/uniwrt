@@ -42,6 +42,7 @@ pub(crate) fn radio(n: u8, band: Band, busy: Option<f32>) -> RadioFacts {
         band,
         up: true,
         disabled: band == Band::G2,
+        restart_pending: false,
         channel: Some(36),
         frequency_mhz: Some(5180),
         center_frequency_mhz: Some(5210),

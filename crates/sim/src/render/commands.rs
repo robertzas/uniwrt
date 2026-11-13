@@ -55,6 +55,10 @@ pub(crate) struct Disk {
     pub(crate) rrm: Option<(String, BTreeMap<String, Vec<NeighborReport>>)>,
     /// `/etc/config/network` as [`Disk::rewired`] last read it.
     pub(crate) wired_from: Option<String>,
+    /// The channels netifd still holds for the radios `switch_chan` moved, by band index,
+    /// with `wireless` as it was then: until a reload restarts them (D-113,
+    /// [`Disk::netifd_channels`]).
+    pub(crate) switched: Option<(Option<String>, BTreeMap<usize, u8>)>,
 }
 
 impl Default for Disk {
@@ -72,6 +76,7 @@ impl Default for Disk {
             bss_off: None,
             rrm: None,
             wired_from: None,
+            switched: None,
         }
     }
 }
@@ -83,6 +88,25 @@ impl Disk {
         let mut disk = Self::default();
         disk.tool.files = files;
         disk
+    }
+
+    /// The channels netifd holds for radios moved by `switch_chan`, by band index: none once a
+    /// reload restarted them (`wifi reload`, or an apply that changes `wireless`).
+    pub(crate) fn netifd_channels(&self) -> BTreeMap<usize, u8> {
+        match &self.switched {
+            Some((wireless, channels)) if self.tool.files.get("wireless") == wireless.as_ref() => {
+                channels.clone()
+            }
+            _ => BTreeMap::new(),
+        }
+    }
+
+    /// Notes that `switch_chan` moved the radio of band `index` off `channel`, which netifd
+    /// holds until the radio restarts.
+    pub(crate) fn switched(&mut self, index: usize, channel: u8) {
+        let mut channels = self.netifd_channels();
+        channels.entry(index).or_insert(channel);
+        self.switched = Some((self.tool.files.get("wireless").cloned(), channels));
     }
 
     /// The BSSes that are off: those the `bss` op turned off, unless `wireless` changed since.
@@ -253,9 +277,12 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
     let keys = &mut disk.authorized_keys;
     match argv.as_slice() {
         ["cat", "/etc/openwrt_release"] => ok(release(node).into_bytes()),
-        // A reload after a channel switch that didn't take (D-113): the sim's radios run what
-        // the switch announced already.
-        ["wifi", "reload"] => ok(Vec::new()),
+        // A reload restarts the radios a channel switch moved on the channel they run (D-113);
+        // after a switch that didn't take, the sim's radios run what it announced already.
+        ["wifi", "reload"] => {
+            disk.switched = None;
+            ok(Vec::new())
+        }
         ["ubus", "call", "system", "board"] => {
             ok(super::system::board(node)["board"].to_string().into_bytes())
         }
