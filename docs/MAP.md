@@ -368,6 +368,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
 - `src/firmware.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog of releases and device profiles, and the zero-touch images the controller asks ASU (OpenWrt's public Attended Sysupgrade service) to build.
 - `src/floor.rs`: Floor plans (features/wifi.md, Coverage & floor plans; D-117): each floor's image, its scale and where nodes are placed on it.
+- `src/floor/walls.rs`: A floor's walls (features/wifi.md, Coverage & floor plans; M6.2c): segments drawn on the plan, each of a material that takes a fixed loss per band from every signal crossing it.
 - `src/import.rs`: A brownfield import's preview (features/lifecycle.md, Brownfield import; D-072, D-073): what accepting the configuration the adopted nodes hold would change in the site, and per node how well the model holds it, for the review screen, before anything is saved.
 - `src/inventory.rs`: What the controller keeps about an adopted node besides its facts: the packages it runs and its configuration backups (features/adoption.md, Path A).
 - `src/job.rs`: Jobs: what the controller does on nodes step by step (ARCHITECTURE.md, Job runner), such as adopting one, enabling its management or applying the site's configuration, recorded as history.
@@ -555,6 +556,7 @@ RF insight (features/wifi.md, RF insight): what the site's radios hear and how c
 - `src/coverage/geometry.rs`: Where placed nodes are in meters: each floor's plan scaled by its own scale, the floors stacked by level with their heights, every plan's top-left corner over the same point (features/wifi.md, Coverage & floor plans).
 - `src/coverage/mod.rs`: The coverage model (features/wifi.md, Coverage & floor plans; D-118): per band, a log-distance path loss fitted to the inter-node RSSI matrix between placed nodes.
 - `src/coverage/tests.rs`: (no header comment)
+- `src/coverage/walls.rs`: What the walls a signal crosses take from it (M6.2c).
 - `src/lib.rs`: RF insight (features/wifi.md, RF insight): what the site's radios hear and how crowded their channels are, from the nodes' facts and their radios' neighbor scans; and the RF planner (M6.1): each radio's channel, width and power.
 - `src/plan/blocks.rs`: The channels a radio may take: each band's standard blocks of 20 MHz channels per width (the layout OpenWrt derives from a primary channel and `htmode`), filtered by what the radios allow and the DFS policy.
 - `src/plan/cost.rs`: The objective (features/wifi.md, RF planner: Objective) over one band: what each radio suffers from the site's other radios and foreign networks, DFS, moving, and the width it gives up.
@@ -837,7 +839,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (388 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (391 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -854,7 +856,8 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
-- `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts
+- `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts, walls.ts
+- `features/floorplans/walls/`: WallsLayer.tsx, WallsToolbar.tsx, createWalls.ts, materials.ts, snap.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts

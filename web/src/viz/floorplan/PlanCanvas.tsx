@@ -26,7 +26,8 @@ const t = strings.floors.canvas;
  * A floor's plan in a pan-and-zoom view (D-117): drag to pan, wheel or the buttons to zoom,
  * fitted on first show. `underlay` draws on the plan in its own pixels (a heatmap), `children`
  * over it in screen space (markers keep their size at any zoom); `picking` turns clicks into
- * `onPick` with the plan point under the pointer.
+ * `onPick` with the plan point under the pointer, and `onHover` follows the pointer while it
+ * isn't panning (undefined once it leaves).
  */
 export function PlanCanvas(props: {
   src: string;
@@ -34,7 +35,8 @@ export function PlanCanvas(props: {
   height: number;
   label: string;
   picking?: boolean;
-  onPick?: (point: PlanPoint) => void;
+  onPick?: (point: PlanPoint, event: PointerEvent) => void;
+  onHover?: (point: PlanPoint | undefined, event: PointerEvent) => void;
   /** Called with each zoom, for scale bars. */
   onZoom?: (zoom: number) => void;
   /** Drawn on the plan, in its pixels. */
@@ -123,6 +125,7 @@ export function PlanCanvas(props: {
     svg.setPointerCapture?.(event.pointerId);
   };
   const onPointerMove = (event: PointerEvent) => {
+    if (!drag?.moved) props.onHover?.(frame.toPlan(event.clientX, event.clientY), event);
     if (!drag || drag.id !== event.pointerId) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
@@ -134,7 +137,9 @@ export function PlanCanvas(props: {
     if (!drag || drag.id !== event.pointerId) return;
     const clicked = !drag.moved;
     drag = undefined;
-    if (clicked && props.picking) props.onPick?.(frame.toPlan(event.clientX, event.clientY));
+    if (clicked && props.picking) {
+      props.onPick?.(frame.toPlan(event.clientX, event.clientY), event);
+    }
   };
 
   const button =
@@ -155,6 +160,7 @@ export function PlanCanvas(props: {
         onPointerCancel={() => {
           drag = undefined;
         }}
+        onPointerLeave={(event) => props.onHover?.(undefined, event)}
       >
         <g transform={`translate(${view().x} ${view().y}) scale(${view().zoom})`}>
           <rect width={props.width} height={props.height} fill="#fff" />

@@ -32,6 +32,7 @@ const coverage: Coverage = {
         { node: 1, tx_power_dbm: 20 },
         { node: 2, tx_power_dbm: 20 },
       ],
+      wall_losses: [{ material: "concrete", loss_db: 18 }],
     },
   ],
 };
@@ -45,6 +46,7 @@ function floor(extra: Partial<Floor> = {}): Floor {
     image: { kind: "webp", width_px: 800, height_px: 600, bytes: 4, version: 1 },
     scale: null,
     nodes: [],
+    walls: [],
     updated_at: 0,
     ...extra,
   };
@@ -83,6 +85,10 @@ beforeEach(() => {
         ];
         return Response.json(found);
       }
+      if (found && /\/walls$/.test(path) && method === "PUT") {
+        found.walls = body as Floor["walls"];
+        return Response.json(found);
+      }
       if (found && method === "PUT") {
         Object.assign(found, body);
         return Response.json(found);
@@ -115,6 +121,8 @@ function clickPlan(x: number, y: number) {
 
 const sent = (method: string, pattern: RegExp) =>
   calls.filter((c) => c.method === method && pattern.test(c.url));
+/** The wall lists saved, in order. */
+const walled = () => sent("PUT", /\/walls$/).map((c) => c.body as Floor["walls"]);
 
 describe("the floor plans page", () => {
   it("adds the first floor with its plan", async () => {
@@ -214,10 +222,65 @@ describe("the floor plans page", () => {
     expect(card).toHaveTextContent("Not calibrated yet");
     expect(card).toHaveTextContent("1 device on this band isn't placed");
     expect(card).toHaveTextContent("the whole plan counts");
+    expect(card).toHaveTextContent("No walls drawn");
     expect(document.querySelector("[data-suggested]")).not.toBeNull();
     expect(within(card).getByRole("button", { name: "5 GHz" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
+  });
+
+  it("draws walls with snapping, changes their material, deletes and undoes", async () => {
+    floors = [
+      floor({ scale: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, length_m: 10, unit: "m" } }),
+    ];
+    await renderPage();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Walls" }));
+    const toolbar = await screen.findByRole("toolbar", { name: "Walls" });
+    await user.click(within(toolbar).getByRole("button", { name: "Brick" }));
+    expect(within(toolbar).getByRole("status")).toHaveTextContent("Click to start a wall");
+
+    // The plan's corner is at (20, 15) at 0.95×: plan (100, 100), then (400, 104) ruled level,
+    // then a second click on the same corner ends the wall.
+    clickPlan(20 + 95, 15 + 95);
+    await waitFor(() =>
+      expect(within(toolbar).getByRole("status")).toHaveTextContent("Click the next corner"),
+    );
+    clickPlan(20 + 380, 15 + 98.8);
+    await waitFor(() => expect(sent("PUT", /\/floors\/1\/walls$/)).toHaveLength(1));
+    clickPlan(20 + 380, 15 + 98.8);
+    await waitFor(() =>
+      expect(within(toolbar).getByRole("status")).toHaveTextContent("Click to start a wall"),
+    );
+    // A double-click's second half doesn't start another wall at the corner.
+    clickPlan(20 + 380, 15 + 98.8);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(within(toolbar).getByRole("status")).toHaveTextContent("Click to start a wall");
+    const wall = walled()[0]?.[0];
+    expect(wall?.material).toBe("brick");
+    expect(wall?.from.x).toBeCloseTo(100);
+    expect(wall?.to.x).toBeCloseTo(400);
+    expect(wall?.to.y).toBeCloseTo(100);
+    expect(document.querySelector('[data-material="brick"]')).not.toBeNull();
+
+    // Select it, make it concrete, delete it, undo the delete.
+    clickPlan(20 + 237.5, 15 + 95);
+    await waitFor(() =>
+      expect(within(toolbar).getByRole("status")).toHaveTextContent("Brick wall, 30 m"),
+    );
+    await user.click(within(toolbar).getByRole("button", { name: "Concrete" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(2));
+    expect(walled()[1]?.[0]?.material).toBe("concrete");
+    await user.click(within(toolbar).getByRole("button", { name: "Delete wall" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(3));
+    expect(sent("PUT", /\/walls$/)[2]?.body).toEqual([]);
+    await user.click(within(toolbar).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(4));
+    expect(walled()[3]?.[0]?.material).toBe("concrete");
+
+    await user.click(within(toolbar).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("toolbar", { name: "Walls" })).toBeNull();
+    expect(document.querySelector('[data-material="concrete"]')).not.toBeNull();
   });
 });

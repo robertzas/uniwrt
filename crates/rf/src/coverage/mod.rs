@@ -6,18 +6,26 @@
 //! free space at the band's middle (it takes the antennas' gains as 0 dBi, which `n` absorbs), the
 //! exponent `n` is fitted by least squares to the same-floor measurements, then the floor loss `F`
 //! to the residuals of the measurements between floors. A part without measurements keeps the
-//! band's default. A measurement is a matrix entry between two nodes placed on scaled floors:
+//! band's default. Walls drawn on the plans add their materials' fixed losses (M6.2c), taken off
+//! each measurement before the fit. A measurement is a matrix entry between two nodes placed on scaled floors:
 //! the transmitter's power less the signal heard.
 
 mod geometry;
 #[cfg(test)]
 mod tests;
+mod walls;
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::NodeId;
-use uniwrt_model::{floor::Floor, wifi::Band};
+use uniwrt_model::{
+    floor::{Floor, Material},
+    wifi::Band,
+};
 
-use self::geometry::{Located, locate};
+use self::{
+    geometry::{Located, locate},
+    walls::{storeys, wall_loss},
+};
 use crate::RfReport;
 
 /// The fitted exponent stays within this.
@@ -53,6 +61,16 @@ pub struct BandModel {
     pub error_db: Option<f32>,
     /// Each node's strongest radio on the band that is up, by node.
     pub transmitters: Vec<Transmitter>,
+    /// What crossing a wall of each material takes, lightest first.
+    pub wall_losses: Vec<WallLoss>,
+}
+
+/// What a signal on the band loses crossing a wall of the material once.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct WallLoss {
+    pub material: Material,
+    pub loss_db: f32,
 }
 
 /// What a node sends with on the band.
@@ -73,7 +91,7 @@ fn defaults(band: Band) -> Option<(f64, f64, f64)> {
     }
 }
 
-/// One measurement: the loss seen, `10·log10(d)` and the floors crossed.
+/// One measurement: the loss seen less the walls crossed, `10·log10(d)` and the floors crossed.
 #[derive(Debug, Clone, Copy)]
 struct Sample {
     loss: f64,
@@ -84,6 +102,7 @@ struct Sample {
 /// The model of every band of `report`, fitted to its matrix where `floors` place both nodes.
 pub fn coverage(floors: &[Floor], report: &RfReport) -> Coverage {
     let located = locate(floors);
+    let storeys = storeys(floors);
     let bands = report
         .bands
         .iter()
@@ -109,7 +128,9 @@ pub fn coverage(floors: &[Floor], report: &RfReport) -> Coverage {
                     let (from, to): (&Located, &Located) = (at(entry.from)?, at(entry.to)?);
                     let tx = transmitters.iter().find(|t| t.node == entry.to)?;
                     Some(Sample {
-                        loss: f64::from(tx.tx_power_dbm) - f64::from(entry.signal_dbm),
+                        loss: f64::from(tx.tx_power_dbm)
+                            - f64::from(entry.signal_dbm)
+                            - wall_loss(&storeys, from, to, band.band),
                         x: 10.0 * from.distance(to).max(1.0).log10(),
                         floors: from.floors(to),
                     })
@@ -171,6 +192,14 @@ fn fit(
         samples: u32::try_from(samples.len()).unwrap_or(u32::MAX),
         error_db,
         transmitters,
+        wall_losses: Material::ALL
+            .iter()
+            .map(|&material| WallLoss {
+                material,
+                #[allow(clippy::cast_possible_truncation)]
+                loss_db: material.loss_db(band) as f32,
+            })
+            .collect(),
     }
 }
 

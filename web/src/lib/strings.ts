@@ -4059,6 +4059,29 @@ export const strings = {
       marker: (name: string) => `${name}: drag or use the arrow keys to move`,
       needsPlan: "Upload a plan to place devices on this floor.",
     },
+    walls: {
+      button: "Walls",
+      toolbar: "Walls",
+      material: "Material",
+      materials: {
+        glass: "Glass",
+        drywall: "Drywall",
+        wood: "Wood",
+        brick: "Brick",
+        concrete: "Concrete",
+        metal: "Metal",
+      },
+      undo: "Undo",
+      delete: "Delete wall",
+      done: "Done",
+      start:
+        "Click to start a wall, then click each corner. Double-click or Enter ends it; Alt draws without snapping.",
+      drawing: "Click the next corner. Double-click, Enter or Esc ends the wall.",
+      selected: (material: string, length: string | undefined) =>
+        `${material} wall${length ? `, ${length}` : ""}. Drag its ends, pick another material, or press Delete. Click it again to start a wall from it.`,
+      failed: "The walls couldn't be saved",
+      count: (count: number) => `${count} ${count === 1 ? "wall" : "walls"}`,
+    },
     coverage: {
       title: "Coverage",
       description:
@@ -4081,6 +4104,9 @@ export const strings = {
         "Not calibrated yet: typical indoor values until two placed devices hear each other.",
       parameters: (exponent: number, floorLoss: number, fitted: boolean) =>
         `Path-loss exponent ${exponent}; ${floorLoss} dB per floor${fitted ? "" : " (typical)"}.`,
+      walls: (count: number) =>
+        `${count} ${count === 1 ? "wall" : "walls"} drawn on the plans ${count === 1 ? "counts" : "count"} by material, in the fit and in the heatmap.`,
+      noWalls: "No walls drawn: draw them with Walls for a sharper heatmap.",
       deadZones: (area: string, share: number) => `Dead zones: ${area}, ${share} % of the floor.`,
       noDead: "No dead zones on this floor.",
       outline: "The floor's outline comes from the plan's drawing.",

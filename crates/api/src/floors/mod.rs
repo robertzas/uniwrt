@@ -12,6 +12,10 @@
 //! - `PUT v1/floors/{id}/nodes/{node}` (`{x, y}` on the plan, which must be uploaded: 409) places
 //!   a node, moving it from any other floor; `DELETE` there takes it off. Placements aren't
 //!   audited (dragging a node would flood the log), like the topology's layout.
+//! - `PUT v1/floors/{id}/walls` (every [`Wall`] of the floor, at most
+//!   [`MAX_WALLS`](uniwrt_model::floor::MAX_WALLS), their ends on the plan, which must be
+//!   uploaded: 409) replaces the floor's walls. Not audited, like placements: each drawn line,
+//!   dragged end and material change saves.
 //! - `GET v1/floors/coverage`: each band's path-loss model fitted to the RSSI matrix between the
 //!   placed nodes ([`Coverage`], D-118); the browser draws the heatmap from it.
 
@@ -33,7 +37,7 @@ use uniwrt_core::{FloorId, NodeId};
 use uniwrt_model::{
     floor::{
         Floor, FloorFields, MAX_FLOORS, MAX_IMAGE_BYTES, MAX_IMAGE_SIDE, MIN_IMAGE_SIDE, Placement,
-        Point,
+        Point, Wall, WallError, validate_walls,
     },
     user::{AuditAction, AuditEntry, Role},
 };
@@ -54,6 +58,7 @@ pub(crate) fn routes() -> Router<Api> {
                 .layer(DefaultBodyLimit::max(MAX_IMAGE_BYTES)),
         )
         .route("/v1/floors/{id}/nodes/{node}", put(place).delete(unplace))
+        .route("/v1/floors/{id}/walls", put(walls))
 }
 
 /// Where to place a node, in the plan's pixels.
@@ -293,4 +298,26 @@ async fn unplace(
         ));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn walls(
+    State(api): State<Api>,
+    user: CurrentUser,
+    Path(id): Path<i64>,
+    body: Result<Json<Vec<Wall>>, JsonRejection>,
+) -> ApiResult<Json<Floor>> {
+    admin(&user)?;
+    let Json(walls) = body?;
+    let id = FloorId::new(id);
+    let before = floor(&api, id).await?;
+    validate_walls(&walls, before.image.as_ref()).map_err(|err| match err {
+        WallError::NoPlan => ApiError::Conflict(err.to_string()),
+        WallError::TooMany | WallError::OffPlan => ApiError::BadRequest(err.to_string()),
+    })?;
+    let after = api
+        .store()
+        .set_floor_walls(id, walls)
+        .await?
+        .ok_or_else(not_found)?;
+    Ok(Json(after))
 }

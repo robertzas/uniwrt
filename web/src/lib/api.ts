@@ -91,6 +91,7 @@ import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { Wall } from "../api/gen/Wall";
 import type { WanTestBody } from "../api/gen/WanTestBody";
 import type { WindowList } from "../api/gen/WindowList";
 import type { ZtpAdoptBody } from "../api/gen/ZtpAdoptBody";
@@ -631,6 +632,9 @@ export const api = {
       request<Floor>(`/floors/${id}/nodes/${node}`, { method: "PUT", body: at }),
     unplace: (id: number, node: number) =>
       request<void>(`/floors/${id}/nodes/${node}`, { method: "DELETE" }),
+    /** Replaces every wall of the floor. */
+    walls: (id: number, walls: readonly Wall[]) =>
+      request<Floor>(`/floors/${id}/walls`, { method: "PUT", body: walls }),
   },
   /** The live topology comes over the WS topic `topology`; these serve its replay and layout. */
   topology: {

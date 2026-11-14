@@ -17,6 +17,8 @@ import {
   shape,
   sources,
   suggest,
+  type Walls,
+  wallsOf,
 } from "./model";
 
 export const COVERAGE_KEY = ["floors", "coverage"];
@@ -55,6 +57,17 @@ export function createCoverage(props: {
   const bands = (): Band[] => (query.isSuccess ? query.data.bands.map((b) => b.band) : []);
   const model = (): BandModel | undefined =>
     query.isSuccess ? query.data.bands.find((b) => b.band === props.band()) : undefined;
+  const backhaulModel = (): BandModel | undefined =>
+    query.isSuccess ? query.data.bands.find((b) => b.band === "5g") : undefined;
+  /** The walls indexed once per model and floor list (the drawn ones included), not per frame. */
+  const walls = createMemo((): Walls | undefined => {
+    const m = model();
+    return m && wallsOf(m, props.floors());
+  });
+  const backhaulWalls = createMemo((): Walls | undefined => {
+    const m = backhaulModel();
+    return m && wallsOf(m, props.floors());
+  });
 
   const [mask, setMask] = createSignal<{ key: string; mask: Mask }>();
   /** What the footprint is read from: the plan's URL and the grid's shape. */
@@ -95,7 +108,7 @@ export function createCoverage(props: {
     if (!m || !floor) return undefined;
     const list = sources(m, props.floors(), { floor: floor.id, at: moving });
     if (list.length === 0) return undefined;
-    const g = grid(m, list, floor, props.floors());
+    const g = grid(m, list, floor, props.floors(), walls());
     if (!g) return undefined;
     return { ...g, values: g.dbm, mask: fits(g, footprint())?.inside };
   };
@@ -107,11 +120,11 @@ export function createCoverage(props: {
     if (!m || !floor || !per) return undefined;
     const floors = props.floors();
     const list = sources(m, floors);
-    const g = grid(m, list, floor, floors);
+    const g = grid(m, list, floor, floors, walls());
     if (!g) return undefined;
     const placed = new Set(list.map((s) => s.node));
     const unplaced = m.transmitters.filter((t) => !placed.has(t.node)).length;
-    const m5 = query.isSuccess ? query.data.bands.find((b) => b.band === "5g") : undefined;
+    const m5 = backhaulModel();
     const mesh = m5 ? sources(m5, floors) : [];
     const area = fits(g, footprint());
     const zones = deadZones(g, area, per);
@@ -124,13 +137,18 @@ export function createCoverage(props: {
             floors,
             g,
             area,
-            m5 && mesh.length ? { model: m5, sources: mesh } : undefined,
+            m5 && mesh.length ? { model: m5, sources: mesh, walls: backhaulWalls() } : undefined,
+            walls(),
           )
         : undefined;
     return { ...zones, suggestion, unplaced, placed: list.length };
   });
 
-  return { query, bands, model, footprint, heat, summary };
+  /** The walls the model counts: those on scaled floors. */
+  const wallCount = () =>
+    props.floors().reduce((sum, f) => sum + (metersPerPx(f) ? f.walls.length : 0), 0);
+
+  return { query, bands, model, walls, wallCount, footprint, heat, summary };
 }
 
 export type CoverageState = ReturnType<typeof createCoverage>;

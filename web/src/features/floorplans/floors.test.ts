@@ -12,6 +12,7 @@ function floor(id: number, level: number, nodes: number[]): Floor {
     image: null,
     scale: null,
     nodes: nodes.map((node) => ({ node, at: { x: node, y: node } })),
+    walls: [],
     updated_at: 0,
   };
 }

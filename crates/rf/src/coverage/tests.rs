@@ -1,10 +1,14 @@
 use uniwrt_core::{FloorId, NodeId, Timestamp};
 use uniwrt_model::{
-    floor::{Floor, FloorScale, LengthUnit, Placement, Point},
+    floor::{Floor, FloorScale, LengthUnit, Material, Placement, Point, Wall},
     wifi::Band,
 };
 
-use super::{BandModel, Transmitter, coverage, geometry::elevation};
+use super::{
+    BandModel, Transmitter, coverage,
+    geometry::{Located, elevation},
+    walls::{crosses, storeys, wall_loss},
+};
 use crate::{BandReport, MatrixEntry, MatrixSource, RadioReport, RfReport};
 
 /// A floor at `level`, 1 px = 0.1 m, with nodes placed at points given in meters.
@@ -31,6 +35,7 @@ fn floor(level: i16, height_m: f64, nodes: &[(i64, f64, f64)]) -> Floor {
                 },
             })
             .collect(),
+        walls: Vec::new(),
         updated_at: Timestamp::UNIX_EPOCH,
     }
 }
@@ -213,4 +218,86 @@ fn floors_stack_by_level_with_missing_ones_at_the_default_height() {
     assert!((elevation(&floors, 3) - 10.5).abs() < f64::EPSILON);
     assert!((elevation(&floors, -1) + 2.5).abs() < f64::EPSILON);
     assert!((elevation(&floors, -2) + 5.5).abs() < f64::EPSILON);
+}
+
+/// A wall given in meters (1 px = 0.1 m).
+fn wall(from: (f64, f64), to: (f64, f64), material: Material) -> Wall {
+    Wall {
+        from: Point {
+            x: from.0 * 10.0,
+            y: from.1 * 10.0,
+        },
+        to: Point {
+            x: to.0 * 10.0,
+            y: to.1 * 10.0,
+        },
+        material,
+    }
+}
+
+#[test]
+fn walls_are_taken_off_before_the_fit() {
+    // A concrete wall at x = 5 m between 1 and 2, and between 2 and 3.
+    let mut ground = floor(0, 3.0, &[(1, 0.0, 0.0), (2, 10.0, 0.0), (3, 0.0, 12.0)]);
+    ground.walls = vec![wall((5.0, -5.0), (5.0, 20.0), Material::Concrete)];
+    let d23 = 10.0_f64.hypot(12.0);
+    let concrete = Material::Concrete.loss_db(Band::G5);
+    #[allow(clippy::cast_possible_truncation)]
+    let through = |d: f64| (f64::from(heard(3.2, 0.0, d, 0)) - concrete).round() as i16;
+    let matrix = vec![
+        entry(1, 2, through(10.0)),
+        entry(1, 3, heard(3.2, 0.0, 12.0, 0)),
+        entry(2, 3, through(d23)),
+    ];
+    let radios: Vec<RadioReport> = (1..=3).map(|n| radio(n, true, Some(20))).collect();
+    let walled = coverage(
+        std::slice::from_ref(&ground),
+        &report(Band::G5, radios.clone(), matrix.clone()),
+    );
+    let model = only(&walled);
+    assert!((model.exponent - 3.2).abs() < 0.05, "{model:?}");
+    assert!(model.error_db.is_some_and(|e| e < 0.5), "{model:?}");
+    assert_eq!(model.wall_losses.len(), Material::ALL.len());
+    assert!(model.wall_losses.iter().any(
+        |w| w.material == Material::Concrete && (f64::from(w.loss_db) - concrete).abs() < 1e-6
+    ));
+
+    // Without the wall the exponent soaks up its loss.
+    ground.walls.clear();
+    let bare = coverage(&[ground], &report(Band::G5, radios, matrix));
+    assert!(only(&bare).exponent > 3.8, "{:?}", only(&bare));
+}
+
+#[test]
+fn a_path_between_floors_crosses_each_storeys_walls_on_its_part() {
+    // A brick wall at x = 8 m on the ground floor, a metal one at x = 2 m upstairs; the path rises
+    // from 1 m above the ground floor (z 1) to 1 m above the first (z 4) over x 0 → 12 m, so it
+    // leaves the ground storey at z 3, x = 8 m: the brick wall is at its very end, the metal one
+    // isn't on the upper part at all.
+    let mut ground = floor(0, 3.0, &[]);
+    ground.walls = vec![wall((8.0, -1.0), (8.0, 1.0), Material::Brick)];
+    let mut first = floor(1, 3.0, &[]);
+    first.walls = vec![
+        wall((2.0, -1.0), (2.0, 1.0), Material::Metal),
+        wall((10.0, -1.0), (10.0, 1.0), Material::Glass),
+    ];
+    let floors = [ground, first];
+    let list = storeys(&floors);
+    let at = |level: i16, x: f64, z: f64| Located {
+        node: NodeId::new(1),
+        level,
+        x,
+        y: 0.0,
+        z,
+    };
+    let (low, high) = (at(0, 0.0, 0.0), at(1, 12.0, 3.0));
+    let expected = Material::Brick.loss_db(Band::G5) + Material::Glass.loss_db(Band::G5);
+    assert!((wall_loss(&list, &low, &high, Band::G5) - expected).abs() < 1e-9);
+    assert!((wall_loss(&list, &high, &low, Band::G5) - expected).abs() < 1e-9);
+    // Within the first floor, only its walls count.
+    let across = wall_loss(&list, &at(1, 0.0, 3.0), &at(1, 12.0, 3.0), Band::G2);
+    let both = Material::Metal.loss_db(Band::G2) + Material::Glass.loss_db(Band::G2);
+    assert!((across - both).abs() < 1e-9);
+    assert!(!crosses((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)));
+    assert!(crosses((0.0, 0.0), (2.0, 0.0), (1.0, -1.0), (1.0, 0.0)));
 }

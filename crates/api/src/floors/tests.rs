@@ -226,3 +226,45 @@ async fn coverage_is_fitted_to_what_placed_nodes_hear() {
     assert!(band["error_db"].is_number());
     assert_ne!(band["transmitters"], json!([]));
 }
+
+#[tokio::test]
+async fn walls_are_checked_saved_and_follow_the_plan() {
+    let demo = Demo::start().await;
+    let (_, floor) = send(&demo, Method::POST, "/v1/floors", Some(fields("Ground", 0))).await;
+    let id = &floor["id"];
+    let uri = format!("/v1/floors/{id}/walls");
+    let wall =
+        json!({ "from": { "x": 0, "y": 300 }, "to": { "x": 800, "y": 300 }, "material": "brick" });
+
+    let (status, _) = send(&demo, Method::PUT, &uri, Some(json!([wall]))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    demo.send(upload(&demo, id, png(800, 600))).await;
+    let (status, floor) = send(&demo, Method::PUT, &uri, Some(json!([wall]))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(floor["walls"][0]["material"], "brick");
+    for refused in [
+        json!([{ "from": { "x": 0, "y": 0 }, "to": { "x": 900, "y": 0 }, "material": "wood" }]),
+        json!([{ "from": { "x": 0, "y": 0 }, "to": { "x": 9, "y": 0 }, "material": "paper" }]),
+        Value::Array(vec![wall.clone(); 1001]),
+    ] {
+        let (status, _) = send(&demo, Method::PUT, &uri, Some(refused)).await;
+        assert!(
+            status.is_client_error() && status != StatusCode::CONFLICT,
+            "{status}"
+        );
+    }
+    let (status, _) = send(&demo, Method::PUT, "/v1/floors/999/walls", Some(json!([]))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // The same drawing at twice the size: the wall follows.
+    let res = demo.send(upload(&demo, id, webp(1600, 1200))).await;
+    assert_eq!(
+        json(res).await["walls"][0]["to"],
+        json!({ "x": 1600.0, "y": 600.0 })
+    );
+    let (status, floor) = send(&demo, Method::PUT, &uri, Some(json!([]))).await;
+    assert_eq!(
+        (status, floor["walls"].clone()),
+        (StatusCode::OK, json!([]))
+    );
+}

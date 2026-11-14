@@ -43,7 +43,7 @@ use uniwrt_model::{
     drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
-    floor::{Floor, FloorFields, FloorImage, ImageKind, Placement},
+    floor::{Floor, FloorFields, FloorImage, ImageKind, Placement, Wall},
     inventory::{Backup, Inventory},
     job::{Job, JobError, NewJob},
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
@@ -130,8 +130,15 @@ pub trait FloorRepo: Send + Sync {
     /// Deletes a floor with its image and placements; false when it didn't exist.
     fn delete_floor(&self, id: FloorId) -> impl Future<Output = Result<bool>> + Send;
 
-    /// Replaces a floor's image and bumps its version. The scale's line and the placements are
-    /// stretched to the new size on each axis, as for the same drawing at another resolution.
+    /// Replaces a floor's walls, checked by the caller; None when the floor doesn't exist.
+    fn set_floor_walls(
+        &self,
+        id: FloorId,
+        walls: Vec<Wall>,
+    ) -> impl Future<Output = Result<Option<Floor>>> + Send;
+
+    /// Replaces a floor's image and bumps its version. The scale's line, the walls and the
+    /// placements are stretched to the new size on each axis, as for the same drawing at another resolution.
     /// None when the floor doesn't exist.
     fn set_floor_image(
         &self,

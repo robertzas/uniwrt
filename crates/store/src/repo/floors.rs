@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use rusqlite::{Connection, OptionalExtension as _, Row, params};
 use uniwrt_core::{FloorId, NodeId};
-use uniwrt_model::floor::{Floor, FloorFields, FloorImage, FloorScale, Placement, Point};
+use uniwrt_model::floor::{Floor, FloorFields, FloorImage, FloorScale, Placement, Point, Wall};
 
 use super::{FloorRepo, NewFloorImage};
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
 
 /// A floor's columns without the image itself.
 const COLUMNS: &str = "id, name, level, height_m, scale, image_kind, image_width, image_height, \
-                       length(image), image_version, updated_at";
+                       length(image), image_version, updated_at, walls";
 
 fn floor_from_row(row: &Row<'_>) -> rusqlite::Result<Floor> {
     let image = match row.get::<_, Option<String>>(5)? {
@@ -35,6 +35,7 @@ fn floor_from_row(row: &Row<'_>) -> rusqlite::Result<Floor> {
         scale: json_column(row, 4)?,
         image,
         nodes: Vec::new(),
+        walls: json_column(row, 11)?,
         updated_at: timestamp_column(row, 10)?,
     })
 }
@@ -47,6 +48,13 @@ fn scale_text(scale: Option<&FloorScale>) -> Result<Option<String>> {
             what: "a floor's scale",
             source,
         })
+}
+
+fn walls_text(walls: &[Wall]) -> Result<String> {
+    serde_json::to_string(walls).map_err(|source| Error::Encode {
+        what: "a floor's walls",
+        source,
+    })
 }
 
 /// The placements of `floor`, or of every floor, by floor.
@@ -203,6 +211,18 @@ impl FloorRepo for Store {
                 }),
                 _ => None,
             };
+            let walls: Vec<Wall> = match old.image {
+                Some(before) => old
+                    .walls
+                    .iter()
+                    .map(|wall| Wall {
+                        from: before.rescale(wall.from, &new),
+                        to: before.rescale(wall.to, &new),
+                        ..*wall
+                    })
+                    .collect(),
+                None => old.walls,
+            };
             if let Some(before) = old.image {
                 let mut stmt = conn
                     .prepare_cached("UPDATE floor_nodes SET x = ?2, y = ?3 WHERE node_id = ?1")?;
@@ -213,7 +233,8 @@ impl FloorRepo for Store {
             }
             conn.prepare_cached(
                 "UPDATE floors SET image_kind = ?2, image_width = ?3, image_height = ?4,
-                 image_version = ?5, image = ?6, scale = ?7, updated_at = ?8 WHERE id = ?1",
+                 image_version = ?5, image = ?6, scale = ?7, updated_at = ?8, walls = ?9
+                 WHERE id = ?1",
             )?
             .execute(params![
                 id.get(),
@@ -223,8 +244,23 @@ impl FloorRepo for Store {
                 new.version,
                 image.data,
                 scale_text(scale.as_ref())?,
-                now
+                now,
+                walls_text(&walls)?
             ])?;
+            read_floor(conn, id)
+        })
+        .await
+    }
+
+    async fn set_floor_walls(&self, id: FloorId, walls: Vec<Wall>) -> Result<Option<Floor>> {
+        let now = self.now().as_unix_ms();
+        self.write(move |conn| {
+            let updated = conn
+                .prepare_cached("UPDATE floors SET walls = ?2, updated_at = ?3 WHERE id = ?1")?
+                .execute(params![id.get(), walls_text(&walls)?, now])?;
+            if updated == 0 {
+                return Ok(None);
+            }
             read_floor(conn, id)
         })
         .await

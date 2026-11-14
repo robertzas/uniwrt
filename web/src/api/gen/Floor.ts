@@ -4,6 +4,7 @@ import type { FloorImage } from "./FloorImage";
 import type { FloorScale } from "./FloorScale";
 import type { Placement } from "./Placement";
 import type { Timestamp } from "./Timestamp";
+import type { Wall } from "./Wall";
 
 /**
  * One floor of the site.
@@ -29,4 +30,8 @@ scale: FloorScale | null,
 /**
  * The nodes placed on this floor, by node id. A node is on one floor at most.
  */
-nodes: Array<Placement>, updated_at: Timestamp, };
+nodes: Array<Placement>, 
+/**
+ * The walls drawn on its plan.
+ */
+walls: Array<Wall>, updated_at: Timestamp, };

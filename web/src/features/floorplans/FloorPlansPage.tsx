@@ -1,7 +1,7 @@
 import { useSearchParams } from "@solidjs/router";
 import { useQuery, useQueryClient } from "@tanstack/solid-query";
-import { Map as MapIcon, Pencil, Plus, Ruler, Upload } from "lucide";
-import { createEffect, createSignal, Show, useContext } from "solid-js";
+import { BrickWall, Map as MapIcon, Pencil, Plus, Ruler, Upload } from "lucide";
+import { createEffect, createMemo, createSignal, Show, useContext } from "solid-js";
 import type { Band } from "../../api/gen/Band";
 import type { Floor } from "../../api/gen/Floor";
 import { api } from "../../lib/api";
@@ -21,6 +21,7 @@ import { FloorDialog } from "./FloorDialog";
 import { FloorEditor, type Mode } from "./FloorEditor";
 import { withFloor, withoutNode } from "./floors";
 import { formatLength } from "./units";
+import { createWalls } from "./walls/createWalls";
 
 const t = strings.floors;
 const KEY = ["floors"];
@@ -51,8 +52,7 @@ export function FloorPlansPage() {
   /** The band whose coverage shows (`?coverage=5g`), if any. */
   const band = () =>
     COVERAGE_BANDS.includes(params.coverage ?? "") ? (params.coverage as Band) : undefined;
-  const coverage = createCoverage({ floor: current, floors, band });
-  /** Placements feed the model's fit: fetch it again after any change. */
+  /** Placements and walls feed the model's fit: fetch it again after any change. */
   const refit = () => {
     if (band()) void client.invalidateQueries({ queryKey: COVERAGE_KEY });
   };
@@ -60,6 +60,20 @@ export function FloorPlansPage() {
     update((list) => withFloor(list, floor));
     refit();
   };
+  const walls = createWalls({ floor: current, onSaved: saved });
+  /** The floors with the walls as drawn, ahead of their saves: the heatmap follows each edit. */
+  const drawn = createMemo((): readonly Floor[] => {
+    const shown = current();
+    const list = walls.walls();
+    return floors().map((f) =>
+      f.id === shown?.id && f.walls !== list ? { ...f, walls: [...list] } : f,
+    );
+  });
+  const coverage = createCoverage({
+    floor: () => drawn().find((f) => f.id === current()?.id),
+    floors: drawn,
+    band,
+  });
   // Another floor shown ends whatever the plan was doing.
   createEffect(
     () => current()?.id,
@@ -146,6 +160,19 @@ export function FloorPlansPage() {
                           <Show when={floor().image}>
                             <Button
                               size="sm"
+                              variant={mode().kind === "walls" ? "primary" : "secondary"}
+                              aria-pressed={mode().kind === "walls" ? "true" : "false"}
+                              onClick={() =>
+                                setMode(
+                                  mode().kind === "walls" ? { kind: "idle" } : { kind: "walls" },
+                                )
+                              }
+                            >
+                              <Icon icon={BrickWall} class="size-3.5" />
+                              {t.walls.button}
+                            </Button>
+                            <Button
+                              size="sm"
                               variant={mode().kind === "scale" ? "primary" : "secondary"}
                               aria-pressed={mode().kind === "scale" ? "true" : "false"}
                               onClick={() =>
@@ -199,6 +226,7 @@ export function FloorPlansPage() {
                         mode={mode()}
                         onMode={setMode}
                         onSaved={saved}
+                        walls={walls}
                         underlay={(moving) => (
                           <Show when={coverage.heat(moving)}>
                             {(grid) => <CoverageLayer grid={grid()} />}

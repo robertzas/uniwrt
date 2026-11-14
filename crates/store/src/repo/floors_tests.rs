@@ -2,7 +2,9 @@
 //! what was drawn on it, nodes placed and moved, and gone with their floor or node.
 
 use uniwrt_core::{FloorId, NodeId};
-use uniwrt_model::floor::{FloorFields, FloorScale, ImageKind, LengthUnit, Placement, Point};
+use uniwrt_model::floor::{
+    FloorFields, FloorScale, ImageKind, LengthUnit, Material, Placement, Point, Wall,
+};
 
 use crate::{
     Error, FloorRepo as _, NewFloorImage, NodeRepo as _, repo::nodes::tests::new_node,
@@ -125,6 +127,25 @@ async fn a_new_image_carries_the_scale_and_the_placements() {
         .place_node(floor.id, placed(a, 400.0, 300.0))
         .await
         .unwrap();
+    let wall = Wall {
+        from: Point { x: 0.0, y: 300.0 },
+        to: Point { x: 800.0, y: 300.0 },
+        material: Material::Brick,
+    };
+    let walled = store
+        .set_floor_walls(floor.id, vec![wall])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(walled.walls, [wall]);
+    assert_eq!(store.floors().await.unwrap()[0].walls, [wall]);
+    assert_eq!(
+        store
+            .set_floor_walls(FloorId::new(99), Vec::new())
+            .await
+            .unwrap(),
+        None
+    );
 
     let second = store
         .set_floor_image(floor.id, image(1600, 900, b"second"))
@@ -137,6 +158,17 @@ async fn a_new_image_carries_the_scale_and_the_placements() {
         (2, 900, &b"second"[..])
     );
     assert_eq!(second.nodes, [placed(a, 800.0, 450.0)]);
+    assert_eq!(
+        second.walls,
+        [Wall {
+            from: Point { x: 0.0, y: 450.0 },
+            to: Point {
+                x: 1600.0,
+                y: 450.0
+            },
+            ..wall
+        }]
+    );
     let scale = second.scale.unwrap();
     assert_eq!(scale.from, Point { x: 200.0, y: 150.0 });
     assert!((scale.meters_per_px() - 10.0 / 800.0).abs() < 1e-12);

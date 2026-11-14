@@ -8,6 +8,10 @@
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{FloorId, NodeId, Timestamp};
 
+mod walls;
+
+pub use self::walls::{MAX_WALLS, MIN_WALL_PX, Material, Wall, WallError, validate_walls};
+
 /// The most floors a site keeps.
 pub const MAX_FLOORS: usize = 32;
 /// The longest side of a floor's image, in pixels: the browser scales larger plans down.
@@ -46,6 +50,9 @@ pub struct Floor {
     pub scale: Option<FloorScale>,
     /// The nodes placed on this floor, by node id. A node is on one floor at most.
     pub nodes: Vec<Placement>,
+    /// The walls drawn on its plan.
+    #[serde(default)]
+    pub walls: Vec<Wall>,
     pub updated_at: Timestamp,
 }
 
@@ -290,6 +297,11 @@ mod tests {
                 node: NodeId::new(2),
                 at: Point { x: 1.0, y: 2.0 },
             }],
+            walls: vec![Wall {
+                from: Point { x: 0.0, y: 0.0 },
+                to: Point { x: 3.0, y: 4.0 },
+                material: Material::Concrete,
+            }],
             updated_at: Timestamp::from_unix_ms(5),
         };
         assert_eq!(
@@ -299,6 +311,7 @@ mod tests {
                 "image": { "kind": "webp", "width_px": 800, "height_px": 600, "bytes": 1, "version": 1 },
                 "scale": { "from": { "x": 0.0, "y": 0.0 }, "to": { "x": 400.0, "y": 0.0 }, "length_m": 10.0, "unit": "ft" },
                 "nodes": [{ "node": 2, "at": { "x": 1.0, "y": 2.0 } }],
+                "walls": [{ "from": { "x": 0.0, "y": 0.0 }, "to": { "x": 3.0, "y": 4.0 }, "material": "concrete" }],
                 "updated_at": 5,
             })
         );

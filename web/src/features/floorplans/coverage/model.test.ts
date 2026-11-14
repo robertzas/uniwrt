@@ -12,6 +12,7 @@ import {
   predict,
   sources,
   suggest,
+  wallsOf,
 } from "./model";
 
 /** A floor of 800 × 600 px at 0.1 m per px (80 × 60 m), with nodes at plan points. */
@@ -28,6 +29,7 @@ function floor(
     image: { kind: "webp", width_px: 800, height_px: 600, bytes: 1, version: 1 },
     scale: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, length_m: 10, unit: "m" },
     nodes: nodes.map(([node, x, y]) => ({ node, at: { x, y } })),
+    walls: [],
     updated_at: 0,
     ...extra,
   };
@@ -47,6 +49,11 @@ function model(extra: Partial<BandModel> = {}): BandModel {
       { node: 1, tx_power_dbm: 20 },
       { node: 2, tx_power_dbm: 23 },
       { node: 3, tx_power_dbm: 20 },
+    ],
+    wall_losses: [
+      { material: "drywall", loss_db: 4 },
+      { material: "concrete", loss_db: 18 },
+      { material: "metal", loss_db: 32 },
     ],
     ...extra,
   };
@@ -124,5 +131,53 @@ describe("the coverage model", () => {
     expect(reach(meshed.at)).toBeGreaterThanOrEqual(MESH_DBM);
     expect(reach(free.at)).toBeLessThan(MESH_DBM);
     expect(meshed.gain).toBeLessThanOrEqual(free.gain);
+  });
+
+  it("takes the walls a path crosses off it, and the heatmap follows them", () => {
+    // A metal wall across the floor at x = 30 m; the node at x = 10 m.
+    const metal = { from: { x: 300, y: 0 }, to: { x: 300, y: 600 }, material: "metal" as const };
+    const here = floor(0, [[1, 100, 300]], { walls: [metal] });
+    const list = sources(model(), [here]);
+    const walls = wallsOf(model(), [here]);
+    if (!walls) throw new Error("no walls");
+    const s = list[0];
+    if (!s) throw new Error("no source");
+    expect(predict(model(), s, 40, 30, 0, 0, walls)).toBeCloseTo(
+      predict(model(), s, 40, 30, 0, 0) - 32,
+    );
+    expect(predict(model(), s, 20, 30, 0, 0, walls)).toBeCloseTo(predict(model(), s, 20, 30, 0, 0));
+    expect(wallsOf(model(), [floor(0, [])])).toBeUndefined();
+
+    // The strongest signal is the strongest of each source through its walls.
+    const two = sources(model(), [
+      floor(
+        0,
+        [
+          [1, 100, 300],
+          [2, 500, 300],
+        ],
+        { walls: [metal] },
+      ),
+    ]);
+    for (const [x, y] of [
+      [5, 5],
+      [29, 30],
+      [31, 30],
+      [70, 50],
+    ] as const) {
+      const each = Math.max(...two.map((t) => predict(model(), t, x, y, 0, 0, walls)));
+      expect(best(model(), two, x, y, 0, 0, walls)).toBeCloseTo(each);
+    }
+
+    // Behind the wall is dead; the suggestion revives more there than in the open.
+    const open = grid(model(), list, here, [here]);
+    const walled = grid(model(), list, here, [here], walls);
+    if (!open || !walled) throw new Error("no grid");
+    expect(deadZones(walled, undefined, 0.1).dead).toBeGreaterThan(
+      deadZones(open, undefined, 0.1).dead,
+    );
+    const spot = suggest(model(), list, here, [here], walled, undefined, undefined, walls);
+    if (!spot) throw new Error("no suggestion");
+    expect(spot.at.x).toBeGreaterThan(300);
   });
 });

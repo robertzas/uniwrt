@@ -128,6 +128,9 @@ export function CoverageCard(props: {
                         model()?.floor_loss_fitted ?? false,
                       )}
                     </li>
+                    <li>
+                      {props.state.wallCount() > 0 ? t.walls(props.state.wallCount()) : t.noWalls}
+                    </li>
                     <Show when={props.state.footprint()}>
                       {(f) => <li>{f().detected ? t.outline : t.wholePlan}</li>}
                     </Show>

@@ -12,15 +12,19 @@ import { Icon } from "../../ui/Icon";
 import { showToast } from "../../ui/Toast";
 import { PlanCanvas, type PlanFrame, type PlanPoint } from "../../viz/floorplan/PlanCanvas";
 import { type Marker, Markers } from "./Markers";
-import { scaleBar, toMeters } from "./units";
+import { formatLength, scaleBar, toMeters } from "./units";
+import type { WallsState } from "./walls/createWalls";
+import { SNAP_PX, WallsLayer } from "./walls/WallsLayer";
+import { WallsToolbar } from "./walls/WallsToolbar";
 
 const t = strings.floors;
 
-/** What clicks on the plan do: pan (idle), place a device, or pick the scale's two ends. */
+/** What clicks on the plan do: pan (idle), place a device, pick the scale's two ends, or draw walls. */
 export type Mode =
   | { kind: "idle" }
   | { kind: "place"; node: number; name: string }
-  | { kind: "scale"; from?: PlanPoint; to?: PlanPoint };
+  | { kind: "scale"; from?: PlanPoint; to?: PlanPoint }
+  | { kind: "walls" };
 
 /** A nudge is saved once the arrow keys rest this long. */
 const NUDGE_SAVE_MS = 400;
@@ -29,7 +33,8 @@ const MIN_SCALE_PX = 10;
 /**
  * A floor's plan with its devices (D-117). Admins drag or nudge devices (saved when released),
  * place one picked in the devices panel (`mode` "place") and set the scale by clicking both ends
- * of a known length, then entering it in m or ft. Every save answers with the floor (`onSaved`).
+ * of a known length, then entering it in m or ft, and draw walls (`walls`, M6.2c). Every save
+ * answers with the floor (`onSaved`).
  */
 export function FloorEditor(props: {
   floor: Floor;
@@ -38,6 +43,8 @@ export function FloorEditor(props: {
   mode: Mode;
   onMode: (mode: Mode) => void;
   onSaved: (floor: Floor) => void;
+  /** The floor's walls as drawn, and drawing them. */
+  walls: WallsState;
   /** Drawn on the plan (the heatmap), given the positions being dragged or nudged. */
   underlay?: (moving: ReadonlyMap<number, PlanPoint>) => JSX.Element;
   /** Drawn over the plan under the devices (a suggested spot). */
@@ -107,10 +114,13 @@ export function FloorEditor(props: {
     );
   };
 
-  const pick = (point: PlanPoint) => {
+  const tolerance = () => SNAP_PX / zoom();
+  const pick = (point: PlanPoint, event: PointerEvent) => {
     const mode = props.mode;
     const at = clamp(point);
-    if (mode.kind === "place") {
+    if (mode.kind === "walls") {
+      props.walls.click(at, tolerance(), event.altKey);
+    } else if (mode.kind === "place") {
       props.onMode({ kind: "idle" });
       void save(mode.node, at);
     } else if (mode.kind === "scale") {
@@ -160,8 +170,19 @@ export function FloorEditor(props: {
       setScaleError(undefined);
     },
   );
+  // Leaving the walls ends whatever drawing them was doing.
+  createEffect(
+    () => props.mode.kind === "walls",
+    (drawing) => {
+      if (!drawing) props.walls.end();
+    },
+  );
   onSettled(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (props.mode.kind === "walls" && props.walls.key(event)) {
+        event.preventDefault();
+        return;
+      }
       if (event.key === "Escape" && props.mode.kind !== "idle") props.onMode({ kind: "idle" });
     };
     document.addEventListener("keydown", onKey);
@@ -176,6 +197,13 @@ export function FloorEditor(props: {
     if (mode.kind === "place") return t.devices.placeHint(mode.name);
     if (mode.kind === "scale" && !mode.to) return mode.from ? t.scale.pickTo : t.scale.pickFrom;
     return undefined;
+  };
+  /** A length in plan pixels as the floor shows distances. */
+  const distance = (px: number) => {
+    const scale = props.floor.scale;
+    if (!scale) return undefined;
+    const per = scale.length_m / Math.hypot(scale.to.x - scale.from.x, scale.to.y - scale.from.y);
+    return formatLength(px * per, scale.unit);
   };
   const bar = () => {
     const scale = props.floor.scale;
@@ -194,10 +222,22 @@ export function FloorEditor(props: {
           label={t.canvas.plan(props.floor.name)}
           picking={props.mode.kind !== "idle"}
           onPick={pick}
+          onHover={(point, event) => {
+            if (props.mode.kind === "walls") {
+              props.walls.move(point && clamp(point), tolerance(), event.altKey);
+            }
+          }}
           onZoom={setZoom}
           underlay={props.underlay?.(moving())}
           overlay={
             <>
+              <Show when={props.mode.kind === "walls"}>
+                <WallsToolbar
+                  state={props.walls}
+                  length={distance}
+                  onDone={() => props.onMode({ kind: "idle" })}
+                />
+              </Show>
               <Show when={hint()}>
                 {(text) => (
                   <p
@@ -287,6 +327,12 @@ export function FloorEditor(props: {
         >
           {(frame) => (
             <>
+              <WallsLayer
+                frame={frame}
+                walls={props.walls.shown()}
+                state={props.mode.kind === "walls" ? props.walls : undefined}
+                length={distance}
+              />
               <Show when={props.mode.kind === "scale" && props.mode.from}>
                 {(from) => {
                   const a = () => frame.project(from());

@@ -2,11 +2,13 @@
  * The coverage model in the browser (features/wifi.md, Coverage & floor plans; D-118): the
  * controller fits each band's path loss (`BandModel`); this places the nodes in meters the way
  * it does (`crates/rf/src/coverage/geometry.rs`) and predicts the signal from them over a floor,
- * its dead zones and where another node would cover the most of them.
+ * its dead zones and where another node would cover the most of them. Walls drawn on the plans
+ * take their materials' losses from every path that crosses them (M6.2c, `walls.ts`).
  */
 import type { BandModel } from "../../../api/gen/BandModel";
 import type { Floor } from "../../../api/gen/Floor";
 import type { PlanPoint } from "../../../viz/floorplan/PlanCanvas";
+import { type Losses, lossesOf, type Storey, storeys, wallLoss } from "./walls";
 
 /** Good enough for voice and video. */
 export const GOOD_DBM = -67;
@@ -26,6 +28,12 @@ export interface Source {
   y: number;
   z: number;
   tx: number;
+}
+
+/** The site's walls on one band: each scaled floor's, and what each material takes. */
+export interface Walls {
+  storeys: readonly Storey[];
+  losses: Losses;
 }
 
 /** A floor's signal, row by row over cells of `cellPx` plan pixels (`NaN` where none reaches). */
@@ -92,15 +100,14 @@ export function sources(
   return out;
 }
 
-/** The signal from `source` at a point, in dBm. */
-export function predict(
-  model: BandModel,
-  source: Source,
-  x: number,
-  y: number,
-  z: number,
-  level: number,
-): number {
+/** The band's walls on `floors`, or undefined where none is drawn on a scaled floor. */
+export function wallsOf(model: BandModel, floors: readonly Floor[]): Walls | undefined {
+  const list = storeys(floors, metersPerPx, (level) => elevation(floors, level));
+  return list.length > 0 ? { storeys: list, losses: lossesOf(model) } : undefined;
+}
+
+/** The signal from `source` at a point without walls, in dBm. */
+function open(model: BandModel, source: Source, x: number, y: number, z: number, level: number) {
   const d = Math.max(1, Math.hypot(source.x - x, source.y - y, source.z - z));
   return (
     source.tx -
@@ -110,7 +117,47 @@ export function predict(
   );
 }
 
-/** The strongest signal at a point, or -Infinity without sources. */
+const through = (
+  walls: Walls | undefined,
+  s: Source,
+  x: number,
+  y: number,
+  z: number,
+  level: number,
+) => (walls ? wallLoss(walls.storeys, walls.losses, s, { level, x, y, z }) : 0);
+
+/** The signal from `source` at a point, in dBm. */
+export function predict(
+  model: BandModel,
+  source: Source,
+  x: number,
+  y: number,
+  z: number,
+  level: number,
+  walls?: Walls,
+): number {
+  return open(model, source, x, y, z, level) - through(walls, source, x, y, z, level);
+}
+
+/** Whether `source` reaches a point with at least `dbm`; walls are traced only when it could. */
+function reaches(
+  model: BandModel,
+  source: Source,
+  x: number,
+  y: number,
+  z: number,
+  level: number,
+  walls: Walls | undefined,
+  dbm: number,
+): boolean {
+  const free = open(model, source, x, y, z, level);
+  return free >= dbm && free - through(walls, source, x, y, z, level) >= dbm;
+}
+
+/**
+ * The strongest signal at a point, or -Infinity without sources. Walls only take away, so a
+ * source is traced through them only while its open-air signal beats the best so far.
+ */
 export function best(
   model: BandModel,
   list: readonly Source[],
@@ -118,9 +165,19 @@ export function best(
   y: number,
   z: number,
   level: number,
+  walls?: Walls,
 ): number {
   let top = Number.NEGATIVE_INFINITY;
-  for (const s of list) top = Math.max(top, predict(model, s, x, y, z, level));
+  if (!walls) {
+    for (const s of list) top = Math.max(top, open(model, s, x, y, z, level));
+    return top;
+  }
+  const free = list.map((s) => ({ s, v: open(model, s, x, y, z, level) }));
+  free.sort((a, b) => b.v - a.v);
+  for (const { s, v } of free) {
+    if (v <= top) break;
+    top = Math.max(top, v - through(walls, s, x, y, z, level));
+  }
   return top;
 }
 
@@ -139,6 +196,7 @@ export function grid(
   list: readonly Source[],
   floor: Floor,
   floors: readonly Floor[],
+  walls?: Walls,
 ): Grid | undefined {
   const per = metersPerPx(floor);
   const image = floor.image;
@@ -149,7 +207,7 @@ export function grid(
   for (let r = 0; r < rows; r++) {
     const y = (r + 0.5) * cellPx * per;
     for (let c = 0; c < cols; c++) {
-      const v = best(model, list, (c + 0.5) * cellPx * per, y, z, floor.level);
+      const v = best(model, list, (c + 0.5) * cellPx * per, y, z, floor.level, walls);
       dbm[r * cols + c] = Number.isFinite(v) ? v : Number.NaN;
     }
   }
@@ -184,7 +242,8 @@ export interface Suggestion {
 /**
  * The spot on `floor` where a node sending like the band's median one revives the most dead
  * area, among spots that hear the mesh at `MESH_DBM` or better (`backhaul`: the 5 GHz model and
- * its sources; without one any spot qualifies). Candidates every 4th cell, targets every 2nd.
+ * its sources; without one any spot qualifies). Candidates every 4th cell, targets every 2nd;
+ * walls are traced only for targets the open air would reach.
  */
 export function suggest(
   model: BandModel,
@@ -193,7 +252,8 @@ export function suggest(
   floors: readonly Floor[],
   g: Grid,
   mask: Mask | undefined,
-  backhaul?: { model: BandModel; sources: readonly Source[] },
+  backhaul?: { model: BandModel; sources: readonly Source[]; walls?: Walls },
+  walls?: Walls,
 ): Suggestion | undefined {
   const per = metersPerPx(floor);
   if (!per || list.length === 0) return undefined;
@@ -221,13 +281,16 @@ export function suggest(
       const at = center(i);
       const x = at.x * per;
       const y = at.y * per;
-      if (backhaul && best(backhaul.model, backhaul.sources, x, y, z, floor.level) < MESH_DBM) {
+      if (
+        backhaul &&
+        best(backhaul.model, backhaul.sources, x, y, z, floor.level, backhaul.walls) < MESH_DBM
+      ) {
         continue;
       }
       const node: Source = { node: 0, level: floor.level, x, y, z, tx };
       let revived = 0;
       for (const t of targets) {
-        if (predict(model, node, t.x * per, t.y * per, z, floor.level) >= DEAD_DBM) revived++;
+        if (reaches(model, node, t.x * per, t.y * per, z, floor.level, walls, DEAD_DBM)) revived++;
       }
       const gain = revived * target;
       if (revived > 0 && (!top || gain > top.gain)) top = { at, gain };
