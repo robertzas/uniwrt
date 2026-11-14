@@ -13,6 +13,14 @@ vi.mock("./upload", async (original) => ({
   ...(await original<typeof import("./upload")>()),
   normalizePlan: vi.fn(async () => new Blob(["plan"], { type: "image/webp" })),
 }));
+/** Reading plans needs a canvas jsdom lacks: tests say what tracing finds (nothing by default). */
+const traced = vi.hoisted(() => ({ walls: undefined as unknown, calls: [] as unknown[][] }));
+vi.mock("./walls/trace/read", () => ({
+  tracePlan: vi.fn(async (...args: unknown[]) => {
+    traced.calls.push(args);
+    return traced.walls;
+  }),
+}));
 
 let calls: { method: string; url: string; body: unknown }[] = [];
 let floors: Floor[] = [];
@@ -56,6 +64,8 @@ function floor(extra: Partial<Floor> = {}): Floor {
 beforeEach(() => {
   calls = [];
   floors = [];
+  traced.walls = undefined;
+  traced.calls = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -282,5 +292,73 @@ describe("the floor plans page", () => {
     await user.click(within(toolbar).getByRole("button", { name: "Done" }));
     expect(screen.queryByRole("toolbar", { name: "Walls" })).toBeNull();
     expect(document.querySelector('[data-material="concrete"]')).not.toBeNull();
+  });
+
+  it("suggests walls traced from the plan to accept, retype or delete, with undo", async () => {
+    floors = [
+      floor({ scale: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, length_m: 10, unit: "m" } }),
+    ];
+    traced.walls = [
+      { from: { x: 100, y: 100 }, to: { x: 400, y: 100 }, material: "brick", thickness: 4 },
+      { from: { x: 100, y: 300 }, to: { x: 400, y: 300 }, material: "drywall", thickness: 2 },
+    ];
+    await renderPage();
+    const user = userEvent.setup();
+    // Opening Walls on a floor without walls traces its plan.
+    await user.click(await screen.findByRole("button", { name: "Walls" }));
+    const toolbar = await screen.findByRole("toolbar", { name: "Walls" });
+    await waitFor(() => expect(toolbar).toHaveTextContent("2 walls suggested from the plan"));
+    expect(traced.calls).toHaveLength(1);
+    expect(traced.calls[0]?.[0]).toMatch(/\/floors\/1\/image\?v=1$/);
+    expect(traced.calls[0]?.[1]).toMatchObject({ width: 800, height: 600, metersPerPx: 0.1 });
+    expect(within(toolbar).getByRole("status")).toHaveTextContent("Dashed walls are suggested");
+    expect(document.querySelector('[data-traced="brick"]')).not.toBeNull();
+
+    // Select the brick one, make it concrete, accept it: only then is it saved.
+    clickPlan(20 + 237.5, 15 + 95);
+    await waitFor(() =>
+      expect(within(toolbar).getByRole("status")).toHaveTextContent("Suggested brick wall, 30 m"),
+    );
+    await user.click(within(toolbar).getByRole("button", { name: "Concrete" }));
+    expect(document.querySelector('[data-traced="concrete"]')).not.toBeNull();
+    expect(sent("PUT", /\/walls$/)).toHaveLength(0);
+    await user.click(within(toolbar).getByRole("button", { name: "Accept" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(1));
+    expect(walled()[0]).toEqual([
+      { from: { x: 100, y: 100 }, to: { x: 400, y: 100 }, material: "concrete" },
+    ]);
+    expect(toolbar).toHaveTextContent("1 wall suggested from the plan");
+
+    // Delete the other; undo brings it back without a save, then undoes the accept.
+    clickPlan(20 + 237.5, 15 + 285);
+    await user.click(await within(toolbar).findByRole("button", { name: "Delete suggestion" }));
+    await waitFor(() => expect(within(toolbar).queryByText(/suggested from the plan/)).toBeNull());
+    await user.click(within(toolbar).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(toolbar).toHaveTextContent("1 wall suggested from the plan"));
+    expect(sent("PUT", /\/walls$/)).toHaveLength(1);
+    await user.click(within(toolbar).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(2));
+    expect(walled()[1]).toEqual([]);
+    expect(toolbar).toHaveTextContent("2 walls suggested from the plan");
+
+    await user.click(within(toolbar).getByRole("button", { name: "Accept all" }));
+    await waitFor(() => expect(sent("PUT", /\/walls$/)).toHaveLength(3));
+    expect(walled()[2]?.map((w) => w.material)).toEqual(["concrete", "drywall"]);
+    expect(within(toolbar).queryByText(/suggested from the plan/)).toBeNull();
+
+    // With walls drawn, opening Walls again doesn't trace; asking does, past the drawn walls.
+    await user.click(within(toolbar).getByRole("button", { name: "Done" }));
+    await user.click(screen.getByRole("button", { name: "Walls" }));
+    const again = await screen.findByRole("toolbar", { name: "Walls" });
+    expect(traced.calls).toHaveLength(1);
+    traced.walls = [];
+    await user.click(within(again).getByRole("button", { name: "Suggest walls" }));
+    await waitFor(() => expect(traced.calls).toHaveLength(2));
+    expect(traced.calls[1]?.[1]).toMatchObject({ existing: [{}, {}] });
+    await waitFor(() =>
+      expect(within(again).getByRole("status")).toHaveTextContent(
+        "No walls found in the plan's drawing",
+      ),
+    );
   });
 });

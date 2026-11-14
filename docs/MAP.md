@@ -858,6 +858,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
 - `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts, walls.ts
 - `features/floorplans/walls/`: WallsLayer.tsx, WallsToolbar.tsx, createWalls.ts, materials.ts, snap.ts
+- `features/floorplans/walls/trace/`: lines.ts, morph.ts, read.ts, tidy.ts, trace.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts

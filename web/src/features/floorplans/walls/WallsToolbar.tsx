@@ -1,4 +1,4 @@
-import { Check, Trash, Undo2 } from "lucide";
+import { Check, CheckCheck, ScanLine, Trash, Undo2 } from "lucide";
 import { For, Show } from "solid-js";
 import type { Wall } from "../../../api/gen/Wall";
 import { strings } from "../../../lib/strings";
@@ -11,7 +11,8 @@ const t = strings.floors.walls;
 
 /**
  * Drawing walls (M6.2c), over the plan's corner: the material new walls get (and the selected
- * wall's, which picking another changes), undo, delete, done, and what a click does next.
+ * wall's or suggestion's, which picking another changes), undo, delete, suggest walls from the
+ * plan (accept or delete the one selected, or all of them), done, and what a click does next.
  */
 export function WallsToolbar(props: {
   state: WallsState;
@@ -23,13 +24,21 @@ export function WallsToolbar(props: {
     const i = props.state.selected();
     return i === undefined ? undefined : props.state.walls()[i];
   };
+  const picked = (): Wall | undefined => {
+    const i = props.state.picked();
+    return i === undefined ? undefined : props.state.suggestions()[i];
+  };
+  const lengthOf = (wall: Wall) =>
+    props.length(Math.hypot(wall.to.x - wall.from.x, wall.to.y - wall.from.y));
   const hint = () => {
     if (props.state.chain()) return t.drawing;
+    const suggestion = picked();
+    if (suggestion) return t.suggestion(t.materials[suggestion.material], lengthOf(suggestion));
     const wall = selected();
-    if (wall) {
-      const px = Math.hypot(wall.to.x - wall.from.x, wall.to.y - wall.from.y);
-      return t.selected(t.materials[wall.material], props.length(px));
-    }
+    if (wall) return t.selected(t.materials[wall.material], lengthOf(wall));
+    if (props.state.tracing()) return t.tracing;
+    if (props.state.nothing()) return t.noneFound;
+    if (props.state.suggestions().length > 0) return t.review;
     return t.start;
   };
   return (
@@ -83,11 +92,43 @@ export function WallsToolbar(props: {
             {t.delete}
           </Button>
         </Show>
+        <Show when={picked()}>
+          <Button size="sm" variant="secondary" onClick={() => props.state.accept()}>
+            <Icon icon={Check} class="size-3.5" />
+            {t.accept}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => props.state.dismiss()}>
+            <Icon icon={Trash} class="size-3.5" />
+            {t.dismiss}
+          </Button>
+        </Show>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={props.state.tracing()}
+          onClick={() => props.state.suggest()}
+        >
+          <Icon icon={ScanLine} class="size-3.5" />
+          {t.suggest}
+        </Button>
         <Button size="sm" variant="primary" onClick={() => props.onDone()}>
           <Icon icon={Check} class="size-3.5" />
           {t.done}
         </Button>
       </div>
+      <Show when={props.state.suggestions().length > 0}>
+        <div class="flex flex-wrap items-center gap-1">
+          <span class="mr-1 text-xs">{t.suggested(props.state.suggestions().length)}</span>
+          <Button size="sm" variant="secondary" onClick={() => props.state.acceptAll()}>
+            <Icon icon={CheckCheck} class="size-3.5" />
+            {t.acceptAll}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => props.state.dismissAll()}>
+            <Icon icon={Trash} class="size-3.5" />
+            {t.dismissAll}
+          </Button>
+        </div>
+      </Show>
       <p role="status" class="max-w-xl text-fg-muted text-xs">
         {hint()}
       </p>

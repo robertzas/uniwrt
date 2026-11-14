@@ -4081,6 +4081,20 @@ export const strings = {
         `${material} wall${length ? `, ${length}` : ""}. Drag its ends, pick another material, or press Delete. Click it again to start a wall from it.`,
       failed: "The walls couldn't be saved",
       count: (count: number) => `${count} ${count === 1 ? "wall" : "walls"}`,
+      suggest: "Suggest walls",
+      tracing: "Tracing the plan's walls…",
+      unreadable: "The plan couldn't be read",
+      noneFound: "No walls found in the plan's drawing. Click to start a wall.",
+      suggested: (count: number) =>
+        `${count} ${count === 1 ? "wall" : "walls"} suggested from the plan`,
+      review:
+        "Dashed walls are suggested from the plan: click one to accept or delete it, or accept them all. Nothing is saved until accepted.",
+      suggestion: (material: string, length: string | undefined) =>
+        `Suggested ${material.toLowerCase()} wall${length ? `, ${length}` : ""}. Accept it (Enter), pick another material, or delete it (Delete).`,
+      accept: "Accept",
+      acceptAll: "Accept all",
+      dismiss: "Delete suggestion",
+      dismissAll: "Delete all",
     },
     coverage: {
       title: "Coverage",

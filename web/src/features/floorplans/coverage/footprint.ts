@@ -26,7 +26,7 @@ function whole(cols: number, rows: number): Mask {
 }
 
 /** The median of each channel along the image's border. */
-function background(p: Pixels): [number, number, number] {
+export function background(p: Pixels): [number, number, number] {
   const channels: [number[], number[], number[]] = [[], [], []];
   const take = (x: number, y: number) => {
     const i = (y * p.width + x) * 4;
@@ -114,6 +114,31 @@ export function footprint(p: Pixels, cols: number, rows: number, closeCells: num
   return { cols, rows, inside, detected: true };
 }
 
+/** The plan at `src` drawn on white at `width` × `height`; undefined where it can't be read. */
+export async function readPixels(
+  src: string,
+  width: number,
+  height: number,
+): Promise<Pixels | undefined> {
+  const image = new Image();
+  image.decoding = "async";
+  image.src = src;
+  try {
+    await image.decode();
+  } catch {
+    return undefined;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return undefined;
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+  return context.getImageData(0, 0, width, height);
+}
+
 /** Reads the plan at `src` and finds its footprint; the whole plan where it can't be read. */
 export async function loadFootprint(
   src: string,
@@ -121,21 +146,6 @@ export async function loadFootprint(
   rows: number,
   closeCells: number,
 ): Promise<Mask> {
-  const image = new Image();
-  image.decoding = "async";
-  image.src = src;
-  try {
-    await image.decode();
-  } catch {
-    return whole(cols, rows);
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = cols * SUB;
-  canvas.height = rows * SUB;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return whole(cols, rows);
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return footprint(context.getImageData(0, 0, canvas.width, canvas.height), cols, rows, closeCells);
+  const pixels = await readPixels(src, cols * SUB, rows * SUB);
+  return pixels ? footprint(pixels, cols, rows, closeCells) : whole(cols, rows);
 }

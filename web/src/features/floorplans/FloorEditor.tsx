@@ -170,11 +170,13 @@ export function FloorEditor(props: {
       setScaleError(undefined);
     },
   );
-  // Leaving the walls ends whatever drawing them was doing.
+  // Leaving the walls ends whatever drawing them was doing; opening them on a floor without
+  // walls traces its plan for suggestions.
   createEffect(
     () => props.mode.kind === "walls",
     (drawing) => {
-      if (!drawing) props.walls.end();
+      if (drawing) props.walls.open();
+      else props.walls.end();
     },
   );
   onSettled(() => {

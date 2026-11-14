@@ -10,8 +10,8 @@ export const SNAP_PX = 10;
 /**
  * The floor's walls over the plan, in screen space so they keep their width at any zoom: one
  * path per material, however many walls. While drawing (`state`), the wall selected with its
- * draggable ends, the line being drawn with its length (`length` formats plan pixels) and a mark
- * where the pointer snaps.
+ * draggable ends, the line being drawn with its length (`length` formats plan pixels), a mark
+ * where the pointer snaps, and the walls traced from the plan, dashed, the one selected marked.
  */
 export function WallsLayer(props: {
   frame: PlanFrame;
@@ -34,6 +34,11 @@ export function WallsLayer(props: {
     const i = props.state?.selected();
     return i === undefined ? undefined : props.walls[i];
   };
+  const suggestions = (): readonly Wall[] => props.state?.suggestions() ?? [];
+  const picked = () => {
+    const i = props.state?.picked();
+    return i === undefined ? undefined : suggestions()[i];
+  };
   const tolerance = () => SNAP_PX / props.frame.zoom();
   const grab = (event: PointerEvent, end: "from" | "to") => {
     // The canvas pans on the background only.
@@ -51,7 +56,7 @@ export function WallsLayer(props: {
   return (
     <g data-walls="">
       <g class="pointer-events-none" stroke-linecap="round" fill="none">
-        <Show when={selected()}>
+        <Show when={selected() ?? picked()}>
           {(wall) => (
             <path
               d={path([wall()])}
@@ -66,6 +71,22 @@ export function WallsLayer(props: {
             <Show when={of(m.material)}>
               {(d) => (
                 <path d={d()} stroke={m.color} stroke-width={m.width} data-material={m.material} />
+              )}
+            </Show>
+          )}
+        </For>
+        <For each={MATERIALS}>
+          {(m) => (
+            <Show when={path(suggestions().filter((w) => w.material === m.material))}>
+              {(d) => (
+                <path
+                  d={d()}
+                  stroke={m.color}
+                  stroke-width={m.width}
+                  stroke-dasharray="7 5"
+                  stroke-opacity="0.85"
+                  data-traced={m.material}
+                />
               )}
             </Show>
           )}
