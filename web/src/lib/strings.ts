@@ -211,6 +211,60 @@ export const strings = {
       retryAt: (time: string) => `Retrying at ${time}`,
     },
   },
+  firmware: {
+    title: "Firmware",
+    description:
+      "The OpenWrt release on each device and the upgrades on offer. Upgrade images are built by OpenWrt's build service (ASU) with the packages each device runs.",
+    loading: "Reading the firmware catalog…",
+    refresh: "Check again",
+    columns: { device: "Device", running: "Running", upgrade: "Upgrade", state: "State" },
+    summary: (current: number, upgradable: number) =>
+      upgradable === 0
+        ? `All ${current === 1 ? "device is" : `${current} devices are`} up to date`
+        : `${upgradable} of ${current} ${current === 1 ? "device" : "devices"} can upgrade`,
+    upToDate: "Up to date",
+    available: "Upgrade available",
+    unknown: "Unknown",
+    kind: { update: "Update", branch: "New release" } as Record<string, string>,
+    kindHint: {
+      update: "A newer release of the same branch: fixes only.",
+      branch: "The next branch: new features. Read its release notes first.",
+    } as Record<string, string>,
+    notes: "Release notes",
+    noImage: "No image for this device",
+    prepare: "Prepare upgrade",
+    card: {
+      title: "Firmware",
+      running: (version: string) => `Running OpenWrt ${version}`,
+      none: "This device runs the latest release.",
+    },
+    dialog: {
+      title: (name: string) => `Upgrade ${name}`,
+      description:
+        "uniwrt reads the device's packages and works out the image: your packages carried over, renamed where OpenWrt renamed them, and the mesh essentials. Nothing changes on the device.",
+      release: "Release",
+      reading: "Reading the device's packages…",
+      read: (when: string) => `Packages read at ${when}.`,
+      kept: (n: number) => `${n} of your ${n === 1 ? "package" : "packages"} carried over`,
+      renamed: "Renamed by OpenWrt",
+      added: "Added by uniwrt (mesh essentials)",
+      removed: "Replaced by the full wpad",
+      dropped: (release: string) => `Not in OpenWrt ${release}: left out of the image`,
+      droppedHint:
+        "These packages come from another feed or were retired. Install them again after the upgrade if you still need them.",
+      size: (image: string, free: string | null) =>
+        free === null
+          ? `The official image is ${image}; this one is a little larger.`
+          : `The official image is ${image}; this one is a little larger. ${free} free in /tmp, where it is staged.`,
+      tight: "Little room in /tmp for the image: the upgrade may fail. Free some memory first.",
+      build: "Build the image",
+      building: "Asking ASU…",
+      ready:
+        "The image is ready. Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
+      again: "Try again",
+      close: "Close",
+    },
+  },
   adopt: {
     open: "Adopt device",
     title: "Adopt a device",

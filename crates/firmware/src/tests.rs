@@ -132,3 +132,182 @@ async fn an_unreachable_asu_says_so() {
         Err(Error::Unreachable { .. })
     ));
 }
+
+mod upgrades {
+    use uniwrt_core::{NodeId, Timestamp};
+    use uniwrt_model::{
+        facts::Release,
+        firmware::{OfferKind, PackageRename},
+        inventory::Package,
+    };
+
+    use crate::{
+        Asu, Error, Upgrade,
+        testing::{FakeAsu, SYSUPGRADE_BYTES},
+    };
+
+    fn release(version: &str) -> Release {
+        Release {
+            distribution: "OpenWrt".to_owned(),
+            version: version.to_owned(),
+            revision: "r29233-443ec4032a".to_owned(),
+            target: "mediatek/filogic".to_owned(),
+            arch: "aarch64_cortex-a53".to_owned(),
+        }
+    }
+
+    fn package(name: &str, explicit: bool) -> Package {
+        Package {
+            name: name.to_owned(),
+            version: "1".to_owned(),
+            explicit,
+        }
+    }
+
+    /// A 24.10.7 node with LuCI, the full wpad, the mesh and a package from another feed.
+    fn packages() -> Vec<Package> {
+        let mut packages: Vec<Package> = [
+            "opkg",
+            "dnsmasq",
+            "luci",
+            "wpad-mbedtls",
+            "kmod-batman-adv",
+            "batctl-default",
+            "my-tool",
+            "kernel",
+        ]
+        .into_iter()
+        .map(|name| package(name, true))
+        .collect();
+        packages.push(package("ppp", false));
+        packages.push(package("kmod-mt7915e", false));
+        packages
+    }
+
+    fn upgrade<'a>(release: &'a Release, to: &'a str, packages: &'a [Package]) -> Upgrade<'a> {
+        Upgrade {
+            node: NodeId::new(3),
+            release,
+            board: "glinet,gl-mt6000",
+            to,
+            packages,
+            packages_at: Timestamp::from_unix_ms(1_000),
+            tmp_free_bytes: Some(200 << 20),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_node_is_offered_the_next_branch_and_its_own_latest() {
+        let fake = FakeAsu::start().await;
+        let asu = Asu::new(fake.url(), "uniwrt/test").unwrap();
+        let (offers, note) = asu
+            .offers(&release("24.10.7"), "glinet,gl-mt6000")
+            .await
+            .unwrap();
+        assert_eq!(note, None);
+        let seen: Vec<(&str, OfferKind, Option<&str>)> = offers
+            .iter()
+            .map(|o| (o.release.as_str(), o.kind, o.profile.as_deref()))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ("25.12.6", OfferKind::Branch, Some("glinet_gl-mt6000")),
+                ("24.10.8", OfferKind::Update, Some("glinet_gl-mt6000")),
+            ]
+        );
+        assert_eq!(offers[0].image_bytes, Some(SYSUPGRADE_BYTES));
+        assert!(offers[0].notes.ends_with("/releases/25.12/notes-25.12.6"));
+
+        let (offers, note) = asu.offers(&release("24.10.7"), "acme,other").await.unwrap();
+        assert!(offers.iter().all(|o| o.profile.is_none()));
+        assert!(note.unwrap().contains("acme,other"));
+        let mut derivative = release("24.10.7");
+        derivative.distribution = "ImmortalWrt".to_owned();
+        let (offers, note) = asu.offers(&derivative, "glinet,gl-mt6000").await.unwrap();
+        assert!(offers.is_empty() && note.unwrap().contains("ImmortalWrt"));
+        let (offers, _) = asu
+            .offers(&release("25.12.6"), "glinet,gl-mt6000")
+            .await
+            .unwrap();
+        assert!(offers.is_empty(), "up to date");
+    }
+
+    #[tokio::test]
+    async fn an_upgrade_keeps_the_nodes_packages_and_builds_without_a_script() {
+        let fake = FakeAsu::start().await;
+        let asu = Asu::new(fake.url(), "uniwrt/test").unwrap();
+        let running = release("24.10.7");
+        let packages = packages();
+        let plan = asu
+            .upgrade_plan(upgrade(&running, "25.12.6", &packages))
+            .await
+            .unwrap();
+        assert_eq!(plan.profile, "glinet_gl-mt6000");
+        assert_eq!(
+            plan.kept,
+            ["batctl-default", "kmod-batman-adv", "luci", "wpad-mbedtls"]
+        );
+        assert_eq!(
+            plan.renamed,
+            [PackageRename {
+                from: "opkg".to_owned(),
+                to: "apk-mbedtls".to_owned()
+            }]
+        );
+        assert_eq!(plan.dropped, ["my-tool"]);
+        assert_eq!(plan.removed, ["wpad-basic-mbedtls"]);
+        assert_eq!(plan.image_bytes, Some(SYSUPGRADE_BYTES));
+
+        let started = asu
+            .build_upgrade(upgrade(&running, "25.12.6", &packages))
+            .await
+            .unwrap();
+        assert_eq!(started.packages, plan.packages);
+        let sent = fake.builds().pop().unwrap();
+        assert_eq!(sent["version"], "25.12.6");
+        assert_eq!(sent["profile"], "glinet_gl-mt6000");
+        assert!(sent.get("defaults").is_none(), "{sent}");
+        assert!(
+            sent["packages"]
+                .as_array()
+                .unwrap()
+                .contains(&"-wpad-basic-mbedtls".into())
+        );
+    }
+
+    #[tokio::test]
+    async fn an_update_within_a_branch_renames_nothing() {
+        let fake = FakeAsu::start().await;
+        let asu = Asu::new(fake.url(), "uniwrt/test").unwrap();
+        let running = release("24.10.7");
+        let packages = packages();
+        let plan = asu
+            .upgrade_plan(upgrade(&running, "24.10.8", &packages))
+            .await
+            .unwrap();
+        assert_eq!(
+            plan.renamed,
+            [] as [uniwrt_model::firmware::PackageRename; 0]
+        );
+        assert!(!plan.packages.iter().any(|p| p.contains("opkg")));
+    }
+
+    #[tokio::test]
+    async fn only_a_release_on_offer_is_planned() {
+        let fake = FakeAsu::start().await;
+        let asu = Asu::new(fake.url(), "uniwrt/test").unwrap();
+        let running = release("24.10.7");
+        let packages = packages();
+        for to in ["25.12.5", "24.10.7", "26.06.0", "../x"] {
+            assert!(
+                matches!(
+                    asu.upgrade_plan(upgrade(&running, to, &packages)).await,
+                    Err(Error::NotFound(_))
+                ),
+                "{to}"
+            );
+        }
+        assert_eq!(fake.builds(), [] as [serde_json::Value; 0]);
+    }
+}

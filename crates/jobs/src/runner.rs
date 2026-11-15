@@ -472,6 +472,27 @@ impl Jobs {
         self.shared.discovery.scan(adopted, wait).await
     }
 
+    /// Reads `node`'s packages again from its package manager's database and keeps them as
+    /// its inventory (D-121): nothing changes on the node, so observe mode allows it.
+    pub async fn read_packages(
+        &self,
+        node: NodeId,
+        manager: uniwrt_model::facts::PackageManager,
+    ) -> Result<uniwrt_model::inventory::Inventory> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let node = self
+            .shared
+            .store
+            .node(node)
+            .await?
+            .ok_or(Error::NoNode(node))?;
+        crate::firmware::packages(&self.shared, &node, manager)
+            .await
+            .map_err(|err| Error::Failed(err.message))
+    }
+
     /// The routers at `hosts` ([`bootstrap::candidates`](crate::bootstrap::candidates)) that
     /// could be the gateway to set up: dropbear answers, with whether root has no password and,
     /// if so, the model and release. Nothing changes on them.

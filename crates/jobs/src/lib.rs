@@ -14,6 +14,8 @@
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
+//!   [`Jobs::read_packages`] reads a node's packages again and keeps them (M7.1a1, before an
+//!   upgrade is planned; observe mode too);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -92,6 +94,7 @@ mod apply;
 pub mod bootstrap;
 mod discovery;
 mod errors;
+mod firmware;
 mod import;
 mod manage;
 #[cfg(test)]

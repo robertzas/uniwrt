@@ -1,4 +1,4 @@
-import { Download, ExternalLink, Hammer, LoaderCircle, ShieldCheck } from "lucide";
+import { ExternalLink, Hammer, ShieldCheck } from "lucide";
 import {
   createEffect,
   createMemo,
@@ -9,15 +9,16 @@ import {
   Show,
   Switch,
 } from "solid-js";
-import type { FirmwareImage } from "../../../api/gen/FirmwareImage";
 import type { FirmwareProfile } from "../../../api/gen/FirmwareProfile";
 import type { ImageBuild } from "../../../api/gen/ImageBuild";
 import { api, errorText } from "../../../lib/api";
+import { followBuild } from "../../../lib/firmware";
 import { formatBytes } from "../../../lib/format";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { FormField, INPUT, SELECT } from "../../../ui/FormField";
 import { Icon } from "../../../ui/Icon";
+import { BuildFailed, BuildRunning, ImageRow } from "../../../ui/ImageBuild";
 import { JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { matchProfiles, packageChanges } from "./image";
 import { RolePicker } from "./ZtpDialogs";
@@ -29,9 +30,6 @@ const roles = [
   { value: "bridge", label: role.bridge },
   { value: "gateway", label: role.gateway },
 ] as const;
-/** How often a build is read while ASU queues or builds it. */
-const FOLLOW_MS = 3_000;
-
 type Role = (typeof roles)[number]["value"];
 
 /**
@@ -76,30 +74,13 @@ export function ImageTab(props: { open: boolean }) {
       });
     return () => controller.abort();
   });
-  // Follows the build while ASU queues or builds it.
-  createEffect(
-    () => {
-      const current = build();
-      const running = current?.state === "queued" || current?.state === "building";
-      return props.open && running ? current?.hash : undefined;
-    },
-    (hash) => {
-      if (!hash) return;
-      const controller = new AbortController();
-      const timer = setInterval(async () => {
-        try {
-          setBuild(await api.ztp.builds.get(hash, controller.signal));
-          setError(undefined);
-        } catch (err) {
-          if (!controller.signal.aborted) setError(errorText(err));
-        }
-      }, FOLLOW_MS);
-      return () => {
-        controller.abort();
-        clearInterval(timer);
-      };
-    },
-  );
+  followBuild({
+    build,
+    active: () => props.open,
+    fetch: (hash, signal) => api.ztp.builds.get(hash, signal),
+    onBuild: setBuild,
+    onError: setError,
+  });
 
   const matches = createMemo(() => matchProfiles(profiles() ?? [], query()));
   const start = async () => {
@@ -297,28 +278,18 @@ function Progress(props: {
   onAnother: () => void;
 }) {
   const changes = () => packageChanges(props.packages);
-  const step = () => {
-    const name = props.build.step ?? "init";
-    return t.step[name] ?? name.replaceAll("_", " ");
-  };
   return (
     <div class="flex flex-col gap-4">
       <Switch>
         <Match when={props.build.state === "queued" || props.build.state === "building"}>
-          <div class="flex flex-col gap-1">
-            <p role="status" class="flex items-center gap-2 text-fg text-sm">
-              <Icon icon={LoaderCircle} class="size-4 animate-spin text-accent" />
-              {props.build.state === "queued"
-                ? t.state.queued(props.build.queue_position)
-                : t.state.building(step())}
-            </p>
-            <p class="text-fg-subtle text-xs">{t.wait}</p>
-          </div>
+          <BuildRunning build={props.build} />
         </Match>
         <Match when={props.build.state === "done"}>
           <JobSuccessNote text={t.state.done} />
           <ul class="flex flex-col gap-2" aria-label={t.state.done}>
-            <For each={props.build.images}>{(image) => <ImageRow image={image} />}</For>
+            <For each={props.build.images}>
+              {(image) => <ImageRow image={image} size={formatBytes(image.size_bytes)} />}
+            </For>
           </ul>
           <a
             href={`https://openwrt.org/start?do=search&q=${encodeURIComponent(props.model)}`}
@@ -331,16 +302,7 @@ function Progress(props: {
           </a>
         </Match>
         <Match when={props.build.state === "failed"}>
-          <div role="alert" class="flex flex-col gap-2">
-            <p class="font-medium text-crit text-sm">{t.state.failed}</p>
-            <Show when={props.build.error}>
-              {(why) => (
-                <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-control border border-edge bg-canvas px-3 py-2 font-mono text-fg-muted text-xs">
-                  {why()}
-                </pre>
-              )}
-            </Show>
-          </div>
+          <BuildFailed build={props.build} />
         </Match>
       </Switch>
       <Show when={changes().added.length > 0}>
@@ -357,39 +319,5 @@ function Progress(props: {
         </Button>
       </div>
     </div>
-  );
-}
-
-function ImageRow(props: { image: FirmwareImage }) {
-  const kind = () => t.kind[props.image.kind] ?? props.image.kind;
-  return (
-    <li class="flex flex-col gap-1.5 rounded-control border border-edge bg-canvas px-3 py-2.5">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div class="min-w-0 flex-1">
-          <p class="font-medium text-fg text-sm">{kind()}</p>
-          <Show when={t.kindHint[props.image.kind]}>
-            {(hint) => <p class="text-fg-subtle text-xs">{hint()}</p>}
-          </Show>
-        </div>
-        <span class="text-fg-muted text-xs tabular-nums">
-          {formatBytes(props.image.size_bytes)}
-        </span>
-        <a
-          href={props.image.url}
-          rel="noopener noreferrer"
-          aria-label={`${t.download} ${kind()}`}
-          class="inline-flex h-7 items-center gap-1.5 rounded-control bg-accent-fill px-2.5 text-on-accent text-xs hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-        >
-          <Icon icon={Download} class="size-3.5" />
-          {t.download}
-        </a>
-      </div>
-      <p class="truncate font-mono text-fg-subtle text-xs" title={props.image.name}>
-        {props.image.name}
-      </p>
-      <p class="break-all font-mono text-fg-subtle text-xs">
-        {t.sha256} {props.image.sha256}
-      </p>
-    </li>
   );
 }

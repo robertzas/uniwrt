@@ -1,6 +1,9 @@
 //! The ASU client: OpenWrt's catalog, kept a while in memory, and zero-touch image builds.
 
+mod upgrade;
+
 use std::{
+    collections::BTreeSet,
     sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
@@ -11,6 +14,7 @@ use crate::{
     Error,
     build::{self, MAX_DEFAULTS},
     catalog::{self, Overview},
+    device::Target,
     http::Http,
     packages::packages,
 };
@@ -21,6 +25,8 @@ const OVERVIEW_TTL: Duration = Duration::from_hours(1);
 const PROFILES_TTL: Duration = Duration::from_hours(24);
 /// The releases whose devices are kept.
 const MAX_RELEASES: usize = 4;
+pub use upgrade::Upgrade;
+
 /// The largest catalog read (a release's is about 400 KB).
 const MAX_CATALOG: usize = 8 << 20;
 /// The largest other answer read.
@@ -53,6 +59,10 @@ struct Inner {
 struct Cache {
     overview: Option<(Instant, Overview)>,
     profiles: Vec<(String, Instant, Arc<[FirmwareProfile]>)>,
+    /// A target's devices in a release, by `<release> <target>`.
+    targets: Vec<(String, Instant, Arc<Target>)>,
+    /// The packages a release has for an architecture and target, by `<release> <arch> <target>`.
+    indexes: Vec<(String, Instant, Arc<BTreeSet<String>>)>,
 }
 
 impl Asu {
@@ -159,10 +169,16 @@ impl Asu {
             target: image.target,
             profile: image.profile,
             packages: &packages,
-            defaults: image.script,
+            defaults: Some(image.script),
             client: &self.inner.client,
         };
-        let body = serde_json::to_vec(&request).map_err(|err| Error::Invalid(err.to_string()))?;
+        let build = self.post_build(&request).await?;
+        Ok(ImageBuildStarted { packages, build })
+    }
+
+    /// Sends a build request; ASU answers with the build it has, or queues it.
+    async fn post_build(&self, request: &build::Request<'_>) -> Result<ImageBuild, Error> {
+        let body = serde_json::to_vec(request).map_err(|err| Error::Invalid(err.to_string()))?;
         let answer = self
             .inner
             .http
@@ -172,8 +188,7 @@ impl Asu {
                 MAX_ANSWER,
             )
             .await?;
-        let build = build::answer(&self.inner.base, None, answer.status, &answer.body)?;
-        Ok(ImageBuildStarted { packages, build })
+        build::answer(&self.inner.base, None, answer.status, &answer.body)
     }
 
     /// How the build `hash` stands.

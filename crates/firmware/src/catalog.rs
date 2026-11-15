@@ -1,7 +1,7 @@
 //! OpenWrt's catalog, as ASU and OpenWrt's download server describe it (pure): the releases a
 //! zero-touch image can be built for, the devices of a release, and one device's packages.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 use uniwrt_model::firmware::FirmwareProfile;
@@ -19,12 +19,62 @@ pub(crate) struct Overview {
     pub(crate) releases: Vec<String>,
     /// The download server, such as `https://downloads.openwrt.org`, without a trailing `/`.
     pub(crate) upstream: String,
+    /// The release branches ASU builds for (snapshots and disabled ones left out), newest
+    /// first: the upgrades on offer come from them.
+    pub(crate) branches: Vec<Branch>,
+}
+
+/// A release branch, such as `25.12`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Branch {
+    pub(crate) name: String,
+    /// Its releases, candidates included, as ASU lists them.
+    pub(crate) versions: Vec<String>,
+    /// The main line's revision the branch left at: renames are the main line's, so an
+    /// upgrade spans those between the two branches' (a branch's own revisions keep counting
+    /// past it, so 24.10.8's r29233 still has opkg, renamed at r28056).
+    pub(crate) forked_at: Option<u32>,
+    /// The packages renamed or retired up to this branch, by the revision that did it.
+    pub(crate) changes: Vec<PackageChange>,
+}
+
+/// A package renamed (`opkg` became `apk-mbedtls` at r28056) or retired: an upgrade across
+/// that revision asks for the new name.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub(crate) struct PackageChange {
+    pub(crate) source: String,
+    #[serde(default)]
+    pub(crate) target: Option<String>,
+    pub(crate) revision: u32,
+    /// The package became part of every image: nothing to rename.
+    #[serde(default)]
+    pub(crate) mandatory: bool,
 }
 
 #[derive(Deserialize)]
 struct RawOverview {
     latest: Vec<String>,
     upstream_url: String,
+    #[serde(default)]
+    branches: BTreeMap<String, RawBranch>,
+}
+
+#[derive(Deserialize)]
+struct RawBranch {
+    #[serde(default = "yes")]
+    enabled: bool,
+    #[serde(default)]
+    snapshot: bool,
+    #[serde(default)]
+    versions: Vec<String>,
+    #[serde(default)]
+    branch_off_rev: Option<u32>,
+    #[serde(default)]
+    package_changes: Vec<PackageChange>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 pub(crate) fn overview(body: &[u8]) -> Result<Overview, Error> {
@@ -37,9 +87,29 @@ pub(crate) fn overview(body: &[u8]) -> Result<Overview, Error> {
         .collect();
     releases.sort_by_key(|(version, _)| std::cmp::Reverse(*version));
     releases.dedup_by(|a, b| a.0 == b.0);
+    let mut branches: Vec<((u32, u32), Branch)> = raw
+        .branches
+        .into_iter()
+        .filter(|(_, branch)| branch.enabled && !branch.snapshot)
+        .filter_map(|(name, branch)| {
+            let (major, minor) = name.split_once('.')?;
+            let number = (major.parse().ok()?, minor.parse().ok()?);
+            Some((
+                number,
+                Branch {
+                    name,
+                    versions: branch.versions,
+                    forked_at: branch.branch_off_rev,
+                    changes: branch.package_changes,
+                },
+            ))
+        })
+        .collect();
+    branches.sort_by_key(|(number, _)| std::cmp::Reverse(*number));
     Ok(Overview {
         releases: releases.into_iter().map(|(_, release)| release).collect(),
         upstream: raw.upstream_url.trim_end_matches('/').to_owned(),
+        branches: branches.into_iter().map(|(_, branch)| branch).collect(),
     })
 }
 
@@ -191,9 +261,39 @@ mod tests {
             Overview {
                 releases: vec!["25.12.6".to_owned(), "24.10.8".to_owned()],
                 upstream: "https://downloads.openwrt.org".to_owned(),
+                branches: Vec::new(),
             }
         );
         assert!(matches!(overview(b"{}"), Err(Error::Invalid(_))));
+    }
+
+    #[test]
+    fn branches_are_the_enabled_releases_newest_first_with_their_changes() {
+        let body = br#"{"latest":["25.12.6"],"upstream_url":"https://d.example","branches":{
+            "SNAPSHOT":{"snapshot":true,"versions":["SNAPSHOT"]},
+            "24.10":{"versions":["24.10.8","24.10.0-rc1"],"package_changes":[]},
+            "25.12":{"versions":["25.12.6"],"branch_off_rev":32295,"package_changes":[
+                {"source":"opkg","target":"apk-mbedtls","revision":28056},
+                {"source":"kmod-nft-nat6","revision":20282,"mandatory":true}]},
+            "21.02":{"enabled":false,"versions":["21.02.7"]},
+            "next":{"versions":["x"]}}}"#;
+        let branches = overview(body).unwrap().branches;
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, ["25.12", "24.10"]);
+        assert_eq!(
+            (branches[0].forked_at, branches[1].forked_at),
+            (Some(32295), None)
+        );
+        assert_eq!(
+            branches[0].changes[0],
+            PackageChange {
+                source: "opkg".to_owned(),
+                target: Some("apk-mbedtls".to_owned()),
+                revision: 28056,
+                mandatory: false,
+            }
+        );
+        assert!(branches[0].changes[1].mandatory);
     }
 
     #[test]

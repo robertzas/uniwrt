@@ -207,6 +207,11 @@ impl Demo {
 
     /// Without `dial`: nothing is adopted or probed.
     pub(crate) async fn start_with(dial: bool) -> Self {
+        Self::start_full(dial, None).await
+    }
+
+    /// With `asu` for firmware.
+    pub(crate) async fn start_full(dial: bool, asu: Option<uniwrt_firmware::Asu>) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
         let store = Store::open(dir.path().join("uniwrt.db"), Arc::clone(&clock))
@@ -283,7 +288,7 @@ impl Demo {
             rf: Some(rf.handle()),
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
-            asu: None,
+            asu,
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

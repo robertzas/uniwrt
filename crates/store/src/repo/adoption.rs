@@ -130,6 +130,28 @@ impl InventoryRepo for Store {
         .await
     }
 
+    async fn set_inventory(&self, node: NodeId, inventory: Inventory) -> Result<()> {
+        let packages =
+            serde_json::to_string(&inventory.packages).map_err(|source| Error::Encode {
+                what: "packages",
+                source,
+            })?;
+        self.write(move |conn| {
+            conn.prepare_cached(
+                "INSERT INTO node_inventory (node_id, taken_at, packages) VALUES (?1, ?2, ?3)
+                 ON CONFLICT (node_id) DO UPDATE SET taken_at = excluded.taken_at,
+                 packages = excluded.packages",
+            )?
+            .execute(params![
+                node.get(),
+                inventory.taken_at.as_unix_ms(),
+                packages
+            ])?;
+            Ok(())
+        })
+        .await
+    }
+
     async fn backups(&self, node: NodeId) -> Result<Vec<Backup>> {
         self.read(move |conn| {
             Ok(conn
@@ -233,6 +255,14 @@ mod tests {
                 .windows(tarball.len())
                 .any(|window| window == tarball)
         );
+
+        // A newer read replaces the packages.
+        let newer = Inventory {
+            taken_at: testing::START.saturating_add(std::time::Duration::from_secs(60)),
+            packages: Vec::new(),
+        };
+        store.set_inventory(node.id, newer.clone()).await.unwrap();
+        assert_eq!(store.inventory(node.id).await.unwrap(), Some(newer));
 
         // Deleting the node deletes what adoption recorded.
         assert!(store.delete_node(node.id).await.unwrap());

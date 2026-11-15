@@ -4,6 +4,7 @@ import type { NodeFacts } from "../../../api/gen/NodeFacts";
 import { LiveContext } from "../../../lib/live";
 import { SessionContext } from "../../../lib/session";
 import { DriftCard, hasDrift } from "./DriftCard";
+import { FirmwareCard } from "./FirmwareCard";
 import { ManagementCard } from "./ManagementCard";
 import { PackagesCard } from "./PackagesCard";
 import { RoleCard } from "./RoleCard";
@@ -12,7 +13,7 @@ import { WpadCard } from "./WpadCard";
 
 /**
  * A device's Config tab (ui.md, Device page): its role (D-100), its management, its Wi-Fi daemon (the full wpad or
- * the basic one), for admins the root password the vault keeps, the packages uniwrt owns and,
+ * the basic one), its firmware and the upgrades on offer (D-121), for admins the root password the vault keeps, the packages uniwrt owns and,
  * once managed, their drift, which comes first while there is any.
  */
 export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
@@ -25,6 +26,7 @@ export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
         <RoleCard node={props.node} admin={admin()} />
         <ManagementCard node={props.node} admin={admin()} />
         <WpadCard node={props.node} facts={props.facts} admin={admin()} />
+        <FirmwareCard node={props.node} admin={admin()} />
         <Show when={admin()}>
           <RootPasswordCard node={props.node} />
         </Show>

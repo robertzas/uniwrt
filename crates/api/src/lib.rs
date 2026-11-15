@@ -36,7 +36,9 @@
 //!   one-liners (`POST v1/ztp/one-liners` ([`ZtpOneLinerBody`]), `GET` and `DELETE
 //!   v1/ztp/one-liners/{token}`; D-103), images built by ASU (`GET v1/ztp/releases`, `GET
 //!   v1/ztp/profiles?release=`, `POST v1/ztp/builds` ([`ImageBuildBody`]), `GET
-//!   v1/ztp/builds/{hash}`; D-104), and [`bootstrap`], the public `GET /b/{token}` the
+//!   v1/ztp/builds/{hash}`; D-104), firmware upgrades (`GET v1/firmware`,
+//!   `POST v1/firmware/nodes/{id}/plan` and `…/builds` ([`UpgradeBody`]), `GET
+//!   v1/firmware/builds/{hash}`; D-121), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -102,6 +104,9 @@ mod clients;
 mod discovered;
 mod drift;
 mod events;
+mod firmware;
+#[cfg(test)]
+mod firmware_tests;
 mod floors;
 mod health;
 mod import;
@@ -156,6 +161,7 @@ pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
 pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
+pub use firmware::UpgradeBody;
 pub use health::BuildInfo;
 pub use import::{DriftTarget, ImportAccept, ImportRequest};
 pub use ipam::ReservationSuggestion;
@@ -260,6 +266,7 @@ pub fn router(api: Api) -> Router {
         .merge(config_routes())
         .merge(adoption_routes())
         .merge(ztp::routes())
+        .merge(firmware::routes())
         .merge(floors::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(

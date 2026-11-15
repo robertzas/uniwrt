@@ -22,6 +22,7 @@ import type { DriftTarget } from "../api/gen/DriftTarget";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
+import type { FirmwareCatalog } from "../api/gen/FirmwareCatalog";
 import type { FirmwareProfile } from "../api/gen/FirmwareProfile";
 import type { FirmwareReleases } from "../api/gen/FirmwareReleases";
 import type { Floor } from "../api/gen/Floor";
@@ -90,6 +91,8 @@ import type { SpeedTests } from "../api/gen/SpeedTests";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
+import type { UpgradeBody } from "../api/gen/UpgradeBody";
+import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import type { UserInfo } from "../api/gen/UserInfo";
 import type { Wall } from "../api/gen/Wall";
 import type { WanTestBody } from "../api/gen/WanTestBody";
@@ -606,6 +609,18 @@ export const api = {
     },
   },
   /** Cables that failed the wired backhaul's probe (D-097); forgetting one (admins) has the next apply probe it again. */
+  firmware: {
+    catalog: (signal?: AbortSignal) => request<FirmwareCatalog>("/firmware", { signal }),
+    /** Reads the node's packages again and works out the image (nothing changes on it). */
+    plan: (node: number, body: UpgradeBody, signal?: AbortSignal) =>
+      request<UpgradePlan>(`/firmware/nodes/${node}/plan`, { method: "POST", body, signal }),
+    builds: {
+      create: (node: number, body: UpgradeBody) =>
+        request<ImageBuildStarted>(`/firmware/nodes/${node}/builds`, { method: "POST", body }),
+      get: (hash: string, signal?: AbortSignal) =>
+        request<ImageBuild>(`/firmware/builds/${encodeURIComponent(hash)}`, { signal }),
+    },
+  },
   backhaul: {
     failures: (signal?: AbortSignal) =>
       request<BackhaulFailure[]>("/backhaul/failures", { signal }),

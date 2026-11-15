@@ -21,13 +21,13 @@ use axum::{
 };
 use serde::Deserialize;
 use ts_rs::TS;
-use uniwrt_firmware::{Error, ImageRequest};
+use uniwrt_firmware::ImageRequest;
 use uniwrt_model::{
     firmware::{FirmwareProfile, FirmwareReleases, ImageBuild, ImageBuildStarted},
     node::NodeRole,
 };
 
-use crate::{Api, ApiError, ApiResult, Client, CurrentUser};
+use crate::{Api, ApiError, ApiResult, Client, CurrentUser, firmware::firmware_error};
 
 /// An image to build.
 #[derive(Debug, Deserialize, TS)]
@@ -135,16 +135,5 @@ const fn role_name(role: NodeRole) -> &'static str {
         NodeRole::Gateway => "a gateway",
         NodeRole::Ap => "an access point",
         NodeRole::Bridge => "a bridge",
-    }
-}
-
-fn firmware_error(err: Error) -> ApiError {
-    match err {
-        Error::NotFound(why) => ApiError::NotFound(why),
-        Error::Busy(_) => ApiError::Unavailable(err.to_string()),
-        Error::Unreachable { .. }
-        | Error::Status { .. }
-        | Error::Invalid(_)
-        | Error::Refused(_) => ApiError::BadGateway(err.to_string()),
     }
 }

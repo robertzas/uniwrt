@@ -1,12 +1,18 @@
-//! Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zero-touch
-//! images built by ASU, OpenWrt's public Attended Sysupgrade service.
+//! Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-121):
+//! OpenWrt's catalog, zero-touch images and upgrade images built by ASU, OpenWrt's public
+//! Attended Sysupgrade service.
 //!
 //! - **API:** [`Asu`] (one ASU service, `https://sysupgrade.openwrt.org` by default):
 //!   [`Asu::releases`] (each supported branch's latest release, 24.10 or later, from ASU's
 //!   `json/v1/overview.json`), [`Asu::profiles`] (a release's devices, from the download
 //!   server ASU names: `releases/<release>/.overview.json`), [`Asu::build`] (an image of a
 //!   device with the mesh essentials and the first-boot script, [`ImageRequest`]) and
-//!   [`Asu::status`] (a build as it stands); [`Error`]. With the `testing` feature,
+//!   [`Asu::status`] (a build as it stands); for upgrades ([`Upgrade`]): [`Asu::offers`] (the
+//!   latest of a node's branch and the next branch's, never skipping one, with the board's
+//!   profile in each from the download server's `profiles.json`), [`Asu::upgrade_plan`] (the
+//!   node's packages carried over with ASU's renames between the branches' branch-off
+//!   revisions, checked against ASU's package indexes, the missing ones dropped and listed)
+//!   and [`Asu::build_upgrade`] (that image, without a first-boot script); [`Error`]. With the `testing` feature,
 //!   `testing::FakeAsu`, an ASU and download server on loopback.
 //! - **Invariants:** nothing secret goes to ASU (D-022): the request holds the device, the
 //!   packages and the first-boot script, which holds only public data. Every value that
@@ -14,21 +20,27 @@
 //!   against the catalog or a strict pattern first. The catalog is kept in memory (the
 //!   releases an hour, a release's devices a day, four releases at most). Every package added
 //!   is in the profile's own default set's terms (`-name` removes one), so ASU resolves them
-//!   for the device's release.
+//!   for the device's release. An upgrade never removes a profile's default: only the full
+//!   wpad replaces the basic or mesh one, so a package list read short can't leave a driver
+//!   or the package manager out (D-121). A target's devices and a release's indexes are kept
+//!   a day (eight targets, four indexes).
 //! - **Dependencies:** `uniwrt-model`, hyper, hyper-util, hyper-rustls (ring, Mozilla's roots),
 //!   `serde_json`, tokio (timeouts).
 
 mod asu;
 mod build;
 mod catalog;
+mod device;
 mod http;
+mod keep;
 mod packages;
+mod release;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 #[cfg(test)]
 mod tests;
 
-pub use asu::{Asu, ImageRequest};
+pub use asu::{Asu, ImageRequest, Upgrade};
 
 /// What went wrong talking to ASU or the download server.
 #[derive(Debug, thiserror::Error)]

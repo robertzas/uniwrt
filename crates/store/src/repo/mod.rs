@@ -277,6 +277,13 @@ pub trait HostKeyRepo: Send + Sync {
 pub trait InventoryRepo: Send + Sync {
     fn inventory(&self, node: NodeId) -> impl Future<Output = Result<Option<Inventory>>> + Send;
 
+    /// Replaces the node's packages with a newer read (M7.1a1: before an upgrade is planned).
+    fn set_inventory(
+        &self,
+        node: NodeId,
+        inventory: Inventory,
+    ) -> impl Future<Output = Result<()>> + Send;
+
     /// The node's configuration backups, newest first; [`Vault::open_backup`](crate::Vault::open_backup)
     /// reads one.
     fn backups(&self, node: NodeId) -> impl Future<Output = Result<Vec<Backup>>> + Send;

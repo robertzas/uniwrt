@@ -87,6 +87,7 @@ beforeEach(() => {
       if (url === "/api/v1/nodes/1/management") {
         return Response.json(manageJob("running", 0), { status: 202 });
       }
+      if (url === "/api/v1/firmware") return Response.json({ nodes: [], error: null });
       if (url === "/api/v1/nodes/1/role") return Response.json(body);
       if (url === "/api/v1/nodes/1/wpad")
         return Response.json(wpadJob("running", 2), { status: 202 });

@@ -47,6 +47,9 @@ const pages: Record<string, RouteDefinition["component"]> = {
     import("../features/floorplans/FloorPlansPage").then((m) => ({ default: m.FloorPlansPage })),
   ),
   "/insights/rf": lazy(() => import("../features/rf/RfPage").then((m) => ({ default: m.RfPage }))),
+  "/updates": lazy(() =>
+    import("../features/updates/UpdatesPage").then((m) => ({ default: m.UpdatesPage })),
+  ),
   "/settings": lazy(() =>
     import("../features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
   ),

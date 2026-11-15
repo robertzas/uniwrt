@@ -95,6 +95,9 @@ pub enum AuditAction {
     /// A user added, changed or deleted a floor plan, replaced its image, or placed a node on it
     /// or took one off (the detail says which; D-117).
     FloorPlan,
+    /// A user asked for a node's upgrade image (the detail names the node, both releases and
+    /// the build; D-121).
+    Firmware,
 }
 
 /// One audit log entry.

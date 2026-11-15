@@ -37,6 +37,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
+- `src/firmware.rs`: Firmware upgrades (features/lifecycle.md, M7.1a1; D-121):
+- `src/firmware_tests.rs`: Firmware upgrades through the router, on the simulated fleet against the fake ASU: the catalog per node, ASU off, and the plan's gates before anything is read from a node.
 - `src/floors/image.rs`: What an uploaded floor plan is, from its header alone: PNG or still WebP, and its size.
 - `src/floors/mod.rs`: Floor plans (features/wifi.md, Coverage & floor plans; D-117).
 - `src/floors/tests.rs`: The floor plan routes over the demo: floors added, edited and deleted, a plan uploaded and served, nodes placed and taken off, and what is refused.
@@ -206,14 +208,18 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 
 ### `uniwrt-firmware` (crates/firmware)
 
-Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zero-touch images built by ASU, OpenWrt's public Attended Sysupgrade service.
+Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-121): OpenWrt's catalog, zero-touch images and upgrade images built by ASU, OpenWrt's public Attended Sysupgrade service.
 
 - `src/asu.rs`: The ASU client: OpenWrt's catalog, kept a while in memory, and zero-touch image builds.
+- `src/asu/upgrade.rs`: Upgrades (M7.1a1, D-121): the releases on offer for a node, what an upgrade image keeps of its packages, and the build.
 - `src/build.rs`: ASU's build API (pure): the request for a zero-touch image, and its answers read as an [`ImageBuild`].
 - `src/catalog.rs`: OpenWrt's catalog, as ASU and OpenWrt's download server describe it (pure): the releases a zero-touch image can be built for, the devices of a release, and one device's packages.
+- `src/device.rs`: A target's devices in one release (pure; M7.1a1): the download server's `releases/<release>/targets/<target>/profiles.json`, kept compact (the target's defaults once, each device's own packages beside them), and the device a board is.
 - `src/http.rs`: HTTP(S) GETs and JSON POSTs to ASU and OpenWrt's download server: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed, and a bounded read of the answer.
-- `src/lib.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog and zero-touch images built by ASU, OpenWrt's public Attended Sysupgrade service.
+- `src/keep.rs`: The packages an upgrade image keeps (pure; M7.1a1, D-121): what the node runs on purpose, renamed as ASU's published changes say, beyond the new profile's defaults; what the new release lacks is dropped (and listed, so it is seen before anything is flashed); the mesh essentials are added as for a zero-touch image.
+- `src/lib.rs`: Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-121): OpenWrt's catalog, zero-touch images and upgrade images built by ASU, OpenWrt's public Attended Sysupgrade service.
 - `src/packages.rs`: The packages a zero-touch image adds to its profile's defaults (pure; D-104): the mesh essentials, the same for every role, since a gateway meshes too.
+- `src/release.rs`: Release numbers and the upgrades on offer (pure; M7.1a1, D-121): the latest release of the branch a node runs, and the next branch's latest.
 - `src/testing.rs`: A fake ASU and download server on loopback (HTTP), for tests: two releases, three devices (one with the basic wpad, one without Wi-Fi, one ASU refuses), and builds that are queued, then building, then done.
 - `src/tests.rs`: The ASU client against the fake on loopback: the catalog, a build from request to images, and what it refuses before asking.
 
@@ -305,6 +311,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
 - `src/errors.rs`: How jobs word their failures: a [`JobError`] code the UI can act on, and a message.
+- `src/firmware.rs`: Firmware (M7.1a1, D-121): a node's packages read again before an upgrade is planned, and kept as its inventory.
 - `src/import.rs`: Brownfield import's reading (features/lifecycle.md, Brownfield import; D-072, D-073): log in to every adopted node, read the packages render writes and the facts render needs, run the import engine on the site's latest revision, and seal the secrets it found.
 - `src/import_tests.rs`: Imports over the scripted fleet of the apply tests: every adopted node read, the secrets found sealed once, nodes not reached left unread.
 - `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
@@ -839,7 +846,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (391 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (398 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -850,7 +857,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
-- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
+- `features/devices/config/`: ConfigTab.tsx, DriftCard.tsx, FirmwareCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, packages.ts
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
@@ -871,9 +878,10 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/settings/site/`: SiteTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
+- `features/updates/`: UpdatesPage.tsx, UpgradeDialog.tsx
 - `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, ScheduleField.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
-- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, firmware.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
+- `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/floorplan/`: Heatmap.tsx, PlanCanvas.tsx
 - `viz/timeseries/`: ChartToolbar.tsx, MetricChart.tsx, RangePicker.tsx, TimeChart.tsx, data.ts, feed.ts, ranges.ts, units.ts

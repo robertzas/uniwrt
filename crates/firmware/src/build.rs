@@ -23,8 +23,10 @@ pub(crate) struct Request<'a> {
     pub(crate) profile: &'a str,
     /// Added to the profile's defaults (`diff_packages` false), or removed with a leading `-`.
     pub(crate) packages: &'a [String],
-    /// The first-boot script (`/etc/uci-defaults`).
-    pub(crate) defaults: &'a str,
+    /// The first-boot script (`/etc/uci-defaults`): a zero-touch image's; an upgrade keeps
+    /// the node's configuration instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) defaults: Option<&'a str>,
     pub(crate) client: &'a str,
 }
 

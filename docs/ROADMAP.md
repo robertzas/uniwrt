@@ -154,7 +154,7 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 ## M7 — Lifecycle ("keep it current")
 
-- [ ] **M7.1 Firmware & rolling upgrades** (XL; merged M7.1 and M7.2, D-055): firmware catalog & ASU, the controller update notice (from M7.4, D-054); leaf → gateway ordering, health gates, soak periods, canary, pause/resume, pipeline UI. Split: catalog & ASU | rolling upgrades.
+- [ ] **M7.1 Firmware & rolling upgrades** (XL; merged M7.1 and M7.2, D-055; GitHub added by D-121): the firmware catalog, image sources (ASU keeping installed packages, official images, GitHub releases, uploads), the controller's self-upgrade from GitHub; leaf → gateway ordering, health gates, soak periods, canary, pause/resume, pipeline UI. Split: ✅ a1 catalog & ASU (each node's release, upgrades on offer and paths, the device's profile by board, the package set kept across the upgrade with ASU's renames, availability checked, missing packages dropped with a warning; ASU builds; Devices → Firmware page and the device page's card) | a2 other image sources (official images, a GitHub repo per site with per-node overrides, uploads; prereleases opt-in) | b controller self-upgrade from GitHub (update notice; the release's Sigstore attestation verified against CI's workflow; the binary staged in the data dir and run by the image's, with rollback on a failed health check) | c rolling upgrades.
 - [ ] **M7.2 Backups, restore & replace** (L; merged M7.3 and M7.4, D-054): node and controller backups, site export/import; replace, factory reset & re-adopt, decommission. Split: backups & restore | replace & decommission.
 
 ## M8 — Services and troubleshooting ("never SSH again")

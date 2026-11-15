@@ -11,8 +11,10 @@ describe("Shell", () => {
   it("opens the navigation drawer and closes it after navigating", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        Response.json({ status: "ok", version: "1.0.0", commit: "x", built_at: "y" }),
+      vi.fn(async (url: string) =>
+        url === "/api/v1/firmware"
+          ? Response.json({ nodes: [], error: null })
+          : Response.json({ status: "ok", version: "1.0.0", commit: "x", built_at: "y" }),
       ),
     );
     const user = userEvent.setup();
@@ -27,7 +29,10 @@ describe("Shell", () => {
       </QueryClientProvider>
     ));
 
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    // The Updates page loads lazily: the shell shows once it has.
+    await user.click(
+      await screen.findByRole("button", { name: "Open navigation" }, { timeout: 2000 }),
+    );
     const drawer = await screen.findByRole("dialog");
     await user.click(within(drawer).getByRole("link", { name: "Clients" }));
 
@@ -39,7 +44,9 @@ describe("Shell", () => {
   it("opens the command palette with the shortcut and navigates from it", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json({})),
+      vi.fn(async (url: string) =>
+        Response.json(url === "/api/v1/firmware" ? { nodes: [], error: null } : {}),
+      ),
     );
     const user = userEvent.setup();
     const history = memoryHistory("/updates");
@@ -53,6 +60,7 @@ describe("Shell", () => {
       </QueryClientProvider>
     ));
 
+    await screen.findByRole("button", { name: "Open navigation" }, { timeout: 2000 });
     await user.keyboard("{Control>}k{/Control}");
     const input = await screen.findByRole("combobox", { name: "Command palette" });
     await user.type(input, "clients{Enter}");

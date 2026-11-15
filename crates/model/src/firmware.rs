@@ -82,3 +82,96 @@ pub struct ImageBuildStarted {
     pub packages: Vec<String>,
     pub build: ImageBuild,
 }
+
+/// Every adopted node's firmware with the upgrades on offer (M7.1a1, D-121).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct FirmwareCatalog {
+    pub nodes: Vec<NodeFirmware>,
+    /// Why the catalog couldn't be read (ASU unreachable, or turned off): no offers then.
+    pub error: Option<String>,
+}
+
+/// A node's firmware as the catalog sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct NodeFirmware {
+    pub node: uniwrt_core::NodeId,
+    /// `OpenWrt`, or a derivative's name.
+    pub distribution: String,
+    /// The release it runs, such as `24.10.8`.
+    pub version: String,
+    /// Its source revision, such as `r29233-443ec4032a`.
+    pub revision: String,
+    /// The target and subtarget, such as `mediatek/filogic`.
+    pub target: String,
+    /// The board images target, such as `glinet,gl-mt6000`.
+    pub board: String,
+    /// Newest first: the current branch's latest release, then the next branch's.
+    pub offers: Vec<FirmwareOffer>,
+    /// Why nothing is offered, when nothing is and the node isn't simply up to date.
+    pub note: Option<String>,
+}
+
+/// A release a node can upgrade to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct FirmwareOffer {
+    pub release: String,
+    pub kind: OfferKind,
+    /// The release notes on openwrt.org.
+    pub notes: String,
+    /// The device's image builder profile in that release (such as `glinet_gl-mt6000`); `None`
+    /// when the release has no image for the board.
+    pub profile: Option<String>,
+    /// The official sysupgrade image's size: an image with the node's packages is larger.
+    pub image_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum OfferKind {
+    /// A newer release of the branch the node runs: fixes only.
+    Update,
+    /// The next branch's latest release: new features, and changes to read first.
+    Branch,
+}
+
+/// What an upgrade image will hold, against what the node runs: worked out before anything is
+/// built, so dropped packages are seen first (D-121).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct UpgradePlan {
+    pub node: uniwrt_core::NodeId,
+    /// The release it runs, and the one the image is for.
+    pub from: String,
+    pub release: String,
+    pub target: String,
+    pub profile: String,
+    /// What ASU is asked to add to the profile's defaults, or (with a leading `-`) remove.
+    pub packages: Vec<String>,
+    /// The node's own packages carried over (installed on purpose, beyond the defaults).
+    pub kept: Vec<String>,
+    /// Packages the new release names differently (ASU's published changes).
+    pub renamed: Vec<PackageRename>,
+    /// What uniwrt adds: the mesh essentials the node lacks.
+    pub added: Vec<String>,
+    /// The node's packages the new release doesn't have: left out of the image.
+    pub dropped: Vec<String>,
+    /// Defaults of the profile the node had removed: left out of the image too.
+    pub removed: Vec<String>,
+    /// When the node's packages were read.
+    pub packages_at: uniwrt_core::Timestamp,
+    /// The official sysupgrade image's size, and the node's free RAM in `/tmp` where the
+    /// image is staged: an image with more packages is larger.
+    pub image_bytes: Option<u64>,
+    pub tmp_free_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct PackageRename {
+    pub from: String,
+    pub to: String,
+}

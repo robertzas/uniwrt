@@ -1,6 +1,9 @@
 //! A fake ASU and download server on loopback (HTTP), for tests: two releases, three devices
 //! (one with the basic wpad, one without Wi-Fi, one ASU refuses), and builds that are queued,
-//! then building, then done.
+//! then building, then done. For upgrades: the branches 25.12 and 24.10 (24.10.7 and 24.10.8,
+//! with opkg renamed apk-mbedtls between them), `mediatek/filogic`'s `profiles.json` in each
+//! (the GL-MT6000 and GL-MT3000), and
+//! package indexes with LuCI and the mesh's packages.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -44,10 +47,21 @@ impl FakeAsu {
             .route(
                 "/json/v1/overview.json",
                 get(move || async move {
-                    Json(json!({"latest": ["24.10.8", "25.12.6", "SNAPSHOT"], "upstream_url": upstream, "branches": {}}))
+                    Json(json!({"latest": ["24.10.8", "25.12.6", "SNAPSHOT"], "upstream_url": upstream, "branches": {
+                        "SNAPSHOT": {"snapshot": true, "versions": ["SNAPSHOT"]},
+                        "25.12": {"versions": ["25.12.6", "25.12.5"], "branch_off_rev": 32295, "package_changes": [
+                            {"source": "opkg", "target": "apk-mbedtls", "revision": 28056}
+                        ]},
+                        "24.10": {"versions": ["24.10.8", "24.10.7"], "branch_off_rev": 27990, "package_changes": []}
+                    }}))
                 }),
             )
             .route("/releases/{release}/.overview.json", get(profiles))
+            .route(
+                "/releases/{release}/targets/{target}/{subtarget}/profiles.json",
+                get(target_profiles),
+            )
+            .route("/json/v1/releases/{release}/packages/{file}", get(arch_index))
             .route(
                 "/json/v1/releases/{release}/targets/{target}/{subtarget}/{file}",
                 get(profile),
@@ -94,11 +108,62 @@ async fn profiles(Path(release): Path<String>) -> (StatusCode, Json<Value>) {
     (StatusCode::OK, Json(profiles))
 }
 
+/// The sysupgrade image's size in every release.
+pub const SYSUPGRADE_BYTES: u64 = 10_598_720;
+
+async fn target_profiles(
+    Path((release, target, subtarget)): Path<(String, String, String)>,
+) -> (StatusCode, Json<Value>) {
+    let manager = match release.as_str() {
+        "25.12.6" | "25.12.5" => "apk-mbedtls",
+        "24.10.8" | "24.10.7" => "opkg",
+        _ => return (StatusCode::NOT_FOUND, Json(json!({}))),
+    };
+    if (target.as_str(), subtarget.as_str()) != ("mediatek", "filogic") {
+        return (StatusCode::NOT_FOUND, Json(json!({})));
+    }
+    (
+        StatusCode::OK,
+        Json(json!({
+            "arch_packages": "aarch64_cortex-a53",
+            "default_packages": [manager, "dnsmasq", "ppp", "wpad-basic-mbedtls"],
+            "profiles": {
+                "glinet_gl-mt6000": {
+                    "device_packages": ["kmod-mt7915e"],
+                    "supported_devices": ["glinet,gl-mt6000"],
+                    "images": [{"type": "sysupgrade", "size": SYSUPGRADE_BYTES}]
+                },
+                "glinet_gl-mt3000": {
+                    "device_packages": ["kmod-mt7915e"],
+                    "supported_devices": ["glinet,gl-mt3000"],
+                    "images": [{"type": "sysupgrade", "size": SYSUPGRADE_BYTES}]
+                }
+            }
+        })),
+    )
+}
+
+async fn arch_index(Path((_release, file)): Path<(String, String)>) -> (StatusCode, Json<Value>) {
+    if file != "aarch64_cortex-a53-index.json" {
+        return (StatusCode::NOT_FOUND, Json(json!({})));
+    }
+    (
+        StatusCode::OK,
+        Json(json!({"luci": "26.1", "wpad-mbedtls": "1", "batctl-default": "1", "dnsmasq": "2"})),
+    )
+}
+
 async fn profile(
     Path((_release, _target, _subtarget, file)): Path<(String, String, String, String)>,
 ) -> (StatusCode, Json<Value>) {
     let defaults = json!(["dnsmasq", "firewall4", "wpad-basic-mbedtls"]);
     match file.as_str() {
+        "index.json" => (
+            StatusCode::OK,
+            Json(
+                json!({"architecture": "aarch64_cortex-a53", "packages": {"kmod-batman-adv": "1", "kmod-mt7915e": "1"}}),
+            ),
+        ),
         "glinet_gl-mt6000.json" | "refused_one.json" => (
             StatusCode::OK,
             Json(json!({"default_packages": defaults, "device_packages": ["kmod-mt7915e"]})),
