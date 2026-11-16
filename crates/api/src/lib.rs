@@ -37,8 +37,9 @@
 //!   v1/ztp/one-liners/{token}`; D-103), images built by ASU (`GET v1/ztp/releases`, `GET
 //!   v1/ztp/profiles?release=`, `POST v1/ztp/builds` ([`ImageBuildBody`]), `GET
 //!   v1/ztp/builds/{hash}`; D-104), firmware upgrades (`GET v1/firmware`,
-//!   `POST v1/firmware/nodes/{id}/plan` and `…/builds` ([`UpgradeBody`]), `GET
-//!   v1/firmware/builds/{hash}`; D-121), and [`bootstrap`], the public `GET /b/{token}` the
+//!   `POST v1/firmware/nodes/{id}/plan` ([`PlanBody`]) and `…/builds` ([`UpgradeBody`]), `GET
+//!   v1/firmware/builds/{hash}`; D-121; uploaded images, `POST v1/firmware/uploads` and `DELETE
+//!   …/uploads/{sha256}`, D-122), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -107,6 +108,7 @@ mod events;
 mod firmware;
 #[cfg(test)]
 mod firmware_tests;
+mod firmware_uploads;
 mod floors;
 mod health;
 mod import;
@@ -161,7 +163,7 @@ pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
 pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
-pub use firmware::UpgradeBody;
+pub use firmware::{PlanBody, UpgradeBody};
 pub use health::BuildInfo;
 pub use import::{DriftTarget, ImportAccept, ImportRequest};
 pub use ipam::ReservationSuggestion;

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FirmwareCatalog } from "../../api/gen/FirmwareCatalog";
+import type { FirmwareUpload } from "../../api/gen/FirmwareUpload";
 import type { ImageBuild } from "../../api/gen/ImageBuild";
 import type { NodeFirmware } from "../../api/gen/NodeFirmware";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
@@ -22,8 +23,23 @@ const entry = (node: number, version: string, extra: Partial<NodeFirmware> = {})
   board: "glinet,gl-mt3000",
   offers: [],
   note: null,
+  uploads: [],
   ...extra,
 });
+
+const SHA = "ab".repeat(32);
+
+const custom: FirmwareUpload = {
+  sha256: SHA,
+  name: "custom-mt3000.bin",
+  size_bytes: 12 * MB,
+  uploaded_at: Date.now(),
+  target: "mediatek/filogic",
+  boards: ["glinet,gl-mt3000"],
+  distribution: "OpenWrt",
+  version: "25.12.7",
+  revision: "r1-custom",
+};
 
 const notes = (release: string) => `https://openwrt.org/releases/x/notes-${release}`;
 
@@ -50,11 +66,20 @@ const catalog: FirmwareCatalog = {
     }),
     entry(3, "SNAPSHOT", { note: "SNAPSHOT isn't a release" }),
   ],
+  uploads: [],
   error: null,
 };
 
-const plan = (release: string): UpgradePlan => ({
+/** The catalog with `custom` uploaded: it fits the Lab (no release on offer) and the Office. */
+const withUpload: FirmwareCatalog = {
+  ...catalog,
+  nodes: catalog.nodes.map((node) => (node.node === 1 ? node : { ...node, uploads: [SHA] })),
+  uploads: [custom],
+};
+
+const plan = (release: string, source: UpgradePlan["source"] = "asu"): UpgradePlan => ({
   node: 2,
+  source,
   from: "24.10.7",
   release,
   target: "mediatek/filogic",
@@ -68,6 +93,8 @@ const plan = (release: string): UpgradePlan => ({
   packages_at: Date.now(),
   image_bytes: 10 * MB,
   tmp_free_bytes: 200 * MB,
+  images: [],
+  upload: null,
 });
 
 const done: ImageBuild = {
@@ -103,7 +130,7 @@ function stubApi(routes: Record<string, Route>) {
   const calls: [string, unknown][] = [];
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? "GET"} ${url}`;
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body;
     calls.push([key, body]);
     const route = routes[key];
     if (!route) return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
@@ -173,7 +200,10 @@ describe("Updates", () => {
     const dialog = await screen.findByRole("dialog", { name: "Upgrade Office" });
     // The update within the branch comes first: fixes only.
     await within(dialog).findByText("2 of your packages carried over");
-    expect(calls).toContainEqual(["POST /api/v1/firmware/nodes/2/plan", { release: "24.10.8" }]);
+    expect(calls).toContainEqual([
+      "POST /api/v1/firmware/nodes/2/plan",
+      { source: "asu", release: "24.10.8" },
+    ]);
     expect(within(dialog).queryByRole("alert")).toBeNull();
 
     await user.click(within(dialog).getByRole("radio", { name: /25\.12\.6/ }));
@@ -207,6 +237,7 @@ describe("Updates", () => {
     stubApi({
       "GET /api/v1/firmware": () => ({
         nodes: catalog.nodes,
+        uploads: [],
         error: "Firmware upgrades are off: the controller runs without ASU (--asu-url off)",
       }),
     });
@@ -214,5 +245,99 @@ describe("Updates", () => {
     await screen.findByText(/--asu-url off/, undefined, { timeout: 2000 });
     expect(screen.queryByRole("button", { name: /^Prepare upgrade/ })).toBeNull();
     await waitFor(() => expect(screen.getAllByText("Unknown")).toHaveLength(3));
+  });
+
+  it("plans with the official image: the packages installed after, no build", async () => {
+    const user = userEvent.setup();
+    const sysupgrade = { ...(done.images[0] as ImageBuild["images"][number]) };
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => catalog,
+      "POST /api/v1/firmware/nodes/2/plan": (body) => {
+        const { release, source } = body as { release: string; source: "asu" | "official" };
+        return { ...plan(release, source), images: source === "official" ? [sysupgrade] : [] };
+      },
+    });
+    renderUpdates("admin", "/updates?node=2");
+    const dialog = await screen.findByRole("dialog", { name: "Upgrade Office" }, { timeout: 2000 });
+    await within(dialog).findByText("2 of your packages carried over");
+    await user.click(within(dialog).getByRole("button", { name: "Official image" }));
+    await within(dialog).findByText("2 of your packages installed after the upgrade");
+    expect(calls).toContainEqual([
+      "POST /api/v1/firmware/nodes/2/plan",
+      { source: "official", release: "24.10.8" },
+    ]);
+    const files = within(dialog).getByRole("list", { name: "The official image" });
+    expect(within(files).getByText("openwrt-squashfs-sysupgrade.bin")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Build the image" })).toBeNull();
+  });
+
+  it("offers an uploaded image to the devices it fits and plans it as it is", async () => {
+    const user = userEvent.setup();
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => withUpload,
+      "POST /api/v1/firmware/nodes/3/plan": () => ({
+        ...plan("25.12.7", "upload"),
+        node: 3,
+        kept: [],
+        packages_at: null,
+        image_bytes: custom.size_bytes,
+        upload: custom,
+      }),
+    });
+    renderUpdates();
+    // The Lab has no release on offer, but an upload fits it.
+    await user.click(
+      await screen.findByRole("button", { name: "Prepare upgrade: Lab" }, { timeout: 2000 }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Upgrade Lab" });
+    await within(dialog).findByText(/Flashed as it is/);
+    expect(calls).toContainEqual([
+      "POST /api/v1/firmware/nodes/3/plan",
+      { source: "upload", sha256: SHA },
+    ]);
+    expect(within(dialog).queryByRole("button", { name: "Official image" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Build the image" })).toBeNull();
+    expect(within(dialog).getByText(/The image is 12/)).toBeTruthy();
+  });
+
+  it("uploads an image, then deletes it after asking", async () => {
+    const user = userEvent.setup();
+    let current = catalog;
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => current,
+      [`POST /api/v1/firmware/uploads?name=${encodeURIComponent("custom mt3000.bin")}`]: () => {
+        current = withUpload;
+        return Response.json(custom, { status: 201 });
+      },
+      [`DELETE /api/v1/firmware/uploads/${SHA}`]: () => {
+        current = catalog;
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderUpdates();
+    const card = await screen.findByRole("region", { name: "Uploaded images" }, { timeout: 2000 });
+    expect(within(card).getByText("No images uploaded.")).toBeTruthy();
+    const file = new File([new Uint8Array([1, 2, 3])], "custom mt3000.bin");
+    await user.upload(within(card).getByLabelText("Upload image"), file);
+    const item = await within(card).findByRole("listitem", { name: "custom-mt3000.bin" });
+    expect(item.textContent).toContain("OpenWrt 25.12.7");
+    expect(item.textContent).toContain("Fits 2 devices");
+    const sent = calls.find(([key]) => key.startsWith("POST /api/v1/firmware/uploads"));
+    expect(sent?.[1]).toBe(file);
+
+    await user.click(within(item).getByRole("button", { name: "Delete custom-mt3000.bin" }));
+    expect(within(item).getByText("Delete custom-mt3000.bin?")).toBeTruthy();
+    await user.click(within(item).getByRole("button", { name: "Delete" }));
+    await within(card).findByText("No images uploaded.");
+    expect(calls.map(([key]) => key)).toContain(`DELETE /api/v1/firmware/uploads/${SHA}`);
+  });
+
+  it("hides uploading and deleting from viewers", async () => {
+    stubApi({ "GET /api/v1/firmware": () => withUpload });
+    renderUpdates("viewer");
+    const card = await screen.findByRole("region", { name: "Uploaded images" }, { timeout: 2000 });
+    await within(card).findByRole("listitem", { name: "custom-mt3000.bin" });
+    expect(within(card).queryByLabelText("Upload image")).toBeNull();
+    expect(within(card).queryByRole("button", { name: /^Delete/ })).toBeNull();
   });
 });

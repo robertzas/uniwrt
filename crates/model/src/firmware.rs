@@ -88,6 +88,8 @@ pub struct ImageBuildStarted {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct FirmwareCatalog {
     pub nodes: Vec<NodeFirmware>,
+    /// The images admins uploaded (M7.1a2, D-122), newest first.
+    pub uploads: Vec<FirmwareUpload>,
     /// Why the catalog couldn't be read (ASU unreachable, or turned off): no offers then.
     pub error: Option<String>,
 }
@@ -111,6 +113,8 @@ pub struct NodeFirmware {
     pub offers: Vec<FirmwareOffer>,
     /// Why nothing is offered, when nothing is and the node isn't simply up to date.
     pub note: Option<String>,
+    /// The uploaded images made for its board (by SHA-256), newest first.
+    pub uploads: Vec<String>,
 }
 
 /// A release a node can upgrade to.
@@ -144,12 +148,14 @@ pub enum OfferKind {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct UpgradePlan {
     pub node: uniwrt_core::NodeId,
+    pub source: ImageSource,
     /// The release it runs, and the one the image is for.
     pub from: String,
     pub release: String,
     pub target: String,
     pub profile: String,
-    /// What ASU is asked to add to the profile's defaults, or (with a leading `-`) remove.
+    /// What ASU is asked to add to the profile's defaults, or (with a leading `-`) remove; with
+    /// an official image, what is installed (or removed) after the upgrade. Empty for an upload.
     pub packages: Vec<String>,
     /// The node's own packages carried over (installed on purpose, beyond the defaults).
     pub kept: Vec<String>,
@@ -161,12 +167,51 @@ pub struct UpgradePlan {
     pub dropped: Vec<String>,
     /// Defaults of the profile the node had removed: left out of the image too.
     pub removed: Vec<String>,
-    /// When the node's packages were read.
-    pub packages_at: uniwrt_core::Timestamp,
+    /// When the node's packages were read; `None` for an upload, which reads none.
+    pub packages_at: Option<uniwrt_core::Timestamp>,
     /// The official sysupgrade image's size, and the node's free RAM in `/tmp` where the
     /// image is staged: an image with more packages is larger.
     pub image_bytes: Option<u64>,
     pub tmp_free_bytes: Option<u64>,
+    /// An official image's files on the download server (the sysupgrade one first; x86 has a
+    /// BIOS and an EFI one per file system). Empty for the other sources.
+    pub images: Vec<FirmwareImage>,
+    /// The uploaded image, for [`ImageSource::Upload`].
+    pub upload: Option<FirmwareUpload>,
+}
+
+/// Where an upgrade image comes from (D-121, D-122).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ImageSource {
+    /// Built by ASU with the node's packages baked in.
+    Asu,
+    /// OpenWrt's own image; the node's packages are installed after the upgrade.
+    Official,
+    /// An image an admin uploaded, flashed as it is.
+    Upload,
+}
+
+/// An image an admin uploaded (D-122), described by its metadata: OpenWrt appends the boards
+/// it fits and its release to every sysupgrade image but x86's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct FirmwareUpload {
+    /// Its SHA-256 in lowercase hex: its identity.
+    pub sha256: String,
+    /// The file's name as uploaded.
+    pub name: String,
+    pub size_bytes: u64,
+    pub uploaded_at: uniwrt_core::Timestamp,
+    /// The target and subtarget, such as `mediatek/filogic` (an x86 image's from its name).
+    pub target: String,
+    /// The boards it fits (`glinet,gl-mt6000`); empty for an x86 image, which fits any.
+    pub boards: Vec<String>,
+    /// From the metadata, when the image has some.
+    pub distribution: Option<String>,
+    pub version: Option<String>,
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

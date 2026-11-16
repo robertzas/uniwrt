@@ -143,7 +143,7 @@ mod upgrades {
 
     use crate::{
         Asu, Error, Upgrade,
-        testing::{FakeAsu, SYSUPGRADE_BYTES},
+        testing::{FakeAsu, SHA256, SYSUPGRADE_BYTES},
     };
 
     fn release(version: &str) -> Release {
@@ -309,5 +309,43 @@ mod upgrades {
             );
         }
         assert_eq!(fake.builds(), [] as [serde_json::Value; 0]);
+    }
+
+    #[tokio::test]
+    async fn an_official_upgrade_installs_the_same_packages_after_onto_the_listed_image() {
+        let fake = FakeAsu::start().await;
+        let asu = Asu::new(fake.url(), "uniwrt/test").unwrap();
+        let running = release("24.10.7");
+        let packages = packages();
+        let built = asu
+            .upgrade_plan(upgrade(&running, "25.12.6", &packages))
+            .await
+            .unwrap();
+        let official = asu
+            .official_plan(upgrade(&running, "25.12.6", &packages))
+            .await
+            .unwrap();
+        assert_eq!(built.source, uniwrt_model::firmware::ImageSource::Asu);
+        assert_eq!(built.images, []);
+        assert_eq!(
+            official.source,
+            uniwrt_model::firmware::ImageSource::Official
+        );
+        assert_eq!(official.packages, built.packages);
+        assert_eq!(official.dropped, built.dropped);
+        let [image] = official.images.as_slice() else {
+            panic!("only the sysupgrade image: {:?}", official.images);
+        };
+        assert_eq!(image.kind, "sysupgrade");
+        assert_eq!(image.sha256, SHA256);
+        assert_eq!(
+            image.url,
+            format!(
+                "{}/releases/25.12.6/targets/mediatek/filogic/openwrt-25.12.6-mediatek-filogic-glinet_gl-mt6000-squashfs-sysupgrade.bin",
+                fake.url()
+            )
+        );
+        assert_eq!(official.image_bytes, Some(SYSUPGRADE_BYTES));
+        assert_eq!(fake.builds(), [] as [serde_json::Value; 0], "nothing built");
     }
 }

@@ -27,7 +27,22 @@ pub(crate) struct Device {
     own: Vec<String>,
     /// The sysupgrade image's size.
     pub(crate) sysupgrade_bytes: Option<u64>,
+    /// The images sysupgrade takes: `sysupgrade`, or x86's `combined` and `combined-efi`.
+    pub(crate) images: Vec<Image>,
 }
+
+/// An official image's file, as the download server lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Image {
+    pub(crate) name: String,
+    pub(crate) kind: String,
+    pub(crate) filesystem: Option<String>,
+    pub(crate) size: Option<u64>,
+    pub(crate) sha256: String,
+}
+
+/// The image kinds sysupgrade takes.
+const UPGRADE_KINDS: [&str; 3] = ["sysupgrade", "combined", "combined-efi"];
 
 #[derive(Deserialize)]
 struct Raw {
@@ -53,6 +68,12 @@ struct RawImage {
     kind: String,
     #[serde(default)]
     size: Option<u64>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    sha256: Option<String>,
+    #[serde(default)]
+    filesystem: Option<String>,
 }
 
 pub(crate) fn target(body: &[u8]) -> Result<Target, Error> {
@@ -74,6 +95,7 @@ pub(crate) fn target(body: &[u8]) -> Result<Target, Error> {
                 .iter()
                 .find(|image| image.kind == "sysupgrade")
                 .and_then(|image| image.size),
+            images: upgrade_images(&device.images),
             id,
             boards: device.supported_devices,
             own: device.device_packages,
@@ -84,6 +106,45 @@ pub(crate) fn target(body: &[u8]) -> Result<Target, Error> {
         defaults: raw.default_packages,
         devices,
     })
+}
+
+/// The images sysupgrade takes, with a name and a SHA-256 that can be trusted in a URL and a
+/// check: `sysupgrade` first, then by kind, squashfs before ext4.
+fn upgrade_images(raw: &[RawImage]) -> Vec<Image> {
+    let mut images: Vec<Image> = raw
+        .iter()
+        .filter(|image| UPGRADE_KINDS.contains(&image.kind.as_str()))
+        .filter_map(|image| {
+            let name = image.name.as_ref().filter(|name| valid_image_name(name))?;
+            let sha256 = image
+                .sha256
+                .as_ref()
+                .filter(|sha| crate::valid_sha256(sha))?;
+            Some(Image {
+                name: name.clone(),
+                kind: image.kind.clone(),
+                filesystem: image.filesystem.clone(),
+                size: image.size,
+                sha256: sha256.clone(),
+            })
+        })
+        .collect();
+    let rank = |image: &Image| {
+        let kind = UPGRADE_KINDS.iter().position(|kind| *kind == image.kind);
+        (kind, image.filesystem.as_deref() != Some("squashfs"))
+    };
+    images.sort_by_key(rank);
+    images
+}
+
+/// An image's file name as it goes into a URL.
+pub(crate) fn valid_image_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('.')
+        && name.len() <= 200
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'+'))
 }
 
 impl Target {
@@ -148,7 +209,9 @@ mod tests {
         "profiles":{
           "glinet_gl-mt6000":{"device_packages":["kmod-mt7915e","-ppp"],
             "supported_devices":["glinet,gl-mt6000"],
-            "images":[{"type":"factory","size":3},{"type":"sysupgrade","size":10598720}]},
+            "images":[{"type":"factory","size":3},{"type":"sysupgrade","size":10598720,
+              "name":"openwrt-glinet_gl-mt6000-squashfs-sysupgrade.bin","filesystem":"squashfs",
+              "sha256":"51ede8a3e6a7687764d2c2bd4e0dde71cc072006cc9933b09f92864775a5aa10"}]},
           "bananapi_bpi-r4":{"device_packages":[],"supported_devices":["bananapi,bpi-r4","sinovoip,bpi-r4"],"images":[]},
           "../evil":{"supported_devices":["evil"]}}}"#;
 
@@ -159,6 +222,12 @@ mod tests {
         let device = target.device("glinet,gl-mt6000").unwrap();
         assert_eq!(device.id, "glinet_gl-mt6000");
         assert_eq!(device.sysupgrade_bytes, Some(10_598_720));
+        assert_eq!(device.images.len(), 1);
+        assert_eq!(device.images[0].kind, "sysupgrade");
+        assert_eq!(
+            device.images[0].name,
+            "openwrt-glinet_gl-mt6000-squashfs-sysupgrade.bin"
+        );
         assert_eq!(
             target.packages(device).into_iter().collect::<Vec<_>>(),
             ["dnsmasq", "kmod-mt7915e", "wpad-basic-mbedtls"]
@@ -184,6 +253,41 @@ mod tests {
             "tplink_archer-c7-v5"
         );
         assert!(ath79.device("tplink,archer-c6-v2").is_none());
+    }
+
+    #[test]
+    fn x86_offers_its_disk_images_squashfs_first_and_drops_untrusted_ones() {
+        let sha = "2b19d590459c1b0ce1a6d5be8d21c0fda1cd9a483270ec4151ac22c15d38ea09";
+        let image = |name: &str, kind: &str, fs: &str| {
+            format!(r#"{{"name":"{name}","type":"{kind}","filesystem":"{fs}","sha256":"{sha}"}}"#)
+        };
+        let images = [
+            image("x-ext4-combined-efi.img.gz", "combined-efi", "ext4"),
+            image("x-squashfs-rootfs.img.gz", "rootfs", "squashfs"),
+            image("x-ext4-combined.img.gz", "combined", "ext4"),
+            image("x-squashfs-combined.img.gz", "combined", "squashfs"),
+            image("../evil.img.gz", "combined", "squashfs"),
+        ]
+        .join(",");
+        let body = format!(
+            r#"{{"arch_packages":"x86_64","profiles":{{"generic":{{"images":[{images}]}}}}}}"#
+        );
+        let x86 = target(body.as_bytes()).unwrap();
+        let names: Vec<_> = x86
+            .device("any")
+            .unwrap()
+            .images
+            .iter()
+            .map(|image| image.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "x-squashfs-combined.img.gz",
+                "x-ext4-combined.img.gz",
+                "x-ext4-combined-efi.img.gz"
+            ]
+        );
     }
 
     #[test]

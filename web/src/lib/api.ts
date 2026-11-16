@@ -25,6 +25,7 @@ import type { EventPage } from "../api/gen/EventPage";
 import type { FirmwareCatalog } from "../api/gen/FirmwareCatalog";
 import type { FirmwareProfile } from "../api/gen/FirmwareProfile";
 import type { FirmwareReleases } from "../api/gen/FirmwareReleases";
+import type { FirmwareUpload } from "../api/gen/FirmwareUpload";
 import type { Floor } from "../api/gen/Floor";
 import type { FloorFields } from "../api/gen/FloorFields";
 import type { FoundGateways } from "../api/gen/FoundGateways";
@@ -60,6 +61,7 @@ import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { Plan } from "../api/gen/Plan";
+import type { PlanBody } from "../api/gen/PlanBody";
 import type { Point as PlanPoint } from "../api/gen/Point";
 import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
@@ -611,14 +613,27 @@ export const api = {
   /** Cables that failed the wired backhaul's probe (D-097); forgetting one (admins) has the next apply probe it again. */
   firmware: {
     catalog: (signal?: AbortSignal) => request<FirmwareCatalog>("/firmware", { signal }),
-    /** Reads the node's packages again and works out the image (nothing changes on it). */
-    plan: (node: number, body: UpgradeBody, signal?: AbortSignal) =>
+    /**
+     * Works out the upgrade with an image source (D-122): ASU's or an official image reads the
+     * node's packages again; an upload is checked against its board. Nothing changes on it.
+     */
+    plan: (node: number, body: PlanBody, signal?: AbortSignal) =>
       request<UpgradePlan>(`/firmware/nodes/${node}/plan`, { method: "POST", body, signal }),
     builds: {
       create: (node: number, body: UpgradeBody) =>
         request<ImageBuildStarted>(`/firmware/nodes/${node}/builds`, { method: "POST", body }),
       get: (hash: string, signal?: AbortSignal) =>
         request<ImageBuild>(`/firmware/builds/${encodeURIComponent(hash)}`, { signal }),
+    },
+    /** Uploaded images (D-122), listed by the catalog; the file is sent as is. */
+    uploads: {
+      create: (file: File) =>
+        request<FirmwareUpload>(`/firmware/uploads?name=${encodeURIComponent(file.name)}`, {
+          method: "POST",
+          blob: file,
+        }),
+      remove: (sha256: string) =>
+        request<void>(`/firmware/uploads/${encodeURIComponent(sha256)}`, { method: "DELETE" }),
     },
   },
   backhaul: {

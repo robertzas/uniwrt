@@ -1,9 +1,11 @@
 import { type Accessor, createEffect, createSignal, onSettled } from "solid-js";
 import type { FirmwareCatalog } from "../api/gen/FirmwareCatalog";
 import type { FirmwareOffer } from "../api/gen/FirmwareOffer";
+import type { FirmwareUpload } from "../api/gen/FirmwareUpload";
 import type { ImageBuild } from "../api/gen/ImageBuild";
 import type { NodeFirmware } from "../api/gen/NodeFirmware";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { PlanBody } from "../api/gen/PlanBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import { api, errorText } from "./api";
 
@@ -17,6 +19,13 @@ export interface FirmwareRow {
   state: FirmwareState;
   /** The offers it can build an image of (the release has one for its board). */
   buildable: FirmwareOffer[];
+  /** The uploaded images made for its board, newest first. */
+  uploads: FirmwareUpload[];
+}
+
+/** Whether an admin can prepare an upgrade of the row: a release on offer or an upload. */
+export function preparable(row: FirmwareRow): boolean {
+  return row.buildable.length > 0 || row.uploads.length > 0;
 }
 
 export function firmwareState(firmware: NodeFirmware, catalogError: boolean): FirmwareState {
@@ -31,11 +40,13 @@ export function firmwareRows(
   nodes: readonly NodeSummary[],
 ): FirmwareRow[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  const uploads = new Map(catalog.uploads.map((upload) => [upload.sha256, upload]));
   const rows = catalog.nodes.map((firmware) => ({
     firmware,
     node: byId.get(firmware.node),
     state: firmwareState(firmware, catalog.error !== null),
     buildable: firmware.offers.filter((offer) => offer.profile !== null),
+    uploads: firmware.uploads.flatMap((sha) => uploads.get(sha) ?? []),
   }));
   const rank = (row: FirmwareRow) => (row.node?.role === "gateway" ? 0 : 1);
   return rows.sort(
@@ -44,6 +55,20 @@ export function firmwareRows(
       (a.node?.name ?? "").localeCompare(b.node?.name ?? "") ||
       a.firmware.node - b.firmware.node,
   );
+}
+
+/** An image to upgrade with: a release (built by ASU or OpenWrt's own image) or an upload. */
+export type ImageChoice = { kind: "release"; release: string } | { kind: "upload"; sha256: string };
+
+/** The choice's key in a radio group. */
+export function choiceKey(choice: ImageChoice): string {
+  return choice.kind === "release" ? `release:${choice.release}` : `upload:${choice.sha256}`;
+}
+
+/** The plan request of a choice; a release's with its source. */
+export function planBody(choice: ImageChoice, official: boolean): PlanBody {
+  if (choice.kind === "upload") return { source: "upload", sha256: choice.sha256 };
+  return { source: official ? "official" : "asu", release: choice.release };
 }
 
 /** The offer to start from: the update within the branch (fixes only), else the next branch. */
@@ -55,12 +80,16 @@ export function defaultOffer(offers: readonly FirmwareOffer[]): FirmwareOffer | 
 const STAGING_MARGIN = 16 * 1024 * 1024;
 
 /**
- * Whether `/tmp` is short for staging the image: an image with the node's packages is somewhat
- * larger than the official one, so a third more than its size plus a margin must be free.
+ * Whether `/tmp` is short for staging the image: ASU's image with the node's packages is somewhat
+ * larger than the official one, so a third more than its size plus a margin must be free; an
+ * official or uploaded image's size is exact.
  */
-export function tightTmp(plan: Pick<UpgradePlan, "image_bytes" | "tmp_free_bytes">): boolean {
+export function tightTmp(
+  plan: Pick<UpgradePlan, "image_bytes" | "tmp_free_bytes" | "source">,
+): boolean {
   if (plan.image_bytes === null || plan.tmp_free_bytes === null) return false;
-  return plan.tmp_free_bytes < plan.image_bytes * 1.33 + STAGING_MARGIN;
+  const growth = plan.source === "asu" ? 1.33 : 1;
+  return plan.tmp_free_bytes < plan.image_bytes * growth + STAGING_MARGIN;
 }
 
 /** Fetches the firmware catalog (`GET v1/firmware`) once mounted, and again on `reload`. */

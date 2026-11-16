@@ -1,11 +1,19 @@
-import { ExternalLink, Hammer, LoaderCircle, TriangleAlert } from "lucide";
+import { ExternalLink, Hammer, LoaderCircle } from "lucide";
 import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js";
 import type { FirmwareOffer } from "../../api/gen/FirmwareOffer";
+import type { FirmwareUpload } from "../../api/gen/FirmwareUpload";
 import type { ImageBuild } from "../../api/gen/ImageBuild";
+import type { PlanBody } from "../../api/gen/PlanBody";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { api, errorText } from "../../lib/api";
-import { defaultOffer, followBuild, tightTmp } from "../../lib/firmware";
-import { formatBytes, formatTime } from "../../lib/format";
+import {
+  choiceKey,
+  defaultOffer,
+  followBuild,
+  type ImageChoice,
+  planBody,
+} from "../../lib/firmware";
+import { formatBytes } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
@@ -13,14 +21,19 @@ import { Icon } from "../../ui/Icon";
 import { BuildFailed, BuildRunning, ImageRow } from "../../ui/ImageBuild";
 import { JobSuccessNote, RequestError } from "../../ui/JobOutcome";
 import { RadioCards } from "../../ui/RadioCards";
+import { Segmented } from "../../ui/Segmented";
+import { PlanView } from "./PlanView";
 
 const t = strings.firmware;
 const d = t.dialog;
 
+type Source = "asu" | "official";
+
 /**
- * Prepares a node's upgrade image (D-121): a release on offer, the plan worked out from the
- * node's packages read again (what is kept, renamed, added, dropped), then ASU's build followed
- * until its sysupgrade image is ready. Nothing changes on the node.
+ * Prepares a node's upgrade (D-121, D-122): a release on offer, built by ASU with the node's
+ * packages or OpenWrt's official image with them installed after, or an uploaded image made for
+ * its board. The plan is worked out (for a release, from the node's packages read again); ASU's
+ * build is followed until its sysupgrade image is ready. Nothing changes on the node.
  */
 export function UpgradeDialog(props: {
   open: boolean;
@@ -28,19 +41,43 @@ export function UpgradeDialog(props: {
   node: number;
   name: string;
   offers: readonly FirmwareOffer[];
+  uploads: readonly FirmwareUpload[];
 }) {
-  const [release, setRelease] = createSignal<string>();
+  const [picked, setPicked] = createSignal<string>();
+  const [source, setSource] = createSignal<Source>("asu");
   const [plan, setPlan] = createSignal<UpgradePlan>();
   const [planError, setPlanError] = createSignal<string>();
   const [build, setBuild] = createSignal<ImageBuild>();
   const [buildError, setBuildError] = createSignal<string>();
   const [starting, setStarting] = createSignal(false);
-  const chosen = () => release() ?? defaultOffer(props.offers)?.release;
-  const offer = () => props.offers.find((known) => known.release === chosen());
+  const choices = (): ImageChoice[] => [
+    ...props.offers.map((offer) => ({ kind: "release" as const, release: offer.release })),
+    ...props.uploads.map((upload) => ({ kind: "upload" as const, sha256: upload.sha256 })),
+  ];
+  const chosen = (): ImageChoice | undefined => {
+    const all = choices();
+    const wanted = picked();
+    const first = defaultOffer(props.offers)?.release;
+    return (
+      all.find((choice) => choiceKey(choice) === wanted) ??
+      all.find((choice) => choice.kind === "release" && choice.release === first) ??
+      all[0]
+    );
+  };
+  const release = () => {
+    const choice = chosen();
+    return choice?.kind === "release" ? choice.release : undefined;
+  };
+  const offer = () => props.offers.find((known) => known.release === release());
+  const buildable = () => release() !== undefined && source() === "asu";
 
-  // The plan of the chosen release, read again each time the dialog opens or the release changes.
+  // The plan of the chosen image, worked out again each time the dialog opens or the choice changes.
   createEffect(
-    () => (props.open ? chosen() : undefined),
+    () => {
+      const choice = props.open ? chosen() : undefined;
+      // As text, so an equal request (the catalog read again) doesn't plan again.
+      return choice && JSON.stringify(planBody(choice, source() === "official"));
+    },
     (wanted) => {
       setPlan(undefined);
       setPlanError(undefined);
@@ -49,7 +86,7 @@ export function UpgradeDialog(props: {
       if (!wanted) return;
       const controller = new AbortController();
       api.firmware
-        .plan(props.node, { release: wanted }, controller.signal)
+        .plan(props.node, JSON.parse(wanted) as PlanBody, controller.signal)
         .then((found) => {
           setPlan(found);
         })
@@ -68,7 +105,7 @@ export function UpgradeDialog(props: {
   });
 
   const start = async () => {
-    const wanted = chosen();
+    const wanted = release();
     if (!wanted) return;
     setStarting(true);
     setBuildError(undefined);
@@ -86,6 +123,21 @@ export function UpgradeDialog(props: {
     const own = images.filter((image) => image.kind === "sysupgrade");
     return own.length > 0 ? own : images;
   };
+  const label = (choice: ImageChoice) => {
+    if (choice.kind === "release") {
+      const known = props.offers.find((o) => o.release === choice.release);
+      return {
+        label: `OpenWrt ${choice.release} · ${t.kind[known?.kind ?? ""] ?? known?.kind ?? ""}`,
+        description: t.kindHint[known?.kind ?? ""] ?? "",
+      };
+    }
+    const upload = props.uploads.find((u) => u.sha256 === choice.sha256);
+    return {
+      label: d.uploaded(upload?.name ?? choice.sha256.slice(0, 12)),
+      description: d.uploadedHint(upload?.version ?? null, formatBytes(upload?.size_bytes)),
+    };
+  };
+  const busy = () => build() !== undefined || starting();
 
   return (
     <Dialog
@@ -96,20 +148,32 @@ export function UpgradeDialog(props: {
       size="lg"
     >
       <div class="flex flex-col gap-4 px-5 pb-5">
-        <Show when={props.offers.length > 1}>
+        <Show when={choices().length > 1}>
           <RadioCards
-            label={d.release}
-            value={chosen() ?? ""}
+            label={d.image}
+            value={chosen() ? choiceKey(chosen() as ImageChoice) : ""}
             onChange={(value) => {
-              setRelease(value);
+              setPicked(value);
             }}
-            disabled={build() !== undefined || starting()}
-            options={props.offers.map((known) => ({
-              value: known.release,
-              label: `OpenWrt ${known.release} · ${t.kind[known.kind] ?? known.kind}`,
-              description: t.kindHint[known.kind] ?? "",
-            }))}
+            disabled={busy()}
+            options={choices().map((choice) => ({ value: choiceKey(choice), ...label(choice) }))}
           />
+        </Show>
+        <Show when={release()}>
+          <div class="flex flex-col gap-1.5">
+            <Segmented
+              label={d.source}
+              value={source()}
+              onChange={setSource}
+              disabled={busy()}
+              class="w-fit"
+              options={(["asu", "official"] as const).map((value) => ({
+                value,
+                label: d.sources[value] ?? value,
+              }))}
+            />
+            <p class="text-fg-subtle text-xs">{d.sourceHint[source()]}</p>
+          </div>
         </Show>
         <Show when={offer()}>
           {(current) => (
@@ -136,7 +200,14 @@ export function UpgradeDialog(props: {
             </Show>
           }
         >
-          {(found) => <PlanView plan={found()} />}
+          {(found) => (
+            <>
+              <PlanView plan={found()} />
+              <Show when={found().source !== "asu"}>
+                <p class="text-fg-muted text-xs">{d.later}</p>
+              </Show>
+            </>
+          )}
         </Show>
         <RequestError text={buildError()} />
         <Show when={build()}>
@@ -163,7 +234,7 @@ export function UpgradeDialog(props: {
           <Button size="sm" onClick={() => props.onOpenChange(false)}>
             {d.close}
           </Button>
-          <Show when={build() === undefined || build()?.state === "failed"}>
+          <Show when={buildable() && (build() === undefined || build()?.state === "failed")}>
             <Button
               size="sm"
               variant="primary"
@@ -177,82 +248,5 @@ export function UpgradeDialog(props: {
         </div>
       </div>
     </Dialog>
-  );
-}
-
-/** What the image holds against the node, the dropped packages as a warning. */
-function PlanView(props: { plan: UpgradePlan }) {
-  const tight = () => tightTmp(props.plan);
-  return (
-    <section class="flex flex-col gap-3" aria-label={d.kept(props.plan.kept.length)}>
-      <Show when={props.plan.dropped.length > 0}>
-        <div role="alert" class="rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5">
-          <p class="flex items-center gap-2 font-medium text-fg text-sm">
-            <Icon icon={TriangleAlert} class="size-4 shrink-0 text-warn" />
-            {d.dropped(props.plan.release)}
-          </p>
-          <Names names={props.plan.dropped} />
-          <p class="mt-1.5 text-fg-muted text-xs">{d.droppedHint}</p>
-        </div>
-      </Show>
-      <Group label={d.kept(props.plan.kept.length)} names={props.plan.kept} />
-      <Show when={props.plan.renamed.length > 0}>
-        <div>
-          <p class="text-fg-muted text-xs">{d.renamed}</p>
-          <ul class="mt-1 flex flex-wrap gap-1.5">
-            <For each={props.plan.renamed}>
-              {(rename) => (
-                <li class="rounded-control border border-edge bg-canvas px-1.5 py-0.5 font-mono text-fg text-xs">
-                  {rename.from} → {rename.to}
-                </li>
-              )}
-            </For>
-          </ul>
-        </div>
-      </Show>
-      <Group label={d.added} names={props.plan.added} />
-      <Group label={d.removed} names={props.plan.removed} />
-      <Show when={props.plan.image_bytes !== null}>
-        <p class="text-fg-subtle text-xs">
-          {d.size(
-            formatBytes(props.plan.image_bytes),
-            props.plan.tmp_free_bytes === null ? null : formatBytes(props.plan.tmp_free_bytes),
-          )}
-        </p>
-      </Show>
-      <Show when={tight()}>
-        <p class="flex items-center gap-2 text-sm text-warn">
-          <Icon icon={TriangleAlert} class="size-4 shrink-0" />
-          {d.tight}
-        </p>
-      </Show>
-      <p class="text-fg-subtle text-xs">{d.read(formatTime(props.plan.packages_at))}</p>
-    </section>
-  );
-}
-
-/** A labelled list of packages, left out when empty. */
-function Group(props: { label: string; names: readonly string[] }) {
-  return (
-    <Show when={props.names.length > 0}>
-      <div>
-        <p class="text-fg-muted text-xs">{props.label}</p>
-        <Names names={props.names} />
-      </div>
-    </Show>
-  );
-}
-
-function Names(props: { names: readonly string[] }) {
-  return (
-    <ul class="mt-1 flex flex-wrap gap-1.5">
-      <For each={props.names}>
-        {(name) => (
-          <li class="rounded-control border border-edge bg-canvas px-1.5 py-0.5 font-mono text-fg text-xs">
-            {name}
-          </li>
-        )}
-      </For>
-    </ul>
   );
 }

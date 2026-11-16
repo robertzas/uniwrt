@@ -3,11 +3,14 @@
 
 use std::time::Duration;
 
-use axum::http::StatusCode;
+use axum::{body::Body, http::Method, http::StatusCode};
 use serde_json::{Value, json};
-use uniwrt_firmware::{Asu, testing::FakeAsu};
+use uniwrt_firmware::{
+    Asu,
+    testing::{FakeAsu, sysupgrade_image},
+};
 
-use crate::testing::{Demo, json as body, post};
+use crate::testing::{Demo, json as body, post, request};
 
 async fn catalog(demo: &Demo) -> Value {
     let res = demo.send(demo.get("/v1/firmware")).await;
@@ -89,7 +92,7 @@ async fn a_plan_is_refused_before_reading_the_node_unless_the_release_is_on_offe
     let plan = |release: &str| {
         post(
             &format!("/v1/firmware/nodes/{id}/plan"),
-            &json!({ "release": release }),
+            &json!({ "source": "asu", "release": release }),
             Some(&demo.cookie),
         )
     };
@@ -111,7 +114,7 @@ async fn a_plan_is_refused_before_reading_the_node_unless_the_release_is_on_offe
     let res = demo
         .send(post(
             "/v1/firmware/nodes/999/plan",
-            &json!({"release": "25.12.6"}),
+            &json!({"source": "official", "release": "25.12.6"}),
             Some(&demo.cookie),
         ))
         .await;
@@ -119,10 +122,88 @@ async fn a_plan_is_refused_before_reading_the_node_unless_the_release_is_on_offe
     let res = demo
         .send(post(
             &format!("/v1/firmware/nodes/{id}/plan"),
-            &json!({"release": "25.12.6"}),
+            &json!({"source": "asu", "release": "25.12.6"}),
             None,
         ))
         .await;
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(fake.builds(), [] as [serde_json::Value; 0]);
+}
+
+fn upload(demo: &Demo, name: &str, image: Vec<u8>) -> axum::extract::Request {
+    let uri = format!("/v1/firmware/uploads?name={name}");
+    let (parts, _) = request(Method::POST, &uri, None, Some(&demo.cookie)).into_parts();
+    axum::extract::Request::from_parts(parts, Body::from(image))
+}
+
+#[tokio::test]
+async fn an_uploaded_image_is_offered_to_the_nodes_it_fits_and_planned_without_reading_them() {
+    // Without ASU: uploads don't need it.
+    let demo = Demo::start_full(false, None).await;
+    let settled = settled(&demo).await;
+    let nodes = settled["nodes"].as_array().unwrap();
+    let board = nodes[0]["board"].as_str().unwrap().to_owned();
+    let other = nodes
+        .iter()
+        .find(|node| node["board"] != board.as_str())
+        .map(|node| node["node"].as_i64().unwrap());
+
+    let res = demo
+        .send(upload(&demo, "notes.txt", b"not an image".to_vec()))
+        .await;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    assert!(
+        body(res).await["detail"]
+            .as_str()
+            .unwrap()
+            .contains("metadata")
+    );
+
+    let image = sysupgrade_image(&board, "25.12.7", 50_000);
+    let res = demo.send(upload(&demo, "custom.bin", image.clone())).await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let kept = body(res).await;
+    assert_eq!(kept["name"], "custom.bin");
+    assert_eq!(kept["boards"], json!([board]));
+    assert_eq!(kept["version"], "25.12.7");
+    let sha256 = kept["sha256"].as_str().unwrap().to_owned();
+
+    let listed = catalog(&demo).await;
+    assert_eq!(listed["uploads"], json!([kept]));
+    for node in listed["nodes"].as_array().unwrap() {
+        let fits = node["board"] == board.as_str();
+        assert_eq!(node["uploads"] == json!([sha256]), fits, "{node}");
+    }
+
+    let plan = |id: i64| {
+        post(
+            &format!("/v1/firmware/nodes/{id}/plan"),
+            &json!({"source": "upload", "sha256": sha256}),
+            Some(&demo.cookie),
+        )
+    };
+    let id = nodes[0]["node"].as_i64().unwrap();
+    let res = demo.send(plan(id)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let planned = body(res).await;
+    assert_eq!(planned["source"], "upload");
+    assert_eq!(planned["release"], "25.12.7");
+    assert_eq!(planned["image_bytes"], image.len());
+    assert_eq!(planned["packages_at"], Value::Null);
+    assert_eq!(planned["upload"]["sha256"], sha256.as_str());
+    if let Some(other) = other {
+        assert_eq!(demo.send(plan(other)).await.status(), StatusCode::CONFLICT);
+    }
+
+    let gone = format!("/v1/firmware/uploads/{sha256}");
+    let res = demo
+        .send(request(Method::DELETE, &gone, None, Some(&demo.cookie)))
+        .await;
+    assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    let res = demo
+        .send(request(Method::DELETE, &gone, None, Some(&demo.cookie)))
+        .await;
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(demo.send(plan(id)).await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(catalog(&demo).await["uploads"], json!([]));
 }

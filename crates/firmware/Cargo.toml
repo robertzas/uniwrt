@@ -1,6 +1,6 @@
 [package]
 name = "uniwrt-firmware"
-description = "uniwrt firmware: OpenWrt's release and device catalog, and zero-touch images built by ASU (Attended Sysupgrade) with the role's packages and the first-boot script"
+description = "uniwrt firmware: OpenWrt's release and device catalog, and zero-touch and upgrade images built by ASU (Attended Sysupgrade), official images and uploaded ones"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,17 +19,19 @@ http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-rustls.workspace = true
 hyper-util = { workspace = true, features = ["client-legacy", "http1", "tokio"] }
+ring.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["fs", "io-util", "sync", "time"] }
 uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 webpki-roots.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
 
 [lints]

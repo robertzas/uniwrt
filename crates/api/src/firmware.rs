@@ -2,11 +2,15 @@
 //!
 //! - `GET /api/v1/firmware` ([`FirmwareCatalog`]): every adopted node's release and the
 //!   upgrades on offer (the latest of its branch, the next branch's), each with the device's
-//!   profile in that release, or why none can be offered. ASU off or unreachable gives an
-//!   `error` instead of offers.
-//! - `POST /api/v1/firmware/nodes/{id}/plan` ([`UpgradeBody`]; [`UpgradePlan`]), for admins:
-//!   reads the node's packages again (observe mode too: nothing changes on it) and works out
-//!   what an image of the release keeps, renames, adds, drops and removes.
+//!   profile in that release, or why none can be offered, and the uploaded images that fit it.
+//!   ASU off or unreachable gives an `error` instead of offers (uploads are still listed).
+//! - `POST /api/v1/firmware/uploads?name=<file name>` and `DELETE …/uploads/{sha256}`:
+//!   `firmware_uploads.rs`.
+//! - `POST /api/v1/firmware/nodes/{id}/plan` ([`PlanBody`]; [`UpgradePlan`]), for admins: with
+//!   ASU or an official image (D-122), reads the node's packages again (observe mode too:
+//!   nothing changes on it) and works out what the upgrade keeps, renames, adds, drops and
+//!   removes, baked into ASU's image or installed after the official one (whose files it lists);
+//!   with an uploaded image, checks that it fits the node's board and reads nothing.
 //! - `POST /api/v1/firmware/nodes/{id}/builds` ([`UpgradeBody`]; [`ImageBuildStarted`]), for
 //!   admins: reads the packages again and asks ASU for that image (no first-boot script: the
 //!   upgrade keeps the configuration). Audited (`firmware`).
@@ -24,10 +28,13 @@ use axum::{
 use serde::Deserialize;
 use ts_rs::TS;
 use uniwrt_core::NodeId;
-use uniwrt_firmware::{Error, Upgrade};
+use uniwrt_firmware::{Error, Upgrade, upload_fits};
 use uniwrt_model::{
     facts::NodeFacts,
-    firmware::{FirmwareCatalog, ImageBuild, ImageBuildStarted, NodeFirmware, UpgradePlan},
+    firmware::{
+        FirmwareCatalog, FirmwareUpload, ImageBuild, ImageBuildStarted, ImageSource, NodeFirmware,
+        UpgradePlan,
+    },
     inventory::Inventory,
     node::Node,
     user::{AuditAction, AuditEntry, Role, User},
@@ -43,6 +50,20 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/firmware/nodes/{id}/plan", post(plan))
         .route("/v1/firmware/nodes/{id}/builds", post(build))
         .route("/v1/firmware/builds/{hash}", get(status))
+        .merge(crate::firmware_uploads::routes())
+}
+
+/// The image to plan a node's upgrade with (D-122).
+#[derive(Debug, Deserialize, TS)]
+#[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
+#[ts(export)]
+pub enum PlanBody {
+    /// Built by ASU: `release` is one of the node's offers.
+    Asu { release: String },
+    /// OpenWrt's image of `release`, one of the node's offers.
+    Official { release: String },
+    /// The uploaded image `sha256`.
+    Upload { sha256: String },
 }
 
 /// The release to upgrade a node to.
@@ -64,6 +85,10 @@ pub(crate) async fn catalog(
         "Firmware upgrades are off: the controller runs without ASU (--asu-url off)".to_owned()
     });
     let mut error = asu.as_ref().err().cloned();
+    let uploads = match api.uploads() {
+        Ok(uploads) => uploads.list().await.map_err(firmware_error)?,
+        Err(_) => Vec::new(),
+    };
     let mut listed = Vec::with_capacity(nodes.len());
     for node in &nodes {
         let facts = views.get(&node.id).and_then(|view| view.facts.clone());
@@ -75,6 +100,7 @@ pub(crate) async fn catalog(
             continue;
         };
         let mut entry = firmware(node.id, &facts);
+        entry.uploads = fitting(&uploads, &facts);
         if let (Ok(asu), None) = (&asu, &error) {
             match asu
                 .offers(&facts.board.release, &facts.board.board_name)
@@ -92,8 +118,18 @@ pub(crate) async fn catalog(
     }
     Ok(Json(FirmwareCatalog {
         nodes: listed,
+        uploads,
         error,
     }))
+}
+
+/// The uploads that fit a node, by SHA-256 (newest first, as listed).
+fn fitting(uploads: &[FirmwareUpload], facts: &NodeFacts) -> Vec<String> {
+    uploads
+        .iter()
+        .filter(|upload| upload_fits(upload, &facts.board.release.target, &facts.board.board_name))
+        .map(|upload| upload.sha256.clone())
+        .collect()
 }
 
 fn firmware(node: NodeId, facts: &NodeFacts) -> NodeFirmware {
@@ -107,6 +143,7 @@ fn firmware(node: NodeId, facts: &NodeFacts) -> NodeFirmware {
         board: facts.board.board_name.clone(),
         offers: Vec::new(),
         note: None,
+        uploads: Vec::new(),
     }
 }
 
@@ -114,17 +151,76 @@ pub(crate) async fn plan(
     State(api): State<Api>,
     user: CurrentUser,
     id: Result<Path<i64>, PathRejection>,
-    body: Result<Json<UpgradeBody>, JsonRejection>,
+    body: Result<Json<PlanBody>, JsonRejection>,
 ) -> ApiResult<Json<UpgradePlan>> {
     admin(&user.user)?;
     let Json(body) = body?;
-    let (node, facts, inventory) = read(&api, id, &body.release).await?;
-    let plan = api
-        .asu()?
-        .upgrade_plan(upgrade(node.id, &facts, &inventory, &body.release))
+    let (release, official) = match body {
+        PlanBody::Upload { sha256 } => return upload_plan(&api, id, &sha256).await.map(Json),
+        PlanBody::Asu { release } => (release, false),
+        PlanBody::Official { release } => (release, true),
+    };
+    let (node, facts, inventory) = read(&api, id, &release).await?;
+    let asu = api.asu()?;
+    let upgrade = upgrade(node.id, &facts, &inventory, &release);
+    let plan = if official {
+        asu.official_plan(upgrade).await
+    } else {
+        asu.upgrade_plan(upgrade).await
+    };
+    Ok(Json(plan.map_err(firmware_error)?))
+}
+
+/// An uploaded image's plan: it must fit the node; it is flashed as it is, so nothing is read.
+async fn upload_plan(
+    api: &Api,
+    id: Result<Path<i64>, PathRejection>,
+    sha256: &str,
+) -> ApiResult<UpgradePlan> {
+    let (node, facts) = node_facts(api, id).await?;
+    let upload = api
+        .uploads()?
+        .get(sha256)
         .await
-        .map_err(firmware_error)?;
-    Ok(Json(plan))
+        .map_err(firmware_error)?
+        .ok_or_else(|| ApiError::NotFound(format!("There is no uploaded image {sha256}")))?;
+    let board = &facts.board;
+    if !upload_fits(&upload, &board.release.target, &board.board_name) {
+        return Err(ApiError::Conflict(format!(
+            "{} is made for {} ({}), not {} ({})",
+            upload.name,
+            if upload.boards.is_empty() {
+                "any board".to_owned()
+            } else {
+                upload.boards.join(", ")
+            },
+            upload.target,
+            node.name,
+            board.board_name,
+        )));
+    }
+    Ok(UpgradePlan {
+        node: node.id,
+        source: ImageSource::Upload,
+        from: board.release.version.clone(),
+        release: upload
+            .version
+            .clone()
+            .unwrap_or_else(|| upload.name.clone()),
+        target: upload.target.clone(),
+        profile: String::new(),
+        packages: Vec::new(),
+        kept: Vec::new(),
+        renamed: Vec::new(),
+        added: Vec::new(),
+        dropped: Vec::new(),
+        removed: Vec::new(),
+        packages_at: None,
+        image_bytes: Some(upload.size_bytes),
+        tmp_free_bytes: facts.system.tmp.map(|tmp| tmp.available_bytes),
+        images: Vec::new(),
+        upload: Some(upload),
+    })
 }
 
 pub(crate) async fn build(
@@ -170,7 +266,7 @@ pub(crate) async fn status(
     ))
 }
 
-fn admin(user: &User) -> ApiResult<()> {
+pub(crate) fn admin(user: &User) -> ApiResult<()> {
     if user.role == Role::Admin {
         Ok(())
     } else {
@@ -187,18 +283,8 @@ async fn read(
     id: Result<Path<i64>, PathRejection>,
     release: &str,
 ) -> ApiResult<(Node, std::sync::Arc<NodeFacts>, Inventory)> {
-    let Path(id) = id.map_err(|_| ApiError::BadRequest("A node ID is a number".to_owned()))?;
-    let id = NodeId::new(id);
-    let node = api
-        .store()
-        .node(id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("There is no node {id}")))?;
-    let facts = api
-        .fleet()
-        .node(id)
-        .and_then(|view| view.facts)
-        .ok_or_else(|| ApiError::Conflict("The node's facts haven't arrived yet".to_owned()))?;
+    let (node, facts) = node_facts(api, id).await?;
+    let id = node.id;
     let (offers, why) = api
         .asu()?
         .offers(&facts.board.release, &facts.board.board_name)
@@ -229,6 +315,26 @@ async fn read(
     Ok((node, facts, inventory))
 }
 
+/// The node and its facts.
+async fn node_facts(
+    api: &Api,
+    id: Result<Path<i64>, PathRejection>,
+) -> ApiResult<(Node, std::sync::Arc<NodeFacts>)> {
+    let Path(id) = id.map_err(|_| ApiError::BadRequest("A node ID is a number".to_owned()))?;
+    let id = NodeId::new(id);
+    let node = api
+        .store()
+        .node(id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("There is no node {id}")))?;
+    let facts = api
+        .fleet()
+        .node(id)
+        .and_then(|view| view.facts)
+        .ok_or_else(|| ApiError::Conflict("The node's facts haven't arrived yet".to_owned()))?;
+    Ok((node, facts))
+}
+
 fn upgrade<'a>(
     node: NodeId,
     facts: &'a NodeFacts,
@@ -255,5 +361,6 @@ pub(crate) fn firmware_error(err: Error) -> ApiError {
         | Error::Status { .. }
         | Error::Invalid(_)
         | Error::Refused(_) => ApiError::BadGateway(err.to_string()),
+        Error::Storage(_) => ApiError::Internal(err.to_string()),
     }
 }

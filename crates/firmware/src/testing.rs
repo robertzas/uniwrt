@@ -111,6 +111,31 @@ async fn profiles(Path(release): Path<String>) -> (StatusCode, Json<Value>) {
 /// The sysupgrade image's size in every release.
 pub const SYSUPGRADE_BYTES: u64 = 10_598_720;
 
+/// A sysupgrade image of `size` bytes or so for `board` (in `mediatek/filogic`) and OpenWrt
+/// `version`, with its metadata and a signature appended as `fwtool` does.
+pub fn sysupgrade_image(board: &str, version: &str, size: usize) -> Vec<u8> {
+    let json = json!({"metadata_version": "1.1", "supported_devices": [board], "version": {
+        "dist": "OpenWrt", "version": version, "revision": "r1-test", "target": "mediatek/filogic",
+        "board": board.replace(',', "_")}});
+    let mut metadata = vec![0; 8];
+    metadata.extend_from_slice(json.to_string().as_bytes());
+    let mut image: Vec<u8> = (0..size)
+        .map(|i| u8::try_from(i % 251).unwrap_or(0))
+        .collect();
+    for (kind, data) in [
+        (1_u8, metadata.as_slice()),
+        (0, b"# fake certificate".as_slice()),
+    ] {
+        image.extend_from_slice(data);
+        image.extend_from_slice(b"FWx0");
+        image.extend_from_slice(&[0; 4]);
+        image.extend_from_slice(&[kind, 0, 0, 0]);
+        let len = u32::try_from(data.len() + 16).expect("a small chunk");
+        image.extend_from_slice(&len.to_be_bytes());
+    }
+    image
+}
+
 async fn target_profiles(
     Path((release, target, subtarget)): Path<(String, String, String)>,
 ) -> (StatusCode, Json<Value>) {
@@ -131,7 +156,11 @@ async fn target_profiles(
                 "glinet_gl-mt6000": {
                     "device_packages": ["kmod-mt7915e"],
                     "supported_devices": ["glinet,gl-mt6000"],
-                    "images": [{"type": "sysupgrade", "size": SYSUPGRADE_BYTES}]
+                    "images": [
+                        {"type": "factory", "name": format!("openwrt-{release}-mediatek-filogic-glinet_gl-mt6000-squashfs-factory.bin"), "sha256": SHA256},
+                        {"type": "sysupgrade", "size": SYSUPGRADE_BYTES, "filesystem": "squashfs", "sha256": SHA256,
+                         "name": format!("openwrt-{release}-mediatek-filogic-glinet_gl-mt6000-squashfs-sysupgrade.bin")}
+                    ]
                 },
                 "glinet_gl-mt3000": {
                     "device_packages": ["kmod-mt7915e"],

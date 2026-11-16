@@ -107,6 +107,13 @@ pub(crate) async fn api_with(
     api_full(store, fleet, clock, dial, Handles::default()).await
 }
 
+/// Uploaded firmware images in `dir`.
+async fn uploads_in(dir: &std::path::Path) -> uniwrt_firmware::Uploads {
+    uniwrt_firmware::Uploads::open(dir.join("firmware"))
+        .await
+        .unwrap()
+}
+
 /// The engine's handles an [`api_full`] has.
 #[derive(Default)]
 pub(crate) struct Handles {
@@ -116,6 +123,7 @@ pub(crate) struct Handles {
     pub(crate) drift: Option<Drifts>,
     pub(crate) bans: Option<Bans>,
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
+    pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
 }
 
 /// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
@@ -134,6 +142,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         asu,
+        uploads,
     } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -159,6 +168,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         asu,
+        uploads,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -289,6 +299,7 @@ impl Demo {
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
             asu,
+            uploads: Some(uploads_in(dir.path()).await),
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

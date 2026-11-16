@@ -12,7 +12,11 @@
 //!   profile in each from the download server's `profiles.json`), [`Asu::upgrade_plan`] (the
 //!   node's packages carried over with ASU's renames between the branches' branch-off
 //!   revisions, checked against ASU's package indexes, the missing ones dropped and listed)
-//!   and [`Asu::build_upgrade`] (that image, without a first-boot script); [`Error`]. With the `testing` feature,
+//!   and [`Asu::build_upgrade`] (that image, without a first-boot script), [`Asu::official_plan`]
+//!   (the same plan with OpenWrt's own image, the packages installed after the upgrade); and
+//!   [`Uploads`] (images admins upload, kept in a directory under their SHA-256 once their
+//!   metadata names the boards they fit, or an x86 image's name its target; [`upload_fits`]);
+//!   [`Error`]. With the `testing` feature,
 //!   `testing::FakeAsu`, an ASU and download server on loopback.
 //! - **Invariants:** nothing secret goes to ASU (D-022): the request holds the device, the
 //!   packages and the first-boot script, which holds only public data. Every value that
@@ -23,15 +27,18 @@
 //!   for the device's release. An upgrade never removes a profile's default: only the full
 //!   wpad replaces the basic or mesh one, so a package list read short can't leave a driver
 //!   or the package manager out (D-121). A target's devices and a release's indexes are kept
-//!   a day (eight targets, four indexes).
+//!   a day (eight targets, four indexes). An upload is kept only once inspected: a file that
+//!   names no board (and isn't x86's gzipped image) never reaches the directory; at most
+//!   [`MAX_UPLOADS`] of at most [`MAX_UPLOAD_BYTES`].
 //! - **Dependencies:** `uniwrt-model`, hyper, hyper-util, hyper-rustls (ring, Mozilla's roots),
-//!   `serde_json`, tokio (timeouts).
+//!   ring (SHA-256), `serde_json`, tokio (timeouts, files).
 
 mod asu;
 mod build;
 mod catalog;
 mod device;
 mod http;
+mod image;
 mod keep;
 mod packages;
 mod release;
@@ -39,8 +46,10 @@ mod release;
 pub mod testing;
 #[cfg(test)]
 mod tests;
+mod uploads;
 
 pub use asu::{Asu, ImageRequest, Upgrade};
+pub use uploads::{MAX_UPLOAD_BYTES, MAX_UPLOADS, Receiving, Uploads, upload_fits, valid_sha256};
 
 /// What went wrong talking to ASU or the download server.
 #[derive(Debug, thiserror::Error)]
@@ -61,4 +70,7 @@ pub enum Error {
     /// ASU is overloaded.
     #[error("ASU is busy, try again later: {0}")]
     Busy(String),
+    /// The uploaded images' directory failed.
+    #[error("cannot keep the uploaded images: {0}")]
+    Storage(String),
 }

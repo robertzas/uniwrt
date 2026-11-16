@@ -114,7 +114,16 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             fleet.engine.clone(),
             Arc::clone(&clock),
         );
-        let api = start_api(&args, &store, &vault, &fleet, &clock, &tls, &jobs).await?;
+        let api = start_api(
+            &args,
+            &store,
+            &vault,
+            &fleet,
+            &clock,
+            &tls,
+            (&jobs, &state_dir),
+        )
+        .await?;
         let nightly = NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock);
         let renewal = tokio::spawn(renewer.run());
         let app = http::router(&ui::EMBEDDED, api.clone());
@@ -161,6 +170,9 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The uploaded firmware images' directory in the data dir (D-122).
+const UPLOADS: &str = "firmware";
+
 /// ASU at `url`, unless it is `off`.
 fn asu(url: &str) -> anyhow::Result<Option<uniwrt_firmware::Asu>> {
     if url.eq_ignore_ascii_case("off") {
@@ -181,9 +193,13 @@ async fn start_api(
     fleet: &Fleet,
     clock: &Arc<dyn Clock>,
     tls: &crate::tls::Tls,
-    jobs: &uniwrt_jobs::Jobs,
+    (jobs, state_dir): (&uniwrt_jobs::Jobs, &Path),
 ) -> anyhow::Result<Api> {
+    let uploads = uniwrt_firmware::Uploads::open(state_dir.join(UPLOADS))
+        .await
+        .context("cannot open the uploaded firmware images")?;
     let api = Api::new(ApiConfig {
+        uploads: Some(uploads),
         alerts: fleet.alerts(),
         notify: fleet.notify(),
         rf: fleet.rf(),

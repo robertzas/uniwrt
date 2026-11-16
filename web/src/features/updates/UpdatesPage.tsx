@@ -6,6 +6,7 @@ import {
   type FirmwareRow,
   type FirmwareState,
   firmwareRows,
+  preparable,
 } from "../../lib/firmware";
 import { NONE } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
@@ -18,6 +19,7 @@ import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { type Column, Table } from "../../ui/Table";
 import { UpgradeDialog } from "./UpgradeDialog";
+import { UploadsCard } from "./UploadsCard";
 
 const t = strings.firmware;
 
@@ -29,9 +31,10 @@ const STATES: Record<FirmwareState, string> = {
 };
 
 /**
- * Updates (D-121): each device's OpenWrt release, the upgrades on offer with their release
- * notes, and for admins the upgrade image prepared with the device's packages. `?node=<id>`
- * opens a device's upgrade (its device page links here).
+ * Updates (D-121, D-122): each device's OpenWrt release, the upgrades on offer with their release
+ * notes, and for admins the upgrade prepared with the device's packages (ASU's image or the
+ * official one) or an uploaded image; below, the uploaded images. `?node=<id>` opens a device's
+ * upgrade (its device page links here).
  */
 export function UpdatesPage() {
   const live = useContext(LiveContext);
@@ -46,7 +49,7 @@ export function UpdatesPage() {
   /** The row whose upgrade is open: the one `?node=` names, when an admin can prepare it. */
   const upgrading = () =>
     admin()
-      ? rows().find((row) => String(row.firmware.node) === params.node && row.buildable.length > 0)
+      ? rows().find((row) => String(row.firmware.node) === params.node && preparable(row))
       : undefined;
   const setUpgrading = (row: FirmwareRow | undefined) =>
     setParams({ node: row ? String(row.firmware.node) : undefined }, { replace: true });
@@ -131,7 +134,7 @@ export function UpdatesPage() {
       id: "action",
       header: "",
       cell: (row) => (
-        <Show when={admin() && row.buildable.length > 0}>
+        <Show when={admin() && preparable(row)}>
           <Button
             size="sm"
             aria-label={`${t.prepare}: ${row.node?.name ?? row.firmware.node}`}
@@ -145,55 +148,66 @@ export function UpdatesPage() {
     },
   ];
 
+  const fits = (sha256: string) =>
+    rows().filter((row) => row.uploads.some((upload) => upload.sha256 === sha256)).length;
+
   return (
-    <Card class="mx-auto max-w-7xl overflow-hidden" aria-label={t.title}>
-      <CardHeader
-        title={t.title}
-        description={
-          catalog() && !catalog()?.error ? t.summary(rows().length, upgradable()) : t.description
-        }
-        actions={
-          <Button size="sm" icon={RefreshCw} disabled={loading()} onClick={reload}>
-            {t.refresh}
-          </Button>
-        }
-      />
-      <div class="flex flex-col gap-3 px-4 pb-2">
-        <Show when={catalog() && !catalog()?.error}>
-          <p class="text-fg-muted text-sm">{t.description}</p>
-        </Show>
-        <RequestError text={error() ?? catalog()?.error ?? undefined} />
-      </div>
-      <Show
-        when={catalog()}
-        fallback={
-          <Show when={!error()}>
-            <p role="status" class="py-12 text-center text-fg-subtle text-sm">
-              {t.loading}
-            </p>
-          </Show>
-        }
-      >
-        <Table
-          label={t.title}
-          columns={columns}
-          rows={rows()}
-          rowKey={(row) => String(row.firmware.node)}
+    <div class="flex flex-col gap-4">
+      <Card class="mx-auto w-full max-w-7xl overflow-hidden" aria-label={t.title}>
+        <CardHeader
+          title={t.title}
+          description={
+            catalog() && !catalog()?.error ? t.summary(rows().length, upgradable()) : t.description
+          }
+          actions={
+            <Button size="sm" icon={RefreshCw} disabled={loading()} onClick={reload}>
+              {t.refresh}
+            </Button>
+          }
         />
-      </Show>
-      <Show when={upgrading()}>
-        {(row) => (
-          <UpgradeDialog
-            open
-            onOpenChange={(open) => {
-              if (!open) setUpgrading(undefined);
-            }}
-            node={row().firmware.node}
-            name={row().node?.name ?? `#${row().firmware.node}`}
-            offers={row().buildable}
+        <div class="flex flex-col gap-3 px-4 pb-2">
+          <Show when={catalog() && !catalog()?.error}>
+            <p class="text-fg-muted text-sm">{t.description}</p>
+          </Show>
+          <RequestError text={error() ?? catalog()?.error ?? undefined} />
+        </div>
+        <Show
+          when={catalog()}
+          fallback={
+            <Show when={!error()}>
+              <p role="status" class="py-12 text-center text-fg-subtle text-sm">
+                {t.loading}
+              </p>
+            </Show>
+          }
+        >
+          <Table
+            label={t.title}
+            columns={columns}
+            rows={rows()}
+            rowKey={(row) => String(row.firmware.node)}
           />
+        </Show>
+        <Show when={upgrading()}>
+          {(row) => (
+            <UpgradeDialog
+              open
+              onOpenChange={(open) => {
+                if (!open) setUpgrading(undefined);
+              }}
+              node={row().firmware.node}
+              name={row().node?.name ?? `#${row().firmware.node}`}
+              offers={row().buildable}
+              uploads={row().uploads}
+            />
+          )}
+        </Show>
+      </Card>
+      <Show when={catalog()}>
+        {(found) => (
+          <UploadsCard uploads={found().uploads} fits={fits} admin={admin()} onChange={reload} />
         )}
       </Show>
-    </Card>
+    </div>
   );
 }

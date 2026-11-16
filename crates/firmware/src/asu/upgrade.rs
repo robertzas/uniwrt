@@ -11,7 +11,9 @@ use std::{
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     facts::Release,
-    firmware::{FirmwareOffer, ImageBuildStarted, PackageRename, UpgradePlan},
+    firmware::{
+        FirmwareImage, FirmwareOffer, ImageBuildStarted, ImageSource, PackageRename, UpgradePlan,
+    },
     inventory::Package,
 };
 
@@ -153,6 +155,7 @@ impl Asu {
         dropped.sort();
         Ok(UpgradePlan {
             node: upgrade.node,
+            source: ImageSource::Asu,
             from: upgrade.release.version.clone(),
             release: upgrade.to.to_owned(),
             target: target.to_owned(),
@@ -167,10 +170,52 @@ impl Asu {
             added: kept.added,
             dropped,
             removed: kept.removed,
-            packages_at: upgrade.packages_at,
+            packages_at: Some(upgrade.packages_at),
             image_bytes: offer.image_bytes,
             tmp_free_bytes: upgrade.tmp_free_bytes,
+            images: Vec::new(),
+            upload: None,
         })
+    }
+
+    /// The plan of an upgrade with OpenWrt's own image (D-122): the same packages, installed
+    /// after the upgrade rather than baked in, and the image's files on the download server.
+    pub async fn official_plan(&self, upgrade: Upgrade<'_>) -> Result<UpgradePlan, Error> {
+        let mut plan = self.upgrade_plan(upgrade).await?;
+        let target = self.target(&plan.release, &plan.target).await?;
+        let device = target.device(upgrade.board).ok_or_else(|| {
+            Error::NotFound(format!(
+                "OpenWrt {} has no image for {}",
+                plan.release, upgrade.board
+            ))
+        })?;
+        if device.images.is_empty() {
+            return Err(Error::NotFound(format!(
+                "OpenWrt {} lists no sysupgrade image for {}",
+                plan.release, upgrade.board
+            )));
+        }
+        let upstream = self.overview().await?.upstream;
+        plan.source = ImageSource::Official;
+        plan.images = device
+            .images
+            .iter()
+            .map(|image| FirmwareImage {
+                url: format!(
+                    "{upstream}/releases/{}/targets/{}/{}",
+                    plan.release, plan.target, image.name
+                ),
+                name: image.name.clone(),
+                kind: image.kind.clone(),
+                filesystem: image.filesystem.clone(),
+                size_bytes: image.size,
+                sha256: image.sha256.clone(),
+            })
+            .collect();
+        if let Some(size) = plan.images[0].size_bytes {
+            plan.image_bytes = Some(size);
+        }
+        Ok(plan)
     }
 
     /// Asks ASU for the upgrade image [`Self::upgrade_plan`] describes; the node's

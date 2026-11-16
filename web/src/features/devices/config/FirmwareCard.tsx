@@ -13,7 +13,7 @@ const t = strings.firmware;
 
 /**
  * A device's firmware on its page (D-121): its release and the upgrades on offer; admins
- * prepare one on the Updates page.
+ * prepare one on the Updates page (also with an uploaded image made for it, D-122).
  */
 export function FirmwareCard(props: { node: Node; admin: boolean }) {
   const navigate = useNavigate();
@@ -29,7 +29,9 @@ export function FirmwareCard(props: { node: Node; admin: boolean }) {
       <CardHeader
         title={t.card.title}
         actions={
-          <Show when={props.admin && buildable().length > 0}>
+          <Show
+            when={props.admin && (buildable().length > 0 || (firmware()?.uploads.length ?? 0) > 0)}
+          >
             <Button
               size="sm"
               variant="secondary"

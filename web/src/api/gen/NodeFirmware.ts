@@ -33,4 +33,8 @@ offers: Array<FirmwareOffer>,
 /**
  * Why nothing is offered, when nothing is and the node isn't simply up to date.
  */
-note: string | null, };
+note: string | null, 
+/**
+ * The uploaded images made for its board (by SHA-256), newest first.
+ */
+uploads: Array<string>, };

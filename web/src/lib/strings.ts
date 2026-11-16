@@ -241,7 +241,7 @@ export const strings = {
     dialog: {
       title: (name: string) => `Upgrade ${name}`,
       description:
-        "uniwrt reads the device's packages and works out the image: your packages carried over, renamed where OpenWrt renamed them, and the mesh essentials. Nothing changes on the device.",
+        "uniwrt works out what the upgrade holds: your packages carried over (renamed where OpenWrt renamed them) with the mesh essentials, or an uploaded image as it is. Nothing changes on the device.",
       release: "Release",
       reading: "Reading the device's packages…",
       read: (when: string) => `Packages read at ${when}.`,
@@ -263,6 +263,45 @@ export const strings = {
         "The image is ready. Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
       again: "Try again",
       close: "Close",
+      image: "Image",
+      source: "Image source",
+      sources: { asu: "Built by ASU", official: "Official image" } as Record<string, string>,
+      sourceHint: {
+        asu: "Your packages baked into the image: nothing to install afterwards.",
+        official:
+          "OpenWrt's image as published, when ASU is busy or down. uniwrt installs your packages after the upgrade, so the device needs internet access then.",
+      } as Record<string, string>,
+      uploaded: (name: string) => `Uploaded · ${name}`,
+      uploadedHint: (version: string | null, size: string) =>
+        version === null ? `x86 image · ${size}` : `OpenWrt ${version} · ${size}`,
+      installed: (n: number) =>
+        `${n} of your ${n === 1 ? "package" : "packages"} installed after the upgrade`,
+      notInstalled: (release: string) => `Not in OpenWrt ${release}: not installed again`,
+      exactSize: (image: string, free: string | null) =>
+        free === null
+          ? `The image is ${image}.`
+          : `The image is ${image}. ${free} free in /tmp, where it is staged.`,
+      files: "The official image",
+      uploadNote:
+        "Flashed as it is: its packages are the ones it was built with, and the device keeps its settings.",
+      sha256: "SHA-256",
+      later:
+        "Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
+    },
+    uploads: {
+      title: "Uploaded images",
+      description:
+        "Sysupgrade images you built yourself. uniwrt reads the boards each one fits from its metadata (an x86 image's target from its file name) and offers it to those devices.",
+      upload: "Upload image",
+      uploading: "Uploading…",
+      empty: "No images uploaded.",
+      anyBoard: (target: string) => `Any ${target} device`,
+      fits: (n: number) =>
+        n === 0 ? "No device fits it" : `Fits ${n} ${n === 1 ? "device" : "devices"}`,
+      uploadedAt: (when: string) => `Uploaded ${when}`,
+      delete: "Delete",
+      confirm: (name: string) => `Delete ${name}?`,
+      cancel: "Cancel",
     },
   },
   adopt: {
