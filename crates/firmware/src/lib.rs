@@ -16,8 +16,11 @@
 //!   (the same plan with OpenWrt's own image, the packages installed after the upgrade); and
 //!   [`Uploads`] (images admins upload, kept in a directory under their SHA-256 once their
 //!   metadata names the boards they fit, or an x86 image's name its target; [`upload_fits`]);
-//!   [`Error`]. With the `testing` feature,
-//!   `testing::FakeAsu`, an ASU and download server on loopback.
+//!   [`GitHub`] (D-122: a repo's releases, [`GitHub::releases`], read with an optional token
+//!   and kept ten minutes; [`Releases::offers`], the newest [`MAX_OFFERS`] with an image for a
+//!   [`Device`]: its profile or board in the asset's name, x86's subtarget; [`parse_repo`]);
+//!   [`Error`]. With the `testing` feature, `testing::FakeAsu`, an ASU and download server on
+//!   loopback, and `testing::FakeGitHub`, GitHub's releases API.
 //! - **Invariants:** nothing secret goes to ASU (D-022): the request holds the device, the
 //!   packages and the first-boot script, which holds only public data. Every value that
 //!   becomes part of a URL (release, target, profile, build hash, image name) is checked
@@ -29,7 +32,9 @@
 //!   or the package manager out (D-121). A target's devices and a release's indexes are kept
 //!   a day (eight targets, four indexes). An upload is kept only once inspected: a file that
 //!   names no board (and isn't x86's gzipped image) never reaches the directory; at most
-//!   [`MAX_UPLOADS`] of at most [`MAX_UPLOAD_BYTES`].
+//!   [`MAX_UPLOADS`] of at most [`MAX_UPLOAD_BYTES`]. A GitHub image is offered only with the
+//!   SHA-256 GitHub records for it, and only when its name tells the board (or x86's
+//!   subtarget) as a whole word; the token is sent to GitHub's API alone, marked sensitive.
 //! - **Dependencies:** `uniwrt-model`, hyper, hyper-util, hyper-rustls (ring, Mozilla's roots),
 //!   ring (SHA-256), `serde_json`, tokio (timeouts, files).
 
@@ -37,6 +42,7 @@ mod asu;
 mod build;
 mod catalog;
 mod device;
+mod github;
 mod http;
 mod image;
 mod keep;
@@ -49,9 +55,10 @@ mod tests;
 mod uploads;
 
 pub use asu::{Asu, ImageRequest, Upgrade};
+pub use github::{Device, GitHub, MAX_OFFERS, Releases, parse_repo, valid_repo, valid_token};
 pub use uploads::{MAX_UPLOAD_BYTES, MAX_UPLOADS, Receiving, Uploads, upload_fits, valid_sha256};
 
-/// What went wrong talking to ASU or the download server.
+/// What went wrong talking to ASU, the download server or GitHub.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("cannot reach {url}: {why}")]
@@ -70,6 +77,12 @@ pub enum Error {
     /// ASU is overloaded.
     #[error("ASU is busy, try again later: {0}")]
     Busy(String),
+    /// GitHub refused, in words for people (its rate limit, another status).
+    #[error("{0}")]
+    GitHub(String),
+    /// GitHub refused the token: it expired or was revoked.
+    #[error("{0}")]
+    Unauthorized(String),
     /// The uploaded images' directory failed.
     #[error("cannot keep the uploaded images: {0}")]
     Storage(String),

@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { FirmwareOffer } from "../api/gen/FirmwareOffer";
 import type { FirmwareUpload } from "../api/gen/FirmwareUpload";
+import type { GitHubRelease } from "../api/gen/GitHubRelease";
 import type { NodeFirmware } from "../api/gen/NodeFirmware";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
+  choiceKey,
   defaultOffer,
   firmwareRows,
   firmwareState,
+  openwrtSource,
   planBody,
   preparable,
   tightTmp,
 } from "./firmware";
+import { strings } from "./strings";
 
 const offer = (release: string, kind: "update" | "branch", profile: string | null = "p") =>
   ({ release, kind, notes: "", profile, image_bytes: 10e6 }) satisfies FirmwareOffer;
@@ -25,6 +29,18 @@ const node = (id: number, version = "24.10.7", offers: FirmwareOffer[] = []): No
   offers,
   note: null,
   uploads: [],
+  source: { kind: "site" },
+  repo: null,
+  releases: [],
+});
+
+const release = (tag: string): GitHubRelease => ({
+  tag,
+  name: tag,
+  prerelease: false,
+  published_at: null,
+  notes: "",
+  images: [],
 });
 
 const upload = (sha256: string): FirmwareUpload => ({
@@ -52,6 +68,24 @@ describe("firmwareState", () => {
     expect(firmwareState(node(1, ""), false)).toBe("unknown");
     expect(firmwareState(node(1, "25.12.6"), true)).toBe("unknown");
   });
+
+  it("lists a GitHub repo's releases whatever ASU says", () => {
+    const github = { ...node(1), repo: "owner/images", releases: [release("v2")] };
+    expect(firmwareState(github, true)).toBe("listed");
+    expect(firmwareState({ ...github, releases: [], note: "no image" }, false)).toBe("unknown");
+  });
+});
+
+describe("the catalog's summary", () => {
+  it("claims up to date only when every device is", () => {
+    const summary = strings.firmware.summary;
+    expect(summary(3, 0)).toBe("All 3 devices are up to date");
+    expect(summary(3, 1, 0, 1)).toBe("1 of 3 devices can upgrade");
+    expect(summary(3, 1, 1)).toBe(
+      "1 of 3 devices can upgrade · 1 device with GitHub releases to choose from",
+    );
+    expect(summary(3, 0, 0, 3)).toBe("No upgrade known for 3 devices: see why below");
+  });
 });
 
 describe("firmwareRows", () => {
@@ -60,6 +94,7 @@ describe("firmwareRows", () => {
       { id: 1, name: "Office", role: "ap" },
       { id: 2, name: "Gateway", role: "gateway" },
       { id: 3, name: "Attic", role: "ap" },
+      { id: 4, name: "Shed", role: "ap" },
     ] as NodeSummary[];
     const rows = firmwareRows(
       {
@@ -67,17 +102,20 @@ describe("firmwareRows", () => {
           node(1, "24.10.7", [offer("25.12.6", "branch", null), offer("24.10.8", "update")]),
           node(2),
           { ...node(3), uploads: ["b", "gone"] },
+          { ...node(4), repo: "owner/images", releases: [release("v2")] },
         ],
         uploads: [upload("a"), upload("b")],
         error: null,
+        sources: { repo: "owner/images", prereleases: false, token: false },
       },
       nodes,
     );
-    expect(rows.map((row) => row.node?.name)).toEqual(["Gateway", "Attic", "Office"]);
+    expect(rows.map((row) => row.node?.name)).toEqual(["Gateway", "Attic", "Office", "Shed"]);
     expect(rows[2]?.buildable.map((o) => o.release)).toEqual(["24.10.8"]);
     // An upload the catalog doesn't list is left out.
     expect(rows[1]?.uploads.map((u) => u.sha256)).toEqual(["b"]);
-    expect(rows.map(preparable)).toEqual([false, true, true]);
+    expect(rows.map(preparable)).toEqual([false, true, true, true]);
+    expect(rows[3]?.state).toBe("listed");
   });
 });
 
@@ -90,6 +128,17 @@ describe("planBody", () => {
       source: "upload",
       sha256: "ab",
     });
+    expect(planBody({ kind: "github", tag: "v2" }, true)).toEqual({
+      source: "github",
+      release: "v2",
+    });
+    expect(choiceKey({ kind: "github", tag: "v2" })).toBe("github:v2");
+  });
+
+  it("starts an OpenWrt release from the node's source", () => {
+    expect(openwrtSource({ kind: "official" })).toBe("official");
+    expect(openwrtSource({ kind: "site" })).toBe("asu");
+    expect(openwrtSource({ kind: "github", repo: "a/b" })).toBe("asu");
   });
 });
 

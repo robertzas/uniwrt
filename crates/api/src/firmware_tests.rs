@@ -19,7 +19,7 @@ async fn catalog(demo: &Demo) -> Value {
 }
 
 /// The catalog once every node's facts are in.
-async fn settled(demo: &Demo) -> Value {
+pub(crate) async fn settled(demo: &Demo) -> Value {
     for _ in 0..200 {
         let catalog = catalog(demo).await;
         let nodes = catalog["nodes"].as_array().unwrap();

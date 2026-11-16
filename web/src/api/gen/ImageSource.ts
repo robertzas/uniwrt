@@ -3,4 +3,4 @@
 /**
  * Where an upgrade image comes from (D-121, D-122).
  */
-export type ImageSource = "asu" | "official" | "upload";
+export type ImageSource = "asu" | "official" | "upload" | "github";

@@ -12,7 +12,8 @@ const d = strings.firmware.dialog;
 /**
  * What an upgrade holds against the node (D-121, D-122): with ASU, what the image keeps,
  * renames, adds and drops (dropped packages as a warning); with an official image, the same
- * packages installed after the upgrade, and the image's files; with an upload, the image.
+ * packages installed after the upgrade, and the image's files; with an upload, the image; with a
+ * GitHub release, its images, flashed as they are.
  */
 export function PlanView(props: { plan: UpgradePlan }) {
   const official = () => props.plan.source === "official";
@@ -74,8 +75,16 @@ export function PlanView(props: { plan: UpgradePlan }) {
           </div>
         )}
       </Show>
+      <Show when={props.plan.source === "github"}>
+        <p class="text-fg-muted text-xs">{d.githubNote}</p>
+      </Show>
       <Show when={props.plan.images.length > 0}>
-        <ul class="flex flex-col gap-2" aria-label={d.files}>
+        <ul
+          class="flex flex-col gap-2"
+          aria-label={
+            props.plan.source === "github" ? d.githubFiles(props.plan.repo ?? "GitHub") : d.files
+          }
+        >
           <For each={props.plan.images}>
             {(image) => <ImageRow image={image} size={formatBytes(image.size_bytes)} />}
           </For>

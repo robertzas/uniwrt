@@ -95,6 +95,21 @@ impl Asu {
         Ok((offers, note))
     }
 
+    /// The image builder profile of `board` in the release a node runs, when the download server
+    /// still lists it: GitHub images are found by it (D-122). `None` for a release or board the
+    /// download server doesn't know (a derivative's); an error when it can't be read.
+    pub async fn profile_of(
+        &self,
+        release: &Release,
+        board: &str,
+    ) -> Result<Option<String>, Error> {
+        match self.target(&release.version, &release.target).await {
+            Ok(target) => Ok(target.device(board).map(|device| device.id.clone())),
+            Err(Error::NotFound(_) | Error::Invalid(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     /// What an image of `upgrade.to` would hold against the node's packages.
     pub async fn upgrade_plan(&self, upgrade: Upgrade<'_>) -> Result<UpgradePlan, Error> {
         let (offers, note) = self.offers(upgrade.release, upgrade.board).await?;
@@ -175,6 +190,7 @@ impl Asu {
             tmp_free_bytes: upgrade.tmp_free_bytes,
             images: Vec::new(),
             upload: None,
+            repo: None,
         })
     }
 

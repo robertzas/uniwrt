@@ -39,7 +39,8 @@
 //!   v1/ztp/builds/{hash}`; D-104), firmware upgrades (`GET v1/firmware`,
 //!   `POST v1/firmware/nodes/{id}/plan` ([`PlanBody`]) and `…/builds` ([`UpgradeBody`]), `GET
 //!   v1/firmware/builds/{hash}`; D-121; uploaded images, `POST v1/firmware/uploads` and `DELETE
-//!   …/uploads/{sha256}`, D-122), and [`bootstrap`], the public `GET /b/{token}` the
+//!   …/uploads/{sha256}`, D-122; GitHub sources, `PUT v1/firmware/sources` ([`SourcesBody`]) and
+//!   `PUT v1/firmware/nodes/{id}/source`, D-122), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -106,6 +107,10 @@ mod discovered;
 mod drift;
 mod events;
 mod firmware;
+mod firmware_github;
+mod firmware_sources;
+#[cfg(test)]
+mod firmware_sources_tests;
 #[cfg(test)]
 mod firmware_tests;
 mod firmware_uploads;
@@ -164,6 +169,7 @@ pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use firmware::{PlanBody, UpgradeBody};
+pub use firmware_sources::{SourcesBody, TokenChange};
 pub use health::BuildInfo;
 pub use import::{DriftTarget, ImportAccept, ImportRequest};
 pub use ipam::ReservationSuggestion;

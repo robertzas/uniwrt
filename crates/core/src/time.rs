@@ -48,6 +48,50 @@ impl Timestamp {
         Self(self.0.saturating_sub(saturating_ms(duration)))
     }
 
+    /// A UTC instant as [`Display`](fmt::Display) writes it (`2026-10-21T22:45:00Z`, optionally
+    /// with a fraction of a second, of which milliseconds are kept); `None` for anything else.
+    pub fn parse_utc(text: &str) -> Option<Self> {
+        let text = text.strip_suffix('Z')?;
+        let (date, time) = text.split_once('T')?;
+        let (time, fraction) = match time.split_once('.') {
+            Some((_, "")) => return None,
+            Some(parts) => parts,
+            None => (time, ""),
+        };
+        let number = |part: &str, len: usize| -> Option<i64> {
+            (part.len() == len && part.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| part.parse().ok())
+                .flatten()
+        };
+        let mut date = date.split('-');
+        let (year, month, day) = (
+            number(date.next()?, 4)?,
+            number(date.next()?, 2)?,
+            number(date.next()?, 2)?,
+        );
+        let mut time = time.split(':');
+        let (hour, minute, second) = (
+            number(time.next()?, 2)?,
+            number(time.next()?, 2)?,
+            number(time.next()?, 2)?,
+        );
+        if date.next().is_some()
+            || time.next().is_some()
+            || !(1..=12).contains(&month)
+            || !(1..=31).contains(&day)
+            || hour > 23
+            || minute > 59
+            || second > 60
+            || fraction.len() > 9
+            || !fraction.bytes().all(|b| b.is_ascii_digit())
+        {
+            return None;
+        }
+        let ms = format!("{fraction:0<3}")[..3].parse::<i64>().ok()?;
+        let secs = days_from_civil(year, month, day) * 86_400 + hour * 3_600 + minute * 60 + second;
+        Some(Self(secs * 1_000 + ms))
+    }
+
     /// The time from `earlier` to `self`, or zero when `earlier` is later.
     pub fn saturating_duration_since(self, earlier: Self) -> Duration {
         u64::try_from(self.0.saturating_sub(earlier.0))
@@ -84,6 +128,17 @@ impl fmt::Debug for Timestamp {
     }
 }
 
+/// Howard Hinnant's `days_from_civil`: days since 1970-01-01 (proleptic Gregorian calendar).
+const fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let year_of_era = year.rem_euclid(400);
+    let month_from_march = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * month_from_march + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
 /// Howard Hinnant's `civil_from_days` for days since 1970-01-01 (proleptic Gregorian calendar).
 fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let shifted = days + 719_468; // days since 0000-03-01
@@ -108,6 +163,35 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
     use super::Timestamp;
+
+    #[test]
+    fn parses_what_it_displays() {
+        for ms in [
+            0,
+            951_782_400_000,
+            1_709_251_199_000,
+            1_792_622_700_042,
+            -1_000,
+        ] {
+            let at = Timestamp::from_unix_ms(ms);
+            assert_eq!(Timestamp::parse_utc(&at.to_string()), Some(at), "{at}");
+        }
+        assert_eq!(
+            Timestamp::parse_utc("2026-10-21T22:45:00.0425Z"),
+            Some(Timestamp::from_unix_ms(1_792_622_700_042))
+        );
+        for bad in [
+            "2026-10-21T22:45:00",
+            "2026-10-21 22:45:00Z",
+            "2026-13-01T00:00:00Z",
+            "2026-10-21T22:45:00+02:00",
+            "26-10-21T22:45:00Z",
+            "2026-10-21T22:45:00.Z",
+            "",
+        ] {
+            assert_eq!(Timestamp::parse_utc(bad), None, "{bad}");
+        }
+    }
 
     #[test]
     fn displays_reference_instants_as_rfc3339() {

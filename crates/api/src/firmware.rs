@@ -4,13 +4,17 @@
 //!   upgrades on offer (the latest of its branch, the next branch's), each with the device's
 //!   profile in that release, or why none can be offered, and the uploaded images that fit it.
 //!   ASU off or unreachable gives an `error` instead of offers (uploads are still listed).
+//!   A node whose source is a GitHub repo (D-122: its own, or the site's) gets the repo's
+//!   newest releases with an image for it instead (`firmware_github.rs`); the site's sources
+//!   come with the catalog.
 //! - `POST /api/v1/firmware/uploads?name=<file name>` and `DELETE …/uploads/{sha256}`:
-//!   `firmware_uploads.rs`.
+//!   `firmware_uploads.rs`; `PUT …/sources` and `PUT …/nodes/{id}/source`: `firmware_sources.rs`.
 //! - `POST /api/v1/firmware/nodes/{id}/plan` ([`PlanBody`]; [`UpgradePlan`]), for admins: with
 //!   ASU or an official image (D-122), reads the node's packages again (observe mode too:
 //!   nothing changes on it) and works out what the upgrade keeps, renames, adds, drops and
 //!   removes, baked into ASU's image or installed after the official one (whose files it lists);
-//!   with an uploaded image, checks that it fits the node's board and reads nothing.
+//!   with an uploaded image, checks that it fits the node's board and reads nothing; with a
+//!   GitHub release of the node's repo, lists its images (flashed as they are).
 //! - `POST /api/v1/firmware/nodes/{id}/builds` ([`UpgradeBody`]; [`ImageBuildStarted`]), for
 //!   admins: reads the packages again and asks ASU for that image (no first-boot script: the
 //!   upgrade keeps the configuration). Audited (`firmware`).
@@ -33,7 +37,7 @@ use uniwrt_model::{
     facts::NodeFacts,
     firmware::{
         FirmwareCatalog, FirmwareUpload, ImageBuild, ImageBuildStarted, ImageSource, NodeFirmware,
-        UpgradePlan,
+        NodeSource, UpgradePlan,
     },
     inventory::Inventory,
     node::Node,
@@ -51,6 +55,7 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/firmware/nodes/{id}/builds", post(build))
         .route("/v1/firmware/builds/{hash}", get(status))
         .merge(crate::firmware_uploads::routes())
+        .merge(crate::firmware_sources::routes())
 }
 
 /// The image to plan a node's upgrade with (D-122).
@@ -64,6 +69,8 @@ pub enum PlanBody {
     Official { release: String },
     /// The uploaded image `sha256`.
     Upload { sha256: String },
+    /// The release tagged `release` of the node's GitHub repo, one of its releases on offer.
+    Github { release: String },
 }
 
 /// The release to upgrade a node to.
@@ -85,6 +92,7 @@ pub(crate) async fn catalog(
         "Firmware upgrades are off: the controller runs without ASU (--asu-url off)".to_owned()
     });
     let mut error = asu.as_ref().err().cloned();
+    let mut sources = crate::firmware_github::Sources::load(&api).await?;
     let uploads = match api.uploads() {
         Ok(uploads) => uploads.list().await.map_err(firmware_error)?,
         Err(_) => Vec::new(),
@@ -101,7 +109,22 @@ pub(crate) async fn catalog(
         };
         let mut entry = firmware(node.id, &facts);
         entry.uploads = fitting(&uploads, &facts);
-        if let (Ok(asu), None) = (&asu, &error) {
+        entry.source = sources.kept.node(node.id);
+        if sources.kept.repo_of(node.id).is_some() {
+            let mut profile = None;
+            if let (Ok(asu), None) = (&asu, &error) {
+                match asu
+                    .profile_of(&facts.board.release, &facts.board.board_name)
+                    .await
+                {
+                    Ok(found) => profile = found,
+                    Err(err) => error = Some(firmware_error(err).to_string()),
+                }
+            }
+            sources
+                .fill(&api, &mut entry, &facts, profile.as_deref())
+                .await;
+        } else if let (Ok(asu), None) = (&asu, &error) {
             match asu
                 .offers(&facts.board.release, &facts.board.board_name)
                 .await
@@ -120,6 +143,7 @@ pub(crate) async fn catalog(
         nodes: listed,
         uploads,
         error,
+        sources: crate::firmware_sources::view(&sources.kept, sources.has_token()),
     }))
 }
 
@@ -144,6 +168,9 @@ fn firmware(node: NodeId, facts: &NodeFacts) -> NodeFirmware {
         offers: Vec::new(),
         note: None,
         uploads: Vec::new(),
+        source: NodeSource::Site,
+        repo: None,
+        releases: Vec::new(),
     }
 }
 
@@ -157,6 +184,12 @@ pub(crate) async fn plan(
     let Json(body) = body?;
     let (release, official) = match body {
         PlanBody::Upload { sha256 } => return upload_plan(&api, id, &sha256).await.map(Json),
+        PlanBody::Github { release } => {
+            let (node, facts) = node_facts(&api, id).await?;
+            return crate::firmware_github::plan(&api, &node, &facts, &release)
+                .await
+                .map(Json);
+        }
         PlanBody::Asu { release } => (release, false),
         PlanBody::Official { release } => (release, true),
     };
@@ -220,6 +253,7 @@ async fn upload_plan(
         tmp_free_bytes: facts.system.tmp.map(|tmp| tmp.available_bytes),
         images: Vec::new(),
         upload: Some(upload),
+        repo: None,
     })
 }
 
@@ -360,7 +394,9 @@ pub(crate) fn firmware_error(err: Error) -> ApiError {
         Error::Unreachable { .. }
         | Error::Status { .. }
         | Error::Invalid(_)
-        | Error::Refused(_) => ApiError::BadGateway(err.to_string()),
+        | Error::Refused(_)
+        | Error::GitHub(_)
+        | Error::Unauthorized(_) => ApiError::BadGateway(err.to_string()),
         Error::Storage(_) => ApiError::Internal(err.to_string()),
     }
 }

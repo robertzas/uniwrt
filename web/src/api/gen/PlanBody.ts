@@ -3,4 +3,4 @@
 /**
  * The image to plan a node's upgrade with (D-122).
  */
-export type PlanBody = { "source": "asu", release: string, } | { "source": "official", release: string, } | { "source": "upload", sha256: string, };
+export type PlanBody = { "source": "asu", release: string, } | { "source": "official", release: string, } | { "source": "upload", sha256: string, } | { "source": "github", release: string, };

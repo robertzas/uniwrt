@@ -208,6 +208,13 @@ async fn start_api(
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
         asu: asu(&args.asu_url)?,
+        github: Some(
+            uniwrt_firmware::GitHub::new(
+                uniwrt_firmware::GitHub::PUBLIC,
+                &format!("uniwrt/{}", build_info::VERSION),
+            )
+            .context("cannot use GitHub's API")?,
+        ),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),

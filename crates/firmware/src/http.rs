@@ -1,4 +1,4 @@
-//! HTTP(S) GETs and JSON POSTs to ASU and OpenWrt's download server: hyper over rustls (ring)
+//! HTTP(S) GETs and JSON POSTs to ASU, OpenWrt's download server and GitHub's API: hyper over rustls (ring)
 //! with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed,
 //! and a bounded read of the answer.
 
@@ -7,8 +7,8 @@ use std::{sync::Arc, time::Duration};
 use bytes::Bytes;
 use http_body_util::{BodyExt as _, Full, Limited};
 use hyper::{
-    Request, Uri,
-    header::{ACCEPT, CONTENT_TYPE, HeaderValue, USER_AGENT},
+    HeaderMap, Request, Uri,
+    header::{ACCEPT, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT},
 };
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
@@ -23,9 +23,10 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// The whole exchange, the answer read included (a release's catalog is about 400 KB).
 const TIMEOUT: Duration = Duration::from_secs(60);
 
-/// An answer: its status and its body.
+/// An answer: its status, its headers and its body.
 pub(crate) struct Answer {
     pub(crate) status: u16,
+    pub(crate) headers: HeaderMap,
     pub(crate) body: Bytes,
 }
 
@@ -65,7 +66,17 @@ impl Http {
     }
 
     pub(crate) async fn get(&self, url: &str, max: usize) -> Result<Answer, Error> {
-        self.exchange(url, None, max).await
+        self.exchange(url, None, &[], max).await
+    }
+
+    /// A GET with more headers (GitHub's version, a token).
+    pub(crate) async fn get_with(
+        &self,
+        url: &str,
+        headers: &[(HeaderName, HeaderValue)],
+        max: usize,
+    ) -> Result<Answer, Error> {
+        self.exchange(url, None, headers, max).await
     }
 
     pub(crate) async fn post_json(
@@ -74,22 +85,26 @@ impl Http {
         body: Vec<u8>,
         max: usize,
     ) -> Result<Answer, Error> {
-        self.exchange(url, Some(body), max).await
+        self.exchange(url, Some(body), &[], max).await
     }
 
     async fn exchange(
         &self,
         url: &str,
         body: Option<Vec<u8>>,
+        headers: &[(HeaderName, HeaderValue)],
         max: usize,
     ) -> Result<Answer, Error> {
         let uri: Uri = url
             .parse()
             .map_err(|_| Error::Invalid(format!("{url} is not a URL")))?;
-        let builder = Request::builder()
+        let mut builder = Request::builder()
             .uri(uri)
             .header(USER_AGENT, self.user_agent.clone())
             .header(ACCEPT, "application/json");
+        for (name, value) in headers {
+            builder = builder.header(name, value);
+        }
         let request = match body {
             Some(body) => builder
                 .method("POST")
@@ -109,12 +124,17 @@ impl Http {
                 .await
                 .map_err(|err| unreachable(chain(&err)))?;
             let status = response.status().as_u16();
+            let headers = response.headers().clone();
             let body = Limited::new(response.into_body(), max)
                 .collect()
                 .await
                 .map_err(|err| unreachable(err.to_string()))?
                 .to_bytes();
-            Ok(Answer { status, body })
+            Ok(Answer {
+                status,
+                headers,
+                body,
+            })
         };
         tokio::time::timeout(TIMEOUT, exchange)
             .await

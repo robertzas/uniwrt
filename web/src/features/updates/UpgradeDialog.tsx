@@ -1,8 +1,10 @@
 import { ExternalLink, Hammer, LoaderCircle } from "lucide";
-import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createEffect, createSignal, For, Match, Show, Switch, untrack } from "solid-js";
 import type { FirmwareOffer } from "../../api/gen/FirmwareOffer";
 import type { FirmwareUpload } from "../../api/gen/FirmwareUpload";
+import type { GitHubRelease } from "../../api/gen/GitHubRelease";
 import type { ImageBuild } from "../../api/gen/ImageBuild";
+import type { NodeSource } from "../../api/gen/NodeSource";
 import type { PlanBody } from "../../api/gen/PlanBody";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { api, errorText } from "../../lib/api";
@@ -11,9 +13,10 @@ import {
   defaultOffer,
   followBuild,
   type ImageChoice,
+  openwrtSource,
   planBody,
 } from "../../lib/firmware";
-import { formatBytes } from "../../lib/format";
+import { formatBytes, formatDateTime } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
@@ -30,9 +33,9 @@ const d = t.dialog;
 type Source = "asu" | "official";
 
 /**
- * Prepares a node's upgrade (D-121, D-122): a release on offer, built by ASU with the node's
- * packages or OpenWrt's official image with them installed after, or an uploaded image made for
- * its board. The plan is worked out (for a release, from the node's packages read again); ASU's
+ * Prepares a node's upgrade (D-121, D-122): one of its GitHub repo's releases, an OpenWrt release
+ * on offer (built by ASU with the node's packages, or OpenWrt's official image with them installed
+ * after; the node's source picks which first), or an uploaded image made for its board. The plan is worked out (for a release, from the node's packages read again); ASU's
  * build is followed until its sysupgrade image is ready. Nothing changes on the node.
  */
 export function UpgradeDialog(props: {
@@ -42,15 +45,20 @@ export function UpgradeDialog(props: {
   name: string;
   offers: readonly FirmwareOffer[];
   uploads: readonly FirmwareUpload[];
+  /** Its GitHub repo's releases with an image for it, and the repo. */
+  releases: readonly GitHubRelease[];
+  repo: string | null;
+  source: NodeSource;
 }) {
   const [picked, setPicked] = createSignal<string>();
-  const [source, setSource] = createSignal<Source>("asu");
+  const [source, setSource] = createSignal<Source>(untrack(() => openwrtSource(props.source)));
   const [plan, setPlan] = createSignal<UpgradePlan>();
   const [planError, setPlanError] = createSignal<string>();
   const [build, setBuild] = createSignal<ImageBuild>();
   const [buildError, setBuildError] = createSignal<string>();
   const [starting, setStarting] = createSignal(false);
   const choices = (): ImageChoice[] => [
+    ...props.releases.map((release) => ({ kind: "github" as const, tag: release.tag })),
     ...props.offers.map((offer) => ({ kind: "release" as const, release: offer.release })),
     ...props.uploads.map((upload) => ({ kind: "upload" as const, sha256: upload.sha256 })),
   ];
@@ -60,6 +68,7 @@ export function UpgradeDialog(props: {
     const first = defaultOffer(props.offers)?.release;
     return (
       all.find((choice) => choiceKey(choice) === wanted) ??
+      all.find((choice) => choice.kind === "github") ??
       all.find((choice) => choice.kind === "release" && choice.release === first) ??
       all[0]
     );
@@ -69,6 +78,12 @@ export function UpgradeDialog(props: {
     return choice?.kind === "release" ? choice.release : undefined;
   };
   const offer = () => props.offers.find((known) => known.release === release());
+  const githubRelease = () => {
+    const choice = chosen();
+    return choice?.kind === "github"
+      ? props.releases.find((known) => known.tag === choice.tag)
+      : undefined;
+  };
   const buildable = () => release() !== undefined && source() === "asu";
 
   // The plan of the chosen image, worked out again each time the dialog opens or the choice changes.
@@ -131,6 +146,14 @@ export function UpgradeDialog(props: {
         description: t.kindHint[known?.kind ?? ""] ?? "",
       };
     }
+    if (choice.kind === "github") {
+      const known = props.releases.find((r) => r.tag === choice.tag);
+      const published = known?.published_at == null ? null : formatDateTime(known.published_at);
+      return {
+        label: choice.tag,
+        description: d.githubHint(props.repo ?? "GitHub", published, known?.prerelease ?? false),
+      };
+    }
     const upload = props.uploads.find((u) => u.sha256 === choice.sha256);
     return {
       label: d.uploaded(upload?.name ?? choice.sha256.slice(0, 12)),
@@ -184,6 +207,19 @@ export function UpgradeDialog(props: {
               class="inline-flex w-fit items-center gap-1.5 text-accent text-sm hover:underline"
             >
               {t.notes} · OpenWrt {current().release}
+              <Icon icon={ExternalLink} class="size-3.5" />
+            </a>
+          )}
+        </Show>
+        <Show when={githubRelease()}>
+          {(current) => (
+            <a
+              href={current().notes}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex w-fit items-center gap-1.5 text-accent text-sm hover:underline"
+            >
+              {t.notes} · {current().name}
               <Icon icon={ExternalLink} class="size-3.5" />
             </a>
           )}

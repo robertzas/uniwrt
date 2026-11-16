@@ -1,6 +1,6 @@
 [package]
 name = "uniwrt-firmware"
-description = "uniwrt firmware: OpenWrt's release and device catalog, and zero-touch and upgrade images built by ASU (Attended Sysupgrade), official images and uploaded ones"
+description = "uniwrt firmware: OpenWrt's release and device catalog, and zero-touch and upgrade images built by ASU (Attended Sysupgrade), official images, uploaded ones and GitHub releases"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

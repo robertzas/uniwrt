@@ -107,6 +107,17 @@ pub(crate) async fn api_with(
     api_full(store, fleet, clock, dial, Handles::default()).await
 }
 
+/// Real SSH with a short connect timeout.
+fn ssh_dial() -> Arc<dyn Dial> {
+    Arc::new(SshDial {
+        config: SshConfig {
+            connect_timeout: Duration::from_secs(2),
+            ..SshConfig::default()
+        },
+        via: None,
+    })
+}
+
 /// Uploaded firmware images in `dir`.
 async fn uploads_in(dir: &std::path::Path) -> uniwrt_firmware::Uploads {
     uniwrt_firmware::Uploads::open(dir.join("firmware"))
@@ -124,6 +135,7 @@ pub(crate) struct Handles {
     pub(crate) bans: Option<Bans>,
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
     pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
+    pub(crate) github: Option<uniwrt_firmware::GitHub>,
 }
 
 /// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
@@ -143,6 +155,7 @@ pub(crate) async fn api_full(
         bans,
         asu,
         uploads,
+        github,
     } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -169,6 +182,7 @@ pub(crate) async fn api_full(
         bans,
         asu,
         uploads,
+        github,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -222,6 +236,15 @@ impl Demo {
 
     /// With `asu` for firmware.
     pub(crate) async fn start_full(dial: bool, asu: Option<uniwrt_firmware::Asu>) -> Self {
+        Self::start_firmware(dial, asu, None).await
+    }
+
+    /// With `asu` and `github` for firmware.
+    pub(crate) async fn start_firmware(
+        dial: bool,
+        asu: Option<uniwrt_firmware::Asu>,
+        github: Option<uniwrt_firmware::GitHub>,
+    ) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
         let store = Store::open(dir.path().join("uniwrt.db"), Arc::clone(&clock))
@@ -272,15 +295,7 @@ impl Demo {
         .await;
         let alerts =
             AlertEngine::start(&engine, store.clone(), None, AlertsConfig::default()).await;
-        let dial: Option<Arc<dyn Dial>> = dial.then(|| {
-            Arc::new(SshDial {
-                config: SshConfig {
-                    connect_timeout: Duration::from_secs(2),
-                    ..SshConfig::default()
-                },
-                via: None,
-            }) as Arc<dyn Dial>
-        });
+        let dial = dial.then(ssh_dial);
         let notify = Some((notifications.handle(), vault));
         let (rf, drift) = scanners(&engine, &store).await;
         let bans = ClientBans::start(
@@ -300,6 +315,7 @@ impl Demo {
             bans: Some(bans.handle()),
             asu,
             uploads: Some(uploads_in(dir.path()).await),
+            github,
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

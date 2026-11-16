@@ -217,14 +217,83 @@ export const strings = {
       "The OpenWrt release on each device and the upgrades on offer. Upgrade images are built by OpenWrt's build service (ASU) with the packages each device runs.",
     loading: "Reading the firmware catalog…",
     refresh: "Check again",
-    columns: { device: "Device", running: "Running", upgrade: "Upgrade", state: "State" },
-    summary: (current: number, upgradable: number) =>
-      upgradable === 0
-        ? `All ${current === 1 ? "device is" : `${current} devices are`} up to date`
-        : `${upgradable} of ${current} ${current === 1 ? "device" : "devices"} can upgrade`,
+    columns: {
+      device: "Device",
+      running: "Running",
+      upgrade: "Upgrade",
+      source: "Source",
+      state: "State",
+    },
+    /** The catalog's summary: `total` devices, of which `upgradable`, `listed` and `unknown`. */
+    summary: (total: number, upgradable: number, listed = 0, unknown = 0) => {
+      const devices = (n: number) => `${n} ${n === 1 ? "device" : "devices"}`;
+      const parts = [
+        upgradable > 0 && `${upgradable} of ${devices(total)} can upgrade`,
+        listed > 0 && `${devices(listed)} with GitHub releases to choose from`,
+      ].filter(Boolean);
+      if (parts.length > 0) return parts.join(" · ");
+      if (unknown > 0) return `No upgrade known for ${devices(unknown)}: see why below`;
+      return `All ${total === 1 ? "device is" : `${total} devices are`} up to date`;
+    },
     upToDate: "Up to date",
     available: "Upgrade available",
+    listed: "Builds available",
+    older: (n: number) => `and ${n} older`,
     unknown: "Unknown",
+    prerelease: "Prerelease",
+    source: {
+      site: (repo: string | null) =>
+        repo === null ? "Site default · OpenWrt" : `Site default · ${repo}`,
+      asu: "OpenWrt · built by ASU",
+      official: "OpenWrt · official image",
+      github: (repo: string) => `GitHub · ${repo}`,
+      change: "Change",
+      title: (name: string) => `Image source of ${name}`,
+      description:
+        "Where this device's upgrades come from. A GitHub repo is offered the newest five releases with an image named for its board.",
+      options: {
+        site: "Site default",
+        asu: "OpenWrt, built by ASU",
+        official: "OpenWrt, official image",
+        github: "Another GitHub repo",
+      } as Record<string, string>,
+      hints: {
+        site: (repo: string | null) =>
+          repo === null
+            ? "OpenWrt's releases, as the site sets no GitHub repo."
+            : `The releases of ${repo}, the site's repo.`,
+        asu: "OpenWrt's releases, built with the device's packages.",
+        official: "OpenWrt's releases as published; its packages are installed after the upgrade.",
+        github: "The releases of a repo with builds for this device.",
+      },
+      repo: "GitHub repo",
+      repoHint: "owner/name, or the repo's link.",
+      save: "Save",
+      saving: "Saving…",
+      cancel: "Cancel",
+    },
+    sources: {
+      title: "Image sources",
+      description:
+        "Upgrades come from OpenWrt's releases or from a GitHub repo with your own builds: each device is offered its newest five releases with a sysupgrade image named for its board, checked against the SHA-256 GitHub records.",
+      repo: "GitHub repo",
+      repoHint: "owner/name, or its link. Leave empty for OpenWrt's releases.",
+      openwrt: "OpenWrt's releases",
+      prereleases: "Offer prereleases",
+      prereleasesHint: "Releases marked as prereleases on GitHub, for testing builds.",
+      token: "Access token",
+      tokenHint:
+        "Optional: a fine-grained token with read access to the repo's contents. A private repo needs one, and it lifts GitHub's limit of 60 requests an hour.",
+      tokenKept: "A token is kept in the vault.",
+      noToken: "No token: public repos only.",
+      replace: "Replace token",
+      remove: "Remove token",
+      keep: "Keep token",
+      removing: "The token will be removed when you save.",
+      save: "Save",
+      saving: "Saving…",
+      saved: "Saved",
+    },
     kind: { update: "Update", branch: "New release" } as Record<string, string>,
     kindHint: {
       update: "A newer release of the same branch: fixes only.",
@@ -241,7 +310,7 @@ export const strings = {
     dialog: {
       title: (name: string) => `Upgrade ${name}`,
       description:
-        "uniwrt works out what the upgrade holds: your packages carried over (renamed where OpenWrt renamed them) with the mesh essentials, or an uploaded image as it is. Nothing changes on the device.",
+        "uniwrt works out what the upgrade holds: your packages carried over (renamed where OpenWrt renamed them) with the mesh essentials, or an image of yours (uploaded, or from GitHub) as it is. Nothing changes on the device.",
       release: "Release",
       reading: "Reading the device's packages…",
       read: (when: string) => `Packages read at ${when}.`,
@@ -285,6 +354,13 @@ export const strings = {
       uploadNote:
         "Flashed as it is: its packages are the ones it was built with, and the device keeps its settings.",
       sha256: "SHA-256",
+      githubHint: (repo: string, published: string | null, prerelease: boolean) =>
+        [repo, prerelease && "Prerelease", published && `published ${published}`]
+          .filter(Boolean)
+          .join(" · "),
+      githubFiles: (repo: string) => `The release's images on ${repo}`,
+      githubNote:
+        "Flashed as it is: your build, with the packages you built it with. The device keeps its settings.",
       later:
         "Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
     },
@@ -649,6 +725,14 @@ export const strings = {
         } as Record<string, string>,
         download: "Download",
         sha256: "SHA-256",
+        github: (repo: string, name: string) => `${repo} · ${name}`,
+        githubHint: (published: string | null, prerelease: boolean) =>
+          [prerelease ? "Prerelease" : "Release", published && `published ${published}`]
+            .filter(Boolean)
+            .join(", "),
+        githubFiles: (repo: string) => `The release's images on ${repo}`,
+        githubNote:
+          "Flashed as it is: your build, with the packages you built it with. The device keeps its settings.",
         packages: (added: string[], removed: string[]) =>
           `Adds ${added.join(", ")}${removed.length ? `, replacing ${removed.join(", ")}` : ""}.`,
         flashing: "How to flash this model",

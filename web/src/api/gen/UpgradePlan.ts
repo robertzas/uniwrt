@@ -50,11 +50,15 @@ packages_at: Timestamp | null,
  */
 image_bytes: number | null, tmp_free_bytes: number | null, 
 /**
- * An official image's files on the download server (the sysupgrade one first; x86 has a
- * BIOS and an EFI one per file system). Empty for the other sources.
+ * An official image's files on the download server, or a GitHub release's (the sysupgrade
+ * one first; x86 has a BIOS and an EFI one per file system). Empty for the other sources.
  */
 images: Array<FirmwareImage>, 
 /**
  * The uploaded image, for [`ImageSource::Upload`].
  */
-upload: FirmwareUpload | null, };
+upload: FirmwareUpload | null, 
+/**
+ * The GitHub repo, for [`ImageSource::Github`] (its images are in `images`).
+ */
+repo: string | null, };

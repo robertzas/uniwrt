@@ -2,6 +2,8 @@
 //! device profiles, and the zero-touch images the controller asks ASU (OpenWrt's public
 //! Attended Sysupgrade service) to build. Nothing here is secret: ASU is a public service.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// The releases a zero-touch image can be built for: each supported branch's latest, newest
@@ -90,8 +92,84 @@ pub struct FirmwareCatalog {
     pub nodes: Vec<NodeFirmware>,
     /// The images admins uploaded (M7.1a2, D-122), newest first.
     pub uploads: Vec<FirmwareUpload>,
-    /// Why the catalog couldn't be read (ASU unreachable, or turned off): no offers then.
+    /// Why the catalog couldn't be read (ASU unreachable, or turned off): no OpenWrt offers then.
     pub error: Option<String>,
+    /// The site's sources (D-122).
+    pub sources: SiteSources,
+}
+
+/// The site's image sources as the Updates page shows them (D-122): the token itself never
+/// leaves the vault.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct SiteSources {
+    /// The GitHub repo (`owner/name`) whose releases carry the site's images; `None`: OpenWrt's.
+    pub repo: Option<String>,
+    /// Whether GitHub's prereleases are offered too.
+    pub prereleases: bool,
+    /// Whether a GitHub token is kept (for private repos and GitHub's higher rate limit).
+    pub token: bool,
+}
+
+/// Where a node's upgrade images come from (D-121, D-122).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum NodeSource {
+    /// The site's: its GitHub repo when one is set, else OpenWrt's (built by ASU).
+    #[default]
+    Site,
+    /// OpenWrt's releases, built by ASU with the node's packages.
+    Asu,
+    /// OpenWrt's releases as published, the node's packages installed after.
+    Official,
+    /// The releases of another GitHub repo (`owner/name`).
+    Github { repo: String },
+}
+
+/// The image sources as kept (the `firmware_sources` setting; the token is in the vault).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct FirmwareSources {
+    pub repo: Option<String>,
+    #[serde(default)]
+    pub prereleases: bool,
+    /// The nodes that don't follow the site.
+    #[serde(default)]
+    pub nodes: BTreeMap<uniwrt_core::NodeId, NodeSource>,
+}
+
+impl FirmwareSources {
+    pub const KEY: &'static str = "firmware_sources";
+
+    /// The node's source as set.
+    pub fn node(&self, node: uniwrt_core::NodeId) -> NodeSource {
+        self.nodes.get(&node).cloned().unwrap_or_default()
+    }
+
+    /// The GitHub repo the node's images come from, if one does.
+    pub fn repo_of(&self, node: uniwrt_core::NodeId) -> Option<&str> {
+        match self.nodes.get(&node) {
+            Some(NodeSource::Github { repo }) => Some(repo),
+            None | Some(NodeSource::Site) => self.repo.as_deref(),
+            Some(NodeSource::Asu | NodeSource::Official) => None,
+        }
+    }
+}
+
+/// A GitHub release with images made for a node (D-122): the assets whose names carry its
+/// profile or board (x86: its subtarget), each with GitHub's SHA-256.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct GitHubRelease {
+    pub tag: String,
+    /// Its title, or the tag.
+    pub name: String,
+    pub prerelease: bool,
+    pub published_at: Option<uniwrt_core::Timestamp>,
+    /// The release's page on GitHub.
+    pub notes: String,
+    /// The sysupgrade images (x86: `combined`, `combined-efi`), squashfs first.
+    pub images: Vec<FirmwareImage>,
 }
 
 /// A node's firmware as the catalog sees it.
@@ -115,6 +193,12 @@ pub struct NodeFirmware {
     pub note: Option<String>,
     /// The uploaded images made for its board (by SHA-256), newest first.
     pub uploads: Vec<String>,
+    /// Its source as set (D-122).
+    pub source: NodeSource,
+    /// The GitHub repo its images come from, if one does: then `releases` replaces `offers`.
+    pub repo: Option<String>,
+    /// The repo's newest releases (five at most) with an image for it, newest first.
+    pub releases: Vec<GitHubRelease>,
 }
 
 /// A release a node can upgrade to.
@@ -173,11 +257,13 @@ pub struct UpgradePlan {
     /// image is staged: an image with more packages is larger.
     pub image_bytes: Option<u64>,
     pub tmp_free_bytes: Option<u64>,
-    /// An official image's files on the download server (the sysupgrade one first; x86 has a
-    /// BIOS and an EFI one per file system). Empty for the other sources.
+    /// An official image's files on the download server, or a GitHub release's (the sysupgrade
+    /// one first; x86 has a BIOS and an EFI one per file system). Empty for the other sources.
     pub images: Vec<FirmwareImage>,
     /// The uploaded image, for [`ImageSource::Upload`].
     pub upload: Option<FirmwareUpload>,
+    /// The GitHub repo, for [`ImageSource::Github`] (its images are in `images`).
+    pub repo: Option<String>,
 }
 
 /// Where an upgrade image comes from (D-121, D-122).
@@ -191,6 +277,8 @@ pub enum ImageSource {
     Official,
     /// An image an admin uploaded, flashed as it is.
     Upload,
+    /// A GitHub release's image, flashed as it is.
+    Github,
 }
 
 /// An image an admin uploaded (D-122), described by its metadata: OpenWrt appends the boards

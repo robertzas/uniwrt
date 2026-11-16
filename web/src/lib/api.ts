@@ -53,6 +53,7 @@ import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
 import type { NodeRole } from "../api/gen/NodeRole";
+import type { NodeSource } from "../api/gen/NodeSource";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { NotificationSettings } from "../api/gen/NotificationSettings";
 import type { NotifierInput } from "../api/gen/NotifierInput";
@@ -87,7 +88,9 @@ import type { ScanSummary } from "../api/gen/ScanSummary";
 import type { ScansQueued } from "../api/gen/ScansQueued";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
 import type { SiteSave } from "../api/gen/SiteSave";
+import type { SiteSources } from "../api/gen/SiteSources";
 import type { SiteView } from "../api/gen/SiteView";
+import type { SourcesBody } from "../api/gen/SourcesBody";
 import type { SpeedTestBody } from "../api/gen/SpeedTestBody";
 import type { SpeedTests } from "../api/gen/SpeedTests";
 import type { Topology } from "../api/gen/Topology";
@@ -635,6 +638,12 @@ export const api = {
       remove: (sha256: string) =>
         request<void>(`/firmware/uploads/${encodeURIComponent(sha256)}`, { method: "DELETE" }),
     },
+    /** The site's image sources (D-122): its GitHub repo, prereleases, the token. */
+    sources: (body: SourcesBody) =>
+      request<SiteSources>("/firmware/sources", { method: "PUT", body }),
+    /** A node's own image source. */
+    source: (node: number, body: NodeSource) =>
+      request<NodeSource>(`/firmware/nodes/${node}/source`, { method: "PUT", body }),
   },
   backhaul: {
     failures: (signal?: AbortSignal) =>

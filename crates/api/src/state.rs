@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
-use uniwrt_firmware::{Asu, Uploads};
+use uniwrt_firmware::{Asu, GitHub, Uploads};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
@@ -41,6 +41,8 @@ pub struct ApiConfig {
     pub asu: Option<Asu>,
     /// The uploaded firmware images; without them, uploads answer 503.
     pub uploads: Option<Uploads>,
+    /// GitHub's API, whose releases are image sources (D-122); without it, they answer 503.
+    pub github: Option<GitHub>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
     /// A new site's first revision instead of the defaults (demo mode's).
@@ -74,6 +76,7 @@ impl ApiConfig {
             bans: None,
             asu: None,
             uploads: None,
+            github: None,
             vault: None,
             first_site: None,
             password_cost: PasswordCost::default(),
@@ -102,6 +105,7 @@ struct Inner {
     bans: Option<Bans>,
     asu: Option<Asu>,
     uploads: Option<Uploads>,
+    github: Option<GitHub>,
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
@@ -151,6 +155,7 @@ impl Api {
                 bans: config.bans,
                 asu: config.asu,
                 uploads: config.uploads,
+                github: config.github,
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
             }),
@@ -284,6 +289,13 @@ impl Api {
             .uploads
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("Firmware uploads are off".to_owned()))
+    }
+
+    pub(crate) fn github(&self) -> Result<&GitHub, ApiError> {
+        self.inner
+            .github
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("GitHub sources are off".to_owned()))
     }
 
     pub(crate) fn bans(&self) -> Result<&Bans, ApiError> {

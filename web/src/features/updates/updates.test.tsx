@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FirmwareCatalog } from "../../api/gen/FirmwareCatalog";
 import type { FirmwareUpload } from "../../api/gen/FirmwareUpload";
+import type { GitHubRelease } from "../../api/gen/GitHubRelease";
 import type { ImageBuild } from "../../api/gen/ImageBuild";
 import type { NodeFirmware } from "../../api/gen/NodeFirmware";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
@@ -24,6 +25,9 @@ const entry = (node: number, version: string, extra: Partial<NodeFirmware> = {})
   offers: [],
   note: null,
   uploads: [],
+  source: { kind: "site" },
+  repo: null,
+  releases: [],
   ...extra,
 });
 
@@ -68,6 +72,7 @@ const catalog: FirmwareCatalog = {
   ],
   uploads: [],
   error: null,
+  sources: { repo: null, prereleases: false, token: false },
 };
 
 /** The catalog with `custom` uploaded: it fits the Lab (no release on offer) and the Office. */
@@ -95,7 +100,42 @@ const plan = (release: string, source: UpgradePlan["source"] = "asu"): UpgradePl
   tmp_free_bytes: 200 * MB,
   images: [],
   upload: null,
+  repo: null,
 });
+
+const githubImage = {
+  name: "openwrt-25.12.6-mediatek-filogic-glinet_gl-mt3000-squashfs-sysupgrade.bin",
+  kind: "sysupgrade",
+  filesystem: "squashfs",
+  size_bytes: 9 * MB,
+  sha256: "a25a".repeat(16),
+  url: "https://github.com/owner/images/releases/download/v2/x.bin",
+};
+
+const githubRelease = (tag: string, prerelease = false): GitHubRelease => ({
+  tag,
+  name: `Build ${tag}`,
+  prerelease,
+  published_at: Date.UTC(2026, 10, 1),
+  notes: `https://github.com/owner/images/releases/tag/${tag}`,
+  images: [githubImage],
+});
+
+/** The site's repo is `owner/images`: the Office gets two of its releases, the others none. */
+const withGitHub: FirmwareCatalog = {
+  ...catalog,
+  nodes: catalog.nodes.map((node) =>
+    node.node === 2
+      ? {
+          ...node,
+          offers: [],
+          repo: "owner/images",
+          releases: [githubRelease("v3", true), githubRelease("v2")],
+        }
+      : { ...node, offers: [], repo: "owner/images", note: "No image named for it" },
+  ),
+  sources: { repo: "owner/images", prereleases: true, token: false },
+};
 
 const done: ImageBuild = {
   hash: "0123456789abcdef",
@@ -239,6 +279,7 @@ describe("Updates", () => {
         nodes: catalog.nodes,
         uploads: [],
         error: "Firmware upgrades are off: the controller runs without ASU (--asu-url off)",
+        sources: catalog.sources,
       }),
     });
     renderUpdates("viewer");
@@ -330,6 +371,133 @@ describe("Updates", () => {
     await user.click(within(item).getByRole("button", { name: "Delete" }));
     await within(card).findByText("No images uploaded.");
     expect(calls.map(([key]) => key)).toContain(`DELETE /api/v1/firmware/uploads/${SHA}`);
+  });
+
+  it("offers a GitHub repo's releases and plans one as it is", async () => {
+    const user = userEvent.setup();
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => withGitHub,
+      "POST /api/v1/firmware/nodes/2/plan": (body) => ({
+        ...plan((body as { release: string }).release, "github"),
+        kept: [],
+        removed: [],
+        renamed: [],
+        dropped: [],
+        packages_at: null,
+        image_bytes: githubImage.size_bytes,
+        images: [githubImage],
+        repo: "owner/images",
+      }),
+    });
+    renderUpdates();
+    const table = await screen.findByRole("table", { name: "Firmware" }, { timeout: 2000 });
+    const office = within(table).getAllByRole("row")[3] as HTMLElement;
+    expect(within(office).getByText("Builds available")).toBeTruthy();
+    // The newest release, and how many older ones the dialog offers.
+    expect(within(office).getByText("Prerelease")).toBeTruthy();
+    expect(
+      within(office).getByRole("link", { name: "Release notes v3" }).getAttribute("href"),
+    ).toBe("https://github.com/owner/images/releases/tag/v3");
+    expect(within(office).getByText("and 1 older")).toBeTruthy();
+    expect(within(office).getByText("Site default · owner/images")).toBeTruthy();
+    expect(screen.getByText("1 device with GitHub releases to choose from")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Prepare upgrade: Office" }));
+    const dialog = await screen.findByRole("dialog", { name: "Upgrade Office" });
+    const files = await within(dialog).findByRole("list", {
+      name: "The release's images on owner/images",
+    });
+    expect(within(files).getByText(githubImage.name)).toBeTruthy();
+    expect(within(dialog).getByText(/Flashed as it is: your build/)).toBeTruthy();
+    expect(calls).toContainEqual([
+      "POST /api/v1/firmware/nodes/2/plan",
+      { source: "github", release: "v3" },
+    ]);
+    await user.click(within(dialog).getByRole("radio", { name: /^v2/ }));
+    await waitFor(() =>
+      expect(calls).toContainEqual([
+        "POST /api/v1/firmware/nodes/2/plan",
+        { source: "github", release: "v2" },
+      ]),
+    );
+    expect(within(dialog).queryByRole("button", { name: "Official image" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Build the image" })).toBeNull();
+  });
+
+  it("sets a device's own source", async () => {
+    const user = userEvent.setup();
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => catalog,
+      "PUT /api/v1/firmware/nodes/2/source": (body) => body,
+    });
+    renderUpdates();
+    await user.click(
+      await screen.findByRole("button", { name: "Change: Office" }, { timeout: 2000 }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Image source of Office" });
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(within(dialog).getByRole("radio", { name: /Another GitHub repo/ }));
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    await user.type(within(dialog).getByLabelText("GitHub repo"), "owner/ap-builds");
+    await user.click(save);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls).toContainEqual([
+      "PUT /api/v1/firmware/nodes/2/source",
+      { kind: "github", repo: "owner/ap-builds" },
+    ]);
+    expect(calls.filter(([key]) => key === "GET /api/v1/firmware").length).toBeGreaterThan(1);
+  });
+
+  it("saves the site's repo with a token, then removes the token", async () => {
+    const user = userEvent.setup();
+    let sources = catalog.sources;
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => ({ ...catalog, sources }),
+      "PUT /api/v1/firmware/sources": (body) => {
+        const sent = body as {
+          repo: string | null;
+          prereleases: boolean;
+          token: { action: string };
+        };
+        sources = {
+          repo: sent.repo,
+          prereleases: sent.prereleases,
+          token: sent.token.action === "set",
+        };
+        return sources;
+      },
+    });
+    renderUpdates();
+    const card = await screen.findByRole("region", { name: "Image sources" }, { timeout: 2000 });
+    await user.type(within(card).getByLabelText("GitHub repo"), "owner/images");
+    await user.type(within(card).getByLabelText("Access token"), "github_pat_x");
+    await user.click(within(card).getByRole("checkbox", { name: /Offer prereleases/ }));
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    await within(card).findByText("A token is kept in the vault.");
+    expect(within(card).getByText("Saved")).toBeTruthy();
+    expect(calls).toContainEqual([
+      "PUT /api/v1/firmware/sources",
+      { repo: "owner/images", prereleases: true, token: { action: "set", token: "github_pat_x" } },
+    ]);
+
+    await user.click(within(card).getByRole("button", { name: "Remove token" }));
+    expect(within(card).getByText("The token will be removed when you save.")).toBeTruthy();
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    await within(card).findByLabelText("Access token");
+    expect(calls).toContainEqual([
+      "PUT /api/v1/firmware/sources",
+      { repo: "owner/images", prereleases: true, token: { action: "clear" } },
+    ]);
+  });
+
+  it("shows the sources to viewers without letting them change any", async () => {
+    stubApi({ "GET /api/v1/firmware": () => withGitHub });
+    renderUpdates("viewer");
+    const card = await screen.findByRole("region", { name: "Image sources" }, { timeout: 2000 });
+    expect(within(card).getByText("owner/images")).toBeTruthy();
+    expect(within(card).getByText("No token: public repos only.")).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Change/ })).toBeNull();
   });
 
   it("hides uploading and deleting from viewers", async () => {

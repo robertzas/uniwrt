@@ -38,6 +38,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
 - `src/firmware.rs`: Firmware upgrades (features/lifecycle.md, M7.1a1; D-121):
+- `src/firmware_github.rs`: GitHub releases in the firmware catalog and plans (M7.1a2b, D-122): a node whose source is a GitHub repo (its own, or the site's) is offered the repo's newest releases with an image for it instead of OpenWrt's; its plan names the release's images, flashed as they are.
+- `src/firmware_sources.rs`: Where upgrade images come from (M7.1a2b, D-122), for admins; shown by `GET v1/firmware`:
+- `src/firmware_sources_tests.rs`: GitHub sources through the router (D-122), on the simulated fleet against the fake ASU and the fake GitHub: the site's repo, a node's own source, the token, and the GitHub plan.
 - `src/firmware_tests.rs`: Firmware upgrades through the router, on the simulated fleet against the fake ASU: the catalog per node, ASU off, and the plan's gates before anything is read from a node.
 - `src/firmware_uploads.rs`: Uploaded firmware images (M7.1a2, D-122), for admins; listed by `GET v1/firmware`:
 - `src/floors/image.rs`: What an uploaded floor plan is, from its header alone: PNG or still WebP, and its size.
@@ -216,13 +219,17 @@ Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-1
 - `src/build.rs`: ASU's build API (pure): the request for a zero-touch image, and its answers read as an [`ImageBuild`].
 - `src/catalog.rs`: OpenWrt's catalog, as ASU and OpenWrt's download server describe it (pure): the releases a zero-touch image can be built for, the devices of a release, and one device's packages.
 - `src/device.rs`: A target's devices in one release (pure; M7.1a1): the download server's `releases/<release>/targets/<target>/profiles.json`, kept compact (the target's defaults once, each device's own packages beside them), and the device a board is.
-- `src/http.rs`: HTTP(S) GETs and JSON POSTs to ASU and OpenWrt's download server: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed, and a bounded read of the answer.
+- `src/github.rs`: GitHub releases as a source of upgrade images (D-121, D-122): a repo's releases, read from GitHub's REST API (with a token for private repos and the higher rate limit) and kept ten minutes; per node, the newest five with an image for it ([`Releases::offers`]), each image with the SHA-256 GitHub records for it.
+- `src/github/fit.rs`: Which of a release's assets are images for a node (pure; D-122): a GitHub release names its images freely, so an asset fits when its name carries the node's profile or board as a whole word followed by its file system or `sysupgrade` (OpenWrt's own naming, `…-glinet_gl-mt6000-squashfs-sysupgrade.bin`), and is a sysupgrade image; an x86 image (which fits any board of its subtarget) when it carries the subtarget (`…-x86-64-…`) and is a `combined` disk image.
+- `src/github_tests.rs`: (no header comment)
+- `src/http.rs`: HTTP(S) GETs and JSON POSTs to ASU, OpenWrt's download server and GitHub's API: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, a timeout on the whole exchange, redirects not followed, and a bounded read of the answer.
 - `src/image.rs`: What an uploaded image is (pure; M7.1a2, D-122): OpenWrt's `fwtool` appends chunks to a sysupgrade image, each ended by a 16-byte trailer (`FWx0`, a CRC-32, its type, its size with the trailer, big-endian): the metadata (type 1: an 8-byte header, then JSON with the boards it fits and its release) and a signature (type 0). x86 images carry no metadata: a gzipped disk image is taken as one, its target read from its name (`…-x86-64-…`).
 - `src/keep.rs`: The packages an upgrade image keeps (pure; M7.1a1, D-121): what the node runs on purpose, renamed as ASU's published changes say, beyond the new profile's defaults; what the new release lacks is dropped (and listed, so it is seen before anything is flashed); the mesh essentials are added as for a zero-touch image.
 - `src/lib.rs`: Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-121): OpenWrt's catalog, zero-touch images and upgrade images built by ASU, OpenWrt's public Attended Sysupgrade service.
 - `src/packages.rs`: The packages a zero-touch image adds to its profile's defaults (pure; D-104): the mesh essentials, the same for every role, since a gateway meshes too.
 - `src/release.rs`: Release numbers and the upgrades on offer (pure; M7.1a1, D-121): the latest release of the branch a node runs, and the next branch's latest.
 - `src/testing.rs`: A fake ASU and download server on loopback (HTTP), for tests: two releases, three devices (one with the basic wpad, one without Wi-Fi, one ASU refuses), and builds that are queued, then building, then done.
+- `src/testing/github.rs`: A fake GitHub releases API on loopback (HTTP), for tests.
 - `src/tests.rs`: The ASU client against the fake on loopback: the catalog, a build from request to images, and what it refuses before asking.
 - `src/uploads.rs`: Uploaded images (M7.1a2, D-122): files in a directory of the data dir, each `<sha256>.img` beside `<sha256>.json` (its [`FirmwareUpload`]).
 - `src/uploads_tests.rs`: (no header comment)
@@ -850,7 +857,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (401 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (406 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -882,7 +889,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/settings/site/`: SiteTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `features/updates/`: PlanView.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx
+- `features/updates/`: PlanView.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx
 - `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, ScheduleField.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, countries.ts, entities.ts, events.ts, firmware.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts

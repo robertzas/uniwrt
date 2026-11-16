@@ -3,7 +3,9 @@
 //! then building, then done. For upgrades: the branches 25.12 and 24.10 (24.10.7 and 24.10.8,
 //! with opkg renamed apk-mbedtls between them), `mediatek/filogic`'s `profiles.json` in each
 //! (the GL-MT6000 and GL-MT3000), and
-//! package indexes with LuCI and the mesh's packages.
+//! package indexes with LuCI and the mesh's packages. [`FakeGitHub`] is GitHub's releases API.
+
+mod github;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -14,6 +16,8 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::{Value, json};
+
+pub use github::{FakeGitHub, TOKEN};
 
 /// The hash of every build the fake makes.
 pub const HASH: &str = "0123456789abcdef0123456789abcdef";

@@ -2,7 +2,7 @@ import { useNavigate } from "@solidjs/router";
 import { ExternalLink, PackageCheck, PackagePlus } from "lucide";
 import { createMemo, For, Show } from "solid-js";
 import type { Node } from "../../../api/gen/Node";
-import { createCatalog, firmwareState } from "../../../lib/firmware";
+import { createCatalog, firmwareState, hasImages } from "../../../lib/firmware";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
@@ -19,7 +19,10 @@ export function FirmwareCard(props: { node: Node; admin: boolean }) {
   const navigate = useNavigate();
   const { catalog, error } = createCatalog();
   const firmware = createMemo(() => catalog()?.nodes.find((entry) => entry.node === props.node.id));
-  const buildable = () => firmware()?.offers.filter((offer) => offer.profile !== null) ?? [];
+  const preparable = () => {
+    const entry = firmware();
+    return entry !== undefined && hasImages(entry);
+  };
   const state = () => {
     const entry = firmware();
     return entry ? firmwareState(entry, catalog()?.error != null) : "unknown";
@@ -29,9 +32,7 @@ export function FirmwareCard(props: { node: Node; admin: boolean }) {
       <CardHeader
         title={t.card.title}
         actions={
-          <Show
-            when={props.admin && (buildable().length > 0 || (firmware()?.uploads.length ?? 0) > 0)}
-          >
+          <Show when={props.admin && preparable()}>
             <Button
               size="sm"
               variant="secondary"
@@ -48,20 +49,46 @@ export function FirmwareCard(props: { node: Node; admin: boolean }) {
           {(entry) => (
             <div class="flex items-start gap-3">
               <Icon
-                icon={state() === "available" ? PackagePlus : PackageCheck}
+                icon={state() === "current" || state() === "unknown" ? PackageCheck : PackagePlus}
                 class={[
                   "mt-0.5 size-5 shrink-0",
-                  state() === "available" ? "text-info" : "text-fg-subtle",
+                  state() === "current" || state() === "unknown" ? "text-fg-subtle" : "text-info",
                 ]}
               />
               <div class="min-w-0 text-sm">
                 <p class="font-medium">{t.card.running(entry().version)}</p>
+                <Show when={entry().releases.length > 0}>
+                  <p class="mt-0.5 text-fg-muted text-xs">{t.source.github(entry().repo ?? "")}</p>
+                  <ul class="mt-1 flex flex-col gap-1">
+                    <For each={entry().releases}>
+                      {(release) => (
+                        <li class="flex flex-wrap items-center gap-x-2">
+                          <span>{release.name}</span>
+                          <Show when={release.prerelease}>
+                            <span class="text-fg-muted text-xs">{t.prerelease}</span>
+                          </Show>
+                          <a
+                            href={release.notes}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1 text-accent text-xs hover:underline"
+                          >
+                            {t.notes}
+                            <Icon icon={ExternalLink} class="size-3" />
+                          </a>
+                        </li>
+                      )}
+                    </For>
+                  </ul>
+                </Show>
                 <Show
-                  when={entry().offers.length > 0}
+                  when={entry().releases.length === 0 && entry().offers.length > 0}
                   fallback={
-                    <p class="mt-0.5 text-fg-muted">
-                      {entry().note ?? (state() === "current" ? t.card.none : "")}
-                    </p>
+                    <Show when={entry().releases.length === 0}>
+                      <p class="mt-0.5 text-fg-muted">
+                        {entry().note ?? (state() === "current" ? t.card.none : "")}
+                      </p>
+                    </Show>
                   }
                 >
                   <ul class="mt-1 flex flex-col gap-1">
