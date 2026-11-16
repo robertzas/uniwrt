@@ -15,9 +15,14 @@ testing = ["dep:axum", "tokio/net", "tokio/rt"]
 [dependencies]
 axum = { workspace = true, optional = true }
 bytes.workspace = true
+# Base64 and hex in Sigstore bundles.
+data-encoding.workspace = true
+# The controller's release tarball (gzip).
+flate2.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-rustls.workspace = true
+rustls-webpki.workspace = true
 hyper-util = { workspace = true, features = ["client-legacy", "http1", "tokio"] }
 ring.workspace = true
 rustls.workspace = true
@@ -28,6 +33,7 @@ tokio = { workspace = true, features = ["fs", "io-util", "sync", "time"] }
 uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 webpki-roots.workspace = true
+x509-parser.workspace = true
 
 [dev-dependencies]
 axum.workspace = true

@@ -46,7 +46,7 @@ use crate::{
 
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// The database file inside the data directory.
-const DATABASE: &str = "uniwrt.db";
+pub(crate) const DATABASE: &str = "uniwrt.db";
 /// The master key file inside the data directory, unless configured elsewhere.
 const MASTER_KEY: &str = "master.key";
 /// Demo mode's admin: its database is thrown away at exit, and its nodes are simulated.

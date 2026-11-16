@@ -1,6 +1,8 @@
 //! The `uniwrt` binary: CLI, configuration and composition root; serves the API and the web UI.
 //!
-//! - **Commands:** `serve` (the default), `healthcheck` (exit code 0/1 for Docker) and `version`.
+//! - **Commands:** `serve` (the default; in release builds under the `launcher`, which runs the
+//!   newest verified binary of the controller), `healthcheck` (exit code 0/1 for Docker) and
+//!   `version`.
 //!   Every flag has a `UNIWRT_*` environment equivalent (`cli`). Only `serve` starts a runtime.
 //! - **Modules:** `serve` (runtime, database, listeners, graceful shutdown) → `http` (router: `/api`,
 //!   security headers; `http::plain` redirects plain HTTP) → `ui` (embedded assets, content
@@ -28,6 +30,7 @@ mod fleet;
 mod fleet_link;
 mod healthcheck;
 mod http;
+mod launcher;
 mod logging;
 mod master_key;
 mod nightly;
@@ -51,13 +54,13 @@ use crate::cli::{Cli, Command};
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
-        None => serve::run(cli.serve),
-        Some(Command::Serve(args)) => serve::run(*args),
-        Some(Command::Healthcheck(args)) => healthcheck::run(&args),
-        Some(Command::Version(args)) => version::run(&args),
+        None => launcher::run(cli.serve),
+        Some(Command::Serve(args)) => launcher::run(*args),
+        Some(Command::Healthcheck(args)) => healthcheck::run(&args).map(|()| 0),
+        Some(Command::Version(args)) => version::run(&args).map(|()| 0),
     };
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => ExitCode::from(code),
         Err(err) => {
             eprintln!("uniwrt: {err:#}");
             ExitCode::FAILURE

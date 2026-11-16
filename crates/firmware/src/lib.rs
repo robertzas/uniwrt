@@ -19,8 +19,13 @@
 //!   [`GitHub`] (D-122: a repo's releases, [`GitHub::releases`], read with an optional token
 //!   and kept ten minutes; [`Releases::offers`], the newest [`MAX_OFFERS`] with an image for a
 //!   [`Device`]: its profile or board in the asset's name, x86's subtarget; [`parse_repo`]);
-//!   [`Error`]. With the `testing` feature, `testing::FakeAsu`, an ASU and download server on
-//!   loopback, and `testing::FakeGitHub`, GitHub's releases API.
+//!   the controller's own releases (D-123): [`Releases::controller`] (the newest `vX.Y.Z` of
+//!   [`CONTROLLER_REPO`] with a tarball for a target), [`GitHub::stage_controller`] (the tarball
+//!   downloaded, checked against GitHub's SHA-256 and its Sigstore attestation, its binary
+//!   written as [`binary_name`]), [`sigstore::verify`] (a bundle against [`sigstore::TrustedRoot`]
+//!   and an [`sigstore::Identity`]); [`Error`]. With the `testing` feature, `testing::FakeAsu`, an ASU and download server on
+//!   loopback, `testing::FakeGitHub`, GitHub's releases API, and `testing::FakeReleases`,
+//!   uniwrt's own releases with their tarballs and fake attestations.
 //! - **Invariants:** nothing secret goes to ASU (D-022): the request holds the device, the
 //!   packages and the first-boot script, which holds only public data. Every value that
 //!   becomes part of a URL (release, target, profile, build hash, image name) is checked
@@ -34,13 +39,18 @@
 //!   names no board (and isn't x86's gzipped image) never reaches the directory; at most
 //!   [`MAX_UPLOADS`] of at most [`MAX_UPLOAD_BYTES`]. A GitHub image is offered only with the
 //!   SHA-256 GitHub records for it, and only when its name tells the board (or x86's
-//!   subtarget) as a whole word; the token is sent to GitHub's API alone, marked sensitive.
+//!   subtarget) as a whole word; the token is sent to GitHub's API alone, marked sensitive. A
+//!   controller binary is written only once its tarball matches GitHub's SHA-256 and an
+//!   attestation verifies against the embedded trust root (nothing of an unverified tarball is
+//!   extracted, and the download is removed either way).
 //! - **Dependencies:** `uniwrt-model`, hyper, hyper-util, hyper-rustls (ring, Mozilla's roots),
-//!   ring (SHA-256), `serde_json`, tokio (timeouts, files).
+//!   ring (SHA-256, ECDSA), rustls-webpki (Fulcio's chain), x509-parser (the certificate's
+//!   identity), data-encoding, flate2 (the tarball), `serde_json`, tokio (timeouts, files).
 
 mod asu;
 mod build;
 mod catalog;
+mod controller;
 mod device;
 mod github;
 mod http;
@@ -48,6 +58,7 @@ mod image;
 mod keep;
 mod packages;
 mod release;
+pub mod sigstore;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 #[cfg(test)]
@@ -55,6 +66,7 @@ mod tests;
 mod uploads;
 
 pub use asu::{Asu, ImageRequest, Upgrade};
+pub use controller::{CONTROLLER_REPO, ControllerRelease, Staged, Version, binary_name};
 pub use github::{Device, GitHub, MAX_OFFERS, Releases, parse_repo, valid_repo, valid_token};
 pub use uploads::{MAX_UPLOAD_BYTES, MAX_UPLOADS, Receiving, Uploads, upload_fits, valid_sha256};
 
@@ -86,4 +98,13 @@ pub enum Error {
     /// The uploaded images' directory failed.
     #[error("cannot keep the uploaded images: {0}")]
     Storage(String),
+    /// A controller release whose attestation doesn't hold (D-123).
+    #[error("the release isn't verified: {0}")]
+    Untrusted(String),
+}
+
+impl From<sigstore::Untrusted> for Error {
+    fn from(err: sigstore::Untrusted) -> Self {
+        Self::Untrusted(err.0)
+    }
 }

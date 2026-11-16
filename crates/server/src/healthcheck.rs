@@ -20,7 +20,7 @@ pub(crate) fn run(args: &HealthcheckArgs) -> anyhow::Result<()> {
 }
 
 /// Where to probe: a server bound to an unspecified IP (0.0.0.0 or ::) answers on loopback.
-fn probe_addr(listen: SocketAddr) -> SocketAddr {
+pub(crate) fn probe_addr(listen: SocketAddr) -> SocketAddr {
     let ip = match listen.ip() {
         IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
         IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -29,7 +29,7 @@ fn probe_addr(listen: SocketAddr) -> SocketAddr {
     SocketAddr::new(ip, listen.port())
 }
 
-fn check(addr: SocketAddr, timeout: Duration) -> anyhow::Result<()> {
+pub(crate) fn check(addr: SocketAddr, timeout: Duration) -> anyhow::Result<()> {
     let mut stream = TcpStream::connect_timeout(&addr, timeout)?;
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;

@@ -22,13 +22,14 @@ clap.workspace = true
 ipnet.workspace = true
 rcgen.workspace = true
 ring.workspace = true
+rustix.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 # Demo mode's database lives in a temporary directory inside the data directory.
 tempfile.workspace = true
 time.workspace = true
-tokio = { workspace = true, features = ["fs", "macros", "net", "rt-multi-thread", "signal", "time"] }
+tokio = { workspace = true, features = ["fs", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
 tokio-rustls.workspace = true
 # Router::oneshot, for the plain HTTP listener's dispatch.
 tower = { workspace = true, features = ["util"] }

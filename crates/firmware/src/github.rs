@@ -33,12 +33,12 @@ const MAX_ANSWER: usize = 8 << 20;
 /// GitHub's REST API. Clones share the releases kept.
 #[derive(Clone)]
 pub struct GitHub {
-    inner: Arc<Inner>,
+    pub(crate) inner: Arc<Inner>,
 }
 
-struct Inner {
-    base: String,
-    http: Http,
+pub(crate) struct Inner {
+    pub(crate) base: String,
+    pub(crate) http: Http,
     cache: Mutex<Vec<Kept>>,
 }
 
@@ -49,25 +49,25 @@ type Kept = (String, bool, Instant, Arc<Releases>);
 #[derive(Debug)]
 pub struct Releases {
     repo: String,
-    list: Vec<Release>,
+    pub(crate) list: Vec<Release>,
 }
 
 #[derive(Debug)]
-struct Release {
-    tag: String,
-    name: String,
-    prerelease: bool,
-    published_at: Option<Timestamp>,
-    notes: String,
-    assets: Vec<Asset>,
+pub(crate) struct Release {
+    pub(crate) tag: String,
+    pub(crate) name: String,
+    pub(crate) prerelease: bool,
+    pub(crate) published_at: Option<Timestamp>,
+    pub(crate) notes: String,
+    pub(crate) assets: Vec<Asset>,
 }
 
 #[derive(Debug)]
-struct Asset {
-    name: String,
-    size: u64,
-    sha256: Option<String>,
-    url: String,
+pub(crate) struct Asset {
+    pub(crate) name: String,
+    pub(crate) size: u64,
+    pub(crate) sha256: Option<String>,
+    pub(crate) url: String,
 }
 
 impl GitHub {
@@ -107,16 +107,7 @@ impl GitHub {
         if let Some(releases) = cached {
             return Ok(releases);
         }
-        let mut headers = vec![(
-            HeaderName::from_static("x-github-api-version"),
-            HeaderValue::from_static("2022-11-28"),
-        )];
-        if let Some(token) = token {
-            let mut value = HeaderValue::from_str(&format!("Bearer {token}"))
-                .map_err(|_| Error::GitHub("The GitHub token isn't valid".to_owned()))?;
-            value.set_sensitive(true);
-            headers.push((AUTHORIZATION, value));
-        }
+        let headers = api_headers(token)?;
         let url = format!(
             "{}/repos/{repo}/releases?per_page={PER_PAGE}",
             self.inner.base
@@ -257,6 +248,21 @@ pub fn valid_repo(repo: &str) -> bool {
     owner_ok && name_ok
 }
 
+/// The headers of a request to GitHub's API: its version, and the token when one is kept.
+pub(crate) fn api_headers(token: Option<&str>) -> Result<Vec<(HeaderName, HeaderValue)>, Error> {
+    let mut headers = vec![(
+        HeaderName::from_static("x-github-api-version"),
+        HeaderValue::from_static("2022-11-28"),
+    )];
+    if let Some(token) = token {
+        let mut value = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| Error::GitHub("The GitHub token isn't valid".to_owned()))?;
+        value.set_sensitive(true);
+        headers.push((AUTHORIZATION, value));
+    }
+    Ok(headers)
+}
+
 /// A token as GitHub issues them: printable ASCII without spaces.
 pub fn valid_token(token: &str) -> bool {
     (1..=255).contains(&token.len()) && token.bytes().all(|b| b.is_ascii_graphic())
@@ -344,7 +350,12 @@ fn parse(repo: &str, body: &[u8]) -> Result<Releases, Error> {
 }
 
 /// What GitHub's refusal means, in its words where it gave some.
-fn refusal(repo: &str, with_token: bool, status: u16, answer: &crate::http::Answer) -> Error {
+pub(crate) fn refusal(
+    repo: &str,
+    with_token: bool,
+    status: u16,
+    answer: &crate::http::Answer,
+) -> Error {
     let header = |name: &str| {
         answer
             .headers

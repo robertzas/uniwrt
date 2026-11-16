@@ -82,6 +82,18 @@ pub(crate) struct ServeArgs {
     /// the first run. `UNIWRT_MASTER_KEY` may hold the key itself (64 hexadecimal digits).
     #[arg(long, env = "UNIWRT_MASTER_KEY_FILE", value_name = "FILE")]
     pub(crate) master_key_file: Option<PathBuf>,
+    /// Whether the controller may upgrade itself from its GitHub releases (D-121, D-123): `on`
+    /// runs `serve` under a small launcher that starts the newest verified binary staged in
+    /// `<data dir>/bin` and falls back to this one when it fails its health check; `off` serves
+    /// directly (a package manager owns the binary). Off in demo mode and in development builds.
+    #[arg(
+        long,
+        env = "UNIWRT_SELF_UPGRADE",
+        value_name = "on|off",
+        default_value = "on",
+        value_parser = parse_on_off
+    )]
+    pub(crate) self_upgrade: bool,
     /// Directory for the database, keys, backups and the firmware cache.
     #[arg(
         long,
@@ -128,6 +140,14 @@ impl ServeArgs {
             Some(SyslogListen::Off) => None,
             None => (!self.demo).then(|| SocketAddr::from(([0, 0, 0, 0], 5514))),
         }
+    }
+}
+
+fn parse_on_off(value: &str) -> Result<bool, String> {
+    match value.to_ascii_lowercase().as_str() {
+        "on" | "true" | "1" => Ok(true),
+        "off" | "false" | "0" => Ok(false),
+        _ => Err("expected on or off".to_owned()),
     }
 }
 

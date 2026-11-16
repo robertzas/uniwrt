@@ -5,6 +5,7 @@
 //! (the GL-MT6000 and GL-MT3000), and
 //! package indexes with LuCI and the mesh's packages. [`FakeGitHub`] is GitHub's releases API.
 
+mod controller;
 mod github;
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -17,6 +18,7 @@ use axum::{
 };
 use serde_json::{Value, json};
 
+pub use controller::{FakeReleases, tarball};
 pub use github::{FakeGitHub, TOKEN};
 
 /// The hash of every build the fake makes.

@@ -125,6 +125,11 @@ setup:
 web-build:
     cd web && bun install --frozen-lockfile && bun run build
 
+# Refresh Sigstore's trust root (Fulcio's CAs, Rekor's keys) that verifies the controller's own
+# releases (D-123); review the diff: a new key here is trusted for every later upgrade
+sigstore-root:
+    curl -fsSL https://raw.githubusercontent.com/sigstore/root-signing/main/targets/trusted_root.json -o crates/firmware/data/sigstore-trusted-root.json
+
 # Rebuild the embedded time-zone table (IANA name → POSIX TZ) from the host's tzdata
 tz *dir:
     python3 scripts/tz.py {{dir}}

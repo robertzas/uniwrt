@@ -396,7 +396,8 @@ pub(crate) fn firmware_error(err: Error) -> ApiError {
         | Error::Invalid(_)
         | Error::Refused(_)
         | Error::GitHub(_)
-        | Error::Unauthorized(_) => ApiError::BadGateway(err.to_string()),
+        | Error::Unauthorized(_)
+        | Error::Untrusted(_) => ApiError::BadGateway(err.to_string()),
         Error::Storage(_) => ApiError::Internal(err.to_string()),
     }
 }
