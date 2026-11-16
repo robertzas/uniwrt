@@ -256,9 +256,7 @@ pub enum NightlySkip {
 /// `at_min` minutes after local midnight: the local day it opened on, in days since the epoch.
 /// `None` outside the window.
 pub fn nightly_window(now: Timestamp, offset_s: i32, at_min: u16) -> Option<i64> {
-    let local_min = (now.as_unix_ms().div_euclid(1000) + i64::from(offset_s)).div_euclid(60);
-    let into = (local_min - i64::from(at_min)).rem_euclid(24 * 60);
-    (into < i64::from(NIGHTLY_WINDOW_MIN)).then(|| (local_min - into).div_euclid(24 * 60))
+    crate::site::tz::daily_window(now, offset_s, at_min, NIGHTLY_WINDOW_MIN)
 }
 
 impl Default for RfSettings {

@@ -88,3 +88,15 @@ export function formatDateTime(ms: number): string {
 export function formatTime(ms: number): string {
   return clock.format(new Date(ms));
 }
+
+/** Minutes after midnight as a 24-hour clock, such as `03:30`. */
+export function clockText(minutes: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+}
+
+/** The start times offered for a nightly window: every half hour, and the one set when another. */
+export function nightlyTimes(current: number): number[] {
+  const halves = Array.from({ length: 48 }, (_, i) => i * 30);
+  return [...new Set([...halves, current])].sort((a, b) => a - b);
+}

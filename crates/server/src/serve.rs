@@ -1,5 +1,6 @@
 //! `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and
-//! HTTPS listeners and serves until SIGTERM or SIGINT.
+//! HTTPS listeners and serves until SIGTERM or SIGINT, or until an install of a new release asks
+//! for a restart (exit code [`launcher::RESTART`]; D-123).
 //!
 //! Shutdown is graceful: stop accepting, let in-flight requests finish for up to `DRAIN_TIMEOUT`
 //! (inside Docker's default 10 s stop grace period), then close what is left. A second signal
@@ -30,11 +31,14 @@ use uniwrt_sim::SimConfig;
 use uniwrt_store::{Store, Vault};
 
 use crate::{
+    auto_update::AutoUpdate,
     build_info,
     cli::ServeArgs,
     controller_key,
     fleet::Fleet,
-    http, logging,
+    http,
+    launcher::{self, Restart, Updater},
+    logging,
     master_key::{self, Source as KeySource},
     nightly::NightlyOptimizer,
     tls::{
@@ -56,7 +60,8 @@ const DEMO_PASSWORD: &str = "demo";
 /// One listener's server, running until its drain signal and its connections end.
 type Server = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
 
-pub(crate) fn run(args: ServeArgs) -> anyhow::Result<()> {
+/// Serves; returns the exit code: 0, or [`launcher::RESTART`] when an install asked for it.
+pub(crate) fn run(args: ServeArgs) -> anyhow::Result<u8> {
     logging::init(&args.log)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -64,16 +69,25 @@ pub(crate) fn run(args: ServeArgs) -> anyhow::Result<()> {
         .context("cannot start the async runtime")?;
     let result = runtime.block_on(serve(args));
     runtime.shutdown_timeout(Duration::from_secs(1));
-    result
+    result.map(|restart| {
+        if restart {
+            u8::try_from(launcher::RESTART).unwrap_or(1)
+        } else {
+            0
+        }
+    })
 }
 
-async fn serve(args: ServeArgs) -> anyhow::Result<()> {
+/// Serves until a stop request; true when it was an install's restart.
+async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
     let data_dir = std::path::absolute(&args.data_dir)?;
     tokio::fs::create_dir_all(&data_dir)
         .await
         .with_context(|| format!("cannot create the data directory {}", data_dir.display()))?;
     // Registered before binding, so an early signal is not lost.
-    let stop = forward_signals().context("cannot install signal handlers")?;
+    let (stopping, stop) = mpsc::channel(2);
+    forward_signals(stopping.clone()).context("cannot install signal handlers")?;
+    let restart = Restart::new(stopping);
     let demo_dir = args
         .demo
         .then(|| {
@@ -114,6 +128,12 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             fleet.engine.clone(),
             Arc::clone(&clock),
         );
+        let github = uniwrt_firmware::GitHub::new(
+            uniwrt_firmware::GitHub::PUBLIC,
+            &format!("uniwrt/{}", build_info::VERSION),
+        )
+        .context("cannot use GitHub's API")?;
+        let updater = Updater::new(github.clone(), &data_dir, &args, restart.clone());
         let api = start_api(
             &args,
             &store,
@@ -121,37 +141,23 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
             &fleet,
             &clock,
             &tls,
-            (&jobs, &state_dir),
+            (&jobs, &state_dir, &github, &updater),
         )
         .await?;
         let nightly = NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock);
-        let renewal = tokio::spawn(renewer.run());
-        let app = http::router(&ui::EMBEDDED, api.clone());
-        let plain = http::plain::router(
-            app.clone(),
-            args.https_listen.port(),
-            args.trusted_proxies.clone(),
+        let auto_update = AutoUpdate::start(
+            updater,
+            github,
+            store.clone(),
+            jobs.clone(),
+            Arc::clone(&clock),
         );
-        let (drain, draining) = watch::channel(false);
-        // Draining waits for HTTP requests only; WebSockets are told to go.
-        let mut closing = draining.clone();
-        tokio::spawn(async move {
-            if closing.wait_for(|draining| *draining).await.is_ok() {
-                api.close_sockets();
-            }
-        });
-        let servers = vec![
-            https_server(
-                TlsListener::new(https, tls.server_config()?)?,
-                http::https(app),
-                draining.clone(),
-            ),
-            http_server(http, plain, draining),
-        ];
-        let served = serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await;
+        let renewal = tokio::spawn(renewer.run());
+        let served = listen(&args, api, &tls, (http, https), stop).await;
         renewal.abort();
         autotune.stop().await;
         nightly.stop().await;
+        auto_update.stop().await;
         port_watch.stop().await;
         jobs.shutdown().await;
         fleet.stop().await;
@@ -166,8 +172,46 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         warn!(%err, "cannot delete the demo's directory");
     }
     served?;
-    info!("uniwrt stopped");
-    Ok(())
+    let restart = restart.asked();
+    if restart {
+        info!("uniwrt stopped; restarting into the new release");
+    } else {
+        info!("uniwrt stopped");
+    }
+    Ok(restart)
+}
+
+/// Serves the API and the UI on both listeners until a stop request ([`serve_until`]).
+async fn listen(
+    args: &ServeArgs,
+    api: Api,
+    tls: &crate::tls::Tls,
+    (http, https): (TcpListener, TcpListener),
+    stop: mpsc::Receiver<&'static str>,
+) -> anyhow::Result<()> {
+    let app = http::router(&ui::EMBEDDED, api.clone());
+    let plain = http::plain::router(
+        app.clone(),
+        args.https_listen.port(),
+        args.trusted_proxies.clone(),
+    );
+    let (drain, draining) = watch::channel(false);
+    // Draining waits for HTTP requests only; WebSockets are told to go.
+    let mut closing = draining.clone();
+    tokio::spawn(async move {
+        if closing.wait_for(|draining| *draining).await.is_ok() {
+            api.close_sockets();
+        }
+    });
+    let servers = vec![
+        https_server(
+            TlsListener::new(https, tls.server_config()?)?,
+            http::https(app),
+            draining.clone(),
+        ),
+        http_server(http, plain, draining),
+    ];
+    Ok(serve_until(servers, &drain, stop, DRAIN_TIMEOUT).await?)
 }
 
 /// The uploaded firmware images' directory in the data dir (D-122).
@@ -193,7 +237,12 @@ async fn start_api(
     fleet: &Fleet,
     clock: &Arc<dyn Clock>,
     tls: &crate::tls::Tls,
-    (jobs, state_dir): (&uniwrt_jobs::Jobs, &Path),
+    (jobs, state_dir, github, updater): (
+        &uniwrt_jobs::Jobs,
+        &Path,
+        &uniwrt_firmware::GitHub,
+        &Updater,
+    ),
 ) -> anyhow::Result<Api> {
     let uploads = uniwrt_firmware::Uploads::open(state_dir.join(UPLOADS))
         .await
@@ -208,13 +257,8 @@ async fn start_api(
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
         asu: asu(&args.asu_url)?,
-        github: Some(
-            uniwrt_firmware::GitHub::new(
-                uniwrt_firmware::GitHub::PUBLIC,
-                &format!("uniwrt/{}", build_info::VERSION),
-            )
-            .context("cannot use GitHub's API")?,
-        ),
+        github: Some(github.clone()),
+        self_update: Some(Arc::new(updater.clone())),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),
@@ -352,11 +396,10 @@ fn log_start(
     Ok(())
 }
 
-/// Forwards SIGTERM and SIGINT, by name, for as long as the receiver lives.
-fn forward_signals() -> io::Result<mpsc::Receiver<&'static str>> {
+/// Forwards SIGTERM and SIGINT, by name, to `tx` for as long as its receiver lives.
+fn forward_signals(tx: mpsc::Sender<&'static str>) -> io::Result<()> {
     let mut terminate = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
-    let (tx, rx) = mpsc::channel(2);
     tokio::spawn(async move {
         loop {
             let name = tokio::select! {
@@ -368,7 +411,7 @@ fn forward_signals() -> io::Result<mpsc::Receiver<&'static str>> {
             }
         }
     });
-    Ok(rx)
+    Ok(())
 }
 
 /// Resolves once `draining` turns true (or its sender is gone).

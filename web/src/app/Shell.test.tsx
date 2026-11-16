@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { controllerUpdate } from "../test/controller";
 import { openTestSocket, SignedInProviders } from "../test/providers";
 import { createAppRouter } from "./routes";
 import { Shell } from "./Shell";
@@ -14,7 +15,9 @@ describe("Shell", () => {
       vi.fn(async (url: string) =>
         url === "/api/v1/firmware"
           ? Response.json({ nodes: [], error: null })
-          : Response.json({ status: "ok", version: "1.0.0", commit: "x", built_at: "y" }),
+          : url === "/api/v1/controller/update"
+            ? Response.json(controllerUpdate())
+            : Response.json({ status: "ok", version: "1.0.0", commit: "x", built_at: "y" }),
       ),
     );
     const user = userEvent.setup();
@@ -45,7 +48,13 @@ describe("Shell", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) =>
-        Response.json(url === "/api/v1/firmware" ? { nodes: [], error: null } : {}),
+        Response.json(
+          url === "/api/v1/firmware"
+            ? { nodes: [], error: null }
+            : url === "/api/v1/controller/update"
+              ? controllerUpdate()
+              : {},
+        ),
       ),
     );
     const user = userEvent.setup();

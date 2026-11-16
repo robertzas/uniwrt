@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { controllerUpdate } from "../test/controller";
 import { alertRecord, summary } from "../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../test/providers";
 import { createAppRouter } from "./routes";
@@ -19,6 +20,7 @@ beforeEach(() => {
         posts.push(url);
         return Response.json(alertRecord(2, { acknowledged: { by: 1, username: "admin", at: 1 } }));
       }
+      if (url === "/api/v1/controller/update") return Response.json(controllerUpdate());
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );

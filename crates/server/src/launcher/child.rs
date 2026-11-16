@@ -58,11 +58,22 @@ pub(crate) fn forward(child: &Child, signal: Signal) {
 }
 
 /// Waits for the child to exit, forwarding the signals the launcher receives.
-pub(crate) async fn wait(child: &mut Child, signals: &mut mpsc::Receiver<Signal>) -> ExitStatus {
+/// Also tells whether a signal came (and was forwarded) meanwhile: then a restart request is
+/// a stop.
+pub(crate) async fn wait(
+    child: &mut Child,
+    signals: &mut mpsc::Receiver<Signal>,
+) -> (ExitStatus, bool) {
+    let mut signalled = false;
     loop {
         tokio::select! {
-            status = child.wait() => return status.unwrap_or_else(|_| ExitStatus::from_raw(1 << 8)),
-            Some(signal) = signals.recv() => forward(child, signal),
+            status = child.wait() => {
+                return (status.unwrap_or_else(|_| ExitStatus::from_raw(1 << 8)), signalled);
+            }
+            Some(signal) = signals.recv() => {
+                signalled = true;
+                forward(child, signal);
+            }
         }
     }
 }
@@ -96,7 +107,7 @@ pub(crate) async fn gate(
             }
             Some(signal) = signals.recv() => {
                 forward(child, signal);
-                return Gate::Stopped(wait(child, signals).await);
+                return Gate::Stopped(wait(child, signals).await.0);
             }
             () = tokio::time::sleep(timing.probe_every) => {}
         }

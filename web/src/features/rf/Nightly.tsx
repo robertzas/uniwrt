@@ -1,23 +1,12 @@
 import { createSignal, For, Show } from "solid-js";
 import type { RfSettings } from "../../api/gen/RfSettings";
 import { api, errorText } from "../../lib/api";
+import { clockText, nightlyTimes } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Checkbox } from "../../ui/Checkbox";
 import { showToast } from "../../ui/Toast";
 
 const t = strings.rf.plan.nightly;
-
-/** Minutes after midnight as a 24-hour clock, such as `03:30`. */
-export function clockText(minutes: number): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
-}
-
-/** The start times offered: every half hour, and the one set when it is another. */
-export function nightlyTimes(current: number): number[] {
-  const halves = Array.from({ length: 48 }, (_, i) => i * 30);
-  return [...new Set([...halves, current])].sort((a, b) => a - b);
-}
 
 /**
  * The nightly optimizer (features/wifi.md, RF planner: Apply; D-115): on or off, and when its

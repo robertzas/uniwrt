@@ -43,6 +43,8 @@ pub struct ApiConfig {
     pub uploads: Option<Uploads>,
     /// GitHub's API, whose releases are image sources (D-122); without it, they answer 503.
     pub github: Option<GitHub>,
+    /// The controller's own install (D-123); without it, `v1/controller/update` answers 503.
+    pub self_update: Option<crate::controller_update::Updater>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
     /// A new site's first revision instead of the defaults (demo mode's).
@@ -77,6 +79,7 @@ impl ApiConfig {
             asu: None,
             uploads: None,
             github: None,
+            self_update: None,
             vault: None,
             first_site: None,
             password_cost: PasswordCost::default(),
@@ -106,6 +109,7 @@ struct Inner {
     asu: Option<Asu>,
     uploads: Option<Uploads>,
     github: Option<GitHub>,
+    self_update: Option<crate::controller_update::Updater>,
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
@@ -156,6 +160,7 @@ impl Api {
                 asu: config.asu,
                 uploads: config.uploads,
                 github: config.github,
+                self_update: config.self_update,
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
             }),
@@ -289,6 +294,13 @@ impl Api {
             .uploads
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("Firmware uploads are off".to_owned()))
+    }
+
+    pub(crate) fn self_update(&self) -> Result<crate::controller_update::Updater, ApiError> {
+        self.inner
+            .self_update
+            .clone()
+            .ok_or_else(|| ApiError::Unavailable("The controller's updates are off".to_owned()))
     }
 
     pub(crate) fn github(&self) -> Result<&GitHub, ApiError> {

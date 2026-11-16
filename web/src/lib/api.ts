@@ -13,6 +13,8 @@ import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientKick } from "../api/gen/ClientKick";
 import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
+import type { ControllerUpdate } from "../api/gen/ControllerUpdate";
+import type { ControllerUpdates } from "../api/gen/ControllerUpdates";
 import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
@@ -36,6 +38,7 @@ import type { ImageBuildStarted } from "../api/gen/ImageBuildStarted";
 import type { ImportAccept } from "../api/gen/ImportAccept";
 import type { ImportPreview } from "../api/gen/ImportPreview";
 import type { ImportRequest } from "../api/gen/ImportRequest";
+import type { InstallBody } from "../api/gen/InstallBody";
 import type { Issue } from "../api/gen/Issue";
 import type { Job } from "../api/gen/Job";
 import type { KickOutcome } from "../api/gen/KickOutcome";
@@ -644,6 +647,14 @@ export const api = {
     /** A node's own image source. */
     source: (node: number, body: NodeSource) =>
       request<NodeSource>(`/firmware/nodes/${node}/source`, { method: "PUT", body }),
+  },
+  /** The controller's own update (D-123): the release on offer, its install, the automatic one. */
+  controller: {
+    update: (signal?: AbortSignal) => request<ControllerUpdate>("/controller/update", { signal }),
+    install: (body: InstallBody) =>
+      request<ControllerUpdate>("/controller/update", { method: "POST", body }),
+    settings: (body: ControllerUpdates) =>
+      request<ControllerUpdates>("/controller/update/settings", { method: "PUT", body }),
   },
   backhaul: {
     failures: (signal?: AbortSignal) =>

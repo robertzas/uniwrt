@@ -10,6 +10,7 @@ import type { ImageBuild } from "../../api/gen/ImageBuild";
 import type { NodeFirmware } from "../../api/gen/NodeFirmware";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { createAppRouter } from "../../app/routes";
+import { controllerUpdate } from "../../test/controller";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 
@@ -173,6 +174,9 @@ function stubApi(routes: Record<string, Route>) {
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body;
     calls.push([key, body]);
     const route = routes[key];
+    if (key === "GET /api/v1/controller/update" && !route) {
+      return Response.json(controllerUpdate({ offer: null }));
+    }
     if (!route) return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     const answer = route(body);
     return answer instanceof Response ? answer : Response.json(answer);

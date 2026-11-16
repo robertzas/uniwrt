@@ -136,6 +136,7 @@ pub(crate) struct Handles {
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
     pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
     pub(crate) github: Option<uniwrt_firmware::GitHub>,
+    pub(crate) self_update: Option<crate::controller_update::Updater>,
 }
 
 /// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
@@ -156,6 +157,7 @@ pub(crate) async fn api_full(
         asu,
         uploads,
         github,
+        self_update,
     } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -183,6 +185,7 @@ pub(crate) async fn api_full(
         asu,
         uploads,
         github,
+        self_update,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -316,6 +319,7 @@ impl Demo {
             asu,
             uploads: Some(uploads_in(dir.path()).await),
             github,
+            self_update: None,
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

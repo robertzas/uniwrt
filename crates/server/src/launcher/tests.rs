@@ -161,6 +161,28 @@ async fn a_trial_asked_for_is_started_confirmed_when_healthy_and_signals_are_for
 }
 
 #[tokio::test]
+async fn a_restart_asked_for_while_stopping_is_a_stop() {
+    let lab = Lab::new();
+    // A controller that, told to stop, asks for a restart (an install was finishing).
+    lab.own(&format!(
+        "trap 'exit 75' TERM; touch {}; while :; do sleep 0.05; done",
+        lab.healthy()
+    ));
+    let (tx, rx) = signals();
+    let supervisor = lab.supervisor();
+    let run = tokio::spawn(async move { supervisor.run(rx).await });
+    for _ in 0..100 {
+        if Path::new(&lab.healthy()).exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    tx.send(Signal::TERM).await.unwrap();
+    let code = tokio::time::timeout(Duration::from_secs(5), run).await;
+    assert_eq!(code.unwrap().unwrap().unwrap(), 0);
+}
+
+#[tokio::test]
 async fn a_trial_that_exits_is_rejected_and_the_database_put_back() {
     let lab = Lab::new();
     std::fs::write(lab.database(), "before").unwrap();

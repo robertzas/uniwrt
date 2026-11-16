@@ -97,6 +97,15 @@ impl Releases {
     /// The newest release (by version) that isn't a prerelease, is tagged `vX.Y.Z` and has a
     /// tarball for `target` with GitHub's SHA-256.
     pub fn controller(&self, target: &str) -> Option<ControllerRelease> {
+        self.controller_where(target, |_| true)
+    }
+
+    /// The newest such release that `keep` accepts (one not rejected, one out long enough).
+    pub fn controller_where(
+        &self,
+        target: &str,
+        keep: impl Fn(&ControllerRelease) -> bool,
+    ) -> Option<ControllerRelease> {
         self.list
             .iter()
             .filter(|release| !release.prerelease)
@@ -116,6 +125,7 @@ impl Releases {
                     size: asset.size,
                 })
             })
+            .filter(|release| keep(release))
             .max_by_key(|release| release.version)
     }
 }

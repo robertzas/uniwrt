@@ -11,6 +11,9 @@
 //!   notice, and the previous binary started again.
 //! - **Image upgrades:** a staged binary runs only while newer than the image's; a newer image
 //!   wins and the staged binaries are removed.
+//! - **Installs** ([`Updater`], M7.1b2): the controller's side of an upgrade: the release
+//!   staged and verified, run once, named the trial, then the restart request ([`Restart`]).
+//!   A restart asked for while a stop signal came is a stop.
 //! - **Not supervised:** a child (`UNIWRT_SUPERVISED` set), `--self-upgrade off`, demo mode and
 //!   development builds (their version isn't `X.Y.Z`) serve directly.
 
@@ -18,6 +21,7 @@ mod child;
 mod state;
 #[cfg(test)]
 mod tests;
+mod update;
 
 use std::{ffi::OsString, path::PathBuf, sync::Arc, time::SystemTime};
 
@@ -31,8 +35,8 @@ use uniwrt_firmware::Version;
 
 pub(crate) use child::SUPERVISED;
 use child::{Gate, Probe, Timing};
-#[allow(unused_imports)] // the update API reads the state (M7.1b2)
-pub(crate) use state::{Bin, Failure, State};
+pub(crate) use state::{Bin, State};
+pub(crate) use update::{Restart, Updater};
 
 use crate::{build_info, cli::ServeArgs, healthcheck, logging, serve};
 
@@ -52,7 +56,7 @@ pub(crate) fn run(args: ServeArgs) -> anyhow::Result<u8> {
                 .context("cannot start the launcher's runtime")?;
             runtime.block_on(supervise(&args, builtin))
         }
-        _ => serve::run(args).map(|()| 0),
+        _ => serve::run(args),
     }
 }
 
@@ -144,9 +148,13 @@ impl Supervisor {
                     Gate::Stopped(status) => return Ok(child::exit_code(status)),
                 }
             }
-            let status = child::wait(&mut child, &mut signals).await;
+            let (status, signalled) = child::wait(&mut child, &mut signals).await;
             if status.code() != Some(RESTART) {
                 return Ok(child::exit_code(status));
+            }
+            if signalled {
+                // Asked to stop while the controller was restarting: stopping wins.
+                return Ok(0);
             }
             tracing::info!("the controller asked to be started again");
         }

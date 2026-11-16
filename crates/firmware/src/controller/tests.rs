@@ -62,6 +62,11 @@ async fn the_newest_release_for_the_target_is_found_and_staged() {
         "uniwrt-0.109.0-x86_64-unknown-linux-musl.tar.gz"
     );
     assert!(releases.controller("mips-unknown-linux-musl").is_none());
+    let older = releases
+        .controller_where(TARGET, |release| release.version != Version(0, 109, 0))
+        .unwrap();
+    assert_eq!(older.version, Version(0, 107, 0));
+    assert!(releases.controller_where(TARGET, |_| false).is_none());
 
     let dir = tempfile::tempdir().unwrap();
     let staged = github

@@ -272,6 +272,37 @@ export const strings = {
       saving: "Saving…",
       cancel: "Cancel",
     },
+    controller: {
+      title: "Controller",
+      description:
+        "uniwrt itself. New releases come from GitHub and are verified against their build's signed attestation before they run; a release that fails its health check is rolled back with the data it had.",
+      running: (version: string) => `Running uniwrt ${version}`,
+      offer: (version: string) => `uniwrt ${version} is available`,
+      published: (when: string) => `Published ${when}`,
+      upToDate: "This controller runs the newest release.",
+      install: "Install",
+      installing: "Starting…",
+      progress: {
+        downloading: (v: string) => `Downloading and verifying ${v}…`,
+        checking: (v: string) => `Checking ${v}…`,
+        restarting: (v: string) => `Restarting into ${v}: the page reconnects by itself.`,
+      },
+      failed: (v: string, reason: string) => `${v} wasn't installed: ${reason}`,
+      rolledBack: (v: string, when: string, reason: string) =>
+        `${v} failed its health check (${when}) and was rolled back: ${reason}. It won't be offered again.`,
+      nowRunning: (v: string) => `uniwrt ${v} is running. Reload the page for its interface.`,
+      reload: "Reload",
+      lost: (v: string) =>
+        `The controller hasn't come back after installing ${v}. Check its container and logs.`,
+      auto: "Install new releases automatically",
+      autoHint:
+        "Nightly at the site's time, when no job runs: the newest release that has been out for at least a day.",
+      autoAt: (time: string) => `Automatic install nightly at ${time}`,
+      autoOff: "Automatic install off",
+      time: "Window opens at",
+      saved: "Automatic install saved",
+      saveFailed: "Couldn't save the automatic install",
+    },
     sources: {
       title: "Image sources",
       description:

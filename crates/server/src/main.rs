@@ -16,6 +16,7 @@
 //!   `tower::ServiceExt::oneshot`; serve and healthcheck tests use loopback sockets.
 
 mod adoption_port;
+mod auto_update;
 mod autotune;
 mod build_info;
 mod cli;

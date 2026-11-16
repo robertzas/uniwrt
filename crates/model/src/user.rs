@@ -98,6 +98,8 @@ pub enum AuditAction {
     /// A user asked for a node's upgrade image (the detail names the node, both releases and
     /// the build; D-121).
     Firmware,
+    /// A user installed a controller release or changed its automatic install (D-123).
+    Controller,
 }
 
 /// One audit log entry.

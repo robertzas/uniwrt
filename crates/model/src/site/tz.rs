@@ -51,6 +51,15 @@ pub fn local(posix: &str, at: Timestamp) -> Option<Local> {
 
 const DAY_S: i64 = 86_400;
 
+/// The day whose daily window holds `now` at a site `offset_s` east of UTC, for a window
+/// opening `at_min` minutes after local midnight and lasting `len_min`: the local day it
+/// opened on, in days since the epoch. `None` outside the window.
+pub fn daily_window(now: Timestamp, offset_s: i32, at_min: u16, len_min: u16) -> Option<i64> {
+    let local_min = (now.as_unix_ms().div_euclid(1000) + i64::from(offset_s)).div_euclid(60);
+    let into = (local_min - i64::from(at_min)).rem_euclid(24 * 60);
+    (into < i64::from(len_min)).then(|| (local_min - into).div_euclid(24 * 60))
+}
+
 /// The zone's offset from UTC at `utc_s`, in seconds east.
 fn offset_at(posix: &str, utc_s: i64) -> Option<i32> {
     let (std, rest) = standard(posix)?;
@@ -196,7 +205,24 @@ pub fn version() -> &'static str {
 mod tests {
     use uniwrt_core::Timestamp;
 
-    use super::{Local, TABLE, Weekday, days_from_civil, local, posix, standard_offset_s, version};
+    use super::{
+        Local, TABLE, Weekday, daily_window, days_from_civil, local, posix, standard_offset_s,
+        version,
+    };
+
+    #[test]
+    fn a_daily_window_names_the_local_day_it_opened_on() {
+        let at = |h: i64, min: i64| {
+            Timestamp::from_unix_ms((10 * 86_400 + h * 3_600 + min * 60) * 1_000)
+        };
+        // 02:30 for an hour, one hour east of UTC: 01:30–02:30 UTC.
+        assert_eq!(daily_window(at(1, 29), 3_600, 150, 60), None);
+        assert_eq!(daily_window(at(1, 30), 3_600, 150, 60), Some(10));
+        assert_eq!(daily_window(at(2, 29), 3_600, 150, 60), Some(10));
+        assert_eq!(daily_window(at(2, 30), 3_600, 150, 60), None);
+        // A window across midnight belongs to the day it opened on.
+        assert_eq!(daily_window(at(0, 10), 0, 23 * 60 + 30, 60), Some(9));
+    }
 
     /// `local` at a UTC date and time.
     fn at(tz: &str, (y, m, d): (i64, i64, i64), (h, min): (i64, i64)) -> (Weekday, u16, i32) {

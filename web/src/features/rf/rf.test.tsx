@@ -8,11 +8,11 @@ import type { Plan } from "../../api/gen/Plan";
 import type { RfView } from "../../api/gen/RfView";
 import type { SiteView } from "../../api/gen/SiteView";
 import { createAppRouter } from "../../app/routes";
+import { clockText, nightlyTimes } from "../../lib/format";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { channel, rfPlan, rfView } from "../../test/rf";
 import { siteView } from "../../test/site";
-import { clockText, nightlyTimes } from "./Nightly";
 import { withBandPlan } from "./planned";
 
 let calls: { method: string; url: string; body: unknown }[] = [];

@@ -40,7 +40,9 @@
 //!   `POST v1/firmware/nodes/{id}/plan` ([`PlanBody`]) and `…/builds` ([`UpgradeBody`]), `GET
 //!   v1/firmware/builds/{hash}`; D-121; uploaded images, `POST v1/firmware/uploads` and `DELETE
 //!   …/uploads/{sha256}`, D-122; GitHub sources, `PUT v1/firmware/sources` ([`SourcesBody`]) and
-//!   `PUT v1/firmware/nodes/{id}/source`, D-122), and [`bootstrap`], the public `GET /b/{token}` the
+//!   `PUT v1/firmware/nodes/{id}/source`, D-122), the controller's own update (`GET` and `POST
+//!   v1/controller/update`, `PUT …/update/settings`, through [`controller_update::SelfUpdate`];
+//!   D-123), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -103,6 +105,9 @@ mod bootstrap;
 mod client;
 mod client_actions;
 mod clients;
+pub mod controller_update;
+#[cfg(test)]
+mod controller_update_tests;
 mod discovered;
 mod drift;
 mod events;
@@ -275,6 +280,7 @@ pub fn router(api: Api) -> Router {
         .merge(adoption_routes())
         .merge(ztp::routes())
         .merge(firmware::routes())
+        .merge(controller_update::routes())
         .merge(floors::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(

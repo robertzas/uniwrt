@@ -18,6 +18,7 @@ import { Card, CardHeader } from "../../ui/Card";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { type Column, Table } from "../../ui/Table";
+import { ControllerCard } from "./ControllerCard";
 import { SourceDialog, sourceLabel } from "./SourceDialog";
 import { SourcesCard } from "./SourcesCard";
 import { UpgradeDialog } from "./UpgradeDialog";
@@ -39,7 +40,7 @@ const STATES: Record<FirmwareState, string> = {
 };
 
 /**
- * Updates (D-121, D-122): each device's OpenWrt release, its image source, the upgrades on offer
+ * Updates (D-121, D-122, D-123): the controller's own release (its card first), each device's OpenWrt release, its image source, the upgrades on offer
  * with their release notes (OpenWrt's, or its GitHub repo's newest releases), and for admins the
  * upgrade prepared with the device's packages (ASU's image or the official one), a GitHub release
  * or an uploaded image; below, the site's sources and the uploaded images. `?node=<id>` opens a
@@ -228,6 +229,7 @@ export function UpdatesPage() {
 
   return (
     <div class="flex flex-col gap-4">
+      <ControllerCard admin={admin()} />
       <Card class="mx-auto w-full max-w-7xl overflow-hidden" aria-label={t.title}>
         <CardHeader
           title={t.title}

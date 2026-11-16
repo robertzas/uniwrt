@@ -33,7 +33,8 @@
 //!   ([`discovery::Discovered`]); [`ztp`] is zero-touch provisioning's hello, pending inbox and
 //!   pre-approvals (D-102); [`firmware`] is OpenWrt's catalog and the zero-touch images ASU builds
 //!   (D-104); [`floor`] is the floor plans: each floor's image, scale and the nodes placed on it
-//!   ([`floor::Floor`], D-117).
+//!   ([`floor::Floor`], D-117); [`controller`] is the controller's own update: the release on
+//!   offer, the install's progress and the automatic nightly install (D-123).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -50,6 +51,7 @@
 pub mod alerts;
 pub mod apply;
 pub mod client;
+pub mod controller;
 pub mod discovery;
 pub mod drift;
 pub mod event;
