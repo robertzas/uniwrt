@@ -18,7 +18,10 @@
 //!   metadata names the boards they fit, or an x86 image's name its target; [`upload_fits`]);
 //!   [`GitHub`] (D-122: a repo's releases, [`GitHub::releases`], read with an optional token
 //!   and kept ten minutes; [`Releases::offers`], the newest [`MAX_OFFERS`] with an image for a
-//!   [`Device`]: its profile or board in the asset's name, x86's subtarget; [`parse_repo`]);
+//!   [`Device`]: its profile or board in the asset's name, x86's subtarget; [`parse_repo`];
+//!   [`GitHub::fetch_image`], an asset downloaded, through the API with a token);
+//!   [`ImageCache`] (D-124: images to flash, downloaded once into a directory and kept only when
+//!   they match their SHA-256 and size; the newest [`MAX_CACHED`] by use);
 //!   the controller's own releases (D-123): [`Releases::controller`] (the newest `vX.Y.Z` of
 //!   [`CONTROLLER_REPO`] with a tarball for a target), [`GitHub::stage_controller`] (the tarball
 //!   downloaded, checked against GitHub's SHA-256 and its Sigstore attestation, its binary
@@ -39,16 +42,19 @@
 //!   names no board (and isn't x86's gzipped image) never reaches the directory; at most
 //!   [`MAX_UPLOADS`] of at most [`MAX_UPLOAD_BYTES`]. A GitHub image is offered only with the
 //!   SHA-256 GitHub records for it, and only when its name tells the board (or x86's
-//!   subtarget) as a whole word; the token is sent to GitHub's API alone, marked sensitive. A
-//!   controller binary is written only once its tarball matches GitHub's SHA-256 and an
-//!   attestation verifies against the embedded trust root (nothing of an unverified tarball is
-//!   extracted, and the download is removed either way).
+//!   subtarget) as a whole word; the token is sent to GitHub's API alone, marked sensitive, and
+//!   never after a redirect (the storage GitHub sends downloads to doesn't get it). A cached
+//!   image is kept only once its SHA-256 matches its source's. A controller binary is written
+//!   only once its tarball matches GitHub's SHA-256 and an attestation verifies against the
+//!   embedded trust root (nothing of an unverified tarball is extracted, and the download is
+//!   removed either way).
 //! - **Dependencies:** `uniwrt-model`, hyper, hyper-util, hyper-rustls (ring, Mozilla's roots),
 //!   ring (SHA-256, ECDSA), rustls-webpki (Fulcio's chain), x509-parser (the certificate's
 //!   identity), data-encoding, flate2 (the tarball), `serde_json`, tokio (timeouts, files).
 
 mod asu;
 mod build;
+mod cache;
 mod catalog;
 mod controller;
 mod device;
@@ -66,6 +72,7 @@ mod tests;
 mod uploads;
 
 pub use asu::{Asu, ImageRequest, Upgrade};
+pub use cache::{ImageCache, MAX_CACHED};
 pub use controller::{CONTROLLER_REPO, ControllerRelease, Staged, Version, binary_name};
 pub use github::{Device, GitHub, MAX_OFFERS, Releases, parse_repo, valid_repo, valid_token};
 pub use uploads::{MAX_UPLOAD_BYTES, MAX_UPLOADS, Receiving, Uploads, upload_fits, valid_sha256};

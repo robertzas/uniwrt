@@ -130,7 +130,7 @@ async fn a_plan_is_refused_before_reading_the_node_unless_the_release_is_on_offe
     assert_eq!(fake.builds(), [] as [serde_json::Value; 0]);
 }
 
-fn upload(demo: &Demo, name: &str, image: Vec<u8>) -> axum::extract::Request {
+pub(crate) fn upload(demo: &Demo, name: &str, image: Vec<u8>) -> axum::extract::Request {
     let uri = format!("/v1/firmware/uploads?name={name}");
     let (parts, _) = request(Method::POST, &uri, None, Some(&demo.cookie)).into_parts();
     axum::extract::Request::from_parts(parts, Body::from(image))

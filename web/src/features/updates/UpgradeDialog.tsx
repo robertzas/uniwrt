@@ -13,6 +13,7 @@ import {
   defaultOffer,
   followBuild,
   type ImageChoice,
+  installBody,
   openwrtSource,
   planBody,
 } from "../../lib/firmware";
@@ -25,6 +26,7 @@ import { BuildFailed, BuildRunning, ImageRow } from "../../ui/ImageBuild";
 import { JobSuccessNote, RequestError } from "../../ui/JobOutcome";
 import { RadioCards } from "../../ui/RadioCards";
 import { Segmented } from "../../ui/Segmented";
+import { createInstall, InstallButton, InstallStatus } from "./install";
 import { PlanView } from "./PlanView";
 
 const t = strings.firmware;
@@ -36,7 +38,8 @@ type Source = "asu" | "official";
  * Prepares a node's upgrade (D-121, D-122): one of its GitHub repo's releases, an OpenWrt release
  * on offer (built by ASU with the node's packages, or OpenWrt's official image with them installed
  * after; the node's source picks which first), or an uploaded image made for its board. The plan is worked out (for a release, from the node's packages read again); ASU's
- * build is followed until its sysupgrade image is ready. Nothing changes on the node.
+ * build is followed until its sysupgrade image is ready. Nothing changes on the node until an admin
+ * installs the image on a managed node (D-124), which the dialog then follows.
  */
 export function UpgradeDialog(props: {
   open: boolean;
@@ -49,6 +52,8 @@ export function UpgradeDialog(props: {
   releases: readonly GitHubRelease[];
   repo: string | null;
   source: NodeSource;
+  /** Management is on: only then is the upgrade installed from here. */
+  managed: boolean;
 }) {
   const [picked, setPicked] = createSignal<string>();
   const [source, setSource] = createSignal<Source>(untrack(() => openwrtSource(props.source)));
@@ -85,6 +90,15 @@ export function UpgradeDialog(props: {
       : undefined;
   };
   const buildable = () => release() !== undefined && source() === "asu";
+  const install = createInstall({
+    node: () => props.node,
+    name: () => props.name,
+    body: () => {
+      const choice = chosen();
+      return choice && plan() ? installBody(choice, source() === "official", build()) : undefined;
+    },
+    managed: () => props.managed,
+  });
 
   // The plan of the chosen image, worked out again each time the dialog opens or the choice changes.
   createEffect(
@@ -160,7 +174,7 @@ export function UpgradeDialog(props: {
       description: d.uploadedHint(upload?.version ?? null, formatBytes(upload?.size_bytes)),
     };
   };
-  const busy = () => build() !== undefined || starting();
+  const busy = () => build() !== undefined || starting() || install.busy();
 
   return (
     <Dialog
@@ -239,9 +253,6 @@ export function UpgradeDialog(props: {
           {(found) => (
             <>
               <PlanView plan={found()} />
-              <Show when={found().source !== "asu"}>
-                <p class="text-fg-muted text-xs">{d.later}</p>
-              </Show>
             </>
           )}
         </Show>
@@ -266,10 +277,18 @@ export function UpgradeDialog(props: {
             </Switch>
           )}
         </Show>
+        <InstallStatus
+          install={install}
+          name={props.name}
+          official={plan()?.source === "official"}
+        />
         <div class="flex justify-end gap-2">
           <Button size="sm" onClick={() => props.onOpenChange(false)}>
             {d.close}
           </Button>
+          <Show when={!buildable() || build()?.state === "done"}>
+            <InstallButton install={install} />
+          </Show>
           <Show when={buildable() && (build() === undefined || build()?.state === "failed")}>
             <Button
               size="sm"

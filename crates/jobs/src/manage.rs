@@ -138,7 +138,7 @@ pub(crate) async fn login(shared: &Shared, node: &Node) -> Result<Box<dyn Remote
         .map_err(|err| connect_error(&err))
 }
 
-async fn status(remote: &dyn Remote) -> Result<Option<txn::Status>, JobError> {
+pub(crate) async fn status(remote: &dyn Remote) -> Result<Option<txn::Status>, JobError> {
     let command = txn::status();
     let output = remote
         .exec(command.request.clone())

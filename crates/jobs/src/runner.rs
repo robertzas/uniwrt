@@ -30,7 +30,7 @@ use crate::{
     discovery::Discovery,
     manage,
     progress::Progress,
-    restart, wpad,
+    restart, upgrade, wpad,
 };
 
 /// How many job updates a slow subscriber may fall behind before it lags.
@@ -291,6 +291,33 @@ impl Jobs {
         self.spawn(keys, job, move |shared, progress| {
             restart::run(shared, found, progress)
         })
+        .await
+    }
+
+    /// Starts upgrading a managed node's firmware with `request`'s image (D-124) and returns
+    /// the job as it starts. One job at a time per node.
+    pub async fn upgrade(&self, request: crate::UpgradeRequest, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let node = self
+            .shared
+            .store
+            .node(request.node)
+            .await?
+            .ok_or(Error::NoNode(request.node))?;
+        if node.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(node.id));
+        }
+        if request.images.is_empty() {
+            return Err(Error::Failed("the upgrade has no image".to_owned()));
+        }
+        let job = upgrade::job(&node, &request, by);
+        self.spawn(
+            vec![manage::target(node.id)],
+            job,
+            move |shared, progress| upgrade::run(shared, node, request, progress),
+        )
         .await
     }
 

@@ -43,4 +43,6 @@ pub struct Backup {
 pub enum BackupReason {
     /// Taken when the node was adopted, before the controller changed anything.
     Adoption,
+    /// Taken before the node's firmware was upgraded (D-124).
+    Upgrade,
 }

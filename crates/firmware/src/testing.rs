@@ -19,7 +19,7 @@ use axum::{
 use serde_json::{Value, json};
 
 pub use controller::{FakeReleases, tarball};
-pub use github::{FakeGitHub, TOKEN};
+pub use github::{FakeGitHub, PRIVATE_ASSET, TOKEN};
 
 /// The hash of every build the fake makes.
 pub const HASH: &str = "0123456789abcdef0123456789abcdef";
@@ -238,10 +238,15 @@ async fn poll(State(state): State<Shared>, Path(hash): Path<String>) -> (StatusC
             Json(json!({"status": 404, "detail": "could not find provided request hash"})),
         );
     }
-    let polls = {
+    let (polls, version) = {
         let mut seen = state.lock().unwrap_or_else(PoisonError::into_inner);
         seen.polls += 1;
-        seen.polls
+        let version = seen
+            .builds
+            .last()
+            .and_then(|build| build["version"].as_str())
+            .map(str::to_owned);
+        (seen.polls, version)
     };
     if polls == 1 {
         return (
@@ -255,7 +260,7 @@ async fn poll(State(state): State<Shared>, Path(hash): Path<String>) -> (StatusC
     (
         StatusCode::OK,
         Json(
-            json!({"status": 200, "detail": "done", "request_hash": HASH, "bin_dir": HASH, "images": [
+            json!({"status": 200, "detail": "done", "request_hash": HASH, "bin_dir": HASH, "version_number": version, "images": [
                 image("openwrt-squashfs-sysupgrade.bin", "sysupgrade"),
                 image("openwrt-squashfs-factory.bin", "factory")
             ]}),

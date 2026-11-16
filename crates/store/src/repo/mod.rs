@@ -284,6 +284,13 @@ pub trait InventoryRepo: Send + Sync {
         inventory: Inventory,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    /// Keeps another sealed backup of the node (D-124: before its firmware is upgraded).
+    fn add_backup(
+        &self,
+        node: NodeId,
+        backup: crate::SealedBackup,
+    ) -> impl Future<Output = Result<()>> + Send;
+
     /// The node's configuration backups, newest first; [`Vault::open_backup`](crate::Vault::open_backup)
     /// reads one.
     fn backups(&self, node: NodeId) -> impl Future<Output = Result<Vec<Backup>>> + Send;

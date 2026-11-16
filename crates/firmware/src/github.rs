@@ -6,6 +6,7 @@
 mod fit;
 
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
@@ -17,7 +18,7 @@ use uniwrt_model::firmware::{FirmwareImage, GitHubRelease};
 
 pub use fit::Device;
 
-use crate::{Error, http::Http, valid_sha256};
+use crate::{Error, ImageCache, http::Http, valid_sha256};
 
 /// How long a repo's releases are kept: GitHub allows 60 requests an hour without a token.
 const TTL: Duration = Duration::from_mins(10);
@@ -68,6 +69,8 @@ pub(crate) struct Asset {
     pub(crate) size: u64,
     pub(crate) sha256: Option<String>,
     pub(crate) url: String,
+    /// The asset in GitHub's API, where a token downloads it (a private repo's).
+    pub(crate) api_url: Option<String>,
 }
 
 impl GitHub {
@@ -127,6 +130,45 @@ impl GitHub {
     }
 
     /// Forgets the releases kept: the token or a repo changed.
+    /// The asset `name` of `repo`'s release `tag`, downloaded into `cache` unless kept there
+    /// (D-124): with a token through GitHub's API, where a private repo's assets download (the
+    /// token isn't sent on to the storage it redirects to), else from its download URL; checked
+    /// against the SHA-256 GitHub lists.
+    pub async fn fetch_image(
+        &self,
+        cache: &ImageCache,
+        repo: &str,
+        tag: &str,
+        name: &str,
+        token: Option<&str>,
+    ) -> Result<PathBuf, Error> {
+        let releases = self.releases(repo, token).await?;
+        let asset = releases
+            .list
+            .iter()
+            .find(|release| release.tag == tag)
+            .and_then(|release| release.assets.iter().find(|asset| asset.name == name))
+            .ok_or_else(|| Error::NotFound(format!("{repo}'s release {tag} has no {name}")))?;
+        let image = FirmwareImage {
+            name: asset.name.clone(),
+            kind: "sysupgrade".to_owned(),
+            filesystem: None,
+            size_bytes: Some(asset.size),
+            sha256: asset
+                .sha256
+                .clone()
+                .ok_or_else(|| Error::Untrusted(format!("GitHub lists no SHA-256 of {name}")))?,
+            url: asset.url.clone(),
+        };
+        match (token, &asset.api_url) {
+            (Some(_), Some(api)) => {
+                let headers = api_headers(token)?;
+                cache.fetch_from(&image, api, &headers).await
+            }
+            _ => cache.fetch(&image).await,
+        }
+    }
+
     pub fn forget(&self) {
         self.cache().clear();
     }
@@ -292,6 +334,8 @@ struct RawAsset {
     digest: Option<String>,
     browser_download_url: String,
     #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
     state: Option<String>,
 }
 
@@ -337,6 +381,7 @@ fn parse(repo: &str, body: &[u8]) -> Result<Releases, Error> {
                     name: asset.name,
                     size: asset.size,
                     url: asset.browser_download_url,
+                    api_url: asset.url.filter(|url| web_url(url)),
                 })
                 .collect(),
         })

@@ -61,8 +61,8 @@ printf '%s\n' "$1" >>"$f" && echo added"#;
 
 /// `sysupgrade -b` tarballs are tens of KiB; a node with large files in its backup list may
 /// reach a few MiB.
-const MAX_BACKUP: usize = 32 << 20;
-const BACKUP_TIMEOUT: Duration = Duration::from_secs(120);
+pub(crate) const MAX_BACKUP: usize = 32 << 20;
+pub(crate) const BACKUP_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// What adopting a node takes from the user.
 pub struct AdoptRequest {

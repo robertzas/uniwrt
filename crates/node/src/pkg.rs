@@ -36,6 +36,19 @@ pub fn install<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<St
         .collect()
 }
 
+/// Removes `packages` (an official image's defaults the node had removed, D-124).
+pub fn remove<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<String> {
+    let del = match manager {
+        PackageManager::Opkg => "remove",
+        PackageManager::Apk => "del",
+    };
+    [tool(manager), del]
+        .into_iter()
+        .chain(packages.iter().map(AsRef::as_ref))
+        .map(str::to_owned)
+        .collect()
+}
+
 /// The commands whose outputs [`parse`] reads, in order.
 pub fn inventory(manager: PackageManager) -> Vec<Vec<&'static str>> {
     match manager {

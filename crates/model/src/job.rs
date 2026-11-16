@@ -102,6 +102,10 @@ pub enum JobKind {
     /// Restarting the radios still catching up after a channel switch, one node at a time, in
     /// the nightly window (features/wifi.md, RF planner: Apply; D-113, D-116).
     RadioRestart,
+    /// Upgrading a node's firmware: the image staged and checked, sysupgrade keeping the
+    /// configuration, the node back and checked against its health before (features/lifecycle.md,
+    /// Firmware; D-015, D-124).
+    Upgrade,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -224,6 +228,12 @@ pub enum StepName {
     /// Restart each node's radios that run another channel than saved, one node at a time,
     /// until netifd runs the saved one (D-116).
     Restart,
+    /// Run sysupgrade with the staged image, keeping the configuration (the upgrade's, D-124).
+    Flash,
+    /// Wait for the node to go down and come back up with the new image.
+    Reboot,
+    /// Watch the upgraded node for a while: still reachable and as healthy as before.
+    Soak,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -277,6 +287,9 @@ pub enum JobErrorCode {
     NoInternet,
     /// Something failed in the controller; its log has the cause.
     Internal,
+    /// The node didn't come back after its firmware was flashed (D-124): recover it by hand
+    /// (failsafe mode, TFTP).
+    NotBack,
 }
 
 #[cfg(test)]

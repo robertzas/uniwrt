@@ -281,6 +281,7 @@ export function UpdatesPage() {
               releases={row().releases}
               repo={row().firmware.repo}
               source={row().firmware.source}
+              managed={row().node?.mode === "managed"}
             />
           )}
         </Show>

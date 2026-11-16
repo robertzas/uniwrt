@@ -161,20 +161,36 @@ impl Http {
         max: u64,
         to: &std::path::Path,
     ) -> Result<Downloaded, Error> {
-        tokio::time::timeout(DOWNLOAD_TIMEOUT, self.download_within(url, max, to))
-            .await
-            .map_err(|_| Error::Unreachable {
-                url: url.to_owned(),
-                why: format!(
-                    "not downloaded within {} min",
-                    DOWNLOAD_TIMEOUT.as_secs() / 60
-                ),
-            })?
+        self.download_with(url, &[], max, to).await
+    }
+
+    /// [`Self::download`] with `headers` sent to `url` only, never after a redirect: a token
+    /// for GitHub's API must not reach the storage it redirects to.
+    pub(crate) async fn download_with(
+        &self,
+        url: &str,
+        headers: &[(HeaderName, HeaderValue)],
+        max: u64,
+        to: &std::path::Path,
+    ) -> Result<Downloaded, Error> {
+        tokio::time::timeout(
+            DOWNLOAD_TIMEOUT,
+            self.download_within(url, headers, max, to),
+        )
+        .await
+        .map_err(|_| Error::Unreachable {
+            url: url.to_owned(),
+            why: format!(
+                "not downloaded within {} min",
+                DOWNLOAD_TIMEOUT.as_secs() / 60
+            ),
+        })?
     }
 
     async fn download_within(
         &self,
         url: &str,
+        headers: &[(HeaderName, HeaderValue)],
         max: u64,
         to: &std::path::Path,
     ) -> Result<Downloaded, Error> {
@@ -187,14 +203,20 @@ impl Http {
         let plain = url.starts_with("http://");
         let mut at = url.to_owned();
         let response = 'redirects: {
-            for _ in 0..=MAX_REDIRECTS {
+            for hop in 0..=MAX_REDIRECTS {
                 let uri: Uri = at
                     .parse()
                     .map_err(|_| Error::Invalid(format!("{at} is not a URL")))?;
-                let request = Request::builder()
+                let mut request = Request::builder()
                     .uri(uri)
                     .header(USER_AGENT, self.user_agent.clone())
-                    .header(ACCEPT, "application/octet-stream")
+                    .header(ACCEPT, "application/octet-stream");
+                if hop == 0 {
+                    for (name, value) in headers {
+                        request = request.header(name, value);
+                    }
+                }
+                let request = request
                     .body(Full::new(Bytes::new()))
                     .map_err(|err| Error::Invalid(err.to_string()))?;
                 let response = self

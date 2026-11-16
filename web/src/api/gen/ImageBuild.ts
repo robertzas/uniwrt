@@ -27,4 +27,8 @@ error: string | null,
  * The images once [`ImageBuildState::Done`]: the factory image (from a vendor's
  * firmware) and the sysupgrade one (from OpenWrt) first.
  */
-images: Array<FirmwareImage>, };
+images: Array<FirmwareImage>, 
+/**
+ * The release the images are of, as ASU tells it once done (`version_number`).
+ */
+release: string | null, };

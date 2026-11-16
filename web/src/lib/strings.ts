@@ -341,7 +341,7 @@ export const strings = {
     dialog: {
       title: (name: string) => `Upgrade ${name}`,
       description:
-        "uniwrt works out what the upgrade holds: your packages carried over (renamed where OpenWrt renamed them) with the mesh essentials, or an image of yours (uploaded, or from GitHub) as it is. Nothing changes on the device.",
+        "uniwrt works out what the upgrade holds: your packages carried over (renamed where OpenWrt renamed them) with the mesh essentials, or an image of yours (uploaded, or from GitHub) as it is. Nothing changes on the device until you install it.",
       release: "Release",
       reading: "Reading the device's packages…",
       read: (when: string) => `Packages read at ${when}.`,
@@ -359,8 +359,7 @@ export const strings = {
       tight: "Little room in /tmp for the image: the upgrade may fail. Free some memory first.",
       build: "Build the image",
       building: "Asking ASU…",
-      ready:
-        "The image is ready. Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
+      ready: "The image is ready to install.",
       again: "Try again",
       close: "Close",
       image: "Image",
@@ -392,8 +391,21 @@ export const strings = {
       githubFiles: (repo: string) => `The release's images on ${repo}`,
       githubNote:
         "Flashed as it is: your build, with the packages you built it with. The device keeps its settings.",
-      later:
-        "Installing upgrades from uniwrt comes in a later version: until then, flash the sysupgrade image from LuCI (System → Backup / Flash Firmware) and keep the settings.",
+      install: "Install",
+      installNow: "Install now",
+      installing: "Starting…",
+      cancel: "Cancel",
+      confirm: (name: string) =>
+        `${name} restarts with the new firmware and is offline for a few minutes: its clients reconnect to the other devices, or wait. Its settings are kept, and backed up on the controller first.`,
+      confirmPackages:
+        "Its packages are installed once it is back, from OpenWrt's feeds: it needs internet access then.",
+      confirmSoak:
+        "uniwrt checks the image on the device before writing it, then checks the device against how it was before and watches it for 3 minutes.",
+      observe:
+        "The device is in observe mode, so uniwrt doesn't change it. Turn its management on to install upgrades from here.",
+      running: "Upgrading: you can close this window, the upgrade goes on.",
+      done: (name: string) => `${name} is upgraded`,
+      failed: (name: string) => `${name}'s upgrade failed`,
     },
     uploads: {
       title: "Uploaded images",
@@ -476,6 +488,7 @@ export const strings = {
       speed_test: (target: string) => `Measuring the internet speed from ${target}`,
       wpad: (target: string) => `Installing the full wpad on ${target}`,
       radio_restart: (target: string) => `Restarting ${target}`,
+      upgrade: (target: string) => `Upgrading ${target}`,
     },
     step: {
       connect: "Log in",
@@ -516,6 +529,9 @@ export const strings = {
       prepare: "Bring the mesh's packages",
       configure: "Set it up on the LAN",
       restart: "Restart the radios, one device at a time",
+      flash: "Write the image, keeping the settings",
+      reboot: "Restart and come back",
+      soak: "Watch it for a few minutes",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -538,6 +554,14 @@ export const strings = {
         record: "Grade the line",
       },
       wpad: { verify: "Find 802.11v" },
+      upgrade: {
+        check: "Check the device and pick its image",
+        download: "Download the image",
+        stage: "Copy it to the device and test it",
+        install: "Install its packages",
+        verify: "Check it against before",
+        record: "Read its packages again",
+      },
     } as Partial<Record<JobKind, Partial<Record<StepName, string>>>>,
     stepState: {
       pending: "Waiting",
@@ -610,6 +634,11 @@ export const strings = {
       partial_apply: {
         title: "The changes applied only in part",
         hint: "Some devices confirmed them and others rolled back. Keep them, or apply the previous revision.",
+        action: "Close",
+      },
+      not_back: {
+        title: "The device didn't come back",
+        hint: "Its settings are backed up on the controller. Check it on the spot; if it doesn't boot, recover it with its failsafe mode or TFTP recovery.",
         action: "Close",
       },
     },
@@ -1710,6 +1739,7 @@ export const strings = {
         speed_test: "measuring the internet speed",
         wpad: "installing the full wpad",
         radio_restart: "restarting radios after a channel switch",
+        upgrade: "upgrading the firmware",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,

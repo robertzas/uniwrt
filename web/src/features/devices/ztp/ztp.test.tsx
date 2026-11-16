@@ -398,6 +398,7 @@ describe("Waiting for adoption", () => {
       step: null,
       error: null,
       images: [],
+      release: null,
     };
     const calls = stubApi({
       "GET /api/v1/ztp/pending": () => ({ pending: [], approvals: [] }),

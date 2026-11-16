@@ -100,6 +100,7 @@ import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
 import type { UpgradeBody } from "../api/gen/UpgradeBody";
+import type { UpgradeInstallBody } from "../api/gen/UpgradeInstallBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import type { UserInfo } from "../api/gen/UserInfo";
 import type { Wall } from "../api/gen/Wall";
@@ -631,6 +632,11 @@ export const api = {
       get: (hash: string, signal?: AbortSignal) =>
         request<ImageBuild>(`/firmware/builds/${encodeURIComponent(hash)}`, { signal }),
     },
+    /**
+     * Starts upgrading a managed node with a prepared image (D-124); the job follows on `jobs`.
+     */
+    install: (node: number, body: UpgradeInstallBody) =>
+      request<Job>(`/firmware/nodes/${node}/install`, { method: "POST", body }),
     /** Uploaded images (D-122), listed by the catalog; the file is sent as is. */
     uploads: {
       create: (file: File) =>

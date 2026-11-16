@@ -97,6 +97,8 @@ pub struct ApplyTiming {
     /// How far ahead the mesh's synchronized cutover sets the instant every node reloads at:
     /// time for every node to snapshot, install and answer (D-114).
     pub cutover_lead: Duration,
+    /// How patiently a firmware upgrade waits on its node (D-124).
+    pub upgrade: crate::UpgradeTiming,
 }
 
 impl Default for ApplyTiming {
@@ -109,6 +111,7 @@ impl Default for ApplyTiming {
             timer_uplink: Duration::from_secs(300),
             wan_wait: Duration::from_secs(60),
             cutover_lead: Duration::from_secs(15),
+            upgrade: crate::UpgradeTiming::default(),
         }
     }
 }

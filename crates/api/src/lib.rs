@@ -40,7 +40,8 @@
 //!   `POST v1/firmware/nodes/{id}/plan` ([`PlanBody`]) and `…/builds` ([`UpgradeBody`]), `GET
 //!   v1/firmware/builds/{hash}`; D-121; uploaded images, `POST v1/firmware/uploads` and `DELETE
 //!   …/uploads/{sha256}`, D-122; GitHub sources, `PUT v1/firmware/sources` ([`SourcesBody`]) and
-//!   `PUT v1/firmware/nodes/{id}/source`, D-122), the controller's own update (`GET` and `POST
+//!   `PUT v1/firmware/nodes/{id}/source`, D-122; installing a prepared upgrade, `POST
+//!   v1/firmware/nodes/{id}/install` ([`UpgradeInstallBody`]), D-124), the controller's own update (`GET` and `POST
 //!   v1/controller/update`, `PUT …/update/settings`, through [`controller_update::SelfUpdate`];
 //!   D-123), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
@@ -113,6 +114,9 @@ mod drift;
 mod events;
 mod firmware;
 mod firmware_github;
+mod firmware_install;
+#[cfg(test)]
+mod firmware_install_tests;
 mod firmware_sources;
 #[cfg(test)]
 mod firmware_sources_tests;
@@ -174,6 +178,7 @@ pub use clients::{ClientDetail, ClientPatch};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use firmware::{PlanBody, UpgradeBody};
+pub use firmware_install::UpgradeInstallBody;
 pub use firmware_sources::{SourcesBody, TokenChange};
 pub use health::BuildInfo;
 pub use import::{DriftTarget, ImportAccept, ImportRequest};

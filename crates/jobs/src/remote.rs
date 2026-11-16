@@ -8,8 +8,8 @@ use serde_json::value::RawValue;
 
 use tokio::sync::{OnceCell, broadcast};
 use uniwrt_node::{
-    Agent, AgentLaunch, Credential, ExecOutput, ExecRequest, HELLO_TIMEOUT, HostKey, Result,
-    Session, SshConfig, Target,
+    Agent, AgentLaunch, Credential, ExecOutput, ExecRequest, ExecStream, HELLO_TIMEOUT, HostKey,
+    Result, Session, SshConfig, Target,
     proto::ops::{Collect, Collected, Op, Set},
 };
 
@@ -60,6 +60,17 @@ pub trait Remote: Send + Sync {
         Box::pin(async move {
             Err(uniwrt_node::Error::Protocol(format!(
                 "this login can't call the agent's {op}"
+            )))
+        })
+    }
+
+    /// Starts `argv` with its stdin written as it goes: a file streamed to the node (the
+    /// upgrade's image, D-124). Logins that can't stream answer [`uniwrt_node::Error::Protocol`].
+    fn stream<'a>(&'a self, argv: &'a [String]) -> BoxFuture<'a, Result<ExecStream>> {
+        Box::pin(async move {
+            Err(uniwrt_node::Error::Protocol(format!(
+                "this login can't stream to {}",
+                argv.first().map_or("", String::as_str)
             )))
         })
     }
@@ -181,6 +192,10 @@ impl Remote for SshRemote {
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Box<RawValue>>> {
         Box::pin(async move { self.agent().await?.call(op, args, timeout).await })
+    }
+
+    fn stream<'a>(&'a self, argv: &'a [String]) -> BoxFuture<'a, Result<ExecStream>> {
+        Box::pin(self.session.stream(argv))
     }
 
     fn dial(&self) -> Option<Arc<dyn Dial>> {

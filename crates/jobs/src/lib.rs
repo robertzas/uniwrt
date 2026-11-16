@@ -15,7 +15,9 @@
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
 //!   [`Jobs::read_packages`] reads a node's packages again and keeps them (M7.1a1, before an
-//!   upgrade is planned; observe mode too);
+//!   upgrade is planned; observe mode too); [`Jobs::upgrade`] upgrades a managed node's
+//!   firmware with an [`UpgradeRequest`] (D-124: its images, what to install after, and a
+//!   [`FetchImage`] that puts the image on the controller's disk; [`UpgradeTiming`]);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -70,6 +72,16 @@
 //!   host key of dropbear servers and of hosts named `OpenWrt` or `uniwrt-*`; never a login),
 //!   4 at a time, each result held 10 minutes. Reported: dropbear servers, those names, and mesh
 //!   originators none of whose devices is reported (with no address).
+//! - **Upgrade** steps (`upgrade/`, D-124): connect → check (the release the plan was made for,
+//!   no open transaction, the image that fits its firmware and root file system, room in `/tmp`;
+//!   the health baseline) → backup (sealed and kept) → download (onto the controller) → stage
+//!   (streamed into `/tmp` through `dd`, its SHA-256 read back, `sysupgrade -T`) → flash
+//!   (sysupgrade keeping the configuration; the lost login is expected) → reboot (down, then a
+//!   login again within 10 min, the pinned host key required) → install (an official image's
+//!   packages; failures are warnings; the full wpad through the swap) → verify (the release, the
+//!   transaction tool, the baseline met again) → soak (3 min, no new error patterns in its log)
+//!   → record (its packages). A failure before the flash deletes the staged image; after it,
+//!   nothing rolls back and the error says so.
 //! - **Invariants:** nothing on a node changes before every check passed, and in observe mode
 //!   only `authorized_keys` changes, and root's password where it had none (directive 8); the agent runs from `/tmp`. The node must
 //!   present the host key the user confirmed. One job at a time per target. Each change of a
@@ -107,6 +119,7 @@ mod runner;
 mod speed_test;
 #[cfg(test)]
 mod testing;
+mod upgrade;
 mod wan_test;
 mod wpad;
 mod ztp;
@@ -118,6 +131,7 @@ pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use runner::{Jobs, JobsConfig, Watch};
 pub use speed_test::SpeedTestRequest;
+pub use upgrade::{FetchImage, UpgradeRequest, UpgradeTiming};
 pub use wan_test::WanTest;
 pub use ztp::ZtpScript;
 

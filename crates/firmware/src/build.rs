@@ -45,6 +45,8 @@ struct Answer {
     #[serde(default)]
     bin_dir: Option<String>,
     #[serde(default)]
+    version_number: Option<String>,
+    #[serde(default)]
     images: Vec<Image>,
 }
 
@@ -109,6 +111,7 @@ pub(crate) fn answer(
         step: None,
         error: None,
         images: Vec::new(),
+        release: None,
     };
     match status {
         200 => {
@@ -141,6 +144,9 @@ pub(crate) fn answer(
             } else {
                 build.state = ImageBuildState::Done;
                 build.images = images;
+                build.release = answer
+                    .version_number
+                    .filter(|version| crate::release::Version::parse(version).is_some());
             }
         }
         202 if detail.as_deref() == Some("queued") => {

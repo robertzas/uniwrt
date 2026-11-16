@@ -7,6 +7,7 @@ import type { FirmwareCatalog } from "../../api/gen/FirmwareCatalog";
 import type { FirmwareUpload } from "../../api/gen/FirmwareUpload";
 import type { GitHubRelease } from "../../api/gen/GitHubRelease";
 import type { ImageBuild } from "../../api/gen/ImageBuild";
+import type { Job } from "../../api/gen/Job";
 import type { NodeFirmware } from "../../api/gen/NodeFirmware";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { createAppRouter } from "../../app/routes";
@@ -140,6 +141,7 @@ const withGitHub: FirmwareCatalog = {
 
 const done: ImageBuild = {
   hash: "0123456789abcdef",
+  release: "25.12.6",
   state: "done",
   queue_position: null,
   step: null,
@@ -185,7 +187,45 @@ function stubApi(routes: Record<string, Route>) {
   return calls;
 }
 
-function renderUpdates(role: "admin" | "viewer" = "admin", path = "/updates") {
+const UPGRADE_STEPS = [
+  "connect",
+  "check",
+  "backup",
+  "download",
+  "stage",
+  "flash",
+  "reboot",
+  "install",
+  "verify",
+  "soak",
+  "record",
+] as const;
+
+/** Office's upgrade job, `done` steps in. */
+function upgradeJob(state: Job["state"], done: number): Job {
+  return {
+    id: 21,
+    kind: "upgrade",
+    target: "Office to 25.12.6",
+    node: 2,
+    revision: null,
+    state,
+    steps: UPGRADE_STEPS.map((name, i) => ({
+      name,
+      state: i < done ? "done" : i === done && state === "running" ? "running" : "pending",
+      detail: null,
+      started_at: null,
+      finished_at: null,
+    })),
+    nodes: [],
+    error: null,
+    created_by: 1,
+    started_at: 1,
+    finished_at: state === "running" ? null : 2,
+  };
+}
+
+function renderUpdates(role: "admin" | "viewer" = "admin", path = "/updates", managed = false) {
   const { socket, ws } = openTestSocket();
   const Router = createAppRouter(memoryHistory(path));
   render(() => (
@@ -199,10 +239,11 @@ function renderUpdates(role: "admin" | "viewer" = "admin", path = "/updates") {
   ));
   sendFleet(ws, [
     summary(1, "Gateway", { role: "gateway" }),
-    summary(2, "Office"),
+    summary(2, "Office", { mode: managed ? "managed" : "observe" }),
     summary(3, "Lab"),
   ]);
   ws.receive({ type: "jobs_snapshot", topic: "jobs", jobs: [] });
+  return ws;
 }
 
 describe("Updates", () => {
@@ -263,6 +304,71 @@ describe("Updates", () => {
     expect(within(images).getAllByRole("listitem")).toHaveLength(1);
     expect(within(images).getByText("openwrt-squashfs-sysupgrade.bin")).toBeTruthy();
     expect(within(dialog).queryByRole("button", { name: "Build the image" })).toBeNull();
+  });
+
+  it("installs the built image on a managed device once asked, and follows the job", async () => {
+    const user = userEvent.setup();
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => catalog,
+      "POST /api/v1/firmware/nodes/2/plan": (body) => plan((body as { release: string }).release),
+      "POST /api/v1/firmware/nodes/2/builds": () => ({ packages: [], build: done }),
+      "POST /api/v1/firmware/nodes/2/install": () => upgradeJob("running", 2),
+    });
+    const ws = renderUpdates("admin", "/updates?node=2", true);
+    const dialog = await screen.findByRole("dialog", { name: "Upgrade Office" }, { timeout: 2000 });
+    await user.click(await within(dialog).findByRole("radio", { name: /25\.12\.6/ }));
+    await within(dialog).findByText("opkg → apk-mbedtls");
+    // ASU's image first: no Install before it is built.
+    expect(within(dialog).queryByRole("button", { name: "Install" })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Build the image" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Install" }));
+    const asked = within(dialog).getByText(/Office restarts with the new firmware/);
+    expect(asked).toBeTruthy();
+    expect(calls.some(([key]) => key.endsWith("/install"))).toBe(false);
+
+    await user.click(within(dialog).getByRole("button", { name: "Install now" }));
+    expect(calls).toContainEqual([
+      "POST /api/v1/firmware/nodes/2/install",
+      { source: "asu", release: "25.12.6", build: done.hash },
+    ]);
+    const steps = await within(dialog).findByRole("list", { name: "Upgrading Office to 25.12.6" });
+    expect(within(steps).getByText("Write the image, keeping the settings")).toBeTruthy();
+    expect(within(dialog).getByText(/you can close this window/)).toBeTruthy();
+    expect(
+      within(dialog)
+        .queryByRole("radio", { name: /24\.10\.8/ })
+        ?.hasAttribute("disabled"),
+    );
+
+    ws.receive({ type: "jobs_delta", topic: "jobs", jobs: [upgradeJob("succeeded", 11)] });
+    await within(dialog).findByText("Office is upgraded", { selector: "p" });
+    expect(within(dialog).queryByRole("button", { name: "Install" })).toBeNull();
+  });
+
+  it("never installs on a device in observe mode", async () => {
+    const user = userEvent.setup();
+    const calls = stubApi({
+      "GET /api/v1/firmware": () => catalog,
+      "POST /api/v1/firmware/nodes/2/plan": (body) => ({
+        ...plan((body as { release: string }).release),
+        source: (body as { source: UpgradePlan["source"] }).source,
+      }),
+    });
+    renderUpdates("admin", "/updates?node=2", false);
+    const dialog = await screen.findByRole("dialog", { name: "Upgrade Office" }, { timeout: 2000 });
+    await within(dialog).findByText("2 of your packages carried over");
+    // The official image needs no build: Install shows, but stays off.
+    await user.click(within(dialog).getByRole("button", { name: "Official image" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual([
+        "POST /api/v1/firmware/nodes/2/plan",
+        { source: "official", release: "24.10.8" },
+      ]),
+    );
+    const install = await within(dialog).findByRole("button", { name: "Install" });
+    expect(install.hasAttribute("disabled")).toBe(true);
+    expect(within(dialog).getByText(/is in observe mode/)).toBeTruthy();
+    expect(calls.some(([key]) => key.endsWith("/install"))).toBe(false);
   });
 
   it("opens a device's upgrade from its link, and closing it forgets the link", async () => {

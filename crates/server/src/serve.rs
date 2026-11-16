@@ -216,6 +216,8 @@ async fn listen(
 
 /// The uploaded firmware images' directory in the data dir (D-122).
 const UPLOADS: &str = "firmware";
+/// The images downloaded to flash (D-124), in the state directory.
+const IMAGES: &str = "images";
 
 /// ASU at `url`, unless it is `off`.
 fn asu(url: &str) -> anyhow::Result<Option<uniwrt_firmware::Asu>> {
@@ -247,8 +249,13 @@ async fn start_api(
     let uploads = uniwrt_firmware::Uploads::open(state_dir.join(UPLOADS))
         .await
         .context("cannot open the uploaded firmware images")?;
+    let client = format!("uniwrt/{}", build_info::VERSION);
+    let images = uniwrt_firmware::ImageCache::open(state_dir.join(IMAGES), &client)
+        .await
+        .context("cannot open the firmware images' cache")?;
     let api = Api::new(ApiConfig {
         uploads: Some(uploads),
+        images: Some(images),
         alerts: fleet.alerts(),
         notify: fleet.notify(),
         rf: fleet.rf(),

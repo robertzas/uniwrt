@@ -8,6 +8,7 @@ import type { NodeFirmware } from "../api/gen/NodeFirmware";
 import type { NodeSource } from "../api/gen/NodeSource";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import type { PlanBody } from "../api/gen/PlanBody";
+import type { UpgradeInstallBody } from "../api/gen/UpgradeInstallBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import { api, errorText } from "./api";
 
@@ -103,6 +104,22 @@ export function planBody(choice: ImageChoice, official: boolean): PlanBody {
   if (choice.kind === "upload") return { source: "upload", sha256: choice.sha256 };
   if (choice.kind === "github") return { source: "github", release: choice.tag };
   return { source: official ? "official" : "asu", release: choice.release };
+}
+
+/**
+ * What installs a choice (D-124): an OpenWrt release built by ASU needs its finished `build` (its
+ * hash); `undefined` until it is done.
+ */
+export function installBody(
+  choice: ImageChoice,
+  official: boolean,
+  build: ImageBuild | undefined,
+): UpgradeInstallBody | undefined {
+  if (choice.kind !== "release") return planBody(choice, official) as UpgradeInstallBody;
+  if (official) return { source: "official", release: choice.release };
+  return build?.state === "done"
+    ? { source: "asu", release: choice.release, build: build.hash }
+    : undefined;
 }
 
 /** How an OpenWrt release is planned first: as the node's source says (ASU unless official). */

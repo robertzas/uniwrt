@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FirmwareOffer } from "../api/gen/FirmwareOffer";
 import type { FirmwareUpload } from "../api/gen/FirmwareUpload";
 import type { GitHubRelease } from "../api/gen/GitHubRelease";
+import type { ImageBuild } from "../api/gen/ImageBuild";
 import type { NodeFirmware } from "../api/gen/NodeFirmware";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
@@ -9,6 +10,7 @@ import {
   defaultOffer,
   firmwareRows,
   firmwareState,
+  installBody,
   openwrtSource,
   planBody,
   preparable,
@@ -116,6 +118,40 @@ describe("firmwareRows", () => {
     expect(rows[1]?.uploads.map((u) => u.sha256)).toEqual(["b"]);
     expect(rows.map(preparable)).toEqual([false, true, true, true]);
     expect(rows[3]?.state).toBe("listed");
+  });
+});
+
+describe("installBody", () => {
+  it("installs ASU's image once built, the others as planned", () => {
+    const release = { kind: "release" as const, release: "25.12.6" };
+    const build = (state: ImageBuild["state"]): ImageBuild => ({
+      hash: "0123",
+      state,
+      queue_position: null,
+      step: null,
+      error: null,
+      images: [],
+      release: null,
+    });
+    expect(installBody(release, false, undefined)).toBeUndefined();
+    expect(installBody(release, false, build("building"))).toBeUndefined();
+    expect(installBody(release, false, build("done"))).toEqual({
+      source: "asu",
+      release: "25.12.6",
+      build: "0123",
+    });
+    expect(installBody(release, true, undefined)).toEqual({
+      source: "official",
+      release: "25.12.6",
+    });
+    expect(installBody({ kind: "upload", sha256: "ab" }, false, undefined)).toEqual({
+      source: "upload",
+      sha256: "ab",
+    });
+    expect(installBody({ kind: "github", tag: "v2" }, false, undefined)).toEqual({
+      source: "github",
+      release: "v2",
+    });
   });
 });
 

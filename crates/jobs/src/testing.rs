@@ -3,7 +3,10 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
@@ -15,7 +18,9 @@ use uniwrt_model::{
     node::Node,
 };
 use uniwrt_node::{
-    ControllerKey, Credential, ExecOutput, ExecRequest, ExitStatus, HostKey, Result, Target,
+    ControllerKey, Credential, ExecOutput, ExecRequest, ExecStream, ExitStatus, HostKey, Output,
+    Result, Target,
+    exec::StreamSource,
     proto::ops::{Collected, Set},
     txn::{self, Footprint},
 };
@@ -58,6 +63,10 @@ pub(crate) struct FakeNode {
     pub(crate) behind: Mutex<Option<Arc<FakeNode>>>,
     /// Other nodes a [`FakeDial`] of this one reaches, by host.
     pub(crate) hosts: Mutex<BTreeMap<String, Arc<FakeNode>>>,
+    /// The files `dd of=<path>` wrote from a stream (an upgrade's image).
+    pub(crate) files: Mutex<BTreeMap<String, Vec<u8>>>,
+    /// How many banner reads and logins fail before the node answers again (it reboots).
+    pub(crate) down: AtomicU32,
 }
 
 /// A test's answers to commands, by argv.
@@ -79,6 +88,8 @@ impl FakeNode {
             collected: Mutex::default(),
             behind: Mutex::default(),
             hosts: Mutex::default(),
+            files: Mutex::default(),
+            down: AtomicU32::new(0),
         })
     }
 
@@ -87,6 +98,15 @@ impl FakeNode {
         let node = Self::new();
         node.password.lock().unwrap().clear();
         node
+    }
+
+    /// Whether the node is down: counts one try of reaching it.
+    fn is_down(&self) -> bool {
+        self.down
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                left.checked_sub(1)
+            })
+            .is_ok()
     }
 
     pub(crate) fn commands(&self) -> Vec<String> {
@@ -185,8 +205,16 @@ impl FakeDial {
 }
 
 impl Dial for FakeDial {
-    fn banner<'a>(&'a self, _target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
-        Box::pin(async { Ok(Some("SSH-2.0-dropbear_2024.86".to_owned())) })
+    fn banner<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<Option<String>>> {
+        Box::pin(async move {
+            if self.at(target).0.is_down() {
+                return Err(uniwrt_node::Error::Connect {
+                    target: target.to_string(),
+                    source: std::io::Error::from(std::io::ErrorKind::ConnectionRefused),
+                });
+            }
+            Ok(Some("SSH-2.0-dropbear_2024.86".to_owned()))
+        })
     }
 
     fn probe<'a>(&'a self, target: &'a Target) -> BoxFuture<'a, Result<HostKey>> {
@@ -204,6 +232,12 @@ impl Dial for FakeDial {
             let gate = this.0.gate.lock().unwrap().clone();
             if let Some(gate) = gate {
                 gate.notified().await;
+            }
+            if this.0.is_down() {
+                return Err(uniwrt_node::Error::Connect {
+                    target: target.to_string(),
+                    source: std::io::Error::from(std::io::ErrorKind::ConnectionRefused),
+                });
             }
             if *host_key != this.0.host_key {
                 return Err(uniwrt_node::Error::HostKeyMismatch {
@@ -261,6 +295,29 @@ impl Remote for FakeRemote {
         Box::pin(async {
             let collected = self.0.collected.lock().unwrap().clone();
             Ok(serde_json::from_str(collected.as_deref().unwrap_or(COLLECTED)).unwrap())
+        })
+    }
+
+    fn stream<'a>(&'a self, argv: &'a [String]) -> BoxFuture<'a, Result<ExecStream>> {
+        Box::pin(async move {
+            let path = match argv {
+                [dd, of, ..] if dd == "dd" => of.strip_prefix("of=").map(str::to_owned),
+                _ => None,
+            }
+            .ok_or_else(|| uniwrt_node::Error::Protocol(format!("can't stream to {argv:?}")))?;
+            self.0.commands.lock().unwrap().push(argv.to_vec());
+            let (stream, source) = uniwrt_node::exec::pipe("dd", 1 << 20);
+            let node = Arc::clone(&self.0);
+            tokio::spawn(async move {
+                let StreamSource { mut stdin, output } = source;
+                let mut written = Vec::new();
+                while let Some(data) = stdin.next().await {
+                    written.extend_from_slice(&data);
+                }
+                node.files.lock().unwrap().insert(path, written);
+                output.push(Output::Exit(ExitStatus::Code(0)));
+            });
+            Ok(stream)
         })
     }
 

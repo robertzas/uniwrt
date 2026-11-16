@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
-use uniwrt_firmware::{Asu, GitHub, Uploads};
+use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
 use uniwrt_jobs::Jobs;
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
@@ -43,6 +43,8 @@ pub struct ApiConfig {
     pub uploads: Option<Uploads>,
     /// GitHub's API, whose releases are image sources (D-122); without it, they answer 503.
     pub github: Option<GitHub>,
+    /// The images downloaded to flash (D-124); without it, installs answer 503.
+    pub images: Option<ImageCache>,
     /// The controller's own install (D-123); without it, `v1/controller/update` answers 503.
     pub self_update: Option<crate::controller_update::Updater>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
@@ -79,6 +81,7 @@ impl ApiConfig {
             asu: None,
             uploads: None,
             github: None,
+            images: None,
             self_update: None,
             vault: None,
             first_site: None,
@@ -109,6 +112,7 @@ struct Inner {
     asu: Option<Asu>,
     uploads: Option<Uploads>,
     github: Option<GitHub>,
+    images: Option<ImageCache>,
     self_update: Option<crate::controller_update::Updater>,
     vault: Option<Vault>,
     passwords: Passwords,
@@ -160,6 +164,7 @@ impl Api {
                 asu: config.asu,
                 uploads: config.uploads,
                 github: config.github,
+                images: config.images,
                 self_update: config.self_update,
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
@@ -308,6 +313,13 @@ impl Api {
             .github
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("GitHub sources are off".to_owned()))
+    }
+
+    pub(crate) fn images(&self) -> Result<&ImageCache, ApiError> {
+        self.inner
+            .images
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("Firmware installs are off".to_owned()))
     }
 
     pub(crate) fn bans(&self) -> Result<&Bans, ApiError> {

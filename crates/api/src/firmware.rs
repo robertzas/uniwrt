@@ -19,6 +19,7 @@
 //!   admins: reads the packages again and asks ASU for that image (no first-boot script: the
 //!   upgrade keeps the configuration). Audited (`firmware`).
 //! - `GET /api/v1/firmware/builds/{hash}` ([`ImageBuild`]): how a build stands.
+//! - `POST /api/v1/firmware/nodes/{id}/install`: `firmware_install.rs` (M7.1c1, D-124).
 
 use std::collections::BTreeMap;
 
@@ -54,6 +55,10 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/firmware/nodes/{id}/plan", post(plan))
         .route("/v1/firmware/nodes/{id}/builds", post(build))
         .route("/v1/firmware/builds/{hash}", get(status))
+        .route(
+            "/v1/firmware/nodes/{id}/install",
+            post(crate::firmware_install::install),
+        )
         .merge(crate::firmware_uploads::routes())
         .merge(crate::firmware_sources::routes())
 }
@@ -205,7 +210,7 @@ pub(crate) async fn plan(
 }
 
 /// An uploaded image's plan: it must fit the node; it is flashed as it is, so nothing is read.
-async fn upload_plan(
+pub(crate) async fn upload_plan(
     api: &Api,
     id: Result<Path<i64>, PathRejection>,
     sha256: &str,
@@ -312,7 +317,7 @@ pub(crate) fn admin(user: &User) -> ApiResult<()> {
 
 /// The node, its facts and its packages read again, once `release` is known to be on offer for
 /// it (so nothing is read for a release it can't get).
-async fn read(
+pub(crate) async fn read(
     api: &Api,
     id: Result<Path<i64>, PathRejection>,
     release: &str,
@@ -350,7 +355,7 @@ async fn read(
 }
 
 /// The node and its facts.
-async fn node_facts(
+pub(crate) async fn node_facts(
     api: &Api,
     id: Result<Path<i64>, PathRejection>,
 ) -> ApiResult<(Node, std::sync::Arc<NodeFacts>)> {
@@ -369,7 +374,7 @@ async fn node_facts(
     Ok((node, facts))
 }
 
-fn upgrade<'a>(
+pub(crate) fn upgrade<'a>(
     node: NodeId,
     facts: &'a NodeFacts,
     inventory: &'a Inventory,

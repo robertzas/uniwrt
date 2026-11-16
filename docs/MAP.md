@@ -41,6 +41,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
 - `src/firmware.rs`: Firmware upgrades (features/lifecycle.md, M7.1a1; D-121):
 - `src/firmware_github.rs`: GitHub releases in the firmware catalog and plans (M7.1a2b, D-122): a node whose source is a GitHub repo (its own, or the site's) is offered the repo's newest releases with an image for it instead of OpenWrt's; its plan names the release's images, flashed as they are.
+- `src/firmware_install.rs`: Installing a prepared upgrade (M7.1c1, D-124): `POST /api/v1/firmware/nodes/{id}/install` ([`UpgradeInstallBody`]), for admins, starts the upgrade job on a managed node and answers 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it); 409 for a node in observe mode.
+- `src/firmware_install_tests.rs`: Installing a prepared upgrade through the router (D-124): the gates before a job starts (management, the build done and of its release, an upload that fits), and the job started and audited.
 - `src/firmware_sources.rs`: Where upgrade images come from (M7.1a2b, D-122), for admins; shown by `GET v1/firmware`:
 - `src/firmware_sources_tests.rs`: GitHub sources through the router (D-122), on the simulated fleet against the fake ASU and the fake GitHub: the site's repo, a node's own source, the token, and the GitHub plan.
 - `src/firmware_tests.rs`: Firmware upgrades through the router, on the simulated fleet against the fake ASU: the catalog per node, ASU off, and the plan's gates before anything is read from a node.
@@ -219,6 +221,8 @@ Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-1
 - `src/asu.rs`: The ASU client: OpenWrt's catalog, kept a while in memory, and zero-touch image builds.
 - `src/asu/upgrade.rs`: Upgrades (M7.1a1, D-121): the releases on offer for a node, what an upgrade image keeps of its packages, and the build.
 - `src/build.rs`: ASU's build API (pure): the request for a zero-touch image, and its answers read as an [`ImageBuild`].
+- `src/cache.rs`: Images to flash (M7.1c1, D-124): downloaded once into a directory of the data dir as `<sha256>.img`, kept only when they match the SHA-256 (and size) their source lists, and reused while kept: the newest [`MAX_CACHED`] stay, by last use.
+- `src/cache_tests.rs`: (no header comment)
 - `src/catalog.rs`: OpenWrt's catalog, as ASU and OpenWrt's download server describe it (pure): the releases a zero-touch image can be built for, the devices of a release, and one device's packages.
 - `src/controller/mod.rs`: The controller's own releases (D-121, D-123): the newest release of uniwrt's repo with a tarball for this binary's target ([`Releases::controller`]), and staging it ([`GitHub::stage_controller`]): the tarball downloaded and hashed, checked against GitHub's digest and against the release's Sigstore attestation, and its binary written next to the others as `uniwrt-<version>`.
 - `src/controller/tarball.rs`: One file out of a gzipped tarball (POSIX ustar or GNU, as CI's `tar` writes them; D-123): headers checked by their checksum, pax and long-name records skipped, nothing but the member asked for written.
@@ -351,6 +355,13 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/speed_test/run.rs`: The speed test's run: one login to the gateway, the script once per phase, and the result recorded.
 - `src/speed_test/tests.rs`: Speed tests over the scripted gateway, whose script answers as a 100/20 Mbit/s line would: 12 ms idle, more under load unless SQM shapes it.
 - `src/testing.rs`: A scripted node for the jobs' tests: a [`Dial`] that plays dropbear, the agent (from a capture of OpenWrt 24.10 in a container) and the transaction tool, and a temporary store.
+- `src/upgrade/after.rs`: The upgrade's steps once the node is back (D-124): an official image's packages, the checks against the baseline, the soak, and its packages recorded.
+- `src/upgrade/before.rs`: The upgrade's steps before anything changes (D-124): the checks, with the health baseline, and the backup.
+- `src/upgrade/flash.rs`: Staging and flashing the image, and waiting for the node to come back (D-124).
+- `src/upgrade/image.rs`: Which of an upgrade's image files fits the node (D-124): x86 boots a `combined` image with BIOS and a `combined-efi` one with EFI, and every node keeps its root's file system (squashfs or ext4; sysupgrade refuses neither, but the overlay or the data would be lost).
+- `src/upgrade/mod.rs`: Upgrading a node's firmware (features/lifecycle.md, Firmware & rolling upgrades; D-015, D-124).
+- `src/upgrade/packages.rs`: What an official image needs once it runs (D-122, D-124): the plan's packages it lacks installed, the defaults the node had removed removed again. wpads are never swapped by the package manager (they conflict, and the swap cuts a mesh node off): the full one goes in through the wpad swap (D-089).
+- `src/upgrade/tests.rs`: The upgrade over the scripted node of [`crate::testing`], adopted and managed: the image streamed into its files, sysupgrade scripted to take it down for a few tries and bring it back with the facts of the new release.
 - `src/wan_test/checks.rs`: What the connectivity test reads (features/wan.md, Connectivity test): the agent's facts for the link, the address, the route and IPv6, and commands on the gateway for the rest (`ping`, `nslookup`, `wget`, BusyBox's or uclient-fetch's).
 - `src/wan_test/gateway.rs`: The gateway as a WAN test holds it: what render needs, the trial's transaction, the facts the checks read and the commands they run.
 - `src/wan_test/mod.rs`: The WAN test (features/wan.md, Connectivity test; D-075): tries a WAN configuration on the gateway and always rolls it back, so the wizard knows before it saves.
@@ -876,7 +887,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (412 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (413 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -908,7 +919,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/settings/site/`: SiteTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `features/updates/`: ControllerCard.tsx, PlanView.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx
+- `features/updates/`: ControllerCard.tsx, PlanView.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx
 - `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, ScheduleField.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, entities.ts, events.ts, firmware.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, RadioCards.tsx, SavedRevision.tsx, Segmented.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Wordmark.tsx, tokens.css, uciDiff.ts

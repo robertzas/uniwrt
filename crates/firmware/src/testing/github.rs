@@ -3,7 +3,9 @@
 //! - `owner/images`: `v3` (a prerelease, the newest: the GL-MT6000), `v2` (the GL-MT6000 and
 //!   GL-MT3000 sysupgrade images, a factory image, checksums, an x86 image), `v1` (the
 //!   GL-MT6000 without a SHA-256), and a draft.
-//! - `owner/private`: one release, served only with the token [`TOKEN`]; else 404.
+//! - `owner/private`: one release, served only with the token [`TOKEN`]; else 404. Its asset
+//!   ([`PRIVATE_ASSET`], with its real SHA-256) downloads through the API with the token, which
+//!   redirects to a storage URL ([`FakeGitHub::storage_tokens`] tells what reached it).
 //! - `owner/limited`: the rate limit spent (403).
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -21,15 +23,19 @@ use super::SHA256;
 
 /// The token `owner/private` wants.
 pub const TOKEN: &str = "github_pat_test";
+/// The content of `owner/private`'s image.
+pub const PRIVATE_ASSET: &[u8] = b"a private sysupgrade image";
 
 /// The running fake. Dropping it stops it.
 pub struct FakeGitHub {
     url: String,
     seen: Seen,
+    storage: Seen,
     task: tokio::task::JoinHandle<()>,
 }
 
 type Seen = Arc<Mutex<Vec<(String, Option<String>)>>>;
+type FakeState = (String, Seen, Seen);
 
 impl FakeGitHub {
     pub async fn start() -> Self {
@@ -37,14 +43,21 @@ impl FakeGitHub {
             .await
             .expect("loopback");
         let url = format!("http://{}", listener.local_addr().expect("address"));
-        let seen = Seen::default();
+        let (seen, storage) = (Seen::default(), Seen::default());
         let app = Router::new()
             .route("/repos/{owner}/{repo}/releases", get(releases))
-            .with_state((url.clone(), Arc::clone(&seen)));
+            .route("/api/assets/{name}", get(api_asset))
+            .route("/storage/{name}", get(stored))
+            .with_state((url.clone(), Arc::clone(&seen), Arc::clone(&storage)));
         let task = tokio::spawn(async move {
             let _ = axum::serve(listener, app).await;
         });
-        Self { url, seen, task }
+        Self {
+            url,
+            seen,
+            storage,
+            task,
+        }
     }
 
     /// Its URL: GitHub's API's.
@@ -55,6 +68,16 @@ impl FakeGitHub {
     /// The repos asked for, each with the `Authorization` header sent.
     pub fn requests(&self) -> Vec<(String, Option<String>)> {
         self.seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+}
+
+impl FakeGitHub {
+    /// The assets the storage served, each with the `Authorization` header it got (never one).
+    pub fn storage_tokens(&self) -> Vec<(String, Option<String>)> {
+        self.storage
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
@@ -93,7 +116,7 @@ fn release(base: &str, tag: &str, published: Option<&str>, assets: &[Value]) -> 
 const MT6000: &str = "openwrt-25.12.6-mediatek-filogic-glinet_gl-mt6000-squashfs-sysupgrade.bin";
 
 async fn releases(
-    State((base, seen)): State<(String, Seen)>,
+    State((base, seen, _)): State<FakeState>,
     Path((owner, repo)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Response {
@@ -150,11 +173,14 @@ async fn releases(
         ]))
         .into_response(),
         ("owner", "private") if token.as_deref() == Some(&format!("Bearer {TOKEN}")) => {
+            let mut image = asset(b, "p1", MT6000, true);
+            image["size"] = json!(PRIVATE_ASSET.len());
+            image["digest"] = json!(format!("sha256:{}", sha256_hex(PRIVATE_ASSET)));
             Json(json!([release(
                 b,
                 "p1",
                 Some("2026-11-02T08:00:00Z"),
-                &[asset(b, "p1", MT6000, true)]
+                &[image]
             )]))
             .into_response()
         }
@@ -169,4 +195,47 @@ async fn releases(
             .into_response(),
         _ => (StatusCode::NOT_FOUND, Json(json!({"message": "Not Found"}))).into_response(),
     }
+}
+
+fn authorization(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    data_encoding::HEXLOWER.encode(ring::digest::digest(&ring::digest::SHA256, data).as_ref())
+}
+
+/// An asset through the API: with the token and asking for its bytes, a redirect to storage.
+async fn api_asset(
+    State((base, _, _)): State<FakeState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let token = authorization(&headers);
+    let octets = headers
+        .get("accept")
+        .is_some_and(|accept| accept == "application/octet-stream");
+    if token.as_deref() != Some(&format!("Bearer {TOKEN}")) || !octets {
+        return (StatusCode::NOT_FOUND, Json(json!({"message": "Not Found"}))).into_response();
+    }
+    (
+        StatusCode::FOUND,
+        [("location", format!("{base}/storage/{name}"))],
+    )
+        .into_response()
+}
+
+async fn stored(
+    State((_, _, storage)): State<FakeState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    storage
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push((name, authorization(&headers)));
+    PRIVATE_ASSET.into_response()
 }

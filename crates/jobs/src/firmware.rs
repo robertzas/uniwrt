@@ -11,6 +11,7 @@ use uniwrt_node::{ExecRequest, pkg};
 use uniwrt_store::InventoryRepo as _;
 
 use crate::{
+    Remote,
     errors::{internal, node_error},
     manage,
     runner::Shared,
@@ -23,6 +24,18 @@ pub(crate) async fn packages(
     manager: PackageManager,
 ) -> Result<Inventory, JobError> {
     let remote = manage::login(shared, node).await?;
+    let read = keep(shared, node, remote.as_ref(), manager).await;
+    remote.close().await;
+    read
+}
+
+/// Reads the installed packages over `remote` and keeps them (also after an upgrade, D-124).
+pub(crate) async fn keep(
+    shared: &Shared,
+    node: &Node,
+    remote: &dyn Remote,
+    manager: PackageManager,
+) -> Result<Inventory, JobError> {
     let mut outputs = Vec::new();
     for argv in pkg::inventory(manager) {
         let output = remote

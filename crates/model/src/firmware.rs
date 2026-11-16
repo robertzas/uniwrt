@@ -57,6 +57,8 @@ pub struct ImageBuild {
     /// The images once [`ImageBuildState::Done`]: the factory image (from a vendor's
     /// firmware) and the sysupgrade one (from OpenWrt) first.
     pub images: Vec<FirmwareImage>,
+    /// The release the images are of, as ASU tells it once done (`version_number`).
+    pub release: Option<String>,
 }
 
 /// An image of a finished build, downloaded from ASU's store.

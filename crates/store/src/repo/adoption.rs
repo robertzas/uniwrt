@@ -91,20 +91,29 @@ pub(crate) fn record(
         encoded.packages
     ])?;
     if let Some(backup) = backup {
-        conn.prepare_cached(
-            "INSERT INTO node_backups (node_id, taken_at, reason, size, sha256, alg, value)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )?
-        .execute(params![
-            node.get(),
-            backup.taken_at.as_unix_ms(),
-            enum_text(backup.reason),
-            backup.size,
-            backup.sha256,
-            ALG,
-            backup.value,
-        ])?;
+        insert_backup(conn, node, &backup)?;
     }
+    Ok(())
+}
+
+fn insert_backup(
+    conn: &rusqlite::Connection,
+    node: NodeId,
+    backup: &SealedBackup,
+) -> rusqlite::Result<()> {
+    conn.prepare_cached(
+        "INSERT INTO node_backups (node_id, taken_at, reason, size, sha256, alg, value)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )?
+    .execute(params![
+        node.get(),
+        backup.taken_at.as_unix_ms(),
+        enum_text(backup.reason),
+        backup.size,
+        backup.sha256,
+        ALG,
+        backup.value,
+    ])?;
     Ok(())
 }
 
@@ -150,6 +159,11 @@ impl InventoryRepo for Store {
             Ok(())
         })
         .await
+    }
+
+    async fn add_backup(&self, node: NodeId, backup: SealedBackup) -> Result<()> {
+        self.write(move |conn| Ok(insert_backup(conn, node, &backup)?))
+            .await
     }
 
     async fn backups(&self, node: NodeId) -> Result<Vec<Backup>> {
@@ -235,6 +249,20 @@ mod tests {
         let (backup, opened) = vault.open_backup(backups[0].id).await.unwrap().unwrap();
         assert_eq!(backup, backups[0]);
         assert_eq!(opened.as_slice(), tarball);
+        // Another backup (before an upgrade) comes first, and opens too.
+        let later = vault
+            .seal_backup(
+                BackupReason::Upgrade,
+                testing::START.saturating_add(std::time::Duration::from_secs(60)),
+                b"\x1f\x8b later",
+            )
+            .unwrap();
+        store.add_backup(node.id, later).await.unwrap();
+        let both = store.backups(node.id).await.unwrap();
+        assert_eq!(both.len(), 2);
+        assert_eq!(both[0].reason, BackupReason::Upgrade);
+        let (_, opened) = vault.open_backup(both[0].id).await.unwrap().unwrap();
+        assert_eq!(opened.as_slice(), b"\x1f\x8b later");
         assert!(
             vault
                 .open_backup(BackupId::new(99))
