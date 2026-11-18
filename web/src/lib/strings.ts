@@ -407,6 +407,108 @@ export const strings = {
       done: (name: string) => `${name} is upgraded`,
       failed: (name: string) => `${name}'s upgrade failed`,
     },
+    rollouts: {
+      title: "Rolling upgrades",
+      description:
+        "Upgrade several devices one at a time: an optional canary first, then the devices farthest from the gateway, the gateway last. A failure stops the rollout on that device.",
+      start: "Roll out upgrades",
+      oneAtATime: "One rollout at a time: finish or cancel the current one first.",
+      empty: "No rollouts yet.",
+      history: "History",
+      loading: "Reading the rollouts…",
+      state: {
+        running: "Running",
+        paused: "Paused",
+        halted: "Halted",
+        done: "Done",
+        cancelled: "Cancelled",
+      } as Record<string, string>,
+      nodeState: {
+        pending: "Waiting",
+        preparing: "Preparing the image",
+        upgrading: "Upgrading",
+        upgraded: "Upgraded",
+        failed: "Failed",
+        skipped: "Skipped",
+      } as Record<string, string>,
+      label: (id: number) => `Rollout #${id}`,
+      devices: (n: number) => `${n} ${n === 1 ? "device" : "devices"}`,
+      started: (when: string) => `Started ${when}`,
+      finished: (when: string) => `ended ${when}`,
+      canaryTag: "Canary",
+      canarySoak: (duration: string) => `The first device soaks ${duration} before the rest.`,
+      windowSpan: (from: string, to: string) => `Devices start only between ${from} and ${to}.`,
+      wait: {
+        canary: (name: string, until: string) =>
+          `Watching ${name} until ${until}: the rest go on if it stays healthy.`,
+        window: (opens: string) => `Waiting for the maintenance window: it opens ${opens}.`,
+        busy: (why: string) => `Waiting: ${why}. Trying again every 30 seconds.`,
+      },
+      halted: "The rollout stopped",
+      haltedHint: (name: string) =>
+        `Resume tries ${name} again, Skip leaves it out and goes on with the rest. The devices already upgraded keep their new firmware.`,
+      haltedCanary:
+        "Resume goes on with the rest; the canary keeps its new firmware. Check it first.",
+      pause: "Pause",
+      resume: "Resume",
+      skip: (name: string) => `Skip ${name}`,
+      cancel: "Cancel rollout",
+      keep: "Keep it",
+      confirm: {
+        resume: (name: string | null) =>
+          name === null
+            ? "Go on with the next device?"
+            : `Try ${name} again? Its upgrade starts over from its checks.`,
+        skip: (name: string) =>
+          `Leave ${name} out of the rollout? It keeps its firmware; the rollout goes on with the next device.`,
+        cancel:
+          "Cancel the rollout? The devices not upgraded yet keep their firmware; the upgraded ones keep the new one.",
+      },
+      cancelBusy: "A device is upgrading: pause, and cancel once it is done.",
+      done: (id: number) => `Rollout #${id} is done`,
+      stopped: (id: number) => `Rollout #${id} stopped`,
+      dialog: {
+        title: "Roll out upgrades",
+        description:
+          "Choose the devices and the image each gets. uniwrt shows each upgrade's plan before anything starts, then upgrades the devices one at a time.",
+        devices: "Devices",
+        none: "No device has an upgrade on offer.",
+        observe: "In observe mode: turn its management on to upgrade it.",
+        image: (name: string) => `Image for ${name}`,
+        asu: (release: string, kind: string) => `OpenWrt ${release}${kind} · built by ASU`,
+        official: (release: string, kind: string) => `OpenWrt ${release}${kind} · official image`,
+        kind: (kind: string) => (kind === "branch" ? " (new release)" : ""),
+        github: (tag: string, repo: string) => `${tag} · ${repo}`,
+        upload: (name: string) => `Uploaded · ${name}`,
+        planning: "Reading the device's packages…",
+        flashed: "Flashed as it is",
+        dropped: (n: number) => `${n} left out`,
+        showPlan: "Plan",
+        order: "Order",
+        orderHint:
+          "Expected: the controller orders the devices between the canary and the gateway by their distance from it, farthest first.",
+        canary: "Canary",
+        canaryHint:
+          "Upgrade one device first and watch it: it must stay online, accept a login and run its new release before the rest go on.",
+        canaryNode: "Canary device",
+        canaryAuto: "The farthest device",
+        soak: "Watch it for",
+        window: "Maintenance window",
+        windowHint:
+          "Devices start only inside it, daily in the site's time; outside it the rollout waits for the next opening.",
+        from: "From",
+        to: "To",
+        windowSame: "The window must open and close at different times.",
+        hours: (n: number) => (n === 1 ? "1 hour" : `${n} hours`),
+        minutes: (n: number) => `${n} minutes`,
+        startButton: (n: number) => `Upgrade ${n} ${n === 1 ? "device" : "devices"}`,
+        confirm: (n: number) =>
+          `Each of the ${n} ${n === 1 ? "device restarts" : "devices restarts in turn"} with its new firmware and is offline for a few minutes; settings are kept and backed up first.`,
+        startNow: "Start now",
+        starting: "Starting…",
+        cancel: "Cancel",
+      },
+    },
     uploads: {
       title: "Uploaded images",
       description:

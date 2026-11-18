@@ -80,6 +80,8 @@ import type { RevisionPage } from "../api/gen/RevisionPage";
 import type { RfSettings } from "../api/gen/RfSettings";
 import type { RfView } from "../api/gen/RfView";
 import type { RoleBody } from "../api/gen/RoleBody";
+import type { Rollout } from "../api/gen/Rollout";
+import type { RolloutBody } from "../api/gen/RolloutBody";
 import type { RuleList } from "../api/gen/RuleList";
 import type { RuleSpec } from "../api/gen/RuleSpec";
 import type { RuleView } from "../api/gen/RuleView";
@@ -653,6 +655,21 @@ export const api = {
     /** A node's own image source. */
     source: (node: number, body: NodeSource) =>
       request<NodeSource>(`/firmware/nodes/${node}/source`, { method: "PUT", body }),
+    /**
+     * Rolling upgrades (D-125): the latest 20, one, and for admins starting one (202) and its
+     * pause, resume, cancel and a node's skip, each answering the rollout as it is then.
+     */
+    rollouts: {
+      list: (signal?: AbortSignal) => request<Rollout[]>("/firmware/rollouts", { signal }),
+      get: (id: number, signal?: AbortSignal) =>
+        request<Rollout>(`/firmware/rollouts/${id}`, { signal }),
+      create: (body: RolloutBody) =>
+        request<Rollout>("/firmware/rollouts", { method: "POST", body }),
+      act: (id: number, action: "pause" | "resume" | "cancel") =>
+        request<Rollout>(`/firmware/rollouts/${id}/${action}`, { method: "POST" }),
+      skip: (id: number, node: number) =>
+        request<Rollout>(`/firmware/rollouts/${id}/nodes/${node}/skip`, { method: "POST" }),
+    },
   },
   /** The controller's own update (D-123): the release on offer, its install, the automatic one. */
   controller: {

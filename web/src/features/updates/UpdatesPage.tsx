@@ -19,6 +19,7 @@ import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { type Column, Table } from "../../ui/Table";
 import { ControllerCard } from "./ControllerCard";
+import { RolloutsCard } from "./RolloutsCard";
 import { SourceDialog, sourceLabel } from "./SourceDialog";
 import { SourcesCard } from "./SourcesCard";
 import { UpgradeDialog } from "./UpgradeDialog";
@@ -40,10 +41,11 @@ const STATES: Record<FirmwareState, string> = {
 };
 
 /**
- * Updates (D-121, D-122, D-123): the controller's own release (its card first), each device's OpenWrt release, its image source, the upgrades on offer
+ * Updates (D-121…D-125): the controller's own release (its card first), each device's OpenWrt release, its image source, the upgrades on offer
  * with their release notes (OpenWrt's, or its GitHub repo's newest releases), and for admins the
  * upgrade prepared with the device's packages (ASU's image or the official one), a GitHub release
- * or an uploaded image; below, the site's sources and the uploaded images. `?node=<id>` opens a
+ * or an uploaded image; below, rolling upgrades of several devices, the site's sources and the
+ * uploaded images. `?node=<id>` opens a
  * device's upgrade (its device page links here).
  */
 export function UpdatesPage() {
@@ -286,6 +288,11 @@ export function UpdatesPage() {
           )}
         </Show>
       </Card>
+      <RolloutsCard
+        admin={admin()}
+        rows={rows().filter(preparable)}
+        uploads={catalog()?.uploads ?? []}
+      />
       <Show when={sourcing()}>
         {(row) => (
           <SourceDialog

@@ -179,6 +179,7 @@ function stubApi(routes: Record<string, Route>) {
     if (key === "GET /api/v1/controller/update" && !route) {
       return Response.json(controllerUpdate({ offer: null }));
     }
+    if (key === "GET /api/v1/firmware/rollouts" && !route) return Response.json([]);
     if (!route) return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     const answer = route(body);
     return answer instanceof Response ? answer : Response.json(answer);
