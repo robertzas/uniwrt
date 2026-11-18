@@ -1,5 +1,6 @@
 import { type Accessor, createEffect } from "solid-js";
 import type { ControllerUpdate } from "../api/gen/ControllerUpdate";
+import type { RestoreState } from "../api/gen/RestoreState";
 
 /** How often an install is followed. */
 export const INSTALL_POLL_MS = 2000;
@@ -69,4 +70,57 @@ export function followInstall(options: {
       clearInterval(timer);
     };
   });
+}
+
+/**
+ * Follows the restart that puts a staged controller backup in place (D-129): reads `/health`
+ * every few seconds and calls `onBack` once the controller answers after being away, or answers
+ * with the restore no longer staged (a restart quicker than a read, or the restored controller
+ * refusing a state read it no longer allows); `onLost` after [`RESTART_LIMIT_MS`] without either.
+ * Returns a function that stops following.
+ */
+export function followRestore(options: {
+  health: (signal: AbortSignal) => Promise<unknown>;
+  state: (signal: AbortSignal) => Promise<RestoreState>;
+  onBack: () => void;
+  onLost: () => void;
+  now?: () => number;
+}): () => void {
+  const now = options.now ?? Date.now;
+  const controller = new AbortController();
+  const started = now();
+  let away = false;
+  let busy = false;
+  const stop = () => {
+    controller.abort();
+    clearInterval(timer);
+  };
+  const end = (then: () => void) => {
+    stop();
+    then();
+  };
+  const read = async () => {
+    try {
+      await options.health(controller.signal);
+    } catch {
+      away = true;
+      return false;
+    }
+    if (away) return true;
+    try {
+      return (await options.state(controller.signal)).state !== "ready";
+    } catch {
+      return true;
+    }
+  };
+  const timer = setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    const back = await read();
+    busy = false;
+    if (controller.signal.aborted) return;
+    if (back) end(options.onBack);
+    else if (now() - started > RESTART_LIMIT_MS) end(options.onLost);
+  }, INSTALL_POLL_MS);
+  return stop;
 }

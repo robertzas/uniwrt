@@ -949,6 +949,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Nightly.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
+- `features/settings/backups/`: BackupsTab.tsx, ControllerRestore.tsx, PassphraseCard.tsx
 - `features/settings/import/`: ImportPage.tsx, NodeImportCard.tsx, preview.ts
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts

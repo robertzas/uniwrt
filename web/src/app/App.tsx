@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/solid-query";
-import { createSignal, Loading, Match, onSettled, Show, Switch } from "solid-js";
+import { createSignal, Loading, lazy, Match, onSettled, Show, Switch } from "solid-js";
 import type { AuthState } from "../api/gen/AuthState";
 import type { UserInfo } from "../api/gen/UserInfo";
 import { AuthFrame, SignIn } from "../features/auth/SignIn";
@@ -13,6 +13,13 @@ import { createAppRouter, SETUP_PATH } from "./routes";
 import { Shell } from "./Shell";
 
 const Router = createAppRouter();
+
+/** The first-run screen's restore (D-129), loaded only when setup is open. */
+const SetupRestore = lazy(() =>
+  import("../features/settings/backups/ControllerRestore").then((m) => ({
+    default: m.SetupRestore,
+  })),
+);
 
 export function App() {
   const queryClient = new QueryClient({
@@ -86,6 +93,7 @@ export function Gate() {
                       setUser(user);
                     }}
                     onRetry={() => auth.refetch()}
+                    restore={state().setup === "open" ? <SetupRestore /> : undefined}
                   />
                 )}
               </Show>

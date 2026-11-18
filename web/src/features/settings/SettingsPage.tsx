@@ -4,14 +4,15 @@ import { LiveContext } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
+import { BackupsTab } from "./backups/BackupsTab";
 import { NotificationsTab } from "./notifications/NotificationsTab";
 import { RevisionsTab } from "./revisions/RevisionsTab";
 import { SiteTab } from "./site/SiteTab";
 
 const t = strings.settings;
 
-/** The sections, in the URL as `?tab=`; more join as their features land (users, backups, …). */
-const TABS = ["site", "notifications", "revisions"] as const;
+/** The sections, in the URL as `?tab=`; more join as their features land (users, …). */
+const TABS = ["site", "notifications", "revisions", "backups"] as const;
 type TabName = (typeof TABS)[number];
 
 /** `/settings` (features/ui.md): the controller's settings in tabs named in the URL. */
@@ -46,6 +47,7 @@ export function SettingsPage() {
           <Tab value="site">{t.tabs.site}</Tab>
           <Tab value="notifications">{t.tabs.notifications}</Tab>
           <Tab value="revisions">{t.tabs.revisions}</Tab>
+          <Tab value="backups">{t.tabs.backups}</Tab>
         </TabList>
         <TabPanel value="site">
           <SiteTab admin={admin()} />
@@ -55,6 +57,9 @@ export function SettingsPage() {
         </TabPanel>
         <TabPanel value="revisions">
           <RevisionsTab nodeName={(id) => names().get(id)} admin={admin()} />
+        </TabPanel>
+        <TabPanel value="backups">
+          <BackupsTab admin={admin()} />
         </TabPanel>
       </Tabs>
     </div>

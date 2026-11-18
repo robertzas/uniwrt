@@ -15,6 +15,8 @@ import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientKick } from "../api/gen/ClientKick";
 import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
+import type { ControllerBackup } from "../api/gen/ControllerBackup";
+import type { ControllerBackupStatus } from "../api/gen/ControllerBackupStatus";
 import type { ControllerUpdate } from "../api/gen/ControllerUpdate";
 import type { ControllerUpdates } from "../api/gen/ControllerUpdates";
 import type { Coverage } from "../api/gen/Coverage";
@@ -65,6 +67,7 @@ import type { NotifierInput } from "../api/gen/NotifierInput";
 import type { NotifierList } from "../api/gen/NotifierList";
 import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
+import type { PassphraseBody } from "../api/gen/PassphraseBody";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { Plan } from "../api/gen/Plan";
 import type { PlanBody } from "../api/gen/PlanBody";
@@ -75,6 +78,7 @@ import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { Purpose } from "../api/gen/Purpose";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
+import type { RestoreState } from "../api/gen/RestoreState";
 import type { RevealedSecret } from "../api/gen/RevealedSecret";
 import type { RevealSecret } from "../api/gen/RevealSecret";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
@@ -181,7 +185,9 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
     throw await toError(response);
   }
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  // A 202 may carry no body (a restore's restart): no content, as with 204.
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 async function toError(response: Response): Promise<ApiError> {
@@ -693,6 +699,35 @@ export const api = {
       request<ControllerUpdate>("/controller/update", { method: "POST", body }),
     settings: (body: ControllerUpdates) =>
       request<ControllerUpdates>("/controller/update/settings", { method: "PUT", body }),
+    /** The controller's own backups (D-129): with a session; taking, downloading and the passphrase for admins. */
+    backups: {
+      status: (signal?: AbortSignal) =>
+        request<ControllerBackupStatus>("/controller/backups", { signal }),
+      /** Takes one now; answers once it is written (409 without a passphrase or while one runs). */
+      create: () => request<ControllerBackup>("/controller/backups", { method: "POST" }),
+      fileUrl: (name: string) => `/api/v1/controller/backups/${encodeURIComponent(name)}`,
+      passphrase: (body: PassphraseBody) =>
+        request<void>("/controller/backups/passphrase", { method: "PUT", body }),
+    },
+    /**
+     * Restoring a controller backup (D-129), by an admin or, during first-run setup, anyone: the
+     * upload, its unlock, the restart that puts it in place, or its discard. `session: false`
+     * reads the state without ending the session on a 401 (after the restart, the restored
+     * controller doesn't know this one).
+     */
+    restore: {
+      state: (signal?: AbortSignal, session = true) =>
+        request<RestoreState>("/controller/restore", { signal, session }),
+      upload: (file: File) =>
+        request<RestoreState>("/controller/restore", {
+          method: "PUT",
+          blob: file.type ? file : new Blob([file], { type: "application/octet-stream" }),
+        }),
+      unlock: (body: PassphraseBody) =>
+        request<RestoreState>("/controller/restore/unlock", { method: "POST", body }),
+      apply: () => request<void>("/controller/restore/apply", { method: "POST" }),
+      discard: () => request<void>("/controller/restore", { method: "DELETE" }),
+    },
   },
   backhaul: {
     failures: (signal?: AbortSignal) =>

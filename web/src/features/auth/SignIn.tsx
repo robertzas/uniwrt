@@ -18,6 +18,8 @@ export interface SignInProps {
   onRetry: () => void;
   /** Shown above the form, e.g. that the session ended. */
   notice?: string | undefined;
+  /** Shown under the first-run setup form: the restore of a controller backup (D-129). */
+  restore?: JSX.Element;
 }
 
 /**
@@ -218,6 +220,7 @@ function SetupForm(props: SignInProps) {
           <p class="text-center text-fg-subtle text-xs">{text.setup.closesIn(minutes())}</p>
         </Show>
       </form>
+      {props.restore}
     </>
   );
 }
