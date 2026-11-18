@@ -413,8 +413,7 @@ pub(crate) fn refusal(
         403 | 429 if spent => {
             let reset = header("x-ratelimit-reset")
                 .and_then(|secs| secs.parse::<i64>().ok())
-                .map(|secs| format!(" until {}", Timestamp::from_unix_secs(secs)))
-                .unwrap_or_default();
+                .map_or_default(|secs| format!(" until {}", Timestamp::from_unix_secs(secs)));
             let hint = if with_token {
                 ""
             } else {
@@ -435,8 +434,7 @@ pub(crate) fn refusal(
                 .ok()
                 .and_then(|value| value["message"].as_str().map(str::to_owned))
                 .filter(|text| printable(text))
-                .map(|text| format!(": {text}"))
-                .unwrap_or_default();
+                .map_or_default(|text| format!(": {text}"));
             Error::GitHub(format!("GitHub answered {status} for {repo}{message}"))
         }
     }

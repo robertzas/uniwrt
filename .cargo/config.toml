@@ -3,3 +3,19 @@
 TS_RS_EXPORT_DIR = { value = "web/src/api/gen", relative = true }
 # JSON numbers are doubles in the browser, so 64-bit integers map to `number`, not `bigint`.
 TS_RS_LARGE_INT = "number"
+
+# The wild linker (D-127). Native builds: clang drives it, as rustc's cc flavour expects; `-C
+# linker` sits in rustflags rather than `linker`, so a `--target` build's build scripts and proc
+# macros (in scripts/cross.sh's container, which has no clang) keep the default linker.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "linker=clang", "-C", "link-arg=--ld-path=wild"]
+
+# The 64-bit release targets: wild links directly (ld flavour) against rustc's self-contained musl,
+# overriding cargo-zigbuild's zig linker; zig still compiles the C (ring, SQLite). `-m` names the
+# target, since wild otherwise assumes the host's. Wild doesn't link 32-bit targets: i686 and armv7
+# keep zig's.
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "linker=wild", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_x86_64"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "linker=wild", "-C", "linker-flavor=ld", "-C", "link-arg=-maarch64linux"]

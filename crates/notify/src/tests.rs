@@ -246,7 +246,7 @@ async fn smtp_server(acceptor: TlsAcceptor, starttls: bool) -> (u16, JoinHandle<
                 return seen;
             }
             seen.push(line.trim_end().to_owned());
-            let command = line.get(..4).map(str::to_uppercase).unwrap_or_default();
+            let command = line.get(..4).map_or_default(str::to_uppercase);
             let reply: &[u8] = match command.as_str() {
                 "EHLO" => b"250-localhost\r\n250-AUTH PLAIN LOGIN\r\n250 8BITMIME\r\n",
                 "AUTH" => b"235 2.7.0 accepted\r\n",

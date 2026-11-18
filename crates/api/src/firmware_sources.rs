@@ -128,8 +128,7 @@ pub(crate) async fn put_sources(
         TokenChange::Set { .. } => {
             let secret = token
                 .as_ref()
-                .map(|token| token.as_bytes().to_vec())
-                .unwrap_or_default();
+                .map_or_default(|token| token.as_bytes().to_vec());
             api.vault()?
                 .put_secret(TOKEN, Zeroizing::new(secret))
                 .await?;

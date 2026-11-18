@@ -194,7 +194,7 @@ struct Hints<'a> {
 
 impl Hints<'_> {
     fn get(&self, step: Step, facts: Option<&NodeFacts>) -> String {
-        let errors = facts.map(checks::errors).unwrap_or_default();
+        let errors = facts.map_or_default(checks::errors);
         uniwrt_isp::hint(step, self.wan, self.preset, &errors)
     }
 }

@@ -83,8 +83,7 @@ impl Http {
             let body = Limited::new(response.into_body(), MAX_ERROR_BODY)
                 .collect()
                 .await
-                .map(http_body_util::Collected::to_bytes)
-                .unwrap_or_default();
+                .map_or_default(http_body_util::Collected::to_bytes);
             let body = String::from_utf8_lossy(&body);
             let body: String = body.split_whitespace().collect::<Vec<_>>().join(" ");
             Err(SendError::Status {

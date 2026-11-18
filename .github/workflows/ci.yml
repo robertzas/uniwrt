@@ -130,12 +130,14 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-nextest@0.9.150,cargo-deny@0.20.2 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.152,cargo-deny@0.21.0 # keep in line with `just setup`
       - name: Format
         run: cargo fmt --all --check
       - name: Code map is fresh
@@ -184,14 +186,16 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.152 # keep in line with `just setup`
       # The uci crate's fixtures against `uci` itself (TESTING.md, Fixtures).
       - name: UCI conformance on OpenWrt 24.10 and 25.12
         run: scripts/uci-conformance.sh --check
@@ -210,14 +214,16 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.152 # keep in line with `just setup`
       - name: The agent on OpenWrt 24.10 and 25.12
         run: scripts/test-agent.sh
 
@@ -254,14 +260,16 @@ jobs:
           modinfo -F filename mac80211_hwsim batman-adv
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.152 # keep in line with `just setup`
       - name: The hwsim lab
         run: scripts/wifi-lab.sh test
 
@@ -291,14 +299,16 @@ jobs:
           sudo modprobe -a 8021q pppoe
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
           shared-key: containers
           save-if: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-nextest@0.9.150 # keep in line with `just setup`
+          tool: cargo-nextest@0.9.152 # keep in line with `just setup`
       - name: Rendered configs on OpenWrt ${{ matrix.release }}
         run: scripts/test-system.sh "$RELEASE"
         env:
@@ -336,6 +346,8 @@ jobs:
           path: web/dist
       - name: Install the toolchain and the target
         run: rustup toolchain install && rustup target add "$TARGET"
+      - name: Install the wild linker (D-127)
+        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.target }}
@@ -343,9 +355,9 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ env.ZIG_VERSION }}
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
-          tool: cargo-zigbuild@0.24.0,cargo-auditable@0.7.7
+          tool: cargo-zigbuild@0.24.1,cargo-auditable@0.7.7
       - name: Build
         # cargo-auditable embeds the dependency list, so the image SBOM and `cargo audit bin` see it.
         run: SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) cargo auditable zigbuild --release --locked --target "$TARGET"

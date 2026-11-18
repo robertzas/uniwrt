@@ -120,14 +120,13 @@ pub(crate) fn static_addresses(files: &BTreeMap<String, String>, interface: &str
         .section(interface)
         .filter(|lan| lan.kind == "interface" && lan.option("proto") == Some("static"))
         .and_then(|lan| lan.get("ipaddr"))
-        .map(|value| {
+        .map_or_default(|value| {
             value
                 .items()
                 .iter()
                 .filter_map(|item| item.split('/').next()?.parse().ok())
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 /// The access points `wireless` sets up, as `(section, device, ssid)`, in its order.

@@ -44,7 +44,7 @@ struct Sys {
 }
 
 pub(super) fn parse(raw: Raw) -> Vec<DeviceFacts> {
-    let mut counters = raw.net_dev.as_deref().map(net_dev).unwrap_or_default();
+    let mut counters = raw.net_dev.as_deref().map_or_default(net_dev);
     raw.sys
         .into_iter()
         .map(|(name, sys)| {

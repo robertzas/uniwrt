@@ -216,8 +216,7 @@ impl Rollouts {
                 choice: choice.clone(),
                 from: facts
                     .as_ref()
-                    .map(|facts| facts.board.release.version.clone())
-                    .unwrap_or_default(),
+                    .map_or_default(|facts| facts.board.release.version.clone()),
                 state: RolloutNodeState::Pending,
                 job: None,
                 detail: None,

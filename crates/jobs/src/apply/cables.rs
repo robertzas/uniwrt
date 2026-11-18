@@ -61,7 +61,7 @@ pub(crate) fn find(
         candidates.iter().map(|c| (c.node.id, c)).collect();
     let held: BTreeMap<NodeId, Vec<Backhaul>> = candidates
         .iter()
-        .map(|c| (c.node.id, c.network.map(held_backhauls).unwrap_or_default()))
+        .map(|c| (c.node.id, c.network.map_or_default(held_backhauls)))
         .collect();
     let radio = meshing_over_radio(site, candidates);
     let cables = direct(topology, &by_id);

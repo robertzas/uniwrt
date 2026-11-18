@@ -136,12 +136,10 @@ async fn create(
         names.join(", "),
         rollout
             .canary
-            .map(|canary| format!(", the first soaking {} min", canary.soak_min))
-            .unwrap_or_default(),
+            .map_or_default(|canary| format!(", the first soaking {} min", canary.soak_min)),
         rollout
             .window
-            .map(|window| format!(", within {}", span(window)))
-            .unwrap_or_default()
+            .map_or_default(|window| format!(", within {}", span(window)))
     );
     audit(&api, &user, &client, detail).await?;
     Ok((StatusCode::ACCEPTED, Json(rollout)))

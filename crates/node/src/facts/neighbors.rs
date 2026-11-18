@@ -72,7 +72,7 @@ pub(super) fn parse(raw: Raw) -> (Vec<NeighborFacts>, Vec<FdbEntry>) {
             rtnl.fdb.iter().filter_map(fdb).collect(),
         ),
         (None, Some(proc)) => (
-            proc.arp.as_deref().map(arp).unwrap_or_default(),
+            proc.arp.as_deref().map_or_default(arp),
             proc.bridges
                 .iter()
                 .flat_map(|(name, bridge)| brforward(name, bridge))

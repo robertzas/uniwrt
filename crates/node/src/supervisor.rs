@@ -322,8 +322,7 @@ async fn stay_up(
 
     let Some(launch) = &config.agent else {
         core.set_state(up(AgentState::None));
-        let never: Infallible = or_end!(std::future::pending());
-        match never {}
+        match or_end!(std::future::pending::<Infallible>()) {}
     };
     let mut backoff = Backoff::new(config.retry.min, config.retry.max, random_seed());
     loop {

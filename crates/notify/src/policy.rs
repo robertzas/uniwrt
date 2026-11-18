@@ -158,7 +158,7 @@ impl Policy {
             Tracked {
                 alert: alert.clone(),
                 count: if carried.is_some() { state.count } else { 0 },
-                sent: carried.map(|(_, sent)| sent).unwrap_or_default(),
+                sent: carried.map_or_default(|(_, sent)| sent),
                 skipped: BTreeSet::new(),
             }
         });

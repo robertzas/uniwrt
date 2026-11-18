@@ -86,7 +86,7 @@ pub(crate) async fn preview(
     body: Result<Option<Json<ImportRequest>>, JsonRejection>,
 ) -> ApiResult<Json<ImportPreview>> {
     admin(&user, "import the nodes' configuration")?;
-    let request = body?.map(|Json(request)| request).unwrap_or_default();
+    let request = body?.map_or_default(|Json(request)| request);
     let scope = match request.drift {
         Some(DriftTarget { node, package }) => {
             check_package(&package)?;

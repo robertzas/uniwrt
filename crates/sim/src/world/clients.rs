@@ -489,10 +489,7 @@ impl World {
             30,
             format!("dnsmasq-dhcp[2092]: DHCPREQUEST(br-lan) {ip} {mac}"),
         );
-        let suffix = name
-            .as_deref()
-            .map(|name| format!(" {name}"))
-            .unwrap_or_default();
+        let suffix = name.as_deref().map_or_default(|name| format!(" {name}"));
         self.log(
             0,
             at_ms + 1,

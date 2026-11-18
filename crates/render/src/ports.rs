@@ -153,14 +153,12 @@ pub(crate) fn check(
 ) -> Vec<Issue> {
     let (role, facts, config) = plan;
     let ethernet = ethernet(role, facts, switch);
-    let user: Vec<String> = switch
-        .map(|s| {
-            switch_ports(role, s)
-                .into_iter()
-                .map(|n| PortConfig::switch_port(&s.name, n))
-                .collect()
-        })
-        .unwrap_or_default();
+    let user: Vec<String> = switch.map_or_default(|s| {
+        switch_ports(role, s)
+            .into_iter()
+            .map(|n| PortConfig::switch_port(&s.name, n))
+            .collect()
+    });
     let mut warnings = Vec::new();
     for profile in &config.ports {
         let at = format!("nodes/{}/ports/{}", config.node, profile.port);

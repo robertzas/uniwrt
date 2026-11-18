@@ -17,13 +17,12 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>) {
     let servers: Vec<String> = packages
         .get("system")
         .and_then(|p| p.section("ntp"))
-        .map(|ntp| {
+        .map_or_default(|ntp| {
             read::items(ntp, "server")
                 .into_iter()
                 .map(str::to_owned)
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     if !servers.is_empty() {
         site.site.ntp_servers = servers;
     }

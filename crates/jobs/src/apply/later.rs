@@ -272,8 +272,7 @@ impl Run<'_> {
             .part
             .bridge
             .as_ref()
-            .map(|bridge| bridge.new.trunc().to_string())
-            .unwrap_or_default();
+            .map_or_default(|bridge| bridge.new.trunc().to_string());
         let detail = format!(
             "Applied; {} bounce so the hosts ask for a lease on {subnet}. This controller's host \
              has {} s to take one (behind a switch, renew its lease by hand)",

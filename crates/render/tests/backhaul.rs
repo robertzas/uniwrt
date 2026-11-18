@@ -65,8 +65,7 @@ fn bridge_ports(network: &Package) -> Vec<String> {
         .sections_of("device")
         .find(|d| d.option("name") == Some("br-lan"))
         .and_then(|d| d.get("ports"))
-        .map(|ports| ports.items().to_vec())
-        .unwrap_or_default()
+        .map_or_default(|ports| ports.items().to_vec())
 }
 
 #[test]

@@ -264,8 +264,11 @@ fn adoption_s_commands_answer_as_on_openwrt() {
         "/usr/lib/opkg/status",
     ];
     let apk = ["grep", "-E", "^[PV]:", "/lib/apk/db/installed"];
-    for node in 0..world.nodes.len() {
-        let (theirs, other) = if world.nodes[node].release.package_manager == "opkg" {
+    let opkg_based: Vec<bool> = (world.nodes.iter())
+        .map(|node| node.release.package_manager == "opkg")
+        .collect();
+    for (node, opkg_based) in opkg_based.into_iter().enumerate() {
+        let (theirs, other) = if opkg_based {
             (&opkg, &apk)
         } else {
             (&apk, &opkg)

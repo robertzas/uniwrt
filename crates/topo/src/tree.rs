@@ -50,15 +50,13 @@ impl Graph {
         } = self;
         let links: Vec<(String, Link)> = links.into_iter().collect();
         let reached = reach(&nodes, &links, &preferred);
-        let previous: BTreeMap<&str, &TopoEdge> = previous
-            .map(|topology| {
-                topology
-                    .edges
-                    .iter()
-                    .map(|edge| (edge.id.as_str(), edge))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let previous: BTreeMap<&str, &TopoEdge> = previous.map_or_default(|topology| {
+            topology
+                .edges
+                .iter()
+                .map(|edge| (edge.id.as_str(), edge))
+                .collect()
+        });
         let mut edges = Vec::with_capacity(links.len());
         for (index, (key, link)) in links.iter().enumerate() {
             let reversed = downstream_first(link, index, &reached, &nodes);

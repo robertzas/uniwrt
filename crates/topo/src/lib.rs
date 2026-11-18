@@ -104,7 +104,7 @@ fn vertex(member: &Member<'_>) -> TopoNode {
         node: Some(member.id),
         mac: Some(member.mac),
         name: facts.map(|facts| facts.board.hostname.clone()),
-        ips: facts.map(addresses).unwrap_or_default(),
+        ips: facts.map_or_default(addresses),
         state: Some(member.state),
         cpu_percent: facts.and_then(|facts| facts.system.cpu_percent),
         memory_percent: facts.and_then(memory_percent),

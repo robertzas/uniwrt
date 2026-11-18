@@ -71,6 +71,6 @@ pub(super) fn parse(raw: Raw) -> BoardFacts {
             target: field(board.release.target, "DISTRIB_TARGET"),
             arch: release.get("DISTRIB_ARCH").cloned().unwrap_or_default(),
         },
-        layout: board_json.map(layout::parse).unwrap_or_default(),
+        layout: board_json.map_or_default(layout::parse),
     }
 }

@@ -155,8 +155,7 @@ pub(crate) fn summary(import: &Import) -> String {
             let renamed = section
                 .renamed
                 .as_ref()
-                .map(|r| format!(" → {r}"))
-                .unwrap_or_default();
+                .map_or_default(|r| format!(" → {r}"));
             match &section.fate {
                 Fate::Mapped { kept } if kept.is_empty() && renamed.is_empty() => continue,
                 Fate::Mapped { kept } if kept.is_empty() => {}

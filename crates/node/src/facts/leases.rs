@@ -76,8 +76,7 @@ pub(super) fn parse(raw: Raw) -> (Vec<LeaseFacts>, Vec<PortMapping>) {
     } = raw;
     let mappings = upnp
         .and_then(|file| file.data)
-        .map(|data| super::upnp::parse(&data, now))
-        .unwrap_or_default();
+        .map_or_default(|data| super::upnp::parse(&data, now));
     let mut leases: Vec<LeaseFacts> = files
         .iter()
         .filter_map(|file| file.data.as_deref())

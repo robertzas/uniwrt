@@ -108,8 +108,7 @@ impl RevisionRepo for Store {
             }
             let changes = parent
                 .as_ref()
-                .map(|parent| diff(parent, &new.config))
-                .unwrap_or_default();
+                .map_or_default(|parent| diff(parent, &new.config));
             let count = u32::try_from(changes.len()).unwrap_or(u32::MAX);
             let changes = serde_json::to_string(&changes).map_err(|source| Error::Encode {
                 what: "revision",

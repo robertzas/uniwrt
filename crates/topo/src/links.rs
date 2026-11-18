@@ -190,9 +190,7 @@ impl Graph {
             node: None,
             mac: Some(mac),
             name: host.and_then(|host| host.name.clone()),
-            ips: host
-                .map(|host| host.ips.iter().copied().collect())
-                .unwrap_or_default(),
+            ips: host.map_or_default(|host| host.ips.iter().copied().collect()),
             state: None,
             cpu_percent: None,
             memory_percent: None,
