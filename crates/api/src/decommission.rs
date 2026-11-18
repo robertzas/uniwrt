@@ -138,7 +138,7 @@ mod tests {
     use axum::http::{Method, StatusCode};
     use serde_json::json;
     use uniwrt_model::user::AuditAction;
-    use uniwrt_store::AuditRepo as _;
+    use uniwrt_store::{AuditRepo as _, JobRepo as _};
 
     use crate::testing::{Demo, json, request};
 
@@ -164,6 +164,23 @@ mod tests {
             .map(|step| step["name"].as_str().unwrap().to_owned())
             .collect();
         assert_eq!(steps, ["connect", "remove_tool", "wipe", "record"]);
+        // It holds the site's configuration: another node leaves once it has ended.
+        let id = uniwrt_core::JobId::new(job["id"].as_i64().unwrap());
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while demo
+                .store
+                .job(id)
+                .await
+                .unwrap()
+                .unwrap()
+                .finished_at
+                .is_none()
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the decommission ends");
 
         let other = demo.ids[2];
         let res = demo
