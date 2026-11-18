@@ -591,6 +591,8 @@ export const strings = {
       wpad: (target: string) => `Installing the full wpad on ${target}`,
       radio_restart: (target: string) => `Restarting ${target}`,
       upgrade: (target: string) => `Upgrading ${target}`,
+      backup: (target: string) => `Backing up ${target}`,
+      restore: (target: string) => `Restoring ${target}`,
     },
     step: {
       connect: "Log in",
@@ -1842,6 +1844,8 @@ export const strings = {
         wpad: "installing the full wpad",
         radio_restart: "restarting radios after a channel switch",
         upgrade: "upgrading the firmware",
+        backup: "backing up",
+        restore: "restoring a backup",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,
@@ -2677,6 +2681,7 @@ export const strings = {
         verified: "Passed its checks",
         confirmed: "Confirmed",
         rolled_back: "Rolled back",
+        backed_up: "Backed up",
         failed: "Failed",
       },
       history: "Open the history",

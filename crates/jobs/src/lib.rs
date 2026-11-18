@@ -86,6 +86,14 @@
 //!   transaction tool, the baseline met again) → soak (3 min, no new error patterns in its log)
 //!   → record (its packages). A failure before the flash deletes the staged image; after it,
 //!   nothing rolls back and the error says so.
+//! - **Backups** (`backup/`, D-126): the backup job logs in to each node (observe mode too), 4
+//!   at a time, and keeps its `sysupgrade -b` tarball sealed (one of the same files as the
+//!   newest only marks that one seen; a node that fails doesn't stop the others). The apply's
+//!   Backup step does the same for each node it changes, before anything changes. A restore
+//!   (managed nodes): connect → check (no open transaction; the backup's `/etc/config`
+//!   packages parse; those that differ; the health baseline) → backup → stage → apply (the
+//!   uplink's dead-man timer) → verify (a new login, as healthy as before, else rolled back) →
+//!   confirm. Its other files (passwords, keys, scripts) are not restored.
 //! - **Rollouts** (`rollout/`, D-125): a stored record, not a job, so it carries on after a
 //!   restart. Its nodes in order: the canary (if any) first, then by hops from the gateway
 //!   (farthest first, as an apply goes), the gateway last. A driver task takes the next pending
@@ -115,6 +123,7 @@ mod adoption_port;
 #[cfg(test)]
 mod adoption_port_tests;
 mod apply;
+mod backup;
 pub mod bootstrap;
 mod discovery;
 mod errors;
@@ -176,6 +185,8 @@ pub enum Error {
     },
     #[error("there is no rollout {0}")]
     NoRollout(uniwrt_core::RolloutId),
+    #[error("node {0} has no backup {1}")]
+    NoBackup(uniwrt_core::NodeId, uniwrt_core::BackupId),
     #[error("{0}")]
     Failed(String),
     /// The change breaks a rule of the site (its one gateway): why, for the user.

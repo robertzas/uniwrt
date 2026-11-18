@@ -16,7 +16,8 @@
 //!   supervised connection that reconnects with jittered backoff, installs and restarts the
 //!   agent, and implements [`NodeLink`]); [`txn`] (the transaction tool's commands, the
 //!   [`Footprint`](txn::Footprint) that management installs, and [`txn::current`], the reads of
-//!   a node's packages and services); [`pkg`] (opkg's and apk's commands and the installed
+//!   a node's packages and services); [`archive`] (the `sysupgrade -b` tarball read and written
+//!   in memory, and its content digest, D-126); [`pkg`] (opkg's and apk's commands and the installed
 //!   packages' parser, D-100); [`wpad`] (the commands that swap a node's basic wpad for
 //!   the full one, D-089); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
@@ -43,6 +44,7 @@
 
 pub mod adoption_port;
 mod agent;
+pub mod archive;
 mod backoff;
 mod bundle;
 mod error;

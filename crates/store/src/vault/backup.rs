@@ -21,6 +21,10 @@ pub struct SealedBackup {
     pub(crate) reason: BackupReason,
     pub(crate) size: i64,
     pub(crate) sha256: String,
+    /// A digest of the files it holds whatever their times (`uniwrt_node::archive::
+    /// content_digest`): the same for a backup of the same files; `None` when unknown (such a
+    /// backup is never taken for another).
+    pub(crate) content: Option<String>,
     pub(crate) value: Vec<u8>,
 }
 
@@ -38,11 +42,13 @@ fn seal_name(sha256: &str) -> String {
 }
 
 impl Vault {
+    /// Seals `tarball`; `content` is the digest of the files it holds (D-126), if known.
     pub fn seal_backup(
         &self,
         reason: BackupReason,
         taken_at: Timestamp,
         tarball: &[u8],
+        content: Option<String>,
     ) -> Result<SealedBackup> {
         let sha256 = digest::digest(&digest::SHA256, tarball)
             .as_ref()
@@ -52,6 +58,7 @@ impl Vault {
                 hex
             });
         Ok(SealedBackup {
+            content,
             taken_at,
             reason,
             size: i64::try_from(tarball.len()).unwrap_or(i64::MAX),
@@ -67,14 +74,14 @@ impl Vault {
             .read(move |conn| {
                 let Some((backup, alg, value)) = conn
                     .prepare_cached(
-                        "SELECT id, node_id, taken_at, reason, size, sha256, alg, value
+                        "SELECT id, node_id, taken_at, reason, size, sha256, seen_at, alg, value
                          FROM node_backups WHERE id = ?1",
                     )?
                     .query_row([id.get()], |row| {
                         Ok((
                             backup_from_row(row)?,
-                            row.get::<_, String>(6)?,
-                            row.get::<_, Vec<u8>>(7)?,
+                            row.get::<_, String>(7)?,
+                            row.get::<_, Vec<u8>>(8)?,
                         ))
                     })
                     .optional()?
@@ -92,8 +99,10 @@ impl Vault {
     }
 }
 
-/// A backup's description from the first six columns: `id`, `node_id`, `taken_at`, `reason`,
-/// `size` and `sha256`.
+/// The columns [`backup_from_row`] reads, in its order.
+pub(crate) const BACKUP_COLUMNS: &str = "id, node_id, taken_at, reason, size, sha256, seen_at";
+
+/// A backup's description from the first seven columns, [`BACKUP_COLUMNS`].
 pub(crate) fn backup_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Backup> {
     Ok(Backup {
         id: BackupId::new(row.get(0)?),
@@ -102,5 +111,9 @@ pub(crate) fn backup_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Backu
         reason: enum_column(row, 3)?,
         size_bytes: u64::try_from(row.get::<_, i64>(4)?).unwrap_or_default(),
         sha256: row.get(5)?,
+        seen_at: match row.get::<_, Option<i64>>(6)? {
+            Some(_) => timestamp_column(row, 6)?,
+            None => timestamp_column(row, 2)?,
+        },
     })
 }

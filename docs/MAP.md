@@ -27,6 +27,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/auth/setup.rs`: The setup window (D-040, owner's choice): a controller that starts without users accepts first-run setup for [`SETUP_WINDOW`], so that someone on the LAN cannot claim one that was forgotten; restarting it opens the window again.
 - `src/auth/tests.rs`: The auth routes through the router, over a temporary store: setup and its window, login and its throttling, sessions and their end, logout, the audit log, and the CSRF checks.
 - `src/backhaul.rs`: The cables that failed the wired backhaul's probe (features/mesh.md, Wired backhaul; D-097): `GET /api/v1/backhaul/failures` lists them ([`BackhaulFailure`]); an admin's `DELETE /api/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}` forgets one, in either order of its ends, so the next apply probes it again (audited; 404 when the cable has none).
+- `src/backups.rs`: Node backups (features/lifecycle.md, Backups; D-126).
+- `src/backups_tests.rs`: The node backups' routes (D-126) over the demo fleet.
 - `src/bootstrap.rs`: First run with a factory-default gateway (features/adoption.md, Path E; D-080), for admins:
 - `src/bootstrap/tests.rs`: The first-run routes over demo mode, whose dial reaches only the simulated nodes.
 - `src/client.rs`: [`Client`]: who sent a request, as the server determined it.
@@ -305,6 +307,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/air.rs`: The radios an apply moves in the Channels round (features/wifi.md, RF planner: Apply; M6.1 b1b, D-113), pure: a node whose `wireless` change is only its radios' `channel`, `htmode` and `txpower` waits until the fleet's transactions are confirmed, then moves one node at a time.
 - `src/apply/air_tests.rs`: (no header comment)
 - `src/apply/backhaul.rs`: The apply's backhaul round (features/mesh.md, Wired backhaul; D-094, D-097): each cable the first round brought over as an overlay is probed from both ends, once batman-adv hears the far end over the cable's VLAN; one that passes carries the mesh alone from then on, one that fails goes back to a plain trunk and is remembered, so later applies leave it so.
+- `src/apply/backup.rs`: The apply's Backup step (D-126): each node the apply changes is backed up over its login before anything changes, a few at a time.
 - `src/apply/cables.rs`: Which cables an apply brings over to the wired backhaul (features/mesh.md, Wired backhaul; D-094, D-097), pure: the direct Ethernet links between two managed nodes that the topology sees, on ports render accepts at both ends, and the backhauls the nodes hold.
 - `src/apply/cables_tests.rs`: Which cables an apply brings over: from the topology's direct links between managed nodes, what the nodes hold, and the cables that failed the probe.
 - `src/apply/channels.rs`: The Channels round (features/wifi.md, RF planner: Apply; M6.1 b1b, D-113): the nodes whose radios' channels and widths alone change move after the fleet's transactions, one node at a time, so their neighbors carry the clients while one moves.
@@ -325,6 +328,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/survey.rs`: Surveying the managed nodes for an apply: log in to each (with the controller's key, against the pinned host key), read what it holds (packages, services, facts, and on the gateway its DNS), and plan its part.
 - `src/apply/tests/adopted.rs`: The apply a port adoption ends with (D-107): the revision the gateway holds, applied to the new node alone as an apply job of its own; refused while another apply runs.
 - `src/apply/tests/backhaul.rs`: The wired backhaul's round (D-097) over the scripted fleet: a cable between the gateway and an access point (each bridge sees the other node on `eth0`) comes over as an overlay, is probed from both ends once batman-adv hears the far end on its VLAN, then carries the mesh alone; a cable that fails goes back to a trunk and is left so.
+- `src/apply/tests/backup.rs`: The apply's Backup step (D-126) over the scripted fleet.
 - `src/apply/tests/channels.rs`: The Channels round over the scripted fleet (D-113): access points whose radios' channels alone change move after the rest, one at a time, by a channel switch, falling back to a reload; their power goes with the fleet's transactions; a failure rolls back that node alone and restarts its radios.
 - `src/apply/tests/cutover.rs`: The mesh's synchronized cutover over the scripted fleet (M6.1 b2, D-114): a change that moves the mesh applies on every node with one countdown, rather than leaves → gateway; a mesh that only joins applies as before; a node refusing its apply rolls the others back before the instant.
 - `src/apply/tests/facts.rs`: Facts for the apply's unit tests, built field by field.
@@ -336,6 +340,10 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/apply/tests/roaming.rs`: The 802.11r keys an apply renders with (D-085): one per WLAN that fast-roams, derived from the controller's roaming key, which is made only once some WLAN needs it.
 - `src/apply/tests/rounds.rs`: The gateway's later transactions (D-081) over the scripted fleet: the network this controller sits on renumbers make-before-break, and the WAN changes last and alone.
 - `src/apply/verify.rs`: The verify phase of an apply (features/lifecycle.md, Render → diff → apply, step 4): every node at once over a new login at the address it moves to; it applied and reloaded, its timer is extended, the bridging gateway sees this controller come from the new subnet (D-081), and its health holds against the baseline.
+- `src/backup/mod.rs`: Configuration backups of nodes (features/lifecycle.md, Backups; D-126).
+- `src/backup/restore.rs`: Restoring a backup's configuration onto its node (features/lifecycle.md, Backups; D-126): the UCI packages the backup holds (`/etc/config/*`) go back through the transaction tool, so a node that doesn't come back as healthy rolls back by itself.
+- `src/backup/take.rs`: Taking a node's configuration backup over a login and keeping it, sealed (D-126): the Backup step of the backup, restore, apply and upgrade jobs.
+- `src/backup/tests.rs`: The backup and restore jobs (D-126) over the scripted fleet, which runs the simulated transaction tool.
 - `src/bootstrap.rs`: Finding the gateway to set up at first run (features/adoption.md, Path E): the controller sits behind a factory-default OpenWrt router, which is its default gateway (or, from a container on a bridge network, still at OpenWrt's 192.168.1.1 through the host).
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
@@ -470,6 +478,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/adoption_port.rs`: The adoption port (features/adoption.md, Path C; D-105, D-106): what the controller reads on the gateway (whether its segment is up, a device's MAC in its ARP table) and on a factory-default device found there (its board, its identity MAC as ZTP's hello reports it).
 - `src/agent.rs`: The agent's RPC multiplexer: requests go to the agent's stdin with an id, and answers, events and ticks come back on its stdout (see [`proto`](crate::proto)).
 - `src/agent/tests.rs`: The multiplexer against an in-memory fake agent.
+- `src/archive.rs`: What a configuration backup holds (D-126): the gzip-compressed tar `sysupgrade -b` writes, read without touching any disk. [`files`] lists its regular files, [`content_digest`] says whether two backups hold the same files whatever their times.
 - `src/backoff.rs`: Jittered exponential backoff for reconnects (ARCHITECTURE.md, Node protocol: 1 s doubling to 60 s).
 - `src/bundle.rs`: The agent bundle: `node-agent/` embedded in the binary, and the bootstrap that installs it on a node by hash (ARCHITECTURE.md, Node protocol).
 - `src/bundle/tar.rs`: A minimal ustar writer: directories and regular files with a fixed owner, mode and time, so the same files always make the same bytes.
@@ -664,6 +673,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/nightly/mod.rs`: The nightly RF optimizer (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115): with `nightly` on in the `rf` settings, the site's window (03:30 local by default, for two hours) plans every band and applies the bands whose cost improves by 15 % or more ([`uniwrt_rf::plan::nightly`]): the plan is saved as a revision by the controller and applied with the usual transactions and rollback.
 - `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30; its radio1 catches up after a channel switch where the test says so.
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
+- `src/scheduled_backups.rs`: Weekly node backups (features/lifecycle.md, Backups; D-126): in the nightly window (03:00 site time for half an hour, before the RF optimizer's and the rollouts'), Sundays back up every online node, and the other nights the online nodes whose newest backup is over [`LATE_S`] old (offline or busy on Sunday), as one backup job a night.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT, or until an install of a new release asks for a restart (exit code [`launcher::RESTART`]; D-123).
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
 - `src/tls/issue/tests.rs`: Certificates checked as a client checks them: webpki, with the CA as the only root.
@@ -744,6 +754,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/applies.rs`: [`ApplyRepo`] on SQLite: the `node_applied` table, and the nodes' addresses an apply moved.
 - `src/repo/audit.rs`: [`AuditRepo`] on SQLite: the `audit` table.
 - `src/repo/backhaul.rs`: [`BackhaulRepo`] on SQLite: the `backhaul_failures` table.
+- `src/repo/backups.rs`: [`BackupRepo`] on SQLite: the `node_backups` table kept by count and content (features/ lifecycle.md, Backups; D-126).
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
 - `src/repo/drift.rs`: [`DriftRepo`] on SQLite: the `node_config` table (what the controller confirmed, written by [`ApplyRepo::record_applied`](super::ApplyRepo::record_applied)), `config_drift` and `drift_mutes`.
 - `src/repo/drift_tests.rs`: (no header comment)

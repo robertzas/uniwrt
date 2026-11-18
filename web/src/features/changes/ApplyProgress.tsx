@@ -30,6 +30,7 @@ const NODE_ICONS: Record<JobNodeState, { icon: IconNode; class: string }> = {
   verified: { icon: CircleCheck, class: "text-accent" },
   confirmed: { icon: CircleCheckBig, class: "text-ok" },
   rolled_back: { icon: Undo2, class: "text-warn" },
+  backed_up: { icon: CircleCheckBig, class: "text-ok" },
   failed: { icon: CircleX, class: "text-crit" },
 };
 

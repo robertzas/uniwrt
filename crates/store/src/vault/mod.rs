@@ -17,7 +17,7 @@ use rusqlite::{OptionalExtension as _, params};
 use tracing::info;
 
 pub use backup::SealedBackup;
-pub(crate) use backup::backup_from_row;
+pub(crate) use backup::{BACKUP_COLUMNS, backup_from_row};
 pub use config::SealedSecret;
 pub use key::MasterKey;
 pub use roaming::RoamingKey;

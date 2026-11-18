@@ -141,6 +141,13 @@ impl FakeNode {
                 &format!("USER=root\nSSH_CONNECTION={from} 50022 192.168.1.1 22\n"),
             ));
         }
+        if argv[..] == ["sysupgrade", "-b", "-"] {
+            let network = self.file("network").unwrap_or_default();
+            let mut out = output(0, "");
+            out.stdout =
+                uniwrt_node::archive::pack(&[("etc/config/network", network.as_bytes())], 0);
+            return Ok(out);
+        }
         if argv[0] == "wifi" {
             return Ok(self.radios.lock().unwrap().reload());
         }
@@ -454,8 +461,13 @@ impl Fleet {
     /// Applies the latest revision and waits for the job to end.
     pub(crate) async fn apply(&self) -> Job {
         let revision = self.head().await.meta.id;
+        self.ends(self.jobs.apply(revision, None)).await
+    }
+
+    /// The job `start` starts, once it ended.
+    pub(crate) async fn ends(&self, start: impl Future<Output = crate::Result<Job>>) -> Job {
         let mut updates = self.jobs.subscribe();
-        let started = self.jobs.apply(revision, None).await.unwrap();
+        let started = start.await.unwrap();
         let job = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 let job = updates.recv().await.unwrap();
@@ -465,7 +477,7 @@ impl Fleet {
             }
         })
         .await
-        .expect("the apply ends");
+        .expect("the job ends");
         assert_eq!(self.store.job(job.id).await.unwrap().as_ref(), Some(&*job));
         (*job).clone()
     }

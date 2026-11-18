@@ -36,6 +36,7 @@ mod logging;
 mod master_key;
 mod nightly;
 mod recollect;
+mod scheduled_backups;
 mod serve;
 mod tls;
 mod ui;

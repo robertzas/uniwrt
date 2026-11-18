@@ -3,4 +3,4 @@
 /**
  * Where a node of an apply stands (features/lifecycle.md, Render → diff → apply).
  */
-export type JobNodeState = "pending" | "unchanged" | "skipped" | "staged" | "applied" | "verified" | "confirmed" | "rolled_back" | "failed";
+export type JobNodeState = "pending" | "unchanged" | "skipped" | "staged" | "applied" | "verified" | "confirmed" | "rolled_back" | "backed_up" | "failed";

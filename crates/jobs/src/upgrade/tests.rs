@@ -15,7 +15,7 @@ use uniwrt_model::{
     job::{Job, JobErrorCode, JobState, StepName, StepState},
 };
 use uniwrt_node::{ExecOutput, ExitStatus};
-use uniwrt_store::{InventoryRepo as _, JobRepo as _};
+use uniwrt_store::{BackupRepo as _, InventoryRepo as _, JobRepo as _};
 
 use super::{FetchImage, STAGED, UpgradeRequest, UpgradeTiming};
 use crate::{

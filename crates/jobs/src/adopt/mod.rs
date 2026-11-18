@@ -472,25 +472,15 @@ async fn inspect(
     };
 
     progress.start(StepName::Backup).await;
-    let output = remote
-        .exec(
-            ExecRequest::new(["sysupgrade", "-b", "-"])
-                .timeout(BACKUP_TIMEOUT)
-                .max_output(MAX_BACKUP),
-        )
-        .await
-        .and_then(|output| output.check("sysupgrade -b"))
-        .map_err(|err| node_error(&err, "Cannot take a backup"))?;
-    let tarball = Zeroizing::new(output.stdout);
-    if !tarball.starts_with(&[0x1f, 0x8b]) {
-        return Err(JobError {
-            code: JobErrorCode::NodeFailed,
-            message: "sysupgrade -b did not write a gzip tarball".to_owned(),
-        });
-    }
+    let tarball = crate::backup::read(remote).await?;
     let backup = shared
         .vault
-        .seal_backup(BackupReason::Adoption, shared.clock.now(), &tarball)
+        .seal_backup(
+            BackupReason::Adoption,
+            shared.clock.now(),
+            &tarball,
+            crate::backup::content(&tarball),
+        )
         .map_err(|err| internal("cannot seal the backup", &err))?;
     progress
         .done(Some(format!(

@@ -74,6 +74,8 @@ pub enum JobNodeState {
     Confirmed,
     /// Its transaction rolled back, or never applied: it holds what it had.
     RolledBack,
+    /// Its configuration backup is kept on the controller (D-126).
+    BackedUp,
     /// It failed; the job's error says how.
     Failed,
 }
@@ -106,6 +108,12 @@ pub enum JobKind {
     /// configuration, the node back and checked against its health before (features/lifecycle.md,
     /// Firmware; D-015, D-124).
     Upgrade,
+    /// Taking configuration backups of nodes and keeping them on the controller (features/
+    /// lifecycle.md, Backups; D-126): weekly, or by an admin.
+    Backup,
+    /// Restoring a backup's configuration (its `/etc/config` packages) onto its managed node,
+    /// as a transaction (D-126).
+    Restore,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

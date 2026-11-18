@@ -6,6 +6,7 @@ mod alerts;
 mod applies;
 mod audit;
 mod backhaul;
+mod backups;
 mod clients;
 mod drift;
 mod events;
@@ -45,7 +46,7 @@ use uniwrt_model::{
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
     floor::{Floor, FloorFields, FloorImage, ImageKind, Placement, Wall},
-    inventory::{Backup, Inventory},
+    inventory::Inventory,
     job::{Job, JobError, NewJob},
     log::{LogBucket, LogFilter, LogRecord, LogSources, NewLog, SavedSearch},
     metric::{Entity, Metric, Point, Resolution, Sample},
@@ -60,6 +61,7 @@ use uniwrt_model::{
 use zeroize::Zeroizing;
 
 pub use adoption::Adoption;
+pub use backups::{BackupRepo, Kept};
 pub use ztp::ZtpRepo;
 
 use crate::{Result, SealedSecret};
@@ -285,17 +287,6 @@ pub trait InventoryRepo: Send + Sync {
         node: NodeId,
         inventory: Inventory,
     ) -> impl Future<Output = Result<()>> + Send;
-
-    /// Keeps another sealed backup of the node (D-124: before its firmware is upgraded).
-    fn add_backup(
-        &self,
-        node: NodeId,
-        backup: crate::SealedBackup,
-    ) -> impl Future<Output = Result<()>> + Send;
-
-    /// The node's configuration backups, newest first; [`Vault::open_backup`](crate::Vault::open_backup)
-    /// reads one.
-    fn backups(&self, node: NodeId) -> impl Future<Output = Result<Vec<Backup>>> + Send;
 }
 
 /// Jobs as history: each is saved as it progresses (D-042).

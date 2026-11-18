@@ -22,9 +22,6 @@ use crate::{
 /// Root's password on a node that was set up by hand: the demo's, so not secret.
 pub const ROOT_PASSWORD: &str = "demo";
 
-/// What `sysupgrade -b -` writes: a small backup with harmless settings.
-const BACKUP: &[u8] = include_bytes!("../../data/backup.tar.gz");
-
 /// What survives a node's reboots.
 #[derive(Debug)]
 pub(crate) struct Disk {
@@ -323,7 +320,7 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         ["cat", "/etc/apk/world"] if node.release.package_manager == "apk" => {
             ok(apk_world(disk).into_bytes())
         }
-        ["sysupgrade", "-b", "-"] => ok(BACKUP.to_vec()),
+        ["sysupgrade", "-b", "-"] => ok(backup(&disk.tool.files, keys, now_ms)),
         ["nslookup", name, "127.0.0.1"] if node.gateway => ok(format!(
             "Server:\t\t127.0.0.1\nAddress:\t127.0.0.1:53\n\nName:\t{name}\nAddress: 192.0.2.53\n"
         )
@@ -374,6 +371,23 @@ fn wan_check(
 }
 
 /// BusyBox's `passwd`: the new password twice on stdin.
+/// What `sysupgrade -b -` writes (D-126): the node's `/etc/config` and dropbear's
+/// `authorized_keys`, as files written at `now_ms` (so two backups of the same files differ in
+/// their bytes only, as on OpenWrt when a file is touched).
+fn backup(files: &BTreeMap<String, String>, keys: &[String], now_ms: i64) -> Vec<u8> {
+    let config: Vec<(String, &[u8])> = files
+        .iter()
+        .map(|(name, text)| (format!("etc/config/{name}"), text.as_bytes()))
+        .collect();
+    let mut authorized = keys.join("\n");
+    if !authorized.is_empty() {
+        authorized.push('\n');
+    }
+    let mut all: Vec<(&str, &[u8])> = config.iter().map(|(p, t)| (p.as_str(), *t)).collect();
+    all.push(("etc/dropbear/authorized_keys", authorized.as_bytes()));
+    uniwrt_node::archive::pack(&all, u64::try_from(now_ms / 1000).unwrap_or(0))
+}
+
 fn passwd(stdin: Option<&[u8]>, password: &mut String) -> ExecOutput {
     let typed = String::from_utf8_lossy(stdin.unwrap_or_default());
     let mut lines = typed.lines();

@@ -14,8 +14,7 @@ use uniwrt_model::{
     node::Node,
 };
 use uniwrt_node::{ExecRequest, proto::ops::Set};
-use uniwrt_store::{InventoryRepo as _, LogRepo as _};
-use zeroize::Zeroizing;
+use uniwrt_store::LogRepo as _;
 
 use super::{
     Baseline, UpgradeRequest,
@@ -24,9 +23,7 @@ use super::{
 };
 use crate::{
     Remote,
-    adopt::{BACKUP_TIMEOUT, MAX_BACKUP},
     apply::{health::Health, survey},
-    errors::{internal, node_error},
     progress::Progress,
     runner::Shared,
 };
@@ -182,33 +179,7 @@ pub(crate) async fn backup(
     progress: &mut Progress,
 ) -> Result<(), JobError> {
     progress.start(StepName::Backup).await;
-    let output = remote
-        .exec(
-            ExecRequest::new(["sysupgrade", "-b", "-"])
-                .timeout(BACKUP_TIMEOUT)
-                .max_output(MAX_BACKUP),
-        )
-        .await
-        .and_then(|output| output.check("sysupgrade -b"))
-        .map_err(|err| node_error(&err, "Cannot take a backup"))?;
-    let tarball = Zeroizing::new(output.stdout);
-    if !tarball.starts_with(&[0x1f, 0x8b]) {
-        return Err(failed("sysupgrade -b did not write a gzip tarball"));
-    }
-    let sealed = shared
-        .vault
-        .seal_backup(BackupReason::Upgrade, shared.clock.now(), &tarball)
-        .map_err(|err| internal("cannot seal the backup", &err))?;
-    shared
-        .store
-        .add_backup(node.id, sealed)
-        .await
-        .map_err(|err| internal("keeping the backup", &err))?;
-    progress
-        .done(Some(format!(
-            "{} KiB, sealed on the controller",
-            tarball.len().div_ceil(1024)
-        )))
-        .await;
+    let kept = crate::backup::take(shared, node.id, remote, BackupReason::Upgrade).await?;
+    progress.done(Some(kept)).await;
     Ok(())
 }

@@ -23,7 +23,9 @@
 //!   [`NodeRepo::adopt_node`] records an [`Adoption`] in one transaction.
 //!   [`VaultRepo`] (secrets by name) is implemented by [`Vault`], which [`Vault::open`] makes
 //!   from the store and the [`MasterKey`]; it also seals configuration backups
-//!   ([`Vault::seal_backup`], [`SealedBackup`]) and opens them, and seals configuration secrets
+//!   ([`Vault::seal_backup`], [`SealedBackup`], which [`BackupRepo::keep_backup`] keeps: the
+//!   newest 10 per node and the adoption's, one of the same files only marked seen, D-126) and
+//!   opens them, and seals configuration secrets
 //!   under new names ([`Vault::seal_config_secret`], [`SealedSecret`]). Errors are [`Error`].
 //! - **Vault:** each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the
 //!   master key, with a random 192-bit nonce and the secret's name as associated data. Opening
@@ -62,11 +64,11 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, ClientRepo, DriftRepo, EventRepo,
-    EventsPrune, FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo, LogsPrune,
-    MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo, NotifierRepo, Pin,
-    RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo,
-    TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
+    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, BackupRepo, ClientRepo, DriftRepo,
+    EventRepo, EventsPrune, FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, Kept,
+    LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo,
+    NotifierRepo, Pin, RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo,
+    SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

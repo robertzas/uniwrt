@@ -14,7 +14,8 @@
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
 //!   on or off, a job), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
-//!   job, D-089), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
+//!   job, D-089), node backups (`GET v1/nodes/{id}/backups`, admins: `POST` it (a job), `GET
+//!   …/backups/{backup}/archive`, `POST …/backups/{backup}/restore` (a job); see `backups`, D-126), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
 //!   v1/import/preview` ([`ImportPreview`](uniwrt_model::import::ImportPreview)), `POST
 //!   v1/import/accept` ([`ImportAccept`]); see `import`), drift (`GET v1/drift`
@@ -104,6 +105,7 @@ mod alerts;
 mod apply;
 pub mod auth;
 mod backhaul;
+mod backups;
 mod bootstrap;
 mod client;
 mod client_actions;
@@ -294,6 +296,7 @@ pub fn router(api: Api) -> Router {
         .merge(firmware::routes())
         .merge(controller_update::routes())
         .merge(floors::routes())
+        .merge(backups::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",

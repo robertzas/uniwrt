@@ -41,16 +41,16 @@ impl AutoUpdate {
     pub(crate) fn start(
         updater: Updater,
         github: GitHub,
-        store: Store,
-        jobs: Jobs,
-        clock: Arc<dyn Clock>,
+        store: &Store,
+        jobs: &Jobs,
+        clock: &Arc<dyn Clock>,
     ) -> Self {
         let ctx = Ctx {
             updater,
             github,
-            store,
-            jobs,
-            clock,
+            store: store.clone(),
+            jobs: jobs.clone(),
+            clock: Arc::clone(clock),
         };
         let (stop, mut stopped) = watch::channel(false);
         let task = tokio::spawn(async move {
@@ -85,9 +85,12 @@ impl Ctx {
             return;
         }
         let now = self.clock.now();
-        let Some(night) =
-            tz::daily_window(now, self.offset(now).await, settings.at_min, WINDOW_MIN)
-        else {
+        let Some(night) = tz::daily_window(
+            now,
+            site_offset(&self.store, now).await,
+            settings.at_min,
+            WINDOW_MIN,
+        ) else {
             return;
         };
         if *done == Some(night) || self.updater.progress().busy() {
@@ -120,25 +123,26 @@ impl Ctx {
         }
     }
 
-    /// The site's offset from UTC now, in seconds east (UTC without a site).
-    async fn offset(&self, now: Timestamp) -> i32 {
-        match self.store.head_revision().await {
-            Ok(Some(head)) => tz::posix(&head.config.site.timezone)
-                .and_then(|posix| tz::local(posix, now))
-                .map_or(0, |local| local.offset_s),
-            Ok(None) => 0,
-            Err(err) => {
-                warn!(%err, "automatic install: cannot read the site's time zone");
-                0
-            }
-        }
-    }
-
     async fn job_running(&self) -> bool {
         self.jobs
             .jobs(20)
             .await
             .is_ok_and(|jobs| jobs.iter().any(|job| job.state == JobState::Running))
+    }
+}
+
+/// The site's offset from UTC at `now`, in seconds east (UTC without a site): where the
+/// nightly windows open.
+pub(crate) async fn site_offset(store: &Store, now: Timestamp) -> i32 {
+    match store.head_revision().await {
+        Ok(Some(head)) => tz::posix(&head.config.site.timezone)
+            .and_then(|posix| tz::local(posix, now))
+            .map_or(0, |local| local.offset_s),
+        Ok(None) => 0,
+        Err(err) => {
+            warn!(%err, "cannot read the site's time zone");
+            0
+        }
     }
 }
 

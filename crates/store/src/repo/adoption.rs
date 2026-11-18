@@ -5,7 +5,7 @@ use rusqlite::{OptionalExtension as _, params};
 use uniwrt_core::NodeId;
 use uniwrt_model::{
     facts::NodeFacts,
-    inventory::{Backup, Inventory},
+    inventory::Inventory,
     node::{HostKeyPin, NewNode},
 };
 
@@ -13,7 +13,7 @@ use super::InventoryRepo;
 use crate::{
     Error, Result, SealedBackup, Store,
     codec::{enum_text, timestamp_column},
-    vault::{ALG, backup_from_row},
+    vault::ALG,
 };
 
 /// Everything adoption records about a node, written together: a node is never recorded
@@ -96,14 +96,14 @@ pub(crate) fn record(
     Ok(())
 }
 
-fn insert_backup(
+pub(crate) fn insert_backup(
     conn: &rusqlite::Connection,
     node: NodeId,
     backup: &SealedBackup,
 ) -> rusqlite::Result<()> {
     conn.prepare_cached(
-        "INSERT INTO node_backups (node_id, taken_at, reason, size, sha256, alg, value)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO node_backups (node_id, taken_at, reason, size, sha256, alg, value, content)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?
     .execute(params![
         node.get(),
@@ -113,6 +113,7 @@ fn insert_backup(
         backup.sha256,
         ALG,
         backup.value,
+        backup.content,
     ])?;
     Ok(())
 }
@@ -160,24 +161,6 @@ impl InventoryRepo for Store {
         })
         .await
     }
-
-    async fn add_backup(&self, node: NodeId, backup: SealedBackup) -> Result<()> {
-        self.write(move |conn| Ok(insert_backup(conn, node, &backup)?))
-            .await
-    }
-
-    async fn backups(&self, node: NodeId) -> Result<Vec<Backup>> {
-        self.read(move |conn| {
-            Ok(conn
-                .prepare_cached(
-                    "SELECT id, node_id, taken_at, reason, size, sha256 FROM node_backups
-                     WHERE node_id = ?1 ORDER BY taken_at DESC, id DESC",
-                )?
-                .query_map([node.get()], backup_from_row)?
-                .collect::<rusqlite::Result<_>>()?)
-        })
-        .await
-    }
 }
 
 #[cfg(test)]
@@ -191,8 +174,8 @@ mod tests {
 
     use super::Adoption;
     use crate::{
-        Error, FactsRepo as _, HostKeyRepo as _, InventoryRepo as _, MasterKey, NodeRepo as _,
-        Vault, repo::nodes::tests::new_node, testing,
+        BackupRepo as _, Error, FactsRepo as _, HostKeyRepo as _, InventoryRepo as _, MasterKey,
+        NodeRepo as _, Vault, repo::nodes::tests::new_node, testing,
     };
 
     fn adoption(vault: &Vault, last_octet: u8, tarball: &[u8]) -> Adoption {
@@ -219,7 +202,7 @@ mod tests {
             },
             backup: Some(
                 vault
-                    .seal_backup(BackupReason::Adoption, testing::START, tarball)
+                    .seal_backup(BackupReason::Adoption, testing::START, tarball, None)
                     .unwrap(),
             ),
         }
@@ -255,9 +238,10 @@ mod tests {
                 BackupReason::Upgrade,
                 testing::START.saturating_add(std::time::Duration::from_secs(60)),
                 b"\x1f\x8b later",
+                None,
             )
             .unwrap();
-        store.add_backup(node.id, later).await.unwrap();
+        store.keep_backup(node.id, later).await.unwrap();
         let both = store.backups(node.id).await.unwrap();
         assert_eq!(both.len(), 2);
         assert_eq!(both[0].reason, BackupReason::Upgrade);

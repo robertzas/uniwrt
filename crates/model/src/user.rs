@@ -100,6 +100,9 @@ pub enum AuditAction {
     Firmware,
     /// A user installed a controller release or changed its automatic install (D-123).
     Controller,
+    /// An admin took a node's backup, downloaded one or restored one onto the node (the detail
+    /// says which; D-126).
+    Backup,
 }
 
 /// One audit log entry.

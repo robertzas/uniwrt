@@ -9,7 +9,8 @@ use uniwrt_model::{
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
 use uniwrt_store::{
-    HostKeyRepo as _, InventoryRepo as _, JobRepo as _, NodeRepo as _, VaultRepo as _,
+    BackupRepo as _, HostKeyRepo as _, InventoryRepo as _, JobRepo as _, NodeRepo as _,
+    VaultRepo as _,
 };
 
 use crate::Error;

@@ -3,6 +3,7 @@
 
 mod adopted;
 mod backhaul;
+mod backup;
 mod channels;
 mod cutover;
 pub(crate) mod facts;

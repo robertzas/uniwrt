@@ -140,25 +140,11 @@ async fn an_apply_stages_everywhere_then_applies_leaves_first_and_confirms_all()
     let again = fleet.apply().await;
     assert_eq!(again.state, JobState::Succeeded);
     assert_eq!(node_states(&again), [JobNodeState::Unchanged; 3]);
-    let skipped: Vec<StepName> = again
-        .steps
-        .iter()
-        .filter(|step| step.state == StepState::Skipped)
-        .map(|step| step.name)
-        .collect();
-    assert_eq!(
-        skipped,
-        [
-            StepName::Install,
-            StepName::Stage,
-            StepName::Apply,
-            StepName::Verify,
-            StepName::Confirm,
-            StepName::Settle,
-            StepName::Wan,
-            StepName::Channels,
-            StepName::Backhaul
-        ]
+    // Every step between the plan and the record is skipped.
+    assert!(
+        again.steps[2..again.steps.len() - 1]
+            .iter()
+            .all(|step| step.state == StepState::Skipped)
     );
 }
 

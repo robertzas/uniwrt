@@ -41,6 +41,7 @@ use crate::{
     logging,
     master_key::{self, Source as KeySource},
     nightly::NightlyOptimizer,
+    scheduled_backups::ScheduledBackups,
     tls::{
         self,
         listener::{Peer, PlainListener, TlsListener},
@@ -145,19 +146,17 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
         )
         .await?;
         let nightly = NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock);
-        let auto_update = AutoUpdate::start(
-            updater,
-            github,
-            store.clone(),
-            jobs.clone(),
-            Arc::clone(&clock),
-        );
+        let auto_update = AutoUpdate::start(updater, github, &store, &jobs, &clock);
+        let backups = ScheduledBackups::start(&fleet, &store, &jobs, &clock);
         let renewal = tokio::spawn(renewer.run());
         let served = listen(&args, api, &tls, (http, https), stop).await;
         renewal.abort();
-        autotune.stop().await;
-        nightly.stop().await;
-        auto_update.stop().await;
+        tokio::join!(
+            autotune.stop(),
+            nightly.stop(),
+            auto_update.stop(),
+            backups.stop()
+        );
         port_watch.stop().await;
         jobs.shutdown().await;
         fleet.stop().await;

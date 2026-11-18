@@ -12,21 +12,22 @@ use tokio::{
     task::AbortHandle,
 };
 use tracing::{Instrument as _, info, info_span, warn};
-use uniwrt_core::{Clock, JobId, NodeId, RevisionId, UserId};
+use uniwrt_core::{BackupId, Clock, JobId, NodeId, RevisionId, UserId};
 use uniwrt_model::{
     apply::ApplyPlan,
     discovery::DiscoveryReport,
     facts::NodeFacts,
+    inventory::BackupReason,
     job::{Job, JobError, JobErrorCode, JobKind, NewJob},
     node::Node,
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
-use uniwrt_store::{JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault};
+use uniwrt_store::{BackupRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault};
 
 use crate::{
     AdoptRequest, BoxFuture, Dial, Error, ImportDraft, ImportScope, Result,
     adopt::{self, STEPS},
-    apply,
+    apply, backup,
     discovery::Discovery,
     manage,
     progress::Progress,
@@ -240,6 +241,64 @@ impl Jobs {
             vec![manage::target(node.id)],
             job,
             move |shared, progress| manage::run(shared, node, enable, progress),
+        )
+        .await
+    }
+
+    /// Starts backing up `nodes` (observe mode too: nothing changes on them) for `reason`
+    /// (D-126) and returns the job as it starts. It holds each node like any job on it.
+    pub async fn back_up(
+        &self,
+        nodes: &[NodeId],
+        reason: BackupReason,
+        by: Option<UserId>,
+    ) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        if nodes.is_empty() {
+            return Err(Error::Failed("no node to back up".to_owned()));
+        }
+        let mut found = Vec::with_capacity(nodes.len());
+        for &id in nodes {
+            found.push(self.shared.store.node(id).await?.ok_or(Error::NoNode(id))?);
+        }
+        let job = backup::job(&found, by);
+        let keys = found.iter().map(|node| manage::target(node.id)).collect();
+        self.spawn(keys, job, move |shared, progress| {
+            backup::run(shared, found, reason, progress)
+        })
+        .await
+    }
+
+    /// Starts restoring `backup`'s configuration onto its managed node as a transaction
+    /// (D-126) and returns the job as it starts.
+    pub async fn restore(&self, node: NodeId, backup: BackupId, by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let found = self
+            .shared
+            .store
+            .node(node)
+            .await?
+            .ok_or(Error::NoNode(node))?;
+        let kept = self
+            .shared
+            .store
+            .backups(node)
+            .await?
+            .into_iter()
+            .find(|kept| kept.id == backup)
+            .ok_or(Error::NoBackup(node, backup))?;
+        if found.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(found.id));
+        }
+        let job = backup::restore::job(&found, &kept, by);
+        self.spawn(
+            vec![manage::target(found.id)],
+            job,
+            move |shared, progress| backup::restore::run(shared, found, backup, progress),
         )
         .await
     }

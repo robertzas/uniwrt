@@ -31,6 +31,9 @@ pub struct Backup {
     pub id: BackupId,
     pub node: NodeId,
     pub taken_at: Timestamp,
+    /// When a backup found it unchanged last (D-126: one with the same files only moves this);
+    /// `taken_at` until then.
+    pub seen_at: Timestamp,
     pub reason: BackupReason,
     pub size_bytes: u64,
     /// SHA-256 of the tarball, in hexadecimal.
@@ -45,4 +48,25 @@ pub enum BackupReason {
     Adoption,
     /// Taken before the node's firmware was upgraded (D-124).
     Upgrade,
+    /// Taken weekly (D-126).
+    Scheduled,
+    /// Taken before an apply changed the node (D-126).
+    Apply,
+    /// Taken by an admin (*Back up now*).
+    Manual,
+    /// Taken before a backup's configuration was restored onto the node (D-126).
+    Restore,
 }
+
+impl BackupReason {
+    /// Kept whatever the count (D-126): what the node held before the controller changed it.
+    pub fn pinned(self) -> bool {
+        self == Self::Adoption
+    }
+}
+
+/// How many backups of a node are kept besides the adoption's (D-126).
+pub const BACKUPS_KEPT: usize = 10;
+
+/// How old a node's newest backup may get before the weekly one is due (D-126).
+pub const BACKUP_EVERY_S: i64 = 7 * 24 * 3600;

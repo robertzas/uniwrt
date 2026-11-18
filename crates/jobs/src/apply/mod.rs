@@ -2,7 +2,8 @@
 //! site's latest revision to every managed node as one fleet-wide two-phase commit.
 //!
 //! Steps: connect (every managed node, or nothing changes) → plan ([`survey`]: read what each
-//! holds, render, diff; any refused node stops it) → install (the feed packages a node's
+//! holds, render, diff; any refused node stops it) → backup (each node that changes, D-126; one
+//! that can't be backed up stops it) → install (the feed packages a node's
 //! configuration needs, [`install`]) → stage (stage and check every transaction)
 //! → apply (leaves → gateway, each with its dead-man timer; where mesh links drop, every node
 //! at one instant instead, [`cutover`], D-114) → verify (all at once, each over a
@@ -21,6 +22,7 @@ mod address;
 mod adopted;
 mod air;
 mod backhaul;
+mod backup;
 mod cables;
 mod channels;
 mod controller;
@@ -61,9 +63,10 @@ use crate::{errors::internal, progress::Progress, runner::Shared};
 /// The key that keeps one apply at a time.
 pub(crate) const TARGET: &str = "apply";
 
-const STEPS: [StepName; 12] = [
+const STEPS: [StepName; 13] = [
     StepName::Connect,
     StepName::Plan,
+    StepName::Backup,
     StepName::Install,
     StepName::Stage,
     StepName::Apply,
@@ -249,6 +252,14 @@ async fn apply(
             progress.skip(*step, "Nothing to change").await;
         }
         return record(shared, revision, progress, &[], &unchanged).await;
+    }
+    if let Err(err) = backup::back_up(shared, &lives, progress).await {
+        for live in lives {
+            if let Some(remote) = live.remote {
+                remote.close().await;
+            }
+        }
+        return Err(err);
     }
     let txn = TxnId::new(format!("uniwrt-{}", progress.job_id().get()))
         .map_err(|err| internal("naming the transaction", &err))?;

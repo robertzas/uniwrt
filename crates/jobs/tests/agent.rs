@@ -22,7 +22,7 @@ use uniwrt_node::{
     ControllerKey, Credential, ExecRequest, HostKey, Session, SshConfig, Target, probe,
     txn::Footprint,
 };
-use uniwrt_store::{InventoryRepo as _, MasterKey, NodeRepo as _, Store, Vault};
+use uniwrt_store::{BackupRepo as _, InventoryRepo as _, MasterKey, NodeRepo as _, Store, Vault};
 use zeroize::Zeroizing;
 
 #[derive(Default)]

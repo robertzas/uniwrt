@@ -3372,6 +3372,7 @@ version = "0.0.0"
 dependencies = [
  "bytes",
  "data-encoding",
+ "flate2",
  "proptest",
  "ring",
  "russh",
