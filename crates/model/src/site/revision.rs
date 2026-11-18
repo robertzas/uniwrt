@@ -42,6 +42,8 @@ pub enum RevisionKind {
     Import,
     /// A site file, imported (D-130).
     File,
+    /// A node decommissioned or forgotten, taken out of the document (D-131).
+    Remove,
 }
 
 /// A revision with its document, upgraded to the current schema, and its changes from its

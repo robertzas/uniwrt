@@ -37,6 +37,10 @@ impl Watch for Watched {
     fn moved(&self, _node: Node, _host_key: HostKey) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+
+    fn unwatch(&self, _node: uniwrt_core::NodeId) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 async fn run(session: &Session, argv: &[&str]) -> String {

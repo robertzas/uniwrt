@@ -39,6 +39,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/controller_backups_tests.rs`: Controller backups and their restore through the router (D-129): the passphrase, *Back up now*, the download, and a restore uploaded, unlocked and applied, by an admin or during first-run setup.
 - `src/controller_update.rs`: The controller's own update (features/lifecycle.md, Firmware; M7.1b2, D-123):
 - `src/controller_update_tests.rs`: The controller's own update through the router (D-123), against the fake releases on loopback and a scripted [`SelfUpdate`]: the offer, installs, refusals and the setting.
+- `src/decommission.rs`: A node leaving the site, with an admin's session (features/lifecycle.md, Replace / RMA / decommission; D-131), each a job answered 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it):
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
@@ -349,6 +350,9 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/backup/take.rs`: Taking a node's configuration backup over a login and keeping it, sealed (D-126): the Backup step of the backup, restore, apply and upgrade jobs.
 - `src/backup/tests.rs`: The backup and restore jobs (D-126) over the scripted fleet, which runs the simulated transaction tool.
 - `src/bootstrap.rs`: Finding the gateway to set up at first run (features/adoption.md, Path E): the controller sits behind a factory-default OpenWrt router, which is its default gateway (or, from a container on a bridge network, still at OpenWrt's 192.168.1.1 through the host).
+- `src/decommission/forget.rs`: The controller's side of a node leaving the site (D-131): it stops watching the node, a revision leaves it out of the site's document ([`uniwrt_model::site::remove`]), and its record goes with everything stored about it ([`uniwrt_store::NodeRepo::delete_node`]).
+- `src/decommission/mod.rs`: Taking a node out of the site (features/lifecycle.md, Replace / RMA / decommission; D-131).
+- `src/decommission/tests.rs`: Decommissioning and forgetting over the scripted node of [`crate::testing`].
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
 - `src/discovery/tests.rs`: Discovery over the canonical gateway's facts and a scripted LAN: the gateway leases to a laptop, a thermostat, an unnamed device and the AP `ap-living` (which batman-adv announces from originator `…:23`), and sees a mesh node `…:33` with only a Wi-Fi client behind it.
@@ -460,6 +464,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/network.rs`: Networks (features/network.md, Networks): a VLAN with its subnet, DHCP and IPv6 mode, which every node carries and the gateway routes.
 - `src/site/node.rs`: Per-node desired state: which UCI packages the controller owns on the node (D-011), its radios' overrides, and raw UCI sections (the validated escape hatch, also where brownfield import keeps what it cannot map).
 - `src/site/plan_tests.rs`: The RF plan the site follows (schema v11, D-112): its migration and validation.
+- `src/site/remove.rs`: A node leaving the site (features/lifecycle.md, Replace / RMA / decommission; D-131): what the document says about it goes with it, so the next revision names no node that isn't adopted.
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
@@ -491,6 +496,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/backoff.rs`: Jittered exponential backoff for reconnects (ARCHITECTURE.md, Node protocol: 1 s doubling to 60 s).
 - `src/bundle.rs`: The agent bundle: `node-agent/` embedded in the binary, and the bootstrap that installs it on a node by hash (ARCHITECTURE.md, Node protocol).
 - `src/bundle/tar.rs`: A minimal ustar writer: directories and regular files with a fixed owner, mode and time, so the same files always make the same bytes.
+- `src/decommission.rs`: The command that takes a node out of the site (features/lifecycle.md, Replace / RMA / decommission; D-131): it leaves the mesh, the uniwrt footprint and the controller's key go, and optionally `firstboot` resets the node to its image's defaults and restarts it.
 - `src/error.rs`: Errors of the node transport.
 - `src/events.rs`: Parsing what the agent pushes ([`AgentEvent`]): ticks into [`Collected`] (applied with [`facts::apply`](crate::facts::apply)), the notifications of the subscribed [`Topic`](crate::proto::ops::Topic)s into [`NodeEvent`]s, and `log` batches into [`LogEntry`]s.
 - `src/events/dhcp.rs`: The DHCP servers' notifications, alike for dnsmasq and odhcpd: `dhcp.ack` with the client's `mac`, `ip`, `name` and the `interface` it was leased on, and `dhcp.release` without the name.
@@ -929,7 +935,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (444 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (445 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

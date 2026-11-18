@@ -132,6 +132,12 @@ pub enum EventKind {
     },
     /// A node was adopted (in observe mode).
     NodeAdopted,
+    /// A node left the site (D-131): decommissioned (`wiped`: its footprint removed on the
+    /// node) or forgotten by the controller alone. Its record is gone, so the event names it.
+    NodeRemoved {
+        name: String,
+        wiped: bool,
+    },
     /// A node became unreachable (raises its `offline` condition).
     NodeOffline {
         reasons: Vec<StatusReason>,
@@ -363,6 +369,7 @@ impl EventKind {
             | Self::ConfigDrift { .. } => (C::System, L::Warning),
             Self::ControllerStarted { .. }
             | Self::NodeAdopted
+            | Self::NodeRemoved { .. }
             | Self::NodeOnline { .. }
             | Self::NodeRecovered { .. }
             | Self::FlashOk { .. }
@@ -406,6 +413,7 @@ impl EventKind {
         match self {
             Self::ControllerStarted { .. } => "controller_started",
             Self::NodeAdopted => "node_adopted",
+            Self::NodeRemoved { .. } => "node_removed",
             Self::NodeOffline { .. } => "node_offline",
             Self::NodeOnline { .. } => "node_online",
             Self::NodeDegraded { .. } => "node_degraded",
@@ -636,6 +644,10 @@ mod tests {
     fn names_match_the_serde_tags() {
         for what in [
             EventKind::NodeAdopted,
+            EventKind::NodeRemoved {
+                name: "ap".to_owned(),
+                wiped: true,
+            },
             EventKind::NodeOnline { down_ms: None },
             EventKind::ClientLeft { connected_ms: None },
             EventKind::NewClient {

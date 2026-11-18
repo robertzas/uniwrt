@@ -26,6 +26,7 @@ pub mod ipam;
 pub mod migrate;
 pub mod network;
 pub mod node;
+pub mod remove;
 pub mod revision;
 pub mod steering;
 pub mod tz;

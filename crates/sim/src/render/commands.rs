@@ -242,6 +242,15 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
     if let Some(output) = super::wpad::exec(&argv, node.release.package_manager, &mut disk.wpad) {
         return output;
     }
+    // A decommission's wipe (D-131): it starts and nothing reports back; the simulated node
+    // stays on the air, as a device the adopted ones see.
+    if argv.get(5) == Some(&uniwrt_node::decommission::LOG) {
+        return ExecOutput {
+            status: ExitStatus::Code(0),
+            stdout: b"started\n".to_vec(),
+            stderr: Vec::new(),
+        };
+    }
     if let Some(output) = super::feeds::exec(
         &argv,
         node.release.package_manager,

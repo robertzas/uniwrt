@@ -95,6 +95,10 @@ impl Watch for NoWatch {
     fn moved(&self, _: Node, _: HostKey) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+
+    fn unwatch(&self, _: uniwrt_core::NodeId) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 /// [`api`] whose jobs reach nodes with `dial`; `None` reaches nothing.

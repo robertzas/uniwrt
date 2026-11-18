@@ -138,9 +138,35 @@ impl NodeRepo for Store {
 
     async fn delete_node(&self, id: NodeId) -> Result<bool> {
         self.write(move |conn| {
+            let raw = id.get();
+            // Its own tables follow by their foreign keys; these name it by text.
+            let entity = format!("node:{raw}");
+            let below = format!("node:{raw}/%");
+            for table in ["metrics_raw", "metrics_1m", "metrics_1h"] {
+                conn.execute(
+                    &format!(
+                        "DELETE FROM {table} WHERE series IN \
+                         (SELECT id FROM metric_series WHERE entity = ?1 OR entity LIKE ?2)"
+                    ),
+                    params![entity, below],
+                )?;
+            }
+            conn.prepare_cached("DELETE FROM metric_series WHERE entity = ?1 OR entity LIKE ?2")?
+                .execute(params![entity, below])?;
+            conn.prepare_cached("DELETE FROM topology_layout WHERE vertex = ?1")?
+                .execute([&entity])?;
+            conn.prepare_cached("DELETE FROM vault WHERE name LIKE ?1")?
+                .execute([format!("node/{raw}/%")])?;
+            conn.prepare_cached(
+                "UPDATE settings SET value = json_remove(value, ?2) WHERE key = ?1",
+            )?
+            .execute(params![
+                uniwrt_model::firmware::FirmwareSources::KEY,
+                format!("$.nodes.\"{raw}\"")
+            ])?;
             Ok(conn
                 .prepare_cached("DELETE FROM nodes WHERE id = ?1")?
-                .execute([id.get()])?
+                .execute([raw])?
                 > 0)
         })
         .await
@@ -152,7 +178,9 @@ pub(crate) mod tests {
     use uniwrt_core::{MacAddr, NodeId};
     use uniwrt_model::node::{NewNode, NodeMode, NodeRole};
 
-    use crate::{Error, NodeRepo as _, testing};
+    use rusqlite::params;
+
+    use crate::{Error, NodeRepo as _, Result, testing};
 
     pub(crate) fn new_node(last_octet: u8) -> NewNode {
         NewNode {
@@ -234,6 +262,75 @@ pub(crate) mod tests {
         assert!(
             matches!(&err, Error::Conflict { what: "node", key } if key == "94:83:c4:00:00:02"),
             "{err:?}"
+        );
+        assert_eq!(store.nodes().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_deleted_node_takes_what_names_it_by_text_and_nothing_else() {
+        let (_dir, store, _) = testing::open().await;
+        let gone = store.create_node(new_node(2)).await.unwrap().id;
+        let kept = store.create_node(new_node(3)).await.unwrap().id;
+        let sources = format!(r#"{{"repo":null,"nodes":{{"{gone}":"asu","{kept}":"official"}}}}"#);
+        store
+            .write(move |conn| {
+                for (id, entity) in [
+                    (1, format!("node:{gone}")),
+                    (2, format!("node:{gone}/radio:radio0")),
+                    (3, format!("node:{kept}")),
+                    (4, format!("node:{gone}0")),
+                ] {
+                    conn.execute(
+                        "INSERT INTO metric_series (id, entity, metric) VALUES (?1, ?2, 'cpu')",
+                        params![id, entity],
+                    )?;
+                    conn.execute("INSERT INTO metrics_raw VALUES (?1, 0, 1.0)", [id])?;
+                }
+                for vertex in [format!("node:{gone}"), format!("node:{kept}")] {
+                    conn.execute("INSERT INTO topology_layout VALUES (?1, 0, 0)", [vertex])?;
+                }
+                for name in [
+                    format!("node/{gone}/root_password"),
+                    format!("node/{kept}/root_password"),
+                ] {
+                    conn.execute("INSERT INTO vault VALUES (?1, 'x', x'00', 0, 0)", [name])?;
+                }
+                conn.execute(
+                    "INSERT INTO settings VALUES ('firmware_sources', ?1, 0)",
+                    [sources],
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+
+        assert!(store.delete_node(gone).await.unwrap());
+        let left = store
+            .read(|conn| {
+                let strings = |sql: &str| -> Result<Vec<String>> {
+                    let mut statement = conn.prepare(sql)?;
+                    let rows = statement.query_map([], |row| row.get(0))?;
+                    Ok(rows.collect::<rusqlite::Result<_>>()?)
+                };
+                Ok((
+                    strings("SELECT entity FROM metric_series ORDER BY id")?,
+                    strings("SELECT CAST(series AS TEXT) FROM metrics_raw ORDER BY series")?,
+                    strings("SELECT vertex FROM topology_layout")?,
+                    strings("SELECT name FROM vault")?,
+                    strings("SELECT value FROM settings")?,
+                ))
+            })
+            .await
+            .unwrap();
+        assert_eq!(left.0, [format!("node:{kept}"), format!("node:{gone}0")]);
+        assert_eq!(left.1, ["3", "4"]);
+        assert_eq!(left.2, [format!("node:{kept}")]);
+        assert_eq!(left.3, [format!("node/{kept}/root_password")]);
+        assert_eq!(
+            left.4,
+            [format!(
+                r#"{{"repo":null,"nodes":{{"{kept}":"official"}}}}"#
+            )]
         );
         assert_eq!(store.nodes().await.unwrap().len(), 1);
     }

@@ -192,7 +192,7 @@ pub(crate) async fn install(remote: &dyn Remote, progress: &mut Progress) -> Res
     Ok(())
 }
 
-async fn remove(remote: &dyn Remote, progress: &mut Progress) -> Result<(), JobError> {
+pub(crate) async fn remove(remote: &dyn Remote, progress: &mut Progress) -> Result<(), JobError> {
     progress.start(StepName::RemoveTool).await;
     let before = status(remote).await?;
     let Some(before) = before else {

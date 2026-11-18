@@ -142,6 +142,8 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return { title: titles.controllerStarted(what.version) };
     case "node_adopted":
       return { title: titles.nodeAdopted(node) };
+    case "node_removed":
+      return { title: titles.nodeRemoved(what.name, what.wiped) };
     case "node_offline":
       return withDetail(titles.nodeOffline(node), reasonText(what.reasons[0]));
     case "node_online": {

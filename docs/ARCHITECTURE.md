@@ -119,6 +119,7 @@ Rules:
 | Mode | Persistent changes on the node |
 |---|---|
 | Observe | One `authorized_keys` entry (comment `uniwrt-controller`). Remote syslog only with consent. |
+| Decommissioned | Nothing of uniwrt: the wipe removes the key, `/etc/uniwrt`, the guard and the ZTP hello, and leaves the mesh (or runs `firstboot`; D-131). |
 | Managed | Adds `/etc/uniwrt/` (the transaction tool `txn` and its `VERSION`; `journal/` with the open transaction's snapshot and the last outcome, ≤ 100 KB), `/etc/init.d/uniwrt-guard` (START=13: rolls back an unconfirmed transaction at boot; runs the open one's dead-man timer and reload as procd instances), `/lib/upgrade/keep.d/uniwrt` (keeps both across sysupgrade), and the managed UCI packages (D-069). |
 
 Everything else is ephemeral, under `/tmp/uniwrt` (RAM).

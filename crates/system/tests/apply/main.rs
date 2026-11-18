@@ -79,6 +79,10 @@ impl Watch for Moves {
         self.0.lock().expect("moves").push((node.id, node.host));
         Box::pin(async {})
     }
+
+    fn unwatch(&self, _: NodeId) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 struct Lab {

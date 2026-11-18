@@ -231,7 +231,10 @@ pub trait NodeRepo: Send + Sync {
     /// All nodes, oldest first.
     fn nodes(&self) -> impl Future<Output = Result<Vec<Node>>> + Send;
 
-    /// Removes a node and everything stored about it; false when there was no such node.
+    /// Removes a node and everything stored about it, all or nothing (D-131): its tables, its
+    /// metric series, its pinned place in the topology, its vault secrets (`node/<id>/…`) and
+    /// its firmware source; the timeline, logs, jobs and client history stay. False when there
+    /// was no such node.
     fn delete_node(&self, id: NodeId) -> impl Future<Output = Result<bool>> + Send;
 
     /// Sets a node's mode (management on or off); the node as it is now, or `None` when there

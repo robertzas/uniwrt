@@ -19,7 +19,9 @@
 //!   a node's packages and services); [`archive`] (the `sysupgrade -b` tarball read and written
 //!   in memory, and its content digest, D-126); [`pkg`] (opkg's and apk's commands and the installed
 //!   packages' parser, D-100); [`wpad`] (the commands that swap a node's basic wpad for
-//!   the full one, D-089); [`root_password`] (a random root password for a node
+//!   the full one, D-089); [`decommission`] (the detached wipe that takes a node out of the
+//!   site: the mesh left, the footprint and the controller's key removed, `firstboot`
+//!   optionally, D-131); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
 //!   zero-touch images, D-102); [`adoption_port`] (the gateway's segment and the device found
 //!   on it: the reads and their parsers, D-106); [`Error`]. A [`Credential::Password`] that is
@@ -47,6 +49,7 @@ mod agent;
 pub mod archive;
 mod backoff;
 mod bundle;
+pub mod decommission;
 mod error;
 pub mod events;
 pub mod exec;

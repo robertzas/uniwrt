@@ -114,6 +114,12 @@ pub enum JobKind {
     /// Restoring a backup's configuration (its `/etc/config` packages) onto its managed node,
     /// as a transaction (D-126).
     Restore,
+    /// Taking a node out of the site (D-131): it leaves the mesh, the uniwrt footprint is wiped
+    /// from it (optionally `firstboot` too), and the controller forgets it.
+    Decommission,
+    /// Forgetting a node on the controller alone, as decommissioning does, for one that can't
+    /// be reached (D-131).
+    Forget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -242,6 +248,8 @@ pub enum StepName {
     Reboot,
     /// Watch the upgraded node for a while: still reachable and as healthy as before.
     Soak,
+    /// Decommissioning: the mesh left, the footprint and the controller's key removed.
+    Wipe,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

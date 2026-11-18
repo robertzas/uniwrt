@@ -46,6 +46,7 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
       "flash_low",
       "flash_ok",
       "node_adopted",
+      "node_removed",
       "job_failed",
       "config_drift",
       "config_drift_ended",

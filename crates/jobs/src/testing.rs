@@ -180,6 +180,14 @@ impl FakeNode {
                 *self.footprint.lock().unwrap() = None;
                 ok(br#"{"ok":{}}"#)
             }
+            ["sh", "-c", _, "sh", _, log, key, _] if *log == uniwrt_node::decommission::LOG => {
+                let mut keys = self.authorized_keys.lock().unwrap();
+                *keys = keys
+                    .lines()
+                    .filter(|line| line != key)
+                    .fold(String::new(), |kept, line| kept + line + "\n");
+                ok(b"started\n")
+            }
             _ => ExecOutput {
                 status: ExitStatus::Code(127),
                 stdout: Vec::new(),
@@ -372,11 +380,12 @@ impl Dial for Behind {
     }
 }
 
-/// The nodes adopted, and the nodes an apply moved.
+/// The nodes adopted, the nodes an apply moved, and the nodes no longer watched.
 #[derive(Default)]
 pub(crate) struct Watched(
     pub(crate) Mutex<Vec<(Node, HostKey, NodeFacts)>>,
     pub(crate) Mutex<Vec<Node>>,
+    pub(crate) Mutex<Vec<uniwrt_core::NodeId>>,
 );
 
 impl Watch for Watched {
@@ -387,6 +396,11 @@ impl Watch for Watched {
 
     fn moved(&self, node: Node, _host_key: HostKey) -> BoxFuture<'_, ()> {
         self.1.lock().unwrap().push(node);
+        Box::pin(async {})
+    }
+
+    fn unwatch(&self, node: uniwrt_core::NodeId) -> BoxFuture<'_, ()> {
+        self.2.lock().unwrap().push(node);
         Box::pin(async {})
     }
 }

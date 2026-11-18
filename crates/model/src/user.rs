@@ -103,6 +103,8 @@ pub enum AuditAction {
     /// An admin took a node's backup, downloaded one or restored one onto the node (the detail
     /// says which; D-126).
     Backup,
+    /// An admin decommissioned a node or forgot it (the detail names it and says which; D-131).
+    Decommission,
 }
 
 /// One audit log entry.

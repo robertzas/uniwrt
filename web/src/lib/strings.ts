@@ -593,6 +593,8 @@ export const strings = {
       upgrade: (target: string) => `Upgrading ${target}`,
       backup: (target: string) => `Backing up ${target}`,
       restore: (target: string) => `Restoring ${target}`,
+      decommission: (target: string) => `Decommissioning ${target}`,
+      forget: (target: string) => `Forgetting ${target}`,
     },
     step: {
       connect: "Log in",
@@ -636,6 +638,7 @@ export const strings = {
       flash: "Write the image, keeping the settings",
       reboot: "Restart and come back",
       soak: "Watch it for a few minutes",
+      wipe: "Leave the mesh and wipe uniwrt from it",
     },
     /** Steps whose words differ by kind of job. */
     stepOf: {
@@ -665,6 +668,8 @@ export const strings = {
         apply: "Apply it",
         verify: "Check it against before",
       },
+      decommission: { record: "Remove it from the controller" },
+      forget: { record: "Remove it from the controller" },
       upgrade: {
         check: "Check the device and pick its image",
         download: "Download the image",
@@ -1780,6 +1785,8 @@ export const strings = {
     titles: {
       controllerStarted: (version: string) => `Controller started (${version})`,
       nodeAdopted: (node: string) => `${node} adopted`,
+      nodeRemoved: (node: string, wiped: boolean) =>
+        wiped ? `${node} decommissioned` : `${node} forgotten`,
       nodeOffline: (node: string) => `${node} went offline`,
       nodeOnline: (node: string) => `${node} is back online`,
       nodeDegraded: (node: string) => `${node} is degraded`,
@@ -1890,6 +1897,8 @@ export const strings = {
         upgrade: "upgrading the firmware",
         backup: "backing up",
         restore: "restoring a backup",
+        decommission: "decommissioning a device",
+        forget: "forgetting a device",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,
@@ -2064,6 +2073,7 @@ export const strings = {
     kinds: {
       controller_started: "Controller started",
       node_adopted: "Device adopted",
+      node_removed: "Device removed",
       node_offline: "Device offline",
       node_online: "Device back online",
       node_degraded: "Device degraded",
@@ -3300,6 +3310,7 @@ export const strings = {
         restore: "Restore",
         import: "Import",
         file: "From a file",
+        remove: "Device removed",
       },
       defaultsTitle: "The defaults",
       restoredTitle: (id: number) => `Restored revision ${id}`,

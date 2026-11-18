@@ -47,6 +47,10 @@ pub trait Watch: Send + Sync + 'static {
 
     /// Watches a node at its new address (`node.host`), which an apply moved it to.
     fn moved(&self, node: Node, host_key: HostKey) -> BoxFuture<'_, ()>;
+
+    /// Stops watching a node that leaves the site (D-131), before its footprint goes; done once
+    /// its link is closed.
+    fn unwatch(&self, node: NodeId) -> BoxFuture<'_, ()>;
 }
 
 /// What [`Jobs::start`] needs.
@@ -523,7 +527,7 @@ impl Jobs {
     }
 
     /// Records a new job and runs it in its own task, holding `keys` (its targets) meanwhile.
-    async fn spawn<F, Fut>(&self, keys: Vec<String>, new: NewJob, run: F) -> Result<Job>
+    pub(crate) async fn spawn<F, Fut>(&self, keys: Vec<String>, new: NewJob, run: F) -> Result<Job>
     where
         F: FnOnce(Arc<Shared>, Progress) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,

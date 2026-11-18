@@ -22,6 +22,9 @@
 //!   [`Rollouts::start`] with the [`RolloutImages`] that ready each node's image;
 //!   [`Rollouts::create`] from a [`RolloutRequest`], pause, resume, skip, cancel;
 //!   [`RolloutTiming`]);
+//!   [`Jobs::decommission`] takes a node out of the site (the mesh left, its footprint wiped,
+//!   `firstboot` optionally, then forgotten) and [`Jobs::forget`] forgets it on the controller
+//!   alone ([`Author`], D-131; `decommission/`);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -125,6 +128,7 @@ mod adoption_port_tests;
 mod apply;
 mod backup;
 pub mod bootstrap;
+mod decommission;
 mod discovery;
 mod errors;
 mod firmware;
@@ -149,6 +153,7 @@ mod ztp;
 pub use adopt::{AdoptRequest, PortPath, ZtpClaim};
 pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
+pub use decommission::Author;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use rollout::{CanaryRequest, RolloutImages, RolloutRequest, RolloutTiming, Rollouts};

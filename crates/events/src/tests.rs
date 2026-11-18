@@ -460,6 +460,31 @@ fn an_adoption_is_an_event_once_and_a_failed_job_too() {
 }
 
 #[test]
+fn a_node_decommissioned_or_forgotten_is_named_by_its_event() {
+    let mut d = deriver();
+    for (id, kind, wiped) in [
+        (6, JobKind::Decommission, true),
+        (7, JobKind::Forget, false),
+    ] {
+        let mut removed = job(JobState::Succeeded);
+        removed.id = JobId::new(id);
+        removed.kind = kind;
+        removed.target = "attic".into();
+        let event = d.job(&removed, at(31)).unwrap();
+        assert_eq!(
+            (event.what, event.node),
+            (
+                EventKind::NodeRemoved {
+                    name: "attic".to_owned(),
+                    wiped
+                },
+                Some(N2)
+            )
+        );
+    }
+}
+
+#[test]
 fn roams_name_both_access_points() {
     let roam = Roam {
         mac: PHONE.parse::<MacAddr>().unwrap(),

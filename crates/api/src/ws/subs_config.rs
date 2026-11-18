@@ -32,7 +32,11 @@ pub(super) async fn read(api: &Api, topic: String) -> Result<ServerMessage, BadT
     })
 }
 
-/// Whether `job`'s change can change what nodes hold: an apply that ended.
+/// Whether `job` changed the site's configuration or what nodes hold: an apply that ended, or
+/// a node that left the site (its revision, D-131).
 pub(crate) fn changes_config(job: &Job) -> bool {
-    job.kind == JobKind::Apply && job.finished_at.is_some()
+    matches!(
+        job.kind,
+        JobKind::Apply | JobKind::Decommission | JobKind::Forget
+    ) && job.finished_at.is_some()
 }

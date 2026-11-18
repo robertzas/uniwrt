@@ -485,6 +485,12 @@ impl Watch for Watcher {
             self.engine.add(node.id, (&node).into(), link, None).await;
         })
     }
+
+    fn unwatch(&self, node: uniwrt_core::NodeId) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.engine.remove(node).await;
+        })
+    }
 }
 
 async fn link(

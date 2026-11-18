@@ -13,7 +13,8 @@
 //!   v1/ztp/hello` (a ZTP device's call home, rate-limited; see `ztp`); with a
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
-//!   on or off, a job), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
+//!   on or off, a job), `POST v1/nodes/{id}/decommission` and `DELETE v1/nodes/{id}` (admins:
+//!   the node leaves the site, a job; see `decommission`, D-131), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
 //!   job, D-089), node backups (`GET v1/nodes/{id}/backups`, admins: `POST` it (a job), `GET
 //!   …/backups/{backup}/archive`, `POST …/backups/{backup}/restore` (a job); see `backups`, D-126), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
@@ -120,6 +121,7 @@ mod controller_backups_tests;
 pub mod controller_update;
 #[cfg(test)]
 mod controller_update_tests;
+mod decommission;
 mod discovered;
 mod drift;
 mod events;
@@ -190,6 +192,7 @@ pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
 pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
 pub use clients::{ClientDetail, ClientPatch};
+pub use decommission::DecommissionBody;
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use firmware::{PlanBody, UpgradeBody};
@@ -239,11 +242,6 @@ pub fn router(api: Api) -> Router {
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/logout", post(auth::logout))
         .route("/v1/auth/me", get(auth::me))
-        .route("/v1/nodes", get(nodes::list))
-        .route("/v1/nodes/{id}", get(nodes::get))
-        .route("/v1/nodes/{id}/management", put(management::put))
-        .route("/v1/nodes/{id}/role", put(node_role::put))
-        .route("/v1/nodes/{id}/wpad", post(wpad::post))
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
         .route("/v1/clients", get(clients::list))
@@ -298,6 +296,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/rf/scans/{id}", get(rf::one))
         .route("/v1/rf/settings", put(rf::put_settings))
         .route("/v1/rf/plan", get(rf::plan))
+        .merge(node_routes())
         .merge(config_routes())
         .merge(adoption_routes())
         .merge(ztp::routes())
@@ -333,6 +332,19 @@ pub fn router(api: Api) -> Router {
 
 /// Adoption: probes, adoptions one at a time or in a batch, the first run's gateway and its
 /// root password, and discovery.
+fn node_routes() -> Router<Api> {
+    Router::new()
+        .route("/v1/nodes", get(nodes::list))
+        .route(
+            "/v1/nodes/{id}",
+            get(nodes::get).delete(decommission::delete),
+        )
+        .route("/v1/nodes/{id}/decommission", post(decommission::post))
+        .route("/v1/nodes/{id}/management", put(management::put))
+        .route("/v1/nodes/{id}/role", put(node_role::put))
+        .route("/v1/nodes/{id}/wpad", post(wpad::post))
+}
+
 fn adoption_routes() -> Router<Api> {
     Router::new()
         .route("/v1/adopt/probe", post(adopt::probe))
