@@ -975,7 +975,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (455 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (457 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
