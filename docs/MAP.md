@@ -445,8 +445,10 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
 - `src/site/adoption_tests.rs`: The adoption port (schema v10, D-105): its migration and validation.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
-- `src/site/export.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), for migration or config-as-code: the latest revision's document with a table of its nodes by MAC, and its secrets, if exported, in one passphrase-encrypted blob.
-- `src/site/export_tests.rs`: The site as a file: an export imports back unchanged, onto the same controller or another with the same nodes under other ids; secrets from the file, kept or missing; files refused.
+- `src/site/export/import.rs`: Importing a site file (D-130): the document upgraded, its nodes mapped by MAC, its secrets resolved ([`secrets`](super::secrets)), and the preview to review.
+- `src/site/export/mod.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), for migration or config-as-code: the latest revision's document with a table of its nodes by MAC, and its secrets, if exported, in one passphrase-encrypted blob.
+- `src/site/export/secrets.rs`: An import's secrets (D-130): each slot the file sets takes the file's value, the latest revision's at the same path, or none; the file's references never meet the vault's.
+- `src/site/export/tests.rs`: The site as a file: an export imports back unchanged, onto the same controller or another with the same nodes under other ids; secrets from the file, kept or missing; files refused.
 - `src/site/firewall.rs`: The gateway's firewall (features/network.md, Firewall policy): the policy between networks, port forwards and the DMZ host, and UPnP.
 - `src/site/firewall_tests.rs`: Validating the firewall's parts that M4.2b added (port forwards, the DMZ, UPnP), and their migration.
 - `src/site/gateway.rs`: What only the gateway renders besides its firewall ([`firewall`](super::firewall)): the WAN (features/wan.md) and services such as local DNS.
