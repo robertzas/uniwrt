@@ -18,6 +18,7 @@
 //!   import (D-130).
 
 pub mod adoption;
+pub mod blocking;
 pub mod diff;
 pub mod export;
 pub mod firewall;
@@ -51,7 +52,7 @@ use self::{
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 12;
+pub const SCHEMA_VERSION: u32 = 13;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -362,6 +363,8 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
 
 #[cfg(test)]
 mod adoption_tests;
+#[cfg(test)]
+mod blocking_tests;
 #[cfg(test)]
 mod firewall_tests;
 #[cfg(test)]

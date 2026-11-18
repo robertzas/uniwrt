@@ -227,3 +227,38 @@ fn a_conditional_server_keeps_the_isp_s_upstream() {
     let import = run(&SiteConfig::defaults(None), &found);
     assert_eq!(import.site.services.upstream, Upstream::Isp);
 }
+
+#[test]
+fn dns_filtering_and_its_bypass_import_exactly() {
+    let mut site = served(Upstream::Isp);
+    site.services.blocking.enabled = true;
+    site.services.blocking.bypass = vec![
+        "02:00:00:00:10:01".parse().unwrap(),
+        "02:00:00:00:10:02".parse().unwrap(),
+    ];
+    let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+    assert_eq!(import.site.services.blocking, site.services.blocking);
+    let gateway = &import.nodes[0];
+    assert!(
+        gateway
+            .residual
+            .iter()
+            .all(|d| d.package != "dhcp" && d.package != "firewall"),
+        "{:?}",
+        gateway.residual
+    );
+    // Every section of theirs maps onto the model, none kept raw.
+    assert!(
+        gateway
+            .sections
+            .iter()
+            .filter(|s| s.package == "dhcp" || s.package == "firewall")
+            .all(|s| matches!(&s.fate, crate::Fate::Mapped { kept } if kept.is_empty())),
+        "{:?}",
+        gateway.sections
+    );
+    // Without the bypass, filtering alone.
+    site.services.blocking.bypass.clear();
+    let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+    assert_eq!(import.site.services.blocking, site.services.blocking);
+}

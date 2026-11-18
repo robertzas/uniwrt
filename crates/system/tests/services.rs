@@ -1,19 +1,20 @@
 //! The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology:
 //! DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and
-//! `firewall` packages render owns.
+//! `firewall` packages render owns; DNS filtering (D-133) with a client that bypasses it.
 
 use std::time::{Duration, Instant};
 
 use uniwrt_model::{
     node::NodeRole,
     site::{
+        blocking::{BLOCKLIST_CONF, BLOCKLIST_FILE, CONF_DIR},
         node::ManagedPackage,
         services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
     },
 };
 use uniwrt_system::{
-    Node, ipv4, render_for,
-    site::{self, GATEWAY, Uplink, secret},
+    Node, ipv4, needs, render_for,
+    site::{self, AP, GATEWAY, Uplink, secret},
 };
 
 const UP: Duration = Duration::from_secs(45);
@@ -99,4 +100,73 @@ fn doh_and_ddns_run_beside_what_render_owns() {
             .iter()
             .any(|d| d.id == "lab" && d.running)
     });
+}
+
+/// What `nslookup name` through the gateway answers on `node`, with its errors.
+fn lookup(node: &Node, name: &str) -> String {
+    let out = node.run("nslookup \"$1\" 10.0.0.1 2>&1", &[name], &[]);
+    format!("{}{}", out.stdout, out.stderr)
+}
+
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn dns_filtering_blocks_what_its_list_names_but_not_for_a_bypassed_client() {
+    let mut site = site::defaults(Uplink::Static);
+    site.services.blocking.enabled = true;
+    // Another client bypasses at first: the unfiltered instance runs, the AP is filtered.
+    site.services.blocking.bypass = vec!["02:00:00:00:99:01".parse().unwrap()];
+    let gw = Node::new("uniwrt-system-gw");
+    gw.apply(&render_for(&site, &gw, GATEWAY, NodeRole::Gateway));
+    gw.wait_interface("wan", UP, |s| ipv4(s) == ["192.0.2.2/24"]);
+    let ap = Node::new("uniwrt-system-ap");
+    ap.apply(&render_for(&site, &ap, AP, NodeRole::Ap));
+    ap.wait_interface("lan", UP, |s| {
+        ipv4(s).iter().any(|a| a.starts_with("10.0.0."))
+    });
+
+    // The unfiltered instance answers DNS on 5354 (0x14EA) and serves no DHCP.
+    eventually(UP, "the unfiltered instance listens", || {
+        gw.sh("cat /proc/net/udp", &[]).contains(":14EA")
+    });
+    let conf = gw.sh("cat /var/etc/dnsmasq.conf.unfiltered", &[]);
+    assert!(!conf.contains("dhcp-range"), "{conf}");
+    assert!(conf.lines().any(|l| l == "port=5354"), "{conf}");
+
+    // The controller's push: the list, then the conf file that loads it, then a restart.
+    gw.sh(
+        r#"mkdir -p "$1" && printf '# uniwrt test\nserver=/blocked.example/\n' > "$2" &&
+           printf 'servers-file=%s\n' "$2" > "$3" && /etc/init.d/dnsmasq restart"#,
+        &[CONF_DIR, BLOCKLIST_FILE, BLOCKLIST_CONF],
+    );
+    eventually(UP, "the list blocks", || {
+        lookup(&ap, "blocked.example").contains("NXDOMAIN")
+    });
+    // A refresh is read again on SIGHUP (`reload`), without a restart.
+    gw.sh(
+        r#"printf 'server=/blocked.example/\nserver=/also.example/\n' > "$1" &&
+           /etc/init.d/dnsmasq reload"#,
+        &[BLOCKLIST_FILE],
+    );
+    eventually(UP, "the refreshed list blocks", || {
+        lookup(&ap, "also.example").contains("NXDOMAIN")
+    });
+
+    // The AP bypasses: its DNS goes to the unfiltered instance, which still knows local names
+    // through the main one (its DHCP leases' names, which only the main instance holds).
+    let mac = ap.sh("cat /sys/class/net/br-lan/address", &[]);
+    let lease = gw.sh(r#"grep -i " $1 " /tmp/dhcp.leases"#, &[mac.trim()]);
+    let fields: Vec<&str> = lease.split_whitespace().collect();
+    let (ip, name) = (fields[2].to_owned(), format!("{}.lan", fields[3]));
+    site.services.blocking.bypass = vec![mac.trim().parse().unwrap()];
+    let rendered = render_for(&site, &gw, GATEWAY, NodeRole::Gateway);
+    gw.apply(&rendered);
+    if needs("nftables") {
+        let chain = gw.sh("nft list chain inet fw4 dstnat_lan", &[]);
+        assert!(chain.contains("redirect to :5354"), "{chain}");
+    }
+    eventually(UP, "the bypassed client resolves local names", || {
+        lookup(&ap, &name).contains(&ip)
+    });
+    let answer = lookup(&ap, "blocked.example");
+    assert!(!answer.contains("NXDOMAIN"), "{answer}");
 }

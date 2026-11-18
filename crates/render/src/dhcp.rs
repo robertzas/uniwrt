@@ -28,7 +28,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     let gateway = plan.role == NodeRole::Gateway;
     let mut dns = dnsmasq(domain);
     if gateway {
-        dns = upstream(plan, dns);
+        dns = crate::blocking::main(plan, upstream(plan, dns));
     }
     let mut sections = vec![dns];
     let serves_time = gateway && plan.site.services.ntp_server;
@@ -86,7 +86,11 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         }));
     }
     let mut package = Package::new("dhcp");
-    package.sections = sections;
+    package.sections = if gateway {
+        crate::blocking::instances(plan, sections)
+    } else {
+        sections
+    };
     package
 }
 

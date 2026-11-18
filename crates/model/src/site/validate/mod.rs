@@ -5,6 +5,7 @@
 //! and pools sit inside their subnet, reservations are unique, nothing collides with CGNAT
 //! (100.64.0.0/10) or the WAN, and 192.168.1.0/24 stays free for factory-default devices.
 
+mod blocking;
 mod dhcp;
 mod firewall;
 mod gateway;
@@ -22,6 +23,7 @@ use uniwrt_core::NodeId;
 
 use super::{SCHEMA_VERSION, SiteConfig};
 
+pub use blocking::{MAX_BYPASS, MAX_CUSTOM, MAX_DOMAINS, is_list_url};
 pub use dhcp::is_dhcp_option;
 pub use names::{is_hostname, is_id};
 pub use services::{doh_host, needs_secret};
@@ -98,6 +100,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     gateway::services(config, &mut issues);
     services::upstream(config, &mut issues);
     services::ddns(config, &mut issues);
+    blocking::blocking(config, &mut issues);
     gateway::adoption_port(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
     issues.0

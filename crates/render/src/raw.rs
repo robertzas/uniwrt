@@ -35,7 +35,7 @@ pub fn key(package: &str, kind: &str) -> Option<&'static [&'static str]> {
 
 /// The section of `package` that a section of `kind`, named `name`, with the `option` values
 /// given stands for: the one of that name, or for an anonymous one the first of its type with
-/// the same key options.
+/// the same key options (for a type held once, its first section, named or not).
 pub fn find<'v>(
     package: &Package,
     kind: &str,
@@ -49,6 +49,11 @@ pub fn find<'v>(
             .position(|s| s.name.as_deref() == Some(name));
     }
     let key = key(&package.name, kind)?;
+    if key.is_empty() {
+        // A type held once is its first section, which render may name (the main dnsmasq
+        // while a DNS filter bypass is on, D-133).
+        return package.sections.iter().position(|s| s.kind == kind);
+    }
     package.sections.iter().position(|s| {
         s.kind == kind
             && s.name.is_none()

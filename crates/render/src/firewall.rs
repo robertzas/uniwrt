@@ -77,6 +77,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
             }
         }
         sections.extend(crate::redirect::sections(plan, WAN));
+        sections.extend(crate::blocking::firewall(plan));
         sections.extend(crate::backhaul::firewall(plan));
         sections.extend(crate::adoption::firewall(plan));
     }

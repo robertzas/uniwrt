@@ -2,12 +2,16 @@
 //! `server`s (the WAN's, plain servers, or https-dns-proxy's local instances), whether the
 //! gateway serves NTP, and the DDNS names ddns-scripts keeps. What the model can't hold stays
 //! as it is: an upstream with conditional or odd servers stays the ISP's (its options raw), and
-//! a DDNS section of another service, source or id stays a raw section.
+//! a DDNS section of another service, source or id stays a raw section. DNS filtering (D-133)
+//! is on where the main dnsmasq reads uniwrt's conf directory, its bypassed clients those of
+//! uniwrt's redirects; its lists live on the controller, so they are the defaults.
 
 use std::net::IpAddr;
 
+use uniwrt_core::MacAddr;
 use uniwrt_model::site::{
     SecretRef, SiteConfig,
+    blocking::{Blocking, CONF_DIR},
     services::{Ddns, DdnsProvider, DdnsSource, DohResolver, MAX_SERVERS, Upstream},
     validate::is_id,
 };
@@ -30,6 +34,35 @@ pub(crate) fn import(
     site.services.ddns = read::sections(packages, "ddns", "service")
         .filter_map(|section| ddns(section, seal))
         .collect();
+    site.services.blocking = blocking(gateway);
+}
+
+/// DNS filtering as uniwrt renders it: the main dnsmasq's conf directory, and the clients its
+/// redirects send to the unfiltered instance.
+fn blocking(gateway: &Source<'_>) -> Blocking {
+    let packages = gateway.packages;
+    let confdir = format!("{CONF_DIR},*.conf");
+    let enabled = read::first(packages, "dhcp", "dnsmasq")
+        .is_some_and(|dnsmasq| dnsmasq.option("confdir") == Some(confdir.as_str()));
+    let mut bypass: Vec<MacAddr> = Vec::new();
+    if enabled {
+        let redirects = read::sections(packages, "firewall", "redirect").filter(|s| {
+            s.option("name")
+                .is_some_and(|name| name.starts_with(uniwrt_render::DNS_BYPASS_PREFIX))
+        });
+        for mac in redirects.flat_map(|s| read::items(s, "src_mac")) {
+            if let Ok(mac) = mac.parse::<MacAddr>()
+                && !bypass.contains(&mac)
+            {
+                bypass.push(mac);
+            }
+        }
+    }
+    Blocking {
+        enabled,
+        bypass,
+        ..Blocking::default()
+    }
 }
 
 /// Where dnsmasq forwards: the WAN's servers unless `noresolv` names others the model holds.

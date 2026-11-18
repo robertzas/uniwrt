@@ -20,7 +20,9 @@
 //!   join the bridge as access ports, and its user ports per their profiles. The gateway
 //!   routes: a static interface per network, the WAN, dnsmasq (pools with their options and
 //!   network boot, the gateway as NTP server where a pool names none and it serves time, the
-//!   upstream DNS: the ISP's, custom servers or DoH's local instances, and `uniwrt.<domain>`
+//!   upstream DNS: the ISP's, custom servers or DoH's local instances, DNS filtering's conf
+//!   directory and, for clients that bypass it, an unfiltered instance the firewall redirects
+//!   their DNS to ([`blocking`](mod@blocking), D-133), and `uniwrt.<domain>`
 //!   for the controller when [`Target::controller`] sits in a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
 //!   seeded by its purpose, port forwards and the DMZ host as `redirect`s, and miniupnpd for
 //!   the networks UPnP serves; a network overlapping the subnet its uplink holds now is an issue.
@@ -54,6 +56,7 @@ use uniwrt_uci::Package;
 
 mod adoption;
 mod backhaul;
+mod blocking;
 mod ddns;
 mod dhcp;
 mod doh;
@@ -191,6 +194,7 @@ pub use self::{
         BACKHAUL_PREFIX, Backhaul, BackhaulStage, backhaul_interface, backhaul_ports,
         held_backhauls, meshes_over_radio,
     },
+    blocking::BYPASS_PREFIX as DNS_BYPASS_PREFIX,
     firewall::seeded,
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},

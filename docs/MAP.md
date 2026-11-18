@@ -457,6 +457,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/rollout.rs`: Rolling firmware upgrades (features/lifecycle.md, Firmware; D-015, D-124, D-125): several nodes upgraded one at a time, leaves first and the gateway last, each by its own upgrade job; an optional canary soaked before the rest; an optional maintenance window outside which no node starts.
 - `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
 - `src/site/adoption_tests.rs`: The adoption port (schema v10, D-105): its migration and validation.
+- `src/site/blocking.rs`: DNS filtering on the gateway (features/network.md, DHCP & local DNS: Blocklists; D-132, D-133): the lists the controller compiles into one file of dnsmasq `server=/domain/` lines, the domains always allowed or blocked, and the clients whose DNS goes to an unfiltered resolver.
+- `src/site/blocking_tests.rs`: DNS filtering (schema v13, D-133): migration and validation.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
 - `src/site/export/import.rs`: Importing a site file (D-130): the document upgraded, its nodes mapped by MAC, its secrets resolved ([`secrets`](super::secrets)), and the preview to review.
 - `src/site/export/mod.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), for migration or config-as-code: the latest revision's document with a table of its nodes by MAC, and its secrets, if exported, in one passphrase-encrypted blob.
@@ -482,6 +484,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
 - `src/site/tz.rs`: Time zones: the IANA names a site may use and the POSIX TZ string OpenWrt's `system.timezone` takes for each (`data/tz.tsv`, built from tzdata by `just tz`).
+- `src/site/validate/blocking.rs`: DNS filtering (D-133): the catalog's lists, custom URLs, the allowed and blocked domains and the bypassed clients.
 - `src/site/validate/dhcp.rs`: A pool's DHCP options: servers, the domain, network boot and custom options, which dnsmasq's init script writes into its configuration line by line.
 - `src/site/validate/firewall.rs`: The firewall: the policy between networks, port forwards, the DMZ host and UPnP.
 - `src/site/validate/gateway.rs`: The WAN, services and the adoption port.
@@ -609,6 +612,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 
 - `src/adoption.rs`: The adoption port on the gateway (features/adoption.md, Path C; D-105): the port leaves the LAN for a bridge of its own, `br-adopt`, where the gateway holds a static address in factory-default OpenWrt's 192.168.1.0/24 with IPv6 off (a factory device's router advertisements stay out).
 - `src/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable between two nodes, on the site's backhaul VLAN (`<port>.<vid>`, MTU 1532).
+- `src/blocking.rs`: DNS filtering on the gateway (features/network.md, Blocklists; D-133).
 - `src/ddns.rs`: The `ddns` package (ddns-scripts; features/network.md, Other services; D-132): a `service` section per DDNS entry, named by its id, which publishes the WAN's address (`wan`, or `wan6` for an AAAA record) or the one a web service sees.
 - `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 as each network's clients mode says; on APs every network is ignored, as their DHCP services are off.
 - `src/doh.rs`: The `https-dns-proxy` package (features/network.md, DHCP & local DNS; D-132): DNS over HTTPS on the gateway, one local instance per resolver on `127.0.0.1`, from port [`FIRST_PORT`] up, which the gateway's dnsmasq forwards to ([`servers`]).
@@ -635,6 +639,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the node's overrides and the band's policy, and where those leave it on Auto from the RF plan the site follows, D-112; within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
 - `tests/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port taken out of the LAN into `br-adopt`, with its own zone and no DHCP, and the ports and uplinks that can't serve.
 - `tests/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node can't give it.
+- `tests/blocking.rs`: DNS filtering on the gateway (features/network.md, Blocklists; D-133): the main dnsmasq's conf directory, and with clients bypassing the filter the named instances, the unfiltered one and the firewall's redirects to it.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
 - `tests/rf_plan.rs`: The RF plan the site follows (M6.1 b1a, D-112): render takes its channel, width and power where the site leaves a radio on Auto, and the mesh's channel on every node.
 - `tests/services.rs`: The gateway's network services (features/network.md; D-132): the upstream DNS in dnsmasq, https-dns-proxy for DoH, ddns-scripts for DDNS, the NTP server, and what is left when they go off.
@@ -861,7 +866,7 @@ The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `tests/apply/dial.rs`: A [`Dial`] over `docker exec`: the controller's logins to the harness's containers.
 - `tests/apply/main.rs`: End-to-end applies (TESTING.md, System; D-070) on scripts/test-system.sh's topology, `isp ═ gw ═ ap`: the controller's apply job reaches the gateway and the AP over a `docker exec` dial ([`dial`]), turns management on (installing the transaction tool and the guard), and applies revisions through the real tool, agent and health checks: a confirmed apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a host behind the gateway; and the cable between them brought over to the wired backhaul ([`backhaul`]); and a factory device adopted through the gateway's adoption port ([`port`]).
 - `tests/apply/port.rs`: Path C end to end (features/adoption.md; D-107): the adopt job takes `fac`, stock OpenWrt on the gateway's adoption port, through the gateway's login (the dial's tunnel reaches it only while the test says it is behind the gateway), stages it with the real transaction tool, has the gateway lend the port to the LAN, finds its lease in the gateway's leases, confirms there and records it managed at that address; an apply job of its own then gives it the revision the gateway holds, at the same address.
-- `tests/services.rs`: The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology: DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and `firewall` packages render owns.
+- `tests/services.rs`: The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology: DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and `firewall` packages render owns; DNS filtering (D-133) with a client that bypasses it.
 - `tests/steering.rs`: Steering's usteer (D-090) on the hwsim lab: node a (25.12, apk) and node b (24.10, opkg) install usteer from the feeds, take the `usteer` package rendered for the lab site with the Balanced profile, and run it: each reads back the profile's thresholds and the steered SSID (`get_config`), steers its access points of that SSID (`local_info`), and hears the other's over the LAN (`remote_info`), and a's usteer places client c on its access point (`get_client_info`, as the controller's steering reads it).
 - `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
 - `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
@@ -956,7 +961,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (453 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (455 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

@@ -9,6 +9,7 @@ use uniwrt_core::{Ipv4Net, Ipv6Net, MacAddr};
 
 use super::{
     SecretRef,
+    blocking::Blocking,
     services::{Ddns, Upstream},
 };
 
@@ -199,6 +200,9 @@ pub struct Services {
     /// hand it out (schema v12; before, it always served without handing itself out).
     #[serde(default = "serves_time")]
     pub ntp_server: bool,
+    /// DNS filtering (schema v13; off before).
+    #[serde(default)]
+    pub blocking: Blocking,
 }
 
 impl Default for Services {
@@ -208,6 +212,7 @@ impl Default for Services {
             upstream: Upstream::default(),
             ddns: Vec::new(),
             ntp_server: true,
+            blocking: Blocking::default(),
         }
     }
 }
