@@ -138,6 +138,7 @@ pub(crate) struct Handles {
     pub(crate) github: Option<uniwrt_firmware::GitHub>,
     pub(crate) images: Option<uniwrt_firmware::ImageCache>,
     pub(crate) self_update: Option<crate::controller_update::Updater>,
+    pub(crate) controller_backups: Option<crate::controller_backups::BackupConfig>,
 }
 
 /// [`api_with`], with the alert engine's, the notifications', RF insight's, drift detection's
@@ -160,6 +161,7 @@ pub(crate) async fn api_full(
         github,
         images,
         self_update,
+        controller_backups,
     } = handles;
     let vault = match &notify {
         Some((_, vault)) => vault.clone(),
@@ -189,6 +191,7 @@ pub(crate) async fn api_full(
         github,
         images,
         self_update,
+        controller_backups,
         vault: Some(vault),
         ..ApiConfig::new(
             store,
@@ -328,6 +331,7 @@ impl Demo {
                     .unwrap(),
             ),
             self_update: None,
+            controller_backups: None,
         };
         let api = api_full(store.clone(), fleet, clock, dial, handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();

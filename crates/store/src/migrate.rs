@@ -46,6 +46,11 @@ const MIGRATIONS: &[Migration] = migrations![
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.
+/// The schema version this uniwrt migrates to.
+pub(crate) fn latest() -> usize {
+    MIGRATIONS.len()
+}
+
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {
     let found: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     let applied = usize::try_from(found)

@@ -47,6 +47,9 @@ pub struct ApiConfig {
     pub images: Option<ImageCache>,
     /// The controller's own install (D-123); without it, `v1/controller/update` answers 503.
     pub self_update: Option<crate::controller_update::Updater>,
+    /// Controller backups and restores (D-129); without them, `v1/controller/backups` and
+    /// `…/restore` answer 503.
+    pub controller_backups: Option<crate::controller_backups::BackupConfig>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
     /// A new site's first revision instead of the defaults (demo mode's).
@@ -83,6 +86,7 @@ impl ApiConfig {
             github: None,
             images: None,
             self_update: None,
+            controller_backups: None,
             vault: None,
             first_site: None,
             password_cost: PasswordCost::default(),
@@ -125,6 +129,7 @@ struct Inner {
     github: Option<GitHub>,
     images: Option<ImageCache>,
     self_update: Option<crate::controller_update::Updater>,
+    controller_backups: Option<crate::controller_backups::Backups>,
     vault: Option<Vault>,
     passwords: Passwords,
     limiter: LoginLimiter,
@@ -178,6 +183,9 @@ impl Api {
                 github: config.github,
                 images: config.images,
                 self_update: config.self_update,
+                controller_backups: config
+                    .controller_backups
+                    .map(crate::controller_backups::Backups::new),
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
             }),
@@ -325,6 +333,15 @@ impl Api {
             .self_update
             .clone()
             .ok_or_else(|| ApiError::Unavailable("The controller's updates are off".to_owned()))
+    }
+
+    pub(crate) fn controller_backups(
+        &self,
+    ) -> Result<&crate::controller_backups::Backups, ApiError> {
+        self.inner
+            .controller_backups
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("Controller backups are off".to_owned()))
     }
 
     pub(crate) fn github(&self) -> Result<&GitHub, ApiError> {

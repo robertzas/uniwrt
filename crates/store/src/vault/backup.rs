@@ -37,7 +37,7 @@ impl SealedBackup {
 
 /// The associated data a backup is sealed with: its digest, so a sealed tarball cannot pass for
 /// another.
-fn seal_name(sha256: &str) -> String {
+pub(super) fn seal_name(sha256: &str) -> String {
     format!("backup/{sha256}")
 }
 

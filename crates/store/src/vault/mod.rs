@@ -8,6 +8,7 @@
 mod backup;
 mod config;
 mod key;
+mod rekey;
 mod roaming;
 mod seal;
 
@@ -34,6 +35,7 @@ const PLAIN: &str = "plain";
 pub struct Vault {
     store: Store,
     sealer: Arc<Sealer>,
+    key: Arc<MasterKey>,
 }
 
 impl Vault {
@@ -90,7 +92,13 @@ impl Vault {
         Ok(Self {
             store: store.clone(),
             sealer,
+            key: Arc::new(key.duplicate()),
         })
+    }
+
+    /// The master key it was opened with, for a controller backup (D-129).
+    pub fn master_key(&self) -> &MasterKey {
+        &self.key
     }
 }
 

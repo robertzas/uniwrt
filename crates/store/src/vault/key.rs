@@ -47,6 +47,10 @@ impl MasterKey {
         text
     }
 
+    pub(crate) fn duplicate(&self) -> Self {
+        Self(self.0.clone())
+    }
+
     pub(crate) fn bytes(&self) -> &[u8; LEN] {
         &self.0
     }

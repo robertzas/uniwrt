@@ -54,6 +54,7 @@ rustls = { version = "0.23.46", default-features = false, features = ["ring", "s
 # SSH client (D-003). ring, not aws-lc-rs (deny.toml); no RSA: OpenWrt's dropbear has ed25519
 # host keys, and the rsa crate carries an unfixed timing advisory (D-032).
 russh = { version = "0.65.2", default-features = false, features = ["ring"] }
+scrypt = { version = "0.12.0", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 # Log annotations (crates/syslog): the patterns' regexes, and the TOML file they come from.

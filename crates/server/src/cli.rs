@@ -34,6 +34,9 @@ pub(crate) enum Command {
     Healthcheck(HealthcheckArgs),
     /// Print the version and build information.
     Version(VersionArgs),
+    /// Stage a controller backup (`uniwrt-backup-….tar.gz.age`) for the next start, which puts
+    /// it in place. The passphrase comes from `UNIWRT_BACKUP_PASSPHRASE` or stdin.
+    Restore(RestoreArgs),
 }
 
 #[derive(Debug, Args)]
@@ -102,6 +105,10 @@ pub(crate) struct ServeArgs {
         default_value = "./data"
     )]
     pub(crate) data_dir: PathBuf,
+    /// Another directory that each controller backup is copied to (a NAS mount, say); the last
+    /// 7 are kept there too. Backups are always written to `<data dir>/backups` first.
+    #[arg(long, env = "UNIWRT_BACKUP_DIR", value_name = "DIR")]
+    pub(crate) backup_dir: Option<PathBuf>,
     /// Log filter in tracing's `EnvFilter` syntax, for example `info,uniwrt=debug`.
     #[arg(
         long,
@@ -169,6 +176,21 @@ pub(crate) struct HealthcheckArgs {
     /// Seconds to wait for the connection and for the response.
     #[arg(long, value_name = "SECS", default_value_t = 3, value_parser = clap::value_parser!(u64).range(1..=60))]
     pub(crate) timeout: u64,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct RestoreArgs {
+    /// The backup file.
+    #[arg(value_name = "FILE")]
+    pub(crate) file: PathBuf,
+    /// The data directory of the controller to restore into.
+    #[arg(
+        long,
+        env = "UNIWRT_DATA_DIR",
+        value_name = "DIR",
+        default_value = "./data"
+    )]
+    pub(crate) data_dir: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -295,6 +317,15 @@ mod tests {
         assert!(matches!(cli.command, Some(Command::Healthcheck(args)) if args.timeout == 5));
         let cli = Cli::try_parse_from(["uniwrt", "version", "--json"]).unwrap();
         assert!(matches!(cli.command, Some(Command::Version(args)) if args.json));
+        let cli = Cli::try_parse_from(["uniwrt", "restore", "b.tar.gz.age", "--data-dir", "/srv"])
+            .unwrap();
+        assert!(matches!(cli.command, Some(Command::Restore(args))
+            if args.file.to_str() == Some("b.tar.gz.age") && args.data_dir.to_str() == Some("/srv")));
+        let cli = Cli::try_parse_from(["uniwrt", "--backup-dir", "/mnt/nas"]).unwrap();
+        assert_eq!(
+            cli.serve.backup_dir.as_deref().and_then(|p| p.to_str()),
+            Some("/mnt/nas")
+        );
     }
 
     #[test]

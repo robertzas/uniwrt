@@ -46,7 +46,9 @@
 //!   `POST v1/firmware/rollouts` ([`RolloutBody`]), `GET …/rollouts/{id}`, `POST
 //!   …/rollouts/{id}/pause|resume|cancel` and `…/nodes/{node}/skip`, D-125), the controller's own update (`GET` and `POST
 //!   v1/controller/update`, `PUT …/update/settings`, through [`controller_update::SelfUpdate`];
-//!   D-123), and [`bootstrap`], the public `GET /b/{token}` the
+//!   D-123), controller backups (`GET` and `POST v1/controller/backups`, `GET …/backups/{name}`,
+//!   `PUT …/backups/passphrase`) and their restore (`GET`, `PUT` and `DELETE
+//!   v1/controller/restore`, `POST …/restore/unlock` and `…/restore/apply`; D-129), and [`bootstrap`], the public `GET /b/{token}` the
 //!   server serves at its root,
 //!   `GET v1/jobs[/{id}]`, `GET v1/topology`, its
 //!   replay (`GET v1/topology/timeline`, `GET v1/topology/at/{ms}`) and layout (`GET` and
@@ -110,6 +112,9 @@ mod bootstrap;
 mod client;
 mod client_actions;
 mod clients;
+pub mod controller_backups;
+#[cfg(test)]
+mod controller_backups_tests;
 pub mod controller_update;
 #[cfg(test)]
 mod controller_update_tests;
@@ -295,6 +300,7 @@ pub fn router(api: Api) -> Router {
         .merge(ztp::routes())
         .merge(firmware::routes())
         .merge(controller_update::routes())
+        .merge(controller_backups::routes())
         .merge(floors::routes())
         .merge(backups::routes())
         .route("/v1/backhaul/failures", get(backhaul::list))

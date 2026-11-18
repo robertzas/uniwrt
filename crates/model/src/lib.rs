@@ -53,6 +53,7 @@ pub mod alerts;
 pub mod apply;
 pub mod client;
 pub mod controller;
+pub mod controller_backup;
 pub mod discovery;
 pub mod drift;
 pub mod event;

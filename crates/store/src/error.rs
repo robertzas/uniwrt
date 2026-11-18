@@ -77,6 +77,18 @@ pub enum Error {
         #[source]
         source: uniwrt_model::site::migrate::SchemaError,
     },
+    #[error("the passphrase does not open this file")]
+    Passphrase,
+    #[error("not a passphrase-encrypted age file uniwrt reads: {0}")]
+    NotAge(String),
+    #[error("not a uniwrt controller backup: {0}")]
+    NotBackup(String),
+    #[error("cannot read or write {what}")]
+    Io {
+        what: String,
+        #[source]
+        source: io::Error,
+    },
     #[error("the system's random number generator failed")]
     Random,
     /// The write succeeded inside its batch, but the batch did not commit.

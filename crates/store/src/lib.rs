@@ -32,6 +32,11 @@
 //!   fails if any sealed row does not open with the key, and seals the rows the M1.2 stub stored
 //!   unencrypted (`alg = 'plain'`). Backups are sealed the same way, named by their SHA-256. The
 //!   master key lives outside the database; keeping it is the caller's job.
+//! - **Controller backups** ([`controller_backup`], D-129): [`ControllerBackups`](controller_backup::ControllerBackups)
+//!   takes a backup of the database (`VACUUM INTO` on the read pool) and the master key as an
+//!   [`age`] file of a tarball, keeps the newest 7 per directory, and
+//!   [`Staging`](controller_backup::Staging) unpacks and checks one for a restore the next start
+//!   applies; [`Vault::rekey`] reseals the vault under another key.
 //! - **Writes** go to one thread that owns the only write connection. It takes every queued
 //!   operation (up to 256) into one transaction and runs each in its own savepoint, so an operation
 //!   that fails or panics rolls back alone. Callers hear back once the batch has committed; under
@@ -50,8 +55,10 @@
 //! - **Tests:** each test opens a fresh database in a temporary directory
 //!   (`cargo nextest run -p uniwrt-store`).
 
+pub mod age;
 mod codec;
 mod connection;
+pub mod controller_backup;
 mod error;
 mod migrate;
 mod readers;

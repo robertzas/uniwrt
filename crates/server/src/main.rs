@@ -20,6 +20,7 @@ mod auto_update;
 mod autotune;
 mod build_info;
 mod cli;
+mod controller_backups;
 mod controller_key;
 mod demo;
 #[cfg(test)]
@@ -36,6 +37,7 @@ mod logging;
 mod master_key;
 mod nightly;
 mod recollect;
+mod restore;
 mod scheduled_backups;
 mod serve;
 mod tls;
@@ -65,6 +67,7 @@ fn main() -> ExitCode {
         Some(Command::Serve(args)) => launcher::run(*args),
         Some(Command::Healthcheck(args)) => healthcheck::run(&args).map(|()| 0),
         Some(Command::Version(args)) => version::run(&args).map(|()| 0),
+        Some(Command::Restore(args)) => restore::run(&args).map(|()| 0),
     };
     match result {
         Ok(code) => ExitCode::from(code),

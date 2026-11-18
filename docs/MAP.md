@@ -35,6 +35,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/client_actions.rs`: The client actions, for admins (features/wifi.md, Client actions; D-084): `POST /api/v1/clients/{mac}/kick` deauthenticates a client on every managed access point and keeps it off them for `ban_secs` ([`ClientKick`], answered with a [`KickOutcome`]); `PUT` and `DELETE /api/v1/clients/{mac}/block` block and unblock it (the client's view answers).
 - `src/client_actions/tests.rs`: The client actions on the demo, its gateway managing `wireless`: a kick reaches it and is audited, a block and an unblock show on the client and are audited, and bad requests are refused.
 - `src/clients.rs`: The client routes, with a session (features/observability.md, Clients): `GET /api/v1/clients` is every client the controller knows (the WS topic `clients` keeps it current), `GET /api/v1/clients/{mac}` one client with its last hour of samples and last day of sessions ([`ClientDetail`], the `client:<mac>` topic's snapshot), `GET /api/v1/clients/{mac}/sessions?since=<ms>` its sessions since a time, and `PATCH /api/v1/clients/{mac}` renames it (admins; audited).
+- `src/controller_backups.rs`: Controller backups and restore (features/lifecycle.md, Backups; D-126, D-129):
+- `src/controller_backups_tests.rs`: Controller backups and their restore through the router (D-129): the passphrase, *Back up now*, the download, and a restore uploaded, unlocked and applied, by an admin or during first-run setup.
 - `src/controller_update.rs`: The controller's own update (features/lifecycle.md, Firmware; M7.1b2, D-123):
 - `src/controller_update_tests.rs`: The controller's own update through the router (D-123), against the fake releases on loopback and a scripted [`SelfUpdate`]: the offer, installs, refusals and the setting.
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
@@ -408,6 +410,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/apply.rs`: An apply's plan (features/lifecycle.md, Render → diff → apply): what applying a revision would change on each node, for the review screen, before anything changes.
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/controller.rs`: The controller's own update (lifecycle.md, Firmware; D-123): the newest release on offer ([`ControllerUpdate`]), an install's progress ([`InstallProgress`]), the last trial that failed ([`TrialFailure`]) and the automatic install's setting ([`ControllerUpdates`]).
+- `src/controller_backup.rs`: Controller backups (lifecycle.md, Backups; D-126, D-129): age-encrypted tarballs of the database and the master key, taken nightly once an admin has set the passphrase, the newest [`KEEP`] in each backup directory ([`ControllerBackup`]), each described by its [`BackupManifest`]; and a restore staged from one ([`RestoreState`]), applied at the next start.
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074): a managed package that changed on its node after the controller confirmed it, and what the user made of it.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's, the DHCP servers' and usteer's ubus notifications.
@@ -650,6 +653,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/autotune.rs`: SQM's autotune (features/wan.md, SQM; D-076): with autotune on in the latest revision, a test of the line (SQM bypassed) once a week in the site's night, kept in the history.
 - `src/build_info.rs`: Build identity from build/meta.rs: the version and commit (injected by CI), the build time and the target triple.
 - `src/cli.rs`: Command-line interface.
+- `src/controller_backups.rs`: Nightly controller backups (features/lifecycle.md, Backups; D-129): in the window at [`AT_MIN`] site time ([`WINDOW_MIN`] minutes, before the controller's own update and the node backups), once an admin has set the passphrase, one backup of the database and the master key a night ([`ControllerBackups::run`], which records how it went).
 - `src/controller_key.rs`: The controller's SSH key: generated on the first run and kept in the vault (features/adoption.md, Identity, credentials, trust).
 - `src/demo.rs`: Demo mode's adoptions: [`DemoDial`] reaches the simulated nodes as [`SshDial`] reaches real ones, so the real adopt job and discovery run against them.
 - `src/demo_backhaul_tests.rs`: The wired backhaul end to end in demo mode (features/mesh.md, Wired backhaul; D-097): the demo's plain cable between the living room's and the office's access points, both managed, comes over as an overlay in the first transaction, passes the probe from both ends, and carries the mesh alone after the backhaul round.
@@ -673,6 +677,8 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/nightly/mod.rs`: The nightly RF optimizer (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115): with `nightly` on in the `rf` settings, the site's window (03:30 local by default, for two hours) plans every band and applies the bands whose cost improves by 15 % or more ([`uniwrt_rf::plan::nightly`]): the plan is saved as a revision by the controller and applied with the usual transactions and rollback.
 - `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30; its radio1 catches up after a channel switch where the test says so.
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
+- `src/restore.rs`: Restoring a controller backup (features/lifecycle.md, Backups; D-129): `uniwrt restore FILE` stages it as an upload in the UI does ([`run`]), and the next start puts it in place before the store opens ([`apply_staged`]).
+- `src/restore_tests.rs`: (no header comment)
 - `src/scheduled_backups.rs`: Weekly node backups (features/lifecycle.md, Backups; D-126): in the nightly window (03:00 site time for half an hour, before the RF optimizer's and the rollouts'), Sundays back up every online node, and the other nights the online nodes whose newest backup is over [`LATE_S`] old (offline or busy on Sunday), as one backup job a night.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT, or until an install of a new release asks for a restart (exit code [`launcher::RESTART`]; D-123).
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
@@ -742,8 +748,15 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 
 SQLite persistence: one database in WAL mode, a batching writer thread, a read pool and repositories.
 
+- `src/age/mod.rs`: The age file format (`age-encryption.org/v1`) with one recipient, a passphrase (age's scrypt stanza), so that a controller backup also opens without uniwrt: `age -d FILE | tar xz` (features/lifecycle.md, Backups; D-129).
+- `src/age/stream.rs`: age's STREAM payload: 64 KiB chunks, each sealed with a counter nonce, the last one flagged.
+- `src/age/tests.rs`: (no header comment)
 - `src/codec.rs`: Column encodings shared by the repositories: enums as serde names, MACs as canonical text, timestamps as Unix milliseconds, and constraint violations as the domain errors they mean.
 - `src/connection.rs`: Opening connections: the private database file, the writer's pragmas and migrations, readers.
+- `src/controller_backup/mod.rs`: Controller backups (features/lifecycle.md, Backups; D-126, D-129): [`ControllerBackups`] takes one as an age-encrypted gzip tarball of [`BackupManifest::NAME`], `master.key` and `uniwrt.db` (an online `VACUUM INTO` snapshot, read on the read pool so writes go on), named `uniwrt-backup-<UTC time>.tar.gz.age`, into the backup directory and then the extra one, keeping the newest [`KEEP`] in each.
+- `src/controller_backup/stage.rs`: Restoring a controller backup (D-129): [`unpack`] checks one whole and writes its database and key into a directory; [`Staging`] keeps an uploaded file and the restore it unpacks in `<data dir>/restore` until the next start puts it in place ([`Staging::ready`]).
+- `src/controller_backup/tar.rs`: The few ustar entries a controller backup holds, written and read as streams: regular files with short names, mode 0600, so `tar xz` unpacks them into a data directory as they are.
+- `src/controller_backup/tests.rs`: (no header comment)
 - `src/error.rs`: Store errors: opening and migrating, domain outcomes (conflict, not found) and failed writes.
 - `src/lib.rs`: SQLite persistence: one database in WAL mode, a batching writer thread, a read pool and repositories.
 - `src/migrate.rs`: Forward-only schema migrations, embedded at build time and tracked in `PRAGMA user_version`.
@@ -789,6 +802,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/vault/config.rs`: Configuration secrets (features/security.md, Secrets vault): Wi-Fi passphrases, the mesh key, the PPPoE password.
 - `src/vault/key.rs`: The master key: 32 random bytes that every secret in the vault is sealed under, kept outside the database (`master.key` or `UNIWRT_MASTER_KEY`; features/security.md, Secrets vault).
 - `src/vault/mod.rs`: The secrets vault ([`Vault`]): [`VaultRepo`] over the `vault` table, every value sealed with XChaCha20-Poly1305 under the [`MasterKey`] (features/security.md, Secrets vault).
+- `src/vault/rekey.rs`: Resealing the whole vault under another master key: a restored database on a host that keeps its own key (`UNIWRT_MASTER_KEY`, a Docker secret; D-129).
 - `src/vault/roaming.rs`: The controller's roaming key (features/wifi.md, Roaming; D-085): 32 random bytes made on first use and kept in the vault (`controller/roaming_key`), from which each WLAN's 802.11r key is derived.
 - `src/vault/seal.rs`: Sealing one secret: XChaCha20-Poly1305 under a subkey of the master key, with a random nonce and the secret's name as associated data, so a sealed value cannot be moved to another name.
 - `src/vault/tests.rs`: The vault over a real database: sealing, resealing the stub's rows and refusing a wrong key.
@@ -908,7 +922,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (428 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (434 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

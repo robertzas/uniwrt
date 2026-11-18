@@ -65,6 +65,35 @@ async fn load_or_create(store: &Store, path: &Path) -> anyhow::Result<MasterKey>
     Ok(key)
 }
 
+/// The key this host keeps whatever a restore brings (D-129): `UNIWRT_MASTER_KEY`, or the key
+/// file when it was `named` (`--master-key-file`, such as a Docker secret) and exists.
+pub(crate) fn host_key(path: &Path, named: bool) -> anyhow::Result<Option<MasterKey>> {
+    match std::env::var(ENV) {
+        Ok(text) => {
+            return Ok(Some(
+                MasterKey::parse(&text).with_context(|| format!("{ENV} is malformed"))?,
+            ));
+        }
+        Err(std::env::VarError::NotUnicode(_)) => bail!("{ENV} is not valid UTF-8"),
+        Err(std::env::VarError::NotPresent) => {}
+    }
+    if !named {
+        return Ok(None);
+    }
+    match read(path) {
+        Ok(key) => key.map(Some),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err) => {
+            Err(err).with_context(|| format!("cannot read the master key {}", path.display()))
+        }
+    }
+}
+
+/// Writes `key` to a new key file at `path`, mode 0600.
+pub(crate) fn write(path: &Path, key: &MasterKey) -> io::Result<()> {
+    create(path, key)
+}
+
 /// Reads the key file; the outer error is the file's, the inner one its content's.
 fn read(path: &Path) -> io::Result<anyhow::Result<MasterKey>> {
     let text = zeroize::Zeroizing::new(fs::read_to_string(path)?);

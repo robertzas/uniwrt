@@ -12,7 +12,13 @@
 //! exists only in memory.
 
 use std::{
-    future::IntoFuture as _, io, net::SocketAddr, path::Path, pin::Pin, sync::Arc, time::Duration,
+    future::IntoFuture as _,
+    io,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Context as _;
@@ -28,12 +34,13 @@ use uniwrt_api::{Api, ApiConfig, Certificate as _};
 use uniwrt_core::{Clock, SystemClock};
 use uniwrt_node::ControllerKey;
 use uniwrt_sim::SimConfig;
-use uniwrt_store::{Store, Vault};
+use uniwrt_store::{Store, Vault, controller_backup::ControllerBackups};
 
 use crate::{
     auto_update::AutoUpdate,
     build_info,
     cli::ServeArgs,
+    controller_backups::NightlyBackups,
     controller_key,
     fleet::Fleet,
     http,
@@ -54,6 +61,8 @@ const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) const DATABASE: &str = "uniwrt.db";
 /// The master key file inside the data directory, unless configured elsewhere.
 const MASTER_KEY: &str = "master.key";
+/// The controller backups' directory in the data dir (D-129).
+const BACKUPS: &str = "backups";
 /// Demo mode's admin: its database is thrown away at exit, and its nodes are simulated.
 const DEMO_USER: &str = "demo";
 const DEMO_PASSWORD: &str = "demo";
@@ -102,6 +111,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
         .as_ref()
         .map_or_else(|| data_dir.clone(), |dir| dir.path().to_owned());
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let key_file = restore_staged(&args, &data_dir).await?;
     let store = Store::open(state_dir.join(DATABASE), Arc::clone(&clock))
         .await
         .context("cannot open the database")?;
@@ -111,7 +121,8 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
             controller_key,
             tls,
             renewer,
-        } = secure(&args, &data_dir, &store, &clock).await?;
+        } = secure(&args, &key_file, &store, &clock).await?;
+        let controller_backups = backup_dirs(&args, &state_dir);
         let http = bind(args.http_listen).await?;
         let https = bind(args.https_listen).await?;
         log_start(&http, &https, &state_dir, &controller_key)?;
@@ -129,11 +140,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
             fleet.engine.clone(),
             Arc::clone(&clock),
         );
-        let github = uniwrt_firmware::GitHub::new(
-            uniwrt_firmware::GitHub::PUBLIC,
-            &format!("uniwrt/{}", build_info::VERSION),
-        )
-        .context("cannot use GitHub's API")?;
+        let github = github()?;
         let updater = Updater::new(github.clone(), &data_dir, &args, restart.clone());
         let api = start_api(
             &args,
@@ -142,21 +149,25 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
             &fleet,
             &clock,
             &tls,
-            (&jobs, &state_dir, &github, &updater),
+            (
+                &jobs,
+                &state_dir,
+                &github,
+                &updater,
+                backup_api(&controller_backups, &state_dir, &restart),
+            ),
         )
         .await?;
-        let nightly = NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock);
-        let auto_update = AutoUpdate::start(updater, github, &store, &jobs, &clock);
-        let backups = ScheduledBackups::start(&fleet, &store, &jobs, &clock);
+        let schedules = Schedules(
+            NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock),
+            AutoUpdate::start(updater, github, &store, &jobs, &clock),
+            ScheduledBackups::start(&fleet, &store, &jobs, &clock),
+            NightlyBackups::start(&controller_backups, &store, &vault, &clock),
+        );
         let renewal = tokio::spawn(renewer.run());
         let served = listen(&args, api, &tls, (http, https), stop).await;
         renewal.abort();
-        tokio::join!(
-            autotune.stop(),
-            nightly.stop(),
-            auto_update.stop(),
-            backups.stop()
-        );
+        tokio::join!(autotune.stop(), schedules.stop());
         port_watch.stop().await;
         jobs.shutdown().await;
         fleet.stop().await;
@@ -173,11 +184,76 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
     served?;
     let restart = restart.asked();
     if restart {
-        info!("uniwrt stopped; restarting into the new release");
+        info!("uniwrt stopped; restarting");
     } else {
         info!("uniwrt stopped");
     }
     Ok(restart)
+}
+
+/// GitHub's API, for firmware sources and the controller's own releases.
+fn github() -> anyhow::Result<uniwrt_firmware::GitHub> {
+    uniwrt_firmware::GitHub::new(
+        uniwrt_firmware::GitHub::PUBLIC,
+        &format!("uniwrt/{}", build_info::VERSION),
+    )
+    .context("cannot use GitHub's API")
+}
+
+/// The nightly tasks.
+struct Schedules(
+    NightlyOptimizer,
+    AutoUpdate,
+    ScheduledBackups,
+    NightlyBackups,
+);
+
+impl Schedules {
+    async fn stop(self) {
+        tokio::join!(self.0.stop(), self.1.stop(), self.2.stop(), self.3.stop());
+    }
+}
+
+/// The controller backups' directories: a demo's stay in its directory, deleted at exit.
+fn backup_dirs(args: &ServeArgs, state_dir: &Path) -> ControllerBackups {
+    ControllerBackups::new(
+        state_dir.join(BACKUPS),
+        args.backup_dir.clone().filter(|_| !args.demo),
+    )
+}
+
+/// What the API needs of controller backups: a restore is staged in `state_dir` and applied by
+/// the restart it asks for.
+fn backup_api(
+    backups: &ControllerBackups,
+    state_dir: &Path,
+    restart: &Restart,
+) -> uniwrt_api::controller_backups::BackupConfig {
+    let restart = restart.clone();
+    uniwrt_api::controller_backups::BackupConfig {
+        backups: backups.clone(),
+        staging: uniwrt_store::controller_backup::Staging::new(state_dir),
+        restart: Arc::new(move || restart.ask_because("restarting to restore a backup")),
+    }
+}
+
+/// The master key's file; first, outside demo mode, puts a staged controller backup in place
+/// (D-129).
+async fn restore_staged(args: &ServeArgs, data_dir: &Path) -> anyhow::Result<PathBuf> {
+    let key_file = args
+        .master_key_file
+        .clone()
+        .unwrap_or_else(|| data_dir.join(MASTER_KEY));
+    if !args.demo {
+        let key = crate::restore::KeyFile {
+            path: &key_file,
+            named: args.master_key_file.is_some(),
+        };
+        crate::restore::apply_staged(data_dir, &key)
+            .await
+            .context("cannot restore the staged controller backup")?;
+    }
+    Ok(key_file)
 }
 
 /// Serves the API and the UI on both listeners until a stop request ([`serve_until`]).
@@ -238,11 +314,12 @@ async fn start_api(
     fleet: &Fleet,
     clock: &Arc<dyn Clock>,
     tls: &crate::tls::Tls,
-    (jobs, state_dir, github, updater): (
+    (jobs, state_dir, github, updater, controller_backups): (
         &uniwrt_jobs::Jobs,
         &Path,
         &uniwrt_firmware::GitHub,
         &Updater,
+        uniwrt_api::controller_backups::BackupConfig,
     ),
 ) -> anyhow::Result<Api> {
     let uploads = uniwrt_firmware::Uploads::open(state_dir.join(UPLOADS))
@@ -265,6 +342,7 @@ async fn start_api(
         asu: asu(&args.asu_url)?,
         github: Some(github.clone()),
         self_update: Some(Arc::new(updater.clone())),
+        controller_backups: Some(controller_backups),
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),
@@ -343,18 +421,14 @@ struct Secured {
 
 async fn secure(
     args: &ServeArgs,
-    data_dir: &Path,
+    key_file: &Path,
     store: &Store,
     clock: &Arc<dyn Clock>,
 ) -> anyhow::Result<Secured> {
-    let key_file = args
-        .master_key_file
-        .clone()
-        .unwrap_or_else(|| data_dir.join(MASTER_KEY));
     let key_source = if args.demo {
         KeySource::Ephemeral
     } else {
-        KeySource::Configured(&key_file)
+        KeySource::Configured(key_file)
     };
     let vault = master_key::open_vault(store, key_source).await?;
     // Nodes trust this key; the engine connects with it.

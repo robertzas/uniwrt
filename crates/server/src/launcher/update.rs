@@ -50,9 +50,13 @@ impl Restart {
     }
 
     pub(crate) fn ask(&self) {
+        self.ask_because("restarting into a new release");
+    }
+
+    pub(crate) fn ask_because(&self, why: &'static str) {
         self.asked.store(true, Ordering::SeqCst);
         // A full channel holds stop requests already: `serve` stops anyway.
-        let _ = self.stop.try_send("restarting into a new release");
+        let _ = self.stop.try_send(why);
     }
 
     /// Whether `serve` should exit with [`RESTART`](super::RESTART).
