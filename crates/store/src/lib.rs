@@ -5,7 +5,7 @@
 //!   implements: [`NodeRepo`] (the node inventory), [`FactsRepo`] (the latest facts snapshot of
 //!   each node), [`HostKeyRepo`] (the SSH host key pinned for each node), [`UserRepo`] (users and
 //!   their password hashes), [`SessionRepo`] (login sessions by token hash) and [`AuditRepo`]
-//!   (the audit log), [`JobRepo`] (jobs as history), [`InventoryRepo`] (packages and backups
+//!   (the audit log), [`JobRepo`] (jobs as history), [`RolloutRepo`] (rolling upgrades, D-125), [`InventoryRepo`] (packages and backups
 //!   of adopted nodes) and [`TopologyRepo`] (the topology's history as opaque [`TopologyFrame`]s,
 //!   and the topology view's [`Pin`]s), [`ClientRepo`] (clients' records, aliases and
 //!   sessions), [`MetricsRepo`] (metric series: raw windows, rollups, retention), [`LogRepo`] (log
@@ -65,8 +65,8 @@ pub use repo::{
     Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, ClientRepo, DriftRepo, EventRepo,
     EventsPrune, FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, LogRepo, LogsPrune,
     MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo, NotifierRepo, Pin,
-    RevisionRepo, RfRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo, TopologyFrame,
-    TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
+    RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo,
+    TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

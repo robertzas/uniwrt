@@ -67,6 +67,8 @@ ids! {
     RevisionId = "rev";
     /// A floor of the site's floor plans.
     FloorId = "floor";
+    /// A rolling firmware upgrade of several nodes (D-125), kept as history.
+    RolloutId = "rollout";
 }
 
 #[cfg(test)]

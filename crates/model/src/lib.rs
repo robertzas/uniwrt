@@ -13,7 +13,8 @@
 //!   entries, failed jobs). [`status`] is a node's status as the
 //!   engine derives it ([`status::NodeStatus`]: online, degraded or offline, with reasons).
 //!   [`user`] holds the controller's users, their sessions and the audit log's entries.
-//!   [`job`] is what the controller does on nodes step by step ([`job::Job`], adoption first),
+//!   [`job`] is what the controller does on nodes step by step ([`job::Job`], adoption first;
+//!   [`rollout`] upgrades several nodes by a job each, [`rollout::Rollout`]),
 //!   and [`inventory`] what it keeps about a node besides facts: installed packages
 //!   ([`inventory::Inventory`]) and configuration backups ([`inventory::Backup`]).
 //!   [`client`] is what the controller keeps about clients ([`client::ClientRecord`]) and where
@@ -67,6 +68,7 @@ pub mod metric;
 pub mod node;
 pub mod notify;
 pub mod rf;
+pub mod rollout;
 pub mod site;
 pub mod speed;
 pub mod status;

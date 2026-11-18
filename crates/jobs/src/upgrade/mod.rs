@@ -23,7 +23,7 @@ mod flash;
 mod image;
 mod packages;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
 

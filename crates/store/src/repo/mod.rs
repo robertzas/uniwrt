@@ -23,6 +23,7 @@ mod revisions;
 #[cfg(test)]
 mod revisions_tests;
 mod rf;
+mod rollouts;
 mod sessions;
 mod speed;
 mod topology;
@@ -30,8 +31,8 @@ mod users;
 mod ztp;
 
 use uniwrt_core::{
-    AlertId, EventId, FloorId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RuleId,
-    ScanId, SearchId, Timestamp, UserId, WindowId,
+    AlertId, EventId, FloorId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RolloutId,
+    RuleId, ScanId, SearchId, Timestamp, UserId, WindowId,
 };
 use uniwrt_model::{
     alerts::{
@@ -51,6 +52,7 @@ use uniwrt_model::{
     node::{HostKeyPin, NewNode, Node, NodeMode, NodeRole},
     notify::{Notifier, NotifierConfig},
     rf::{NewScan, Scan, ScanSummary},
+    rollout::{NewRollout, Rollout},
     site::revision::{NewRevision, Revision, RevisionMeta},
     speed::SpeedTest,
     user::{AuditEntry, Role, Session, User},
@@ -313,6 +315,24 @@ pub trait JobRepo: Send + Sync {
     /// Fails every job still running, and its running step, with `error`: at startup, the jobs
     /// that a stop interrupted. Returns how many.
     fn interrupt_jobs(&self, error: JobError) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Rolling firmware upgrades (D-125), kept as history and resumed after a restart.
+pub trait RolloutRepo: Send + Sync {
+    /// Records a rollout starting now, running.
+    fn create_rollout(&self, rollout: NewRollout) -> impl Future<Output = Result<Rollout>> + Send;
+
+    /// Saves a rollout's progress: its state, nodes, wait, error and end. An unknown rollout is
+    /// an [`Error::NotFound`](crate::Error::NotFound).
+    fn update_rollout(&self, rollout: &Rollout) -> impl Future<Output = Result<()>> + Send;
+
+    fn rollout(&self, id: RolloutId) -> impl Future<Output = Result<Option<Rollout>>> + Send;
+
+    /// The latest `limit` rollouts, newest first.
+    fn rollouts(&self, limit: usize) -> impl Future<Output = Result<Vec<Rollout>>> + Send;
+
+    /// The rollout still running, paused or halted, if any (at most one is).
+    fn active_rollout(&self) -> impl Future<Output = Result<Option<Rollout>>> + Send;
 }
 
 /// A secret's bytes, wiped from memory when dropped.

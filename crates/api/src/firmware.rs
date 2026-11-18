@@ -61,6 +61,7 @@ pub(crate) fn routes() -> axum::Router<Api> {
         )
         .merge(crate::firmware_uploads::routes())
         .merge(crate::firmware_sources::routes())
+        .merge(crate::firmware_rollouts::routes())
 }
 
 /// The image to plan a node's upgrade with (D-122).

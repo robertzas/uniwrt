@@ -68,28 +68,8 @@ pub(crate) async fn install(
     if node.mode != NodeMode::Managed {
         return Err(observed());
     }
-    let Resolved {
-        what,
-        to,
-        images,
-        packages,
-        fetch,
-    } = resolve(&api, &node, &facts, body).await?;
-    let from = facts.board.release.version.clone();
-    if images.is_empty() {
-        return Err(ApiError::NotFound(format!(
-            "{what} has no image for {}",
-            node.name
-        )));
-    }
-    let request = UpgradeRequest {
-        node: node.id,
-        from: from.clone(),
-        to: to.clone(),
-        images,
-        packages,
-        fetch,
-    };
+    let (request, what) = upgrade_request(&api, &node, &facts, body).await?;
+    let (from, to) = (request.from.clone(), request.to.clone());
     let job = api
         .jobs()
         .upgrade(request, Some(user.id))
@@ -121,6 +101,38 @@ pub(crate) async fn install(
         Json(job),
     )
         .into_response())
+}
+
+/// The upgrade job's request for `body`'s image on `node`, and the image's source for people
+/// (the install's, and a rollout's at each node's turn).
+pub(crate) async fn upgrade_request(
+    api: &Api,
+    node: &Node,
+    facts: &NodeFacts,
+    body: UpgradeInstallBody,
+) -> ApiResult<(UpgradeRequest, String)> {
+    let Resolved {
+        what,
+        to,
+        images,
+        packages,
+        fetch,
+    } = resolve(api, node, facts, body).await?;
+    if images.is_empty() {
+        return Err(ApiError::NotFound(format!(
+            "{what} has no image for {}",
+            node.name
+        )));
+    }
+    let request = UpgradeRequest {
+        node: node.id,
+        from: facts.board.release.version.clone(),
+        to,
+        images,
+        packages,
+        fetch,
+    };
+    Ok((request, what))
 }
 
 /// What an install flashes, resolved from its source.

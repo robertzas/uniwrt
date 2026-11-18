@@ -18,6 +18,10 @@
 //!   upgrade is planned; observe mode too); [`Jobs::upgrade`] upgrades a managed node's
 //!   firmware with an [`UpgradeRequest`] (D-124: its images, what to install after, and a
 //!   [`FetchImage`] that puts the image on the controller's disk; [`UpgradeTiming`]);
+//!   [`Rollouts`] upgrades several managed nodes one at a time (D-125: [`Rollouts::new`], then
+//!   [`Rollouts::start`] with the [`RolloutImages`] that ready each node's image;
+//!   [`Rollouts::create`] from a [`RolloutRequest`], pause, resume, skip, cancel;
+//!   [`RolloutTiming`]);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -82,6 +86,14 @@
 //!   transaction tool, the baseline met again) → soak (3 min, no new error patterns in its log)
 //!   → record (its packages). A failure before the flash deletes the staged image; after it,
 //!   nothing rolls back and the error says so.
+//! - **Rollouts** (`rollout/`, D-125): a stored record, not a job, so it carries on after a
+//!   restart. Its nodes in order: the canary (if any) first, then by hops from the gateway
+//!   (farthest first, as an apply goes), the gateway last. A driver task takes the next pending
+//!   node when the window (if any) is open: its image readied at its turn ([`RolloutImages`]),
+//!   then c1's upgrade job; a job that fails (an interrupted one too) halts the rollout on its
+//!   node; another job holding the node makes it wait and try again. The first node upgraded
+//!   soaks as the canary, then must have stayed online (no offline or reboot event), log in and
+//!   run its release, else the rollout halts. At most one rollout is active.
 //! - **Invariants:** nothing on a node changes before every check passed, and in observe mode
 //!   only `authorized_keys` changes, and root's password where it had none (directive 8); the agent runs from `/tmp`. The node must
 //!   present the host key the user confirmed. One job at a time per target. Each change of a
@@ -115,6 +127,7 @@ mod progress;
 mod remote;
 mod restart;
 mod role;
+mod rollout;
 mod runner;
 mod speed_test;
 #[cfg(test)]
@@ -129,6 +142,7 @@ pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
+pub use rollout::{CanaryRequest, RolloutImages, RolloutRequest, RolloutTiming, Rollouts};
 pub use runner::{Jobs, JobsConfig, Watch};
 pub use speed_test::SpeedTestRequest;
 pub use upgrade::{FetchImage, UpgradeRequest, UpgradeTiming};
@@ -160,6 +174,8 @@ pub enum Error {
         revision: uniwrt_core::RevisionId,
         head: uniwrt_core::RevisionId,
     },
+    #[error("there is no rollout {0}")]
+    NoRollout(uniwrt_core::RolloutId),
     #[error("{0}")]
     Failed(String),
     /// The change breaks a rule of the site (its one gateway): why, for the user.

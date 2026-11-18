@@ -8,7 +8,7 @@ use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
 use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
-use uniwrt_jobs::Jobs;
+use uniwrt_jobs::{Jobs, RolloutTiming, Rollouts};
 use uniwrt_model::user::{Role, User};
 use uniwrt_store::{Store, UserRepo as _, Vault};
 use zeroize::Zeroizing;
@@ -91,6 +91,15 @@ impl ApiConfig {
     }
 }
 
+/// A link to the API that doesn't keep it alive (the rollout driver's, which the API holds).
+pub(crate) struct WeakApi(std::sync::Weak<Inner>);
+
+impl WeakApi {
+    pub(crate) fn upgrade(&self) -> Option<Api> {
+        self.0.upgrade().map(|inner| Api { inner })
+    }
+}
+
 /// The API's shared state. Clones share it.
 #[derive(Clone)]
 pub struct Api {
@@ -104,6 +113,8 @@ struct Inner {
     build: BuildInfo,
     certificate: Arc<dyn Certificate>,
     jobs: Jobs,
+    /// Rolling firmware upgrades (D-125), driven while installs are on.
+    rollouts: Rollouts,
     alerts: Option<Alerts>,
     notify: Option<(Notify, Vault)>,
     rf: Option<Rf>,
@@ -155,6 +166,7 @@ impl Api {
                 clock: config.clock,
                 build: config.build,
                 certificate: config.certificate,
+                rollouts: Rollouts::new(config.jobs.clone(), RolloutTiming::default()),
                 jobs: config.jobs,
                 alerts: config.alerts,
                 notify: config.notify,
@@ -171,6 +183,11 @@ impl Api {
             }),
         };
         crate::site::ensure_first_revision(&api, first_site).await?;
+        if api.inner.images.is_some() {
+            let images =
+                crate::firmware_rollout_images::ApiImages(WeakApi(Arc::downgrade(&api.inner)));
+            api.inner.rollouts.start(Arc::new(images));
+        }
         Ok(api)
     }
 
@@ -195,9 +212,11 @@ impl Api {
     }
 
     /// Closes every WS connection (code 1001, going away), for a server that stops: it waits for
-    /// HTTP requests, not for upgraded connections.
+    /// HTTP requests, not for upgraded connections. The rollout driver stops too (the active
+    /// rollout carries on at the next start, D-125).
     pub fn close_sockets(&self) {
         self.inner.closing.send_replace(true);
+        self.inner.rollouts.stop();
     }
 
     pub(crate) fn store(&self) -> &Store {
@@ -344,6 +363,10 @@ impl Api {
 
     pub(crate) fn jobs(&self) -> &Jobs {
         &self.inner.jobs
+    }
+
+    pub(crate) fn rollouts(&self) -> &Rollouts {
+        &self.inner.rollouts
     }
 
     pub(crate) fn passwords(&self) -> &Passwords {

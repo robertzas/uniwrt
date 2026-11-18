@@ -43,6 +43,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/firmware_github.rs`: GitHub releases in the firmware catalog and plans (M7.1a2b, D-122): a node whose source is a GitHub repo (its own, or the site's) is offered the repo's newest releases with an image for it instead of OpenWrt's; its plan names the release's images, flashed as they are.
 - `src/firmware_install.rs`: Installing a prepared upgrade (M7.1c1, D-124): `POST /api/v1/firmware/nodes/{id}/install` ([`UpgradeInstallBody`]), for admins, starts the upgrade job on a managed node and answers 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it); 409 for a node in observe mode.
 - `src/firmware_install_tests.rs`: Installing a prepared upgrade through the router (D-124): the gates before a job starts (management, the build done and of its release, an upload that fits), and the job started and audited.
+- `src/firmware_rollout_images.rs`: A rollout's images (D-125): [`RolloutImages`] over the install's sources.
+- `src/firmware_rollouts.rs`: Rolling upgrades (M7.1c2, D-125): `GET /api/v1/firmware/rollouts` (the latest 20, newest first) and `…/rollouts/{id}`; for admins, `POST …/rollouts` ([`RolloutBody`]: each device's image as the upgrade dialog chose it, the canary, the window; 202 with the rollout), `POST …/rollouts/{id}/pause`, `…/resume` (a halted rollout tries its failed device again), `…/cancel` and `…/rollouts/{id}/nodes/{node}/skip`, each answering the rollout as it is then.
+- `src/firmware_rollouts_tests.rs`: Rolling upgrades through the router (D-125): the gates, a rollout started and audited, its node's job failing (the sim's addresses don't answer SSH) and halting it, then skipped and resumed to its end.
 - `src/firmware_sources.rs`: Where upgrade images come from (M7.1a2b, D-122), for admins; shown by `GET v1/firmware`:
 - `src/firmware_sources_tests.rs`: GitHub sources through the router (D-122), on the simulated fleet against the fake ASU and the fake GitHub: the site's repo, a node's own source, the token, and the GitHub plan.
 - `src/firmware_tests.rs`: Firmware upgrades through the router, on the simulated fleet against the fake ASU: the catalog per node, ASU off, and the plan's gates before anything is read from a node.
@@ -349,6 +352,11 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/restart.rs`: Restarting the radios still catching up after a channel switch (features/wifi.md, RF planner: Apply, step 4; M6.1 b3b, D-113, D-116).
 - `src/restart/tests.rs`: The radio restart over the scripted node of [`crate::testing`], adopted and managed, with a 5 GHz radio moved by a channel switch from 36 to 44.
 - `src/role.rs`: A node's role, changed after adoption (D-100): the router that becomes a dumb access point, or the access point promoted to the site's gateway.
+- `src/rollout/canary.rs`: The canary's check at the end of its soak (D-125): it stayed up (no `node_offline` or `node_rebooted` event since its upgrade ended), it still accepts the controller's login with its pinned host key, and it runs the release it was upgraded to.
+- `src/rollout/drive.rs`: The driver: one task that moves the active rollout on (D-125).
+- `src/rollout/mod.rs`: Rolling firmware upgrades (features/lifecycle.md, Firmware; D-015, D-124, D-125): several managed nodes upgraded one at a time by c1's upgrade job each, leaves first and the gateway last; an optional canary (the first node) soaked and checked before the rest; an optional daily window outside which no node starts; pause, resume (a halted rollout retries its failed node), skip a node, cancel.
+- `src/rollout/order.rs`: The order a rollout upgrades its nodes in: leaves first (the most hops from the gateway in the topology every adopted node's facts describe, as an apply goes), the gateway last, the canary first of all (D-125).
+- `src/rollout/tests.rs`: Rollouts over the scripted node of [`crate::testing`]: the adopted node and two more records pinned to the same device, so each upgrade job flashes it again (c1's script), with images from a scripted [`RolloutImages`].
 - `src/runner.rs`: [`Jobs`]: starts jobs, one at a time per target, runs each in its own task, and keeps their history in the store.
 - `src/speed_test/measure.rs`: What the speed test's script prints, read (pure): the WAN device's byte counters each second while loading, and the ping replies; rates from the counters past the warm-up (TCP's slow start), the median round trip idle and the 90th percentile under load.
 - `src/speed_test/mod.rs`: The speed test (features/wan.md, SQM; D-076): measures the line from the gateway with its own tools (`node-agent/speedtest.sh`: uclient-fetch, ping, the WAN device's counters), so nothing needs installing and observe mode is fine.
@@ -420,6 +428,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
 - `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
+- `src/rollout.rs`: Rolling firmware upgrades (features/lifecycle.md, Firmware; D-015, D-124, D-125): several nodes upgraded one at a time, leaves first and the gateway last, each by its own upgrade job; an optional canary soaked before the rest; an optional maintenance window outside which no node starts.
 - `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
 - `src/site/adoption_tests.rs`: The adoption port (schema v10, D-105): its migration and validation.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
@@ -757,6 +766,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/revisions_tests.rs`: Revisions over a real database: the linear history, conflicts, diffs, paging, and secrets committed with their revision and only referable from its descendants or a restore.
 - `src/repo/rf.rs`: [`RfRepo`] on SQLite: the `rf_scans` table, what each scan heard as JSON.
 - `src/repo/rf_tests.rs`: Scans over a real database: stored, the latest per radio, listed, read, pruned, and gone with their node.
+- `src/repo/rollouts.rs`: [`RolloutRepo`] on SQLite: the `rollouts` table, each rollout's nodes, canary, window and wait as JSON.
 - `src/repo/sessions.rs`: [`SessionRepo`] on SQLite: the `sessions` table.
 - `src/repo/speed.rs`: [`SpeedTestRepo`] on SQLite: the `speed_tests` table.
 - `src/repo/topology.rs`: [`TopologyRepo`] on SQLite: the `topology_history` and `topology_layout` tables.
@@ -887,7 +897,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (413 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (425 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

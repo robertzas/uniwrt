@@ -399,6 +399,7 @@ pub(crate) struct Setup {
     pub(crate) node: Arc<FakeNode>,
     pub(crate) watched: Arc<Watched>,
     pub(crate) jobs: Jobs,
+    pub(crate) clock: Arc<ManualClock>,
 }
 
 pub(crate) async fn setup(dial: bool) -> Setup {
@@ -422,7 +423,7 @@ pub(crate) async fn setup_timed(dial: bool, timing: crate::ApplyTiming) -> Setup
         JobsConfig {
             store: store.clone(),
             vault: vault.clone(),
-            clock,
+            clock: clock.clone(),
             key: key.clone(),
             dial: dial.then(|| Arc::new(FakeDial(Arc::clone(&node))) as Arc<dyn Dial>),
             watch: Arc::clone(&watched) as Arc<dyn Watch>,
@@ -439,6 +440,7 @@ pub(crate) async fn setup_timed(dial: bool, timing: crate::ApplyTiming) -> Setup
         node,
         watched,
         jobs,
+        clock,
     }
 }
 

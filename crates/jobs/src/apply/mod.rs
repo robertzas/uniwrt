@@ -29,7 +29,7 @@ pub(crate) mod health;
 mod install;
 mod later;
 mod mesh_change;
-mod order;
+pub(crate) mod order;
 pub(crate) mod plan;
 mod round;
 mod run;

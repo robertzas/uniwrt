@@ -23,12 +23,12 @@ use crate::{
     testing::{COLLECTED, FakeNode, PASSWORD, Setup, setup_timed, states},
 };
 
-const IMAGE: &[u8] = b"an OpenWrt 25.12.6 sysupgrade image";
+pub(crate) const IMAGE: &[u8] = b"an OpenWrt 25.12.6 sysupgrade image";
 const SHA256: &str = "5ad1e7c0ffee5ad1e7c0ffee5ad1e7c0ffee5ad1e7c0ffee5ad1e7c0ffee5ad1";
 
 /// How the scripted node takes the flash.
 #[derive(Clone, Copy)]
-struct Flash {
+pub(crate) struct Flash {
     /// `sysupgrade -T` refuses the image.
     refuse: bool,
     /// Tries it stays down after sysupgrade; `u32::MAX`: it never comes back.
@@ -39,7 +39,7 @@ struct Flash {
     keeps_tool: bool,
 }
 
-const GOOD: Flash = Flash {
+pub(crate) const GOOD: Flash = Flash {
     refuse: false,
     down: 3,
     release: "25.12.6",
@@ -62,7 +62,7 @@ fn failed(stderr: &[u8]) -> ExecOutput {
     }
 }
 
-fn play(node: &Arc<FakeNode>, flash: Flash) {
+pub(crate) fn play(node: &Arc<FakeNode>, flash: Flash) {
     let this = Arc::clone(node);
     *node.script.lock().unwrap() = Some(Box::new(move |argv| {
         let staged = |path: &str| this.files.lock().unwrap().get(path).cloned();
@@ -98,7 +98,7 @@ fn play(node: &Arc<FakeNode>, flash: Flash) {
     }));
 }
 
-struct Fetch(Option<PathBuf>);
+pub(crate) struct Fetch(pub(crate) Option<PathBuf>);
 
 impl FetchImage for Fetch {
     fn fetch<'a>(&'a self, _image: &'a FirmwareImage) -> BoxFuture<'a, Result<PathBuf, String>> {
@@ -110,7 +110,7 @@ impl FetchImage for Fetch {
     }
 }
 
-fn timing() -> ApplyTiming {
+pub(crate) fn timing() -> ApplyTiming {
     ApplyTiming {
         upgrade: UpgradeTiming {
             poll: Duration::from_millis(5),
@@ -124,7 +124,7 @@ fn timing() -> ApplyTiming {
     }
 }
 
-async fn managed(setup: &Setup) -> NodeId {
+pub(crate) async fn managed(setup: &Setup) -> NodeId {
     let (job, _) = setup.adopt(setup.request(Some(PASSWORD))).await;
     let id = job.node.unwrap();
     let job = setup.jobs.manage(id, true, None).await.unwrap();
@@ -132,7 +132,7 @@ async fn managed(setup: &Setup) -> NodeId {
     id
 }
 
-async fn finished(setup: &Setup, job: Job) -> Job {
+pub(crate) async fn finished(setup: &Setup, job: Job) -> Job {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let job = setup.store.job(job.id).await.unwrap().unwrap();
@@ -146,7 +146,7 @@ async fn finished(setup: &Setup, job: Job) -> Job {
     .expect("the job ends")
 }
 
-fn request(node: NodeId, image: Option<PathBuf>, packages: &[&str]) -> UpgradeRequest {
+pub(crate) fn request(node: NodeId, image: Option<PathBuf>, packages: &[&str]) -> UpgradeRequest {
     UpgradeRequest {
         node,
         from: "24.10.8".to_owned(),
