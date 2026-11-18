@@ -141,7 +141,11 @@ function factsFrom(patch: FactsPatch): NodeFacts | undefined {
     batman: [],
     config: {},
     ...patch,
-    services: patch.services ?? { ddns: [], doh_instances: null },
+    services: patch.services ?? {
+      ddns: [],
+      doh_instances: null,
+      blocklist: { sha256: null, domains: null, conf: false },
+    },
     board,
     system,
     capabilities,

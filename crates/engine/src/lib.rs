@@ -42,6 +42,10 @@
 //!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
 //!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
+//!   [`BlocklistSync`] ([`BlocklistConfig`]) refreshes DNS filtering's lists (`uniwrt_dns`),
+//!   compiles them for the gateway's applied revision and pushes the file when the gateway's
+//!   copy differs; [`Blocklist`] is the API's handle on it (its state, [`Blocklist::refresh`];
+//!   D-133);
 //!   [`NeighborReports`] ([`NeighborsConfig`]) gives the managed nodes' 802.11k access points
 //!   their neighbor lists through the agent's `rrm` op, ranked by the RF report's matrix;
 //!   [`ClientSteering`] ([`SteeringConfig`]) decides band steering and roam suggestions on the
@@ -82,6 +86,7 @@
 mod actor;
 mod alerts;
 mod bans;
+mod blocklist;
 mod bus;
 mod clients;
 mod config;
@@ -109,6 +114,7 @@ mod wlans;
 
 pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
 pub use bans::{Bans, BansConfig, BansError, ClientBans, KickFailure, Kicked, KickedFrom};
+pub use blocklist::{Blocklist, BlocklistConfig, BlocklistError, BlocklistSync};
 pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;

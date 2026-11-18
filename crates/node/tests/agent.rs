@@ -17,9 +17,11 @@ use std::{
 use openwrt::{adopt, link, next_push, run};
 use uniwrt_core::{Clock as _, SystemClock};
 use uniwrt_model::{
+    blocklists::header,
     event::NodeEvent,
     facts::{DeviceKind, NodeFacts, PackageManager},
     log::Severity,
+    site::blocking::{BLOCKLIST_FILE, CONF_DIR},
 };
 use uniwrt_node::{
     AgentLaunch, Bundle, Error, NodeLink as _, Output,
@@ -107,6 +109,13 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
 async fn collected_sets_parse_into_facts() {
     let (session, node) = adopt().await;
     let (link, _) = link(&node, AgentLaunch::Bundle).await;
+    // The DNS blocklist as the controller pushes it (D-133): its header line is reported.
+    let sha = "ab".repeat(32);
+    let list = format!("{}\nserver=/ads.example/\n", header(&sha, 1));
+    run(&session, &["mkdir", "-p", CONF_DIR]).await;
+    link.upload(BLOCKLIST_FILE, list.into(), 0o644)
+        .await
+        .unwrap();
     let mut facts = NodeFacts::default();
     for _ in 0..2 {
         // The second round has a CPU percentage: the first only takes the baseline.
@@ -142,6 +151,10 @@ async fn collected_sets_parse_into_facts() {
         PackageManager::Apk
     };
     assert_eq!(facts.capabilities.package_manager, Some(expected));
+    let blocklist = &facts.services.blocklist;
+    assert_eq!(blocklist.sha256.as_deref(), Some(sha.as_str()));
+    assert_eq!((blocklist.domains, blocklist.conf), (Some(1), false));
+    run(&session, &["rm", "-rf", CONF_DIR]).await;
     link.shutdown().await;
 }
 

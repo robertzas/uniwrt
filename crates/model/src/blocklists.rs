@@ -1,10 +1,11 @@
 //! DNS blocklists as the controller holds them (features/network.md, Blocklists; D-133): each
 //! list's download state, the compiled file's summary, how many domains a gateway can hold, and
-//! the header line that names the compiled file on the gateway. The settings are
+//! the header line that names the compiled file on the gateway, and the state the API shows
+//! ([`BlocklistState`]). The settings are
 //! [`site::blocking`](crate::site::blocking).
 
 use serde::{Deserialize, Serialize};
-use uniwrt_core::Timestamp;
+use uniwrt_core::{NodeId, Timestamp};
 
 /// One list's download state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,6 +38,64 @@ pub struct CompiledStatus {
     /// The most domains the gateway holds.
     pub capacity: u32,
     pub at: Timestamp,
+}
+
+/// DNS filtering as the controller keeps it: the lists, the compiled file and the gateway's
+/// copy (`GET v1/services/blocklists`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct BlocklistState {
+    /// The gateway, once the controller knows one.
+    pub gateway: Option<NodeId>,
+    /// Whether blocking is on in the revision applied to the gateway (the one pushed).
+    pub enabled: bool,
+    /// The lists of the saved and the applied revisions (where blocking is on), most wanted
+    /// first.
+    pub lists: Vec<ListStatus>,
+    /// The file compiled for the gateway, once there is one.
+    pub compiled: Option<CompiledStatus>,
+    pub sync: GatewaySync,
+    /// Whether the lists are being downloaded now.
+    pub refreshing: bool,
+    /// When the least recently checked list was asked for; `None` while one never was.
+    pub refreshed_at: Option<Timestamp>,
+}
+
+/// Where the gateway's copy of the compiled file stands.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct GatewaySync {
+    pub state: SyncState,
+    /// The SHA-256 (hex) of the file the gateway reports holding, and its domains.
+    pub sha256: Option<String>,
+    pub domains: Option<u32>,
+    /// When the controller last pushed the file.
+    pub pushed_at: Option<Timestamp>,
+    /// Why the last push failed.
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum SyncState {
+    /// No adopted node is the gateway.
+    NoGateway,
+    /// The revision applied to the gateway doesn't manage its DHCP and DNS: the controller
+    /// leaves its files alone.
+    Unmanaged,
+    /// Blocking is off in the revision applied to the gateway.
+    Off,
+    Offline,
+    /// A job holds the gateway.
+    Busy,
+    /// The lists are being downloaded or compiled.
+    Waiting,
+    Pushing,
+    /// The gateway holds the compiled file.
+    Synced,
+    /// The last push failed; it is tried again.
+    Failed,
 }
 
 /// About what dnsmasq holds per blocked domain (a `server=/domain/` line), in bytes.

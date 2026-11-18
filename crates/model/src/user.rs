@@ -108,6 +108,8 @@ pub enum AuditAction {
     /// An admin replaced a node's device or reset it to await its re-adoption (the detail
     /// says which; D-131).
     Replace,
+    /// An admin acted on a network service: asked for DNS filtering's lists again (D-133).
+    Services,
 }
 
 /// One audit log entry.

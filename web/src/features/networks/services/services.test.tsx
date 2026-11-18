@@ -16,7 +16,8 @@ import { revisionMeta, siteConfig, siteView } from "../../../test/site";
 let calls: { method: string; url: string; body: unknown }[] = [];
 let head = 2;
 let config: SiteConfig = siteConfig();
-let services: ServiceFacts = { ddns: [], doh_instances: null };
+const NO_BLOCKLIST = { sha256: null, domains: null, conf: false };
+let services: ServiceFacts = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST };
 let issues: { path: string; severity: "warning"; message: string }[] = [];
 /** A refusal the next save answers with, once. */
 let refusal: { path: string; message: string } | undefined;
@@ -35,7 +36,7 @@ beforeEach(() => {
   calls = [];
   head = 2;
   config = siteConfig();
-  services = { ddns: [], doh_instances: null };
+  services = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST };
   issues = [];
   refusal = undefined;
   vi.stubGlobal(
@@ -100,6 +101,7 @@ describe("Network services", () => {
     services = {
       ddns: [{ id: "home", address: "203.0.113.7", updated_at: 0, running: true }],
       doh_instances: 1,
+      blocklist: NO_BLOCKLIST,
     };
     issues = [
       { path: "services/ddns/1/ipv6", severity: "warning", message: "The WAN has IPv6 off" },

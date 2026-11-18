@@ -1,12 +1,16 @@
 //! The `services` set: ddns-scripts' run files per section (the registered address, the last
 //! update in seconds of uptime, whether the updater runs) and https-dns-proxy's running
-//! instances, with the node's clock and uptime, which place the update in time.
+//! instances, with the node's clock and uptime, which place the update in time; and the DNS
+//! blocklist's header line and conf file (D-133).
 
 use std::net::IpAddr;
 
 use serde::Deserialize;
 use uniwrt_core::Timestamp;
-use uniwrt_model::facts::{DdnsFacts, ServiceFacts};
+use uniwrt_model::{
+    blocklists::parse_header,
+    facts::{BlocklistFacts, DdnsFacts, ServiceFacts},
+};
 
 #[derive(Deserialize)]
 pub(super) struct Raw {
@@ -18,6 +22,11 @@ pub(super) struct Raw {
     ddns: Vec<Ddns>,
     #[serde(default)]
     doh: Option<u32>,
+    /// The blocklist's first line.
+    #[serde(default)]
+    blocklist: Option<String>,
+    #[serde(default)]
+    blocklist_conf: bool,
 }
 
 #[derive(Deserialize)]
@@ -55,9 +64,16 @@ pub(super) fn parse(raw: Raw) -> ServiceFacts {
             }
         })
         .collect();
+    let header = raw.blocklist.as_deref().and_then(parse_header);
+    let (sha256, domains) = header.map_or((None, None), |(sha, n)| (Some(sha), Some(n)));
     ServiceFacts {
         ddns,
         doh_instances: raw.doh,
+        blocklist: BlocklistFacts {
+            sha256,
+            domains,
+            conf: raw.blocklist_conf,
+        },
     }
 }
 
@@ -80,6 +96,10 @@ mod tests {
         .unwrap();
         let facts = parse(raw);
         assert_eq!(facts.doh_instances, Some(2));
+        assert_eq!(
+            facts.blocklist,
+            uniwrt_model::facts::BlocklistFacts::default()
+        );
         let home = &facts.ddns[0];
         assert_eq!(home.address, Some("203.0.113.7".parse().unwrap()));
         assert_eq!(
@@ -94,6 +114,25 @@ mod tests {
         assert_eq!(
             (facts.ddns[3].address, facts.ddns[3].updated_at),
             (None, None)
+        );
+    }
+
+    #[test]
+    fn the_blocklist_is_named_by_its_header() {
+        let sha = "ab".repeat(32);
+        let raw = serde_json::json!({
+            "blocklist": format!("# uniwrt {sha} 1200"), "blocklist_conf": true,
+        });
+        let facts = parse(serde_json::from_value(raw).unwrap());
+        assert_eq!(facts.blocklist.sha256, Some(sha));
+        assert_eq!(facts.blocklist.domains, Some(1200));
+        assert!(facts.blocklist.conf);
+        // A file without the header (cut short, or someone else's) names nothing.
+        let raw = serde_json::json!({"blocklist": "server=/a.com/", "blocklist_conf": false});
+        let facts = parse(serde_json::from_value(raw).unwrap());
+        assert_eq!(
+            (facts.blocklist.sha256, facts.blocklist.conf),
+            (None, false)
         );
     }
 }

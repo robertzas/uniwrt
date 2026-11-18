@@ -1,7 +1,7 @@
 //! [`SimLink`]: one simulated node behind [`NodeLink`]. It answers the agent's ops as the
 //! event-loop agent does (`collect`, `subscribe`/`unsubscribe`, `set_interval`, `log_follow`,
-//! `ping`, `scan`), keeps what they asked for in the node's [`Session`], and runs only the commands
-//! adoption runs (`render::commands`).
+//! `ping`, `scan`), keeps what they asked for in the node's [`Session`], runs only the commands
+//! the jobs and services run (`render::commands`), and takes uploads to `/tmp` only.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -356,6 +356,27 @@ impl SimLink {
         Ok(output)
     }
 
+    /// An upload: only to `/tmp` (the DNS blocklist's files, D-133).
+    fn write(&self, path: &str, data: &[u8]) -> Result<()> {
+        if !self.running() {
+            return Err(Error::Disconnected {
+                what: "upload".to_owned(),
+            });
+        }
+        if !render::tmp::under_tmp(path) {
+            return Err(remote(
+                "upload",
+                "unsupported",
+                "a simulated node takes uploads to /tmp only",
+            ));
+        }
+        let booted_ms = self.shared.world().nodes[self.node].booted_ms;
+        let mut disk = lock(&self.shared.nodes[self.node].disk);
+        disk.tmp
+            .write(booted_ms, path, data.to_vec())
+            .map_err(|msg| remote("upload", "failed", &msg))
+    }
+
     fn running(&self) -> bool {
         matches!(
             &*self.shared.nodes[self.node].state.borrow(),
@@ -422,11 +443,11 @@ impl NodeLink for SimLink {
 
     fn upload(
         &self,
-        _path: &str,
-        _data: Bytes,
+        path: &str,
+        data: Bytes,
         _mode: u32,
     ) -> impl Future<Output = Result<()>> + Send {
-        std::future::ready(Err(unsupported("upload")))
+        std::future::ready(self.write(path, &data))
     }
 
     fn events(&self) -> broadcast::Receiver<AgentEvent> {

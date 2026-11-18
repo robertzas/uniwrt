@@ -6,7 +6,9 @@
       "ddns": [
         {"id": "home", "ip": "203.0.113.7", "update": "85800", "running": true}
       ],
-      "doh": 2
+      "doh": 2,
+      "blocklist": "# uniwrt 9f2c4a7e1b3d5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e 182044",
+      "blocklist_conf": true
     },
   "batman": {
    "bat0": {

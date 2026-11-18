@@ -40,6 +40,7 @@ tracing-subscriber.workspace = true
 ts-rs.workspace = true
 uniwrt-api.workspace = true
 uniwrt-core.workspace = true
+uniwrt-dns.workspace = true
 uniwrt-engine.workspace = true
 uniwrt-firmware.workspace = true
 uniwrt-import.workspace = true

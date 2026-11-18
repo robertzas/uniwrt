@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
-use uniwrt_engine::{Alerts, Bans, Drifts, Fleet, Notify, Rf};
+use uniwrt_engine::{Alerts, Bans, Blocklist, Drifts, Fleet, Notify, Rf};
 use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
 use uniwrt_jobs::{Jobs, RolloutTiming, Rollouts};
 use uniwrt_model::user::{Role, User};
@@ -37,6 +37,9 @@ pub struct ApiConfig {
     pub drift: Option<Drifts>,
     /// The client bans, when they run (kicks).
     pub bans: Option<Bans>,
+    /// DNS filtering's lists, when they are kept; without them, `v1/services/blocklists`
+    /// answers 503.
+    pub blocklist: Option<Blocklist>,
     /// ASU, which builds zero-touch images; without it, the catalog and builds answer 503.
     pub asu: Option<Asu>,
     /// The uploaded firmware images; without them, uploads answer 503.
@@ -81,6 +84,7 @@ impl ApiConfig {
             rf: None,
             drift: None,
             bans: None,
+            blocklist: None,
             asu: None,
             uploads: None,
             github: None,
@@ -124,6 +128,7 @@ struct Inner {
     rf: Option<Rf>,
     drift: Option<Drifts>,
     bans: Option<Bans>,
+    blocklist: Option<Blocklist>,
     asu: Option<Asu>,
     uploads: Option<Uploads>,
     github: Option<GitHub>,
@@ -180,6 +185,7 @@ impl Api {
                 rf: config.rf,
                 drift: config.drift,
                 bans: config.bans,
+                blocklist: config.blocklist,
                 asu: config.asu,
                 uploads: config.uploads,
                 github: config.github,
@@ -366,6 +372,13 @@ impl Api {
             .bans
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("Client bans are not running".to_owned()))
+    }
+
+    pub(crate) fn blocklist(&self) -> Result<&Blocklist, ApiError> {
+        self.inner
+            .blocklist
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("DNS filtering is not running".to_owned()))
     }
 
     /// Drift detection's handle, when it runs (the WS hub's `config` topic).

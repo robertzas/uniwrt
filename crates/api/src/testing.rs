@@ -129,6 +129,48 @@ async fn uploads_in(dir: &std::path::Path) -> uniwrt_firmware::Uploads {
         .unwrap()
 }
 
+/// Every list holds `ads.example` and a domain of its own (no internet in tests).
+struct Lists;
+
+impl uniwrt_dns::Source for Lists {
+    fn fetch<'a>(
+        &'a self,
+        url: &'a str,
+        _validators: &'a uniwrt_dns::Validators,
+    ) -> uniwrt_dns::BoxFuture<'a, Result<uniwrt_dns::Fetched, uniwrt_dns::Error>> {
+        let body = format!("0.0.0.0 ads.example\n0.0.0.0 {}.example\n", url.len());
+        Box::pin(async move {
+            Ok(uniwrt_dns::Fetched::Body {
+                body: body.into(),
+                validators: uniwrt_dns::Validators::default(),
+            })
+        })
+    }
+}
+
+/// DNS filtering over [`Lists`], looking every 50 ms.
+async fn blocklist(
+    engine: &Engine<SimLink>,
+    store: &Store,
+    dir: &std::path::Path,
+) -> uniwrt_engine::BlocklistSync {
+    let lists = uniwrt_dns::Blocklists::open(dir.join("blocklists"), Arc::new(Lists))
+        .await
+        .unwrap();
+    let config = uniwrt_engine::BlocklistConfig {
+        tick_every: Duration::from_millis(50),
+        ..uniwrt_engine::BlocklistConfig::default()
+    };
+    uniwrt_engine::BlocklistSync::start(engine, store.clone(), lists, None, config)
+}
+
+/// The firmware images' cache in `dir`.
+async fn images_in(dir: &std::path::Path) -> uniwrt_firmware::ImageCache {
+    uniwrt_firmware::ImageCache::open(dir.join("images"), "uniwrt/test")
+        .await
+        .unwrap()
+}
+
 /// The engine's handles an [`api_full`] has.
 #[derive(Default)]
 pub(crate) struct Handles {
@@ -137,6 +179,7 @@ pub(crate) struct Handles {
     pub(crate) rf: Option<Rf>,
     pub(crate) drift: Option<Drifts>,
     pub(crate) bans: Option<Bans>,
+    pub(crate) blocklist: Option<uniwrt_engine::Blocklist>,
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
     pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
     pub(crate) github: Option<uniwrt_firmware::GitHub>,
@@ -160,6 +203,7 @@ pub(crate) async fn api_full(
         rf,
         drift,
         bans,
+        blocklist,
         asu,
         uploads,
         github,
@@ -190,6 +234,7 @@ pub(crate) async fn api_full(
         rf,
         drift,
         bans,
+        blocklist,
         asu,
         uploads,
         github,
@@ -235,6 +280,7 @@ pub(crate) struct Demo {
     /// Watches for drift, reading what the store confirmed every 100 ms.
     _drift: DriftWatch,
     _bans: ClientBans,
+    _blocklist: uniwrt_engine::BlocklistSync,
 }
 
 impl Demo {
@@ -320,20 +366,18 @@ impl Demo {
                 ..BansConfig::default()
             },
         );
+        let blocklist = blocklist(&engine, &store, dir.path()).await;
         let handles = Handles {
             alerts: Some(alerts.handle()),
             notify,
             rf: Some(rf.handle()),
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
+            blocklist: Some(blocklist.handle()),
             asu,
             uploads: Some(uploads_in(dir.path()).await),
             github,
-            images: Some(
-                uniwrt_firmware::ImageCache::open(dir.path().join("images"), "uniwrt/test")
-                    .await
-                    .unwrap(),
-            ),
+            images: Some(images_in(dir.path()).await),
             self_update: None,
             controller_backups: None,
         };
@@ -353,6 +397,7 @@ impl Demo {
             _rf: rf,
             _drift: drift,
             _bans: bans,
+            _blocklist: blocklist,
         };
         demo.cookie = login(&demo.api).await;
         demo

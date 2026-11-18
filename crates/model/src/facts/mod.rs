@@ -30,7 +30,7 @@ pub use self::{
     neighbor::{FdbEntry, NeighborFacts, NeighborState},
     phy::{Channel, DfsState, PhyBand, PhyFacts},
     radio::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
-    services::{DdnsFacts, ServiceFacts},
+    services::{BlocklistFacts, DdnsFacts, ServiceFacts},
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, Memory, Release, Storage, SystemFacts},
     upnp::PortMapping,

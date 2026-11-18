@@ -9,18 +9,18 @@
 //! adopted over [`DemoDial`]. The job runner hands nodes adopted later to the engine
 //! ([`Watcher`]).
 
-use std::{sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tracing::warn;
 use uniwrt_core::Clock;
 use uniwrt_engine::{
-    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, ClientBans, ClientRecorder,
-    ClientSteering, DriftConfig, DriftWatch, Drifts, Engine, EngineConfig, EventRecorder,
-    EventsConfig, HistoryConfig, LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder,
-    NeighborReports, NeighborsConfig, Notifications, Notify, NotifyConfig, RecorderConfig, Rf,
-    RfConfig, RfScanner, SchedulesConfig, Snapshots, SteeringConfig, TopologyHistory,
-    WlanSchedules,
+    AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, Blocklist, BlocklistConfig, BlocklistSync,
+    ClientBans, ClientRecorder, ClientSteering, DriftConfig, DriftWatch, Drifts, Engine,
+    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder, LogsConfig,
+    MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig, Notifications, Notify,
+    NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig, Snapshots,
+    SteeringConfig, TopologyHistory, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -59,6 +59,8 @@ pub(crate) struct Fleet {
     drift: Option<DriftWatch>,
     schedules: Option<WlanSchedules>,
     bans: Option<ClientBans>,
+    /// DNS filtering's lists and the gateway's copy (D-133).
+    blocklist: Option<BlocklistSync>,
     neighbors: Option<NeighborReports>,
     steering: Option<ClientSteering>,
     syslog: Option<Receiver>,
@@ -116,6 +118,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             bans: None,
+            blocklist: None,
             neighbors: None,
             steering: None,
             syslog,
@@ -196,6 +199,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             bans: None,
+            blocklist: None,
             neighbors: None,
             steering: None,
             syslog,
@@ -250,6 +254,9 @@ impl Fleet {
         if let Some(bans) = self.bans {
             bans.stop().await;
         }
+        if let Some(blocklist) = self.blocklist {
+            blocklist.stop().await;
+        }
         if let Some(steering) = self.steering {
             steering.stop().await;
         }
@@ -280,8 +287,15 @@ impl Fleet {
 
     /// Starts recording events, from the engine and from `jobs` (the controller's start is the
     /// first), evaluating alerts over them, and notifying of the alerts (started first, so it
-    /// hears of what the alert engine stores at its start).
-    pub(crate) async fn record_events(&mut self, store: &Store, vault: &Vault, jobs: &Jobs) {
+    /// hears of what the alert engine stores at its start); then the engine's other services,
+    /// DNS filtering's lists among them, kept in `state_dir`.
+    pub(crate) async fn record_events(
+        &mut self,
+        store: &Store,
+        vault: &Vault,
+        jobs: &Jobs,
+        state_dir: &Path,
+    ) {
         let config = EventsConfig {
             started: Some(crate::build_info::VERSION.to_owned()),
             ..EventsConfig::default()
@@ -365,11 +379,34 @@ impl Fleet {
             SteeringConfig::default(),
         ));
         self.neighbors = Some(neighbors);
+        self.filter_dns(store, jobs, state_dir).await;
     }
 
     /// Drift detection's handle, once [`Fleet::record_events`] started it.
     pub(crate) fn drift(&self) -> Option<Drifts> {
         self.drift.as_ref().map(DriftWatch::handle)
+    }
+
+    /// Keeps DNS filtering's lists in `state_dir` (made up in demo mode) and the gateway's copy
+    /// of them; without the lists' directory it doesn't run, with a warning.
+    async fn filter_dns(&mut self, store: &Store, jobs: &Jobs, state_dir: &Path) {
+        match crate::blocklists::open(state_dir, self.sim.is_some()).await {
+            Ok(lists) => {
+                self.blocklist = Some(BlocklistSync::start(
+                    &self.engine,
+                    store.clone(),
+                    lists,
+                    Some(jobs.subscribe()),
+                    BlocklistConfig::default(),
+                ));
+            }
+            Err(err) => warn!("DNS filtering cannot start: {err:#}"),
+        }
+    }
+
+    /// DNS filtering's handle, once [`Fleet::filter_dns`] started it.
+    pub(crate) fn blocklist(&self) -> Option<Blocklist> {
+        self.blocklist.as_ref().map(BlocklistSync::handle)
     }
 
     /// The client bans' handle, once [`Fleet::record_events`] started them.

@@ -3,7 +3,7 @@
 //! controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's
 //! status file, or apk's installed database and world file) and `sysupgrade -b -`), the
 //! transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and
-//! the gateway's DNS check (`nslookup`). Anything else exits 127, as `sh` does for a command it
+//! the gateway's DNS check (`nslookup`), and the DNS blocklist's push ([`super::tmp`]). Anything else exits 127, as `sh` does for a command it
 //! cannot find.
 
 use std::{
@@ -56,6 +56,8 @@ pub(crate) struct Disk {
     /// with `wireless` as it was then: until a reload restarts them (D-113,
     /// [`Disk::netifd_channels`]).
     pub(crate) switched: Option<(Option<String>, BTreeMap<usize, u8>)>,
+    /// `/tmp`, emptied by a boot ([`super::tmp`]).
+    pub(crate) tmp: super::tmp::Tmp,
 }
 
 impl Default for Disk {
@@ -74,6 +76,7 @@ impl Default for Disk {
             rrm: None,
             wired_from: None,
             switched: None,
+            tmp: super::tmp::Tmp::default(),
         }
     }
 }
@@ -239,7 +242,7 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         return output;
     }
     let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
-    if let Some(output) = super::wpad::exec(&argv, node.release.package_manager, &mut disk.wpad) {
+    if let Some(output) = software(node, &argv, disk) {
         return output;
     }
     // A decommission's wipe (D-131): it starts and nothing reports back; the simulated node
@@ -250,14 +253,6 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
             stdout: b"started\n".to_vec(),
             stderr: Vec::new(),
         };
-    }
-    if let Some(output) = super::feeds::exec(
-        &argv,
-        node.release.package_manager,
-        &mut disk.installed,
-        &mut disk.tool,
-    ) {
-        return output;
     }
     if node.gateway
         && let Some(output) = wan_check(node, &argv, &disk.tool.files)
@@ -337,6 +332,18 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         [command, ..] => failed(127, format!("sh: {command}: not found\n")),
         [] => failed(127, "sh: : not found\n".to_owned()),
     }
+}
+
+/// The commands that change the node's software and `/tmp`: the wpad swap's, the feeds' and the
+/// DNS blocklist push's.
+fn software(node: &Node, argv: &[&str], disk: &mut Disk) -> Option<ExecOutput> {
+    let manager = node.release.package_manager;
+    super::wpad::exec(argv, manager, &mut disk.wpad)
+        .or_else(|| super::feeds::exec(argv, manager, &mut disk.installed, &mut disk.tool))
+        .or_else(|| {
+            let services = &mut disk.tool.services;
+            super::tmp::exec(argv, &mut disk.tmp, node.booted_ms, services)
+        })
 }
 
 /// The WAN test's commands on the gateway (`ping`, `nslookup` through a resolver, `wget`): they

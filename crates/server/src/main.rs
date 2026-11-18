@@ -18,6 +18,7 @@
 mod adoption_port;
 mod auto_update;
 mod autotune;
+mod blocklists;
 mod build_info;
 mod cli;
 mod controller_backups;

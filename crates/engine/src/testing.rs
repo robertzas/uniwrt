@@ -12,8 +12,8 @@ use tokio::sync::{broadcast, mpsc, watch};
 use uniwrt_core::{MacAddr, Timestamp};
 use uniwrt_model::node::NodeRole;
 use uniwrt_node::{
-    AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, Hello, LinkState, NodeLink,
-    Result,
+    AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, ExitStatus, Hello,
+    LinkState, NodeLink, Result,
     proto::{
         AgentCaps,
         ops::{Set, Topic},
@@ -210,6 +210,18 @@ fn agent(op: &str, args: &Value) -> Result<Value> {
 /// A [`FakeLink`] as the engine holds it.
 pub(crate) struct SharedLink(Arc<FakeLink>);
 
+impl SharedLink {
+    /// Notes a request outside the agent's ops and asks the script for its answer.
+    fn scripted(&self, op: &str, args: &Value) -> Option<Result<Value>> {
+        let _ = self.0.calls.send(Call {
+            op: op.to_owned(),
+            args: args.clone(),
+        });
+        let custom = lock(&self.0.answer).clone();
+        custom.and_then(|answer| answer(op, args))
+    }
+}
+
 impl NodeLink for SharedLink {
     fn call(
         &self,
@@ -230,21 +242,45 @@ impl NodeLink for SharedLink {
         std::future::ready(answer.map(|answer| serde_json::value::to_raw_value(&answer).unwrap()))
     }
 
-    fn exec(&self, _request: ExecRequest) -> impl Future<Output = Result<ExecOutput>> + Send {
-        std::future::ready(Err(down()))
+    /// Seen as a call of `exec` with the argv; the script's answer gives the exit `code` and
+    /// `stderr` (none: the link is down).
+    fn exec(&self, request: ExecRequest) -> impl Future<Output = Result<ExecOutput>> + Send {
+        let answer = self.scripted("exec", &json!(request.argv)).map(|answer| {
+            answer.map(|value| ExecOutput {
+                status: ExitStatus::Code(
+                    value["code"]
+                        .as_u64()
+                        .map_or(0, |c| u32::try_from(c).unwrap_or(u32::MAX)),
+                ),
+                stdout: Vec::new(),
+                stderr: value["stderr"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .as_bytes()
+                    .to_vec(),
+            })
+        });
+        std::future::ready(answer.unwrap_or_else(|| Err(down())))
     }
 
     fn stream(&self, _argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {
         std::future::ready(Err(down()))
     }
 
+    /// Seen as a call of `upload` with the path, the data (as text) and the mode; answered by
+    /// the script (none: the link is down).
     fn upload(
         &self,
-        _path: &str,
-        _data: Bytes,
-        _mode: u32,
+        path: &str,
+        data: Bytes,
+        mode: u32,
     ) -> impl Future<Output = Result<()>> + Send {
-        std::future::ready(Err(down()))
+        let text = String::from_utf8_lossy(&data).into_owned();
+        let args = json!({"path": path, "data": text, "mode": mode});
+        let answer = self
+            .scripted("upload", &args)
+            .map(|answer| answer.map(|_| ()));
+        std::future::ready(answer.unwrap_or_else(|| Err(down())))
     }
 
     fn events(&self) -> broadcast::Receiver<AgentEvent> {

@@ -84,7 +84,11 @@ export function facts(cpu: number): NodeFacts {
     neighbors: [],
     fdb: [],
     batman: [],
-    services: { ddns: [], doh_instances: null },
+    services: {
+      ddns: [],
+      doh_instances: null,
+      blocklist: { sha256: null, domains: null, conf: false },
+    },
     config: {},
   };
 }

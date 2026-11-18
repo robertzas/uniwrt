@@ -38,6 +38,7 @@ uniwrt-topo = { workspace = true, features = ["ts"] }
 zeroize.workspace = true
 
 [dev-dependencies]
+uniwrt-dns.workspace = true
 # HTTP/2, as the server serves it, for WebSockets over extended CONNECT.
 axum = { workspace = true, features = ["http2"] }
 futures-util = { workspace = true, features = ["sink"] }

@@ -26,7 +26,8 @@
 //!   v1/nodes/{id}/drift/{package}/acknowledge`, `PUT v1/nodes/{id}/drift/{package}/mute`
 //!   ([`DriftMuteBody`]), and a drift's import (`{"drift": …}`, [`ImportRequest`]); see
 //!   `drift`), the address plan's suggestions (`GET v1/ipam/network`, `GET
-//!   v1/ipam/reservation` ([`ReservationSuggestion`]); see `ipam`),
+//!   v1/ipam/reservation` ([`ReservationSuggestion`]); see `ipam`), DNS filtering's lists (`GET
+//!   v1/services/blocklists` ([`BlocklistsView`]), admins: `POST …/refresh`; see `blocklists`),
 //!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
@@ -113,6 +114,7 @@ mod apply;
 pub mod auth;
 mod backhaul;
 mod backups;
+mod blocklists;
 mod bootstrap;
 mod client;
 mod client_actions;
@@ -191,6 +193,7 @@ pub use alerts::{
 };
 pub use apply::ApplyBody;
 pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
+pub use blocklists::BlocklistsView;
 pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
 pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
@@ -309,6 +312,8 @@ pub fn router(api: Api) -> Router {
         .merge(controller_backups::routes())
         .merge(floors::routes())
         .merge(backups::routes())
+        .route("/v1/services/blocklists", get(blocklists::get))
+        .route("/v1/services/blocklists/refresh", post(blocklists::refresh))
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",

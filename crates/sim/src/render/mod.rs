@@ -14,6 +14,7 @@ mod net;
 pub(crate) mod scan;
 mod services;
 mod system;
+pub(crate) mod tmp;
 pub(crate) mod wifi;
 pub(crate) mod wpad;
 
@@ -82,7 +83,9 @@ pub(crate) fn collect(world: &World, node: usize, sets: &[Set], disk: &Disk) -> 
                     &disk.netifd_channels(),
                 ),
                 Set::Stations => wifi::stations(world, node, off),
-                Set::Services => services::services(world, node, files, &disk.tool.services),
+                Set::Services => {
+                    services::services(world, node, files, &disk.tool.services, &disk.tmp)
+                }
                 Set::Capabilities => {
                     system::capabilities(&world.nodes[node], disk.wpad, &disk.mesh_software())
                 }
@@ -108,7 +111,13 @@ fn set_of(world: &World, n: usize, set: Set) -> Value {
         Set::Phys => wifi::phys(),
         Set::Radios => wifi::radios(world, n, &[], &BTreeSet::new(), &BTreeMap::new()),
         Set::Stations => wifi::stations(world, n, &BTreeSet::new()),
-        Set::Services => services::services(world, n, &BTreeMap::new(), &BTreeMap::new()),
+        Set::Services => services::services(
+            world,
+            n,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &tmp::Tmp::default(),
+        ),
         Set::System => system::system(world, node),
     }
 }
