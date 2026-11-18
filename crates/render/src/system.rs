@@ -30,9 +30,9 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
             "compat_version",
             plan.facts.board.layout.compat_version.as_deref(),
         );
-    // The gateway serves time to the network, so APs and clients sync even when the internet
-    // is down.
-    let serves = plan.role == NodeRole::Gateway;
+    // The gateway serves time to the network (unless the site turns it off), so APs and
+    // clients sync even when the internet is down.
+    let serves = plan.role == NodeRole::Gateway && plan.site.services.ntp_server;
     let ntp = Section::named("timeserver", "ntp")
         .with("enabled", "1")
         .with("enable_server", if serves { "1" } else { "0" })

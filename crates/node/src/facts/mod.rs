@@ -17,6 +17,7 @@ mod neighbors;
 mod phys;
 mod radios;
 pub mod scan;
+mod services;
 mod stations;
 mod system;
 mod upnp;
@@ -28,8 +29,8 @@ use serde::de::DeserializeOwned;
 use serde_json::value::RawValue;
 use uniwrt_model::facts::{
     BatmanFacts, BoardFacts, Capabilities, DeviceFacts, DeviceKind, FdbEntry, InterfaceFacts,
-    LeaseFacts, NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, StationFacts,
-    SystemFacts,
+    LeaseFacts, NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, ServiceFacts,
+    StationFacts, SystemFacts,
 };
 
 use crate::proto::ops::{Collected, Set};
@@ -53,6 +54,7 @@ pub enum SetFacts {
     },
     Phys(Vec<PhyFacts>),
     Radios(Vec<RadioFacts>),
+    Services(ServiceFacts),
     Stations(Vec<StationFacts>),
     System(SystemFacts),
 }
@@ -77,6 +79,7 @@ impl SetFacts {
             }
             Set::Phys => Self::Phys(phys::parse(decode(set, raw)?)),
             Set::Radios => Self::Radios(radios::parse(decode(set, raw)?)),
+            Set::Services => Self::Services(services::parse(decode(set, raw)?)),
             Set::Stations => Self::Stations(stations::parse(decode(set, raw)?)),
             Set::System => Self::System(system::parse(decode(set, raw)?)),
         })
@@ -107,6 +110,7 @@ impl SetFacts {
             }
             Self::Phys(phys) => facts.phys = phys,
             Self::Radios(radios) => facts.radios = radios,
+            Self::Services(services) => facts.services = services,
             Self::Stations(stations) => facts.stations = stations,
             Self::System(system) => facts.system = system,
         }

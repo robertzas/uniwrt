@@ -43,7 +43,9 @@ Rendering:
 
 - dnsmasq on the gateway: pools, reservations (created with "Fix IP" on the Clients page) and options (NTP, DNS, domain, PXE). Lease events stream to the controller and feed the client inventory.
 - Local DNS: `<hostname>.lan` is automatic, plus custom A/AAAA/CNAME records. `uniwrt.<domain>` points at the controller: an apply reads the controller's address from the gateway's `SSH_CONNECTION` and renders a `domain` record `uniwrt` when that address sits in one of the networks; a custom record can't take the name.
-- Upstream DNS [M8.1]: the ISP's, custom servers, or DoH/DoT (https-dns-proxy or stubby). Per-network DNS overrides. Blocklists (ads, trackers, malware) compiled into dnsmasq, with per-client bypass and query statistics.
+- **Upstream DNS** [M8.1a1, D-132] (`services.upstream`, schema v12): the ISP's (the WAN's servers, as OpenWrt ships), up to 4 custom servers (IPv4 or IPv6; dnsmasq `noresolv` with a `server` each), or DNS over HTTPS through https-dns-proxy: up to 4 resolvers, each an `https://` URL with 2 to 4 plain bootstrap servers (none where the host is an address: the proxy's own list then; one alone makes the proxy abort), each its own instance on `127.0.0.1` from port 5053, which dnsmasq forwards to alone. The proxy never touches dnsmasq or the firewall (`dnsmasq_config_update '-'`, `force_dns '0'`; render owns both), its canary domains and heartbeat are off, and the NTP servers' names resolve through the first bootstrap server (IPv4 first), since DoH's TLS needs the right time first. The UI offers presets (Cloudflare, Quad9, Google, NextDNS, AdGuard) that fill URL and bootstrap. APs keep dnsmasq off and forward nothing.
+- **Per-network DNS:** a pool hands out other DNS servers (option 6) instead of the gateway (M4.2a); blocklist bypass per client comes with a2.
+- Blocklists [M8.1a2, D-132] (ads, trackers, malware): compiled by the controller into one dnsmasq file pushed to the gateway, with per-client bypass (a DHCP tag sends those clients to an unfiltered resolver) and query statistics from dnsmasq's query log over syslog.
 
 ## IPv6
 
@@ -75,7 +77,8 @@ Rendering:
 
 ## Other services [M8.1]
 
-- DDNS (ddns-scripts providers) and an NTP server on the gateway.
+- **DDNS** [M8.1a1, D-132] (`services.ddns`, ddns-scripts on the gateway): up to 16 names, each with an id (its `ddns.service` section), a hostname, IPv4 (an A record from `wan`) or IPv6 (AAAA from `wan6`), the address from the WAN interface or from a web echo (`api.ipify.org`/`api6.ipify.org`, for a gateway behind another router), and a provider: Cloudflare (zone, API token; `cloudflare.com-v4`), DuckDNS (`<name>.duckdns.org`, token), deSEC (token), No-IP and Dynu (username, password), FreeDNS (afraid.org v2 token), or a custom update URL (`[DOMAIN]`, `[IP]`, `[USERNAME]`, `[PASSWORD]`; a password only where the URL names it). The token or password is a vault secret (`services/ddns/<id>/secret`). Updates go over HTTPS (except a custom `http://` URL, which warns when it carries the password) against the CA bundle; the address is compared every 10 minutes and sent anyway every 72 hours; private addresses are never published; notices and errors go to syslog. Render requires `ddns-scripts` and `ddns-scripts-services`, plus `-cloudflare` or `-noip` while such an entry runs. The `services` collect set reports each name's registered address, last update and whether its updater runs, and the running DoH instances.
+- **NTP server** [M8.1a1] (`services.ntp_server`, on for new and migrated sites): the gateway answers NTP on its networks, and pools without NTP servers of their own hand it out (option 42, `0.0.0.0`: dnsmasq's own address). Brownfield import keeps a gateway's `enable_server` as it is (stock OpenWrt has it off).
 - mDNS reflection across selected networks; IGMP snooping and multicast-to-unicast.
 - Wake-on-LAN, sent from whichever node shares the client's segment.
 - Scheduled reboots and LED schedules (LEDs off at night).

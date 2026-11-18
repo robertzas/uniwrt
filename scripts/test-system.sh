@@ -168,7 +168,7 @@ down) down ;;
     # One at a time: the tests share the topology, and each renders its own site onto it.
     # shellcheck source=/dev/null # written by `up`
     set -a && source "$ENV_FILE" && set +a
-    UNIWRT_SYSTEM_RELEASE=$release cargo nextest run --locked -p uniwrt-system --test system --test apply \
+    UNIWRT_SYSTEM_RELEASE=$release cargo nextest run --locked -p uniwrt-system --test system --test services --test apply \
       --run-ignored only --test-threads 1 --status-level fail --hide-progress-bar
     down
   done

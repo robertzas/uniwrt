@@ -1565,6 +1565,8 @@ export const strings = {
         sqm: "Smart queue management (cake)",
         mwan3: "Failover to a backup line (mwan3)",
         upnpd: "UPnP and NAT-PMP port mapping (miniupnpd)",
+        https_dns_proxy: "DNS over HTTPS (https-dns-proxy)",
+        ddns: "Dynamic DNS names (ddns-scripts)",
         wireguard: "WireGuard VPN",
       },
       message: (name: string, added: readonly string[], removed: readonly string[]) =>

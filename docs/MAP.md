@@ -275,11 +275,13 @@ Brownfield import (features/lifecycle.md, Brownfield import; D-072): the configu
 - `src/networks.rs`: Networks, from the gateway (features/network.md): each LAN interface on the bridge (DSA, with its VLAN from `bridge-vlan`) or on a swconfig CPU port's VLAN device, with its address, IPv6, DHCP pool and reservations; the ULA; the local DNS records; and an address space that holds them all.
 - `src/ports.rs`: Port profiles, from every node (features/network.md, Networks): which networks each Ethernet port carries, read from the VLAN memberships of `br-lan` (`bridge-vlan`) or of a swconfig switch (`switch_vlan`).
 - `src/read.rs`: Reading a node's packages as OpenWrt does: booleans, lists written as options, addresses with or without a netmask; and the renames that render's naming needs.
+- `src/services.rs`: The gateway's network services (D-132): the upstream DNS from dnsmasq's `noresolv` and `server`s (the WAN's, plain servers, or https-dns-proxy's local instances), whether the gateway serves NTP, and the DDNS names ddns-scripts keeps.
 - `src/settings.rs`: The site's settings, from the gateway: its time zone and NTP servers (`system`) and the local domain (dnsmasq's `domain`).
 - `src/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): a node that holds usteer's package runs it (installing it enables it), so the site steers with the profile nearest to what the first such node's options do: Aggressive where it kicks or refuses clients (on load, by association steering or below a minimum signal), Balanced where it triggers roams or asks a margin of better candidates (the controller's Balanced leaves roam triggers to the engine, D-093), else Conservative (usteer's defaults band-steer only).
 - `src/tests/firewall.rs`: Port forwards, the DMZ host and UPnP from a stock 25.12 gateway with redirects as LuCI writes them (with a DNAT target), some the model can't hold, and miniupnpd's package.
 - `src/tests/golden.rs`: Render's golden sites (`crates/render/tests/support`): what uniwrt rendered imports exactly, with nothing raw and no residual but the 802.11r keys (the controller's replace a node's own, D-085), on every capability set.
 - `src/tests/mod.rs`: Round trips (D-072): the simulated fleet's hand-made configs, OpenWrt's stock ones and the hwsim lab's gateway import with nothing lost beyond the residual, and render's golden sites import exactly.
+- `src/tests/services.rs`: The gateway's services (D-132): what uniwrt rendered imports exactly, and a gateway set up by hand (https-dns-proxy rewriting dnsmasq, ddns-scripts' services) maps onto the model.
 - `src/tests/sim.rs`: The simulated fleet's hand-made OpenWrt configs (`uniwrt_sim::brownfield`): a gateway with its LAN, the WAN on VLAN 201 and DHCP, and access points bridging to it over batman-adv, with one SSID on both bands.
 - `src/tests/stock.rs`: OpenWrt's stock configs (`crates/uci/fixtures/openwrt/`): 24.10's and 25.12's on a PC router, and the hwsim lab's gateway with its radios.
 - `src/uplink.rs`: SQM and failover, from the gateway (features/wan.md, SQM and Failover; D-076): the first queue of `sqm` that is on and shapes with cake, and a backup line `wanb` in `network` that mwan3 checks.
@@ -436,6 +438,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/neighbor.rs`: Who is next to the node at layers 2 and 3: the ARP and NDP caches, and the MAC addresses the bridges learned on their ports.
 - `src/facts/phy.rs`: Radio hardware (kernel phys): per band, the standards, widths and channels that the hardware and the regulatory domain allow.
 - `src/facts/radio.rs`: Radios (UCI `wifi-device`) and their interfaces: what they are configured to do and how they operate.
+- `src/facts/services.rs`: The gateway's network services as they run (the `services` set; D-132).
 - `src/facts/station.rs`: Associated stations (Wi-Fi clients and mesh peers): signal, rates, traffic and capabilities.
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
@@ -474,6 +477,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/replace.rs`: A node's device replaced (features/lifecycle.md, Replace / RMA / decommission; D-131): the new device takes over the node's settings.
 - `src/site/replace_tests.rs`: (no header comment)
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
+- `src/site/services.rs`: The gateway's network services (features/network.md, DHCP & local DNS and Other services; D-132): where dnsmasq forwards the queries it can't answer, the DDNS names kept pointing at the WAN, and whether the gateway serves time.
+- `src/site/services_tests.rs`: The gateway's services (schema v12, D-132): migration, validation and the DDNS secrets.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
 - `src/site/tz.rs`: Time zones: the IANA names a site may use and the POSIX TZ string OpenWrt's `system.timezone` takes for each (`data/tz.tsv`, built from tzdata by `just tz`).
@@ -485,6 +490,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
 - `src/site/validate/nodes.rs`: Per-node overrides: hostnames, radios, port profiles and raw UCI sections.
 - `src/site/validate/ports.rs`: Port profiles: which networks a node's Ethernet ports carry.
+- `src/site/validate/services.rs`: The gateway's network services (D-132): the upstream DNS and DDNS.
 - `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
 - `src/site/wireless.rs`: Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
 - `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076): the line's rates and its latency idle and under load, graded for bufferbloat, and what they suggest for SQM.
@@ -530,6 +536,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/phys.rs`: The `phys` set: nl80211's `GET_WIPHY`, trimmed by the agent.
 - `src/facts/radios.rs`: The `radios` set: netifd's `network.wireless status` (each radio's configuration and state), nl80211's interfaces (channel, width, power and addresses) and each phy's channel survey.
 - `src/facts/scan.rs`: Parsing the agent's `scan` answer ([`Scanned`]) into what the radio heard ([`Heard`]).
+- `src/facts/services.rs`: The `services` set: ddns-scripts' run files per section (the registered address, the last update in seconds of uptime, whether the updater runs) and https-dns-proxy's running instances, with the node's clock and uptime, which place the update in time.
 - `src/facts/stations.rs`: The `stations` set: nl80211's station dump of every Wi-Fi interface, and for APs, what hostapd saw in each client's association (`get_clients`).
 - `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
 - `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
@@ -602,7 +609,9 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 
 - `src/adoption.rs`: The adoption port on the gateway (features/adoption.md, Path C; D-105): the port leaves the LAN for a bridge of its own, `br-adopt`, where the gateway holds a static address in factory-default OpenWrt's 192.168.1.0/24 with IPv6 off (a factory device's router advertisements stay out).
 - `src/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable between two nodes, on the site's backhaul VLAN (`<port>.<vid>`, MTU 1532).
+- `src/ddns.rs`: The `ddns` package (ddns-scripts; features/network.md, Other services; D-132): a `service` section per DDNS entry, named by its id, which publishes the WAN's address (`wan`, or `wan6` for an AAAA record) or the one a web service sees.
 - `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 as each network's clients mode says; on APs every network is ignored, as their DHCP services are off.
+- `src/doh.rs`: The `https-dns-proxy` package (features/network.md, DHCP & local DNS; D-132): DNS over HTTPS on the gateway, one local instance per resolver on `127.0.0.1`, from port [`FIRST_PORT`] up, which the gateway's dnsmasq forwards to ([`servers`]).
 - `src/ext.rs`: Builders for sections whose options are optional, lists that may be empty, and flags.
 - `src/failover.rs`: Failover to a backup line (features/wan.md, Failover; D-076): `wanb` in the `network` package (on a port taken out of the LAN, a VLAN of one, or a USB tether), and the `mwan3` package, which checks both lines against [`HEALTH_TARGETS`] and routes IPv4 over the backup while the WAN fails.
 - `src/firewall.rs`: The `firewall` package (fw4; features/network.md, Firewall policy): a zone per network and one for the WAN, a forwarding for each allowed cell of the policy matrix ([`matrix`](self::matrix)), OpenWrt's stock WAN rules, and on the zones that don't reach the gateway freely the rules that let their clients get addresses and names. fw4 accepts replies to allowed connections in every direction, so "block" and "established" both render as no forwarding.
@@ -628,6 +637,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `tests/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node can't give it.
 - `tests/golden.rs`: Golden tests (docs/dev/TESTING.md): each role × feature × capability set renders into a snapshot under `tests/snapshots/`.
 - `tests/rf_plan.rs`: The RF plan the site follows (M6.1 b1a, D-112): render takes its channel, width and power where the site leaves a radio on Auto, and the mesh's channel on every node.
+- `tests/services.rs`: The gateway's network services (features/network.md; D-132): the upstream DNS in dnsmasq, https-dns-proxy for DoH, ddns-scripts for DDNS, the NTP server, and what is left when they go off.
 - `tests/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): usteer's package per profile, where it runs, and what is left when steering goes off.
 - `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
 
@@ -732,12 +742,13 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/commands.rs`: The commands the jobs run on a node, answered as OpenWrt would: adoption's (features/adoption.md, Path A: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`), the transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and the gateway's DNS check (`nslookup`).
 - `src/render/config.rs`: A node's `/etc/config` before uniwrt manages it: OpenWrt 25.12's stock packages, configured by hand to run the simulated network (the gateway's LAN, WAN on VLAN 201 and DHCP; the access points as bridges taking their address over DHCP, dnsmasq, odhcpd and the firewall off; the sim's SSID on both bands and its batman-adv mesh on 5 GHz), so that the demo's review shows what managing such a fleet changes.
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
-- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM, failover, UPnP, steering and the mesh need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
+- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH and DDNS need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file, odhcpd's ubus leases and, where the gateway runs miniupnpd, its lease file) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
 - `src/render/scan.rs`: The `scan` op's answer in the agent's raw shape (`node-agent/scan.uc`): the networks next door (a fixed set outside the house), the other nodes' access points and mesh points (an unadopted one too), each at the signal the path between them leaves, with their information elements; and the channel survey of the band, busier where networks crowd.
+- `src/render/services.rs`: The `services` set as the sim's gateway reports it (D-132): each enabled DDNS section of its `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address), updated a minute after boot, its updater running while the `ddns` service is on; and one https-dns-proxy instance per section of its package while that service is on.
 - `src/render/system.rs`: The sets `board`, `system` and `capabilities`, shaped as `node-agent/collect/` sends them: ubus `system board` and `system info`, `/etc/openwrt_release`, board.json, thermal zones.
 - `src/render/tests.rs`: Every rendered set and push, through the node crate's parsers: what a simulated node reports must read as a real one's does, and agree with the world.
 - `src/render/wifi.rs`: The sets `radios` (netifd's wireless status, nl80211 interfaces and surveys), `stations` (nl80211 station dumps and hostapd's clients) and `phys` (a two-band MT7986, from the hwsim capture's wiphys).
@@ -850,6 +861,7 @@ The system harness (TESTING.md, System): rendered configs on real OpenWrt.
 - `tests/apply/dial.rs`: A [`Dial`] over `docker exec`: the controller's logins to the harness's containers.
 - `tests/apply/main.rs`: End-to-end applies (TESTING.md, System; D-070) on scripts/test-system.sh's topology, `isp ═ gw ═ ap`: the controller's apply job reaches the gateway and the AP over a `docker exec` dial ([`dial`]), turns management on (installing the transaction tool and the guard), and applies revisions through the real tool, agent and health checks: a confirmed apply, a broken WAN that rolls both back (alone, when more than the WAN changes: D-081), a lost AP that rolls back at its deadline, and the LAN renumbered make-before-break under a host behind the gateway; and the cable between them brought over to the wired backhaul ([`backhaul`]); and a factory device adopted through the gateway's adoption port ([`port`]).
 - `tests/apply/port.rs`: Path C end to end (features/adoption.md; D-107): the adopt job takes `fac`, stock OpenWrt on the gateway's adoption port, through the gateway's login (the dial's tunnel reaches it only while the test says it is behind the gateway), stages it with the real transaction tool, has the gateway lend the port to the LAN, finds its lease in the gateway's leases, confirms there and records it managed at that address; an apply job of its own then gives it the revision the gateway holds, at the same address.
+- `tests/services.rs`: The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology: DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and `firewall` packages render owns.
 - `tests/steering.rs`: Steering's usteer (D-090) on the hwsim lab: node a (25.12, apk) and node b (24.10, opkg) install usteer from the feeds, take the `usteer` package rendered for the lab site with the Balanced profile, and run it: each reads back the profile's thresholds and the steered SSID (`get_config`), steers its access points of that SSID (`local_info`), and hears the other's over the LAN (`remote_info`), and a's usteer places client c on its access point (`get_client_info`, as the controller's steering reads it).
 - `tests/system.rs`: Rendered configs on OpenWrt (TESTING.md, System), on scripts/test-system.sh's topology: `isp ═ gw ═ ap`.
 - `tests/wifi.rs`: Rendered Wi-Fi and mesh on the hwsim lab (TESTING.md, System; scripts/wifi-lab.sh): node a becomes the gateway and node b the AP of [`site::lab`], and client c must lease again on both bands. b's 5 GHz uplink reaches a's DHCP server only through the mesh: b is cut off Docker's network for the test, so its frames cross `bat0`, tagged with labnet's VLAN.
@@ -923,6 +935,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/neighbors.uc`: The `neighbors` set: the IPv4 and IPv6 neighbor caches and the bridges' forwarding databases.
 - `collect/phys.uc`: The `phys` set: the radio hardware (nl80211 `GET_WIPHY`) per band: its channels with their regulatory flags and power limits, and its HT, VHT, HE and EHT capabilities.
 - `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`) with its channel and width as saved in UCI (netifd's differ until the radio restarts after a channel switch, D-113), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
+- `collect/services.uc`: The `services` set: the gateway's network services as they run (D-132): each DDNS name's registered address and last update from ddns-scripts' run directory (`<section>.ip`, and `.update` in seconds of uptime), whether its updater runs (`.pid`), and how many https-dns-proxy instances procd runs, with the clock and uptime that convert `.update`.
 - `collect/stations.uc`: The `stations` set: the stations of every Wi-Fi interface (nl80211 `GET_STATION`): an AP's clients, mesh peers and a station interface's AP, with signal, rates, counters and airtime; and for APs, the capabilities hostapd saw in each client's association (`get_clients`).
 - `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
@@ -943,7 +956,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (446 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (453 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -1000,7 +1013,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
 - `scripts/oui.py`: (no header comment)
-- `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts, mwan3 and miniupnpd (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM, failover (D-076) and UPnP (D-079), and batman-adv's user space, for the apply's wired backhaul (D-097; the kernel side is the host's).
+- `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts, mwan3, miniupnpd, https-dns-proxy and ddns-scripts (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM, failover (D-076), UPnP (D-079), DoH and DDNS (D-132), and batman-adv's user space, for the apply's wired backhaul (D-097; the kernel side is the host's).
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).
 - `scripts/system/pppoe-server-options`: The ISP's PPP options (scripts/test-system.sh): PAP against pap-secrets, not system accounts.

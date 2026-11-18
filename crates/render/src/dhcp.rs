@@ -2,7 +2,9 @@
 //! each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6
 //! as each network's clients mode says; on APs every network is ignored, as their DHCP services
 //! are off. The gateway's dnsmasq resolves `uniwrt.<domain>` to the controller when it sits on
-//! one of the networks.
+//! one of the networks. Its upstream is the WAN's servers, the site's, or DoH's local
+//! instances ([`doh`](crate::doh)); pools without NTP servers hand out the gateway while it
+//! serves time.
 
 use std::net::IpAddr;
 
@@ -11,6 +13,7 @@ use uniwrt_model::{
     site::{
         gateway::{CONTROLLER_HOST, DnsRecord},
         network::{DhcpOptions, Ipv6Clients},
+        services::Upstream,
     },
 };
 use uniwrt_uci::{Package, Section};
@@ -23,10 +26,15 @@ use crate::{
 pub(crate) fn render(plan: &Plan<'_>) -> Package {
     let domain = plan.site.site.domain.as_str();
     let gateway = plan.role == NodeRole::Gateway;
-    let mut sections = vec![dnsmasq(domain)];
+    let mut dns = dnsmasq(domain);
+    if gateway {
+        dns = upstream(plan, dns);
+    }
+    let mut sections = vec![dns];
+    let serves_time = gateway && plan.site.services.ntp_server;
     for net in &plan.nets {
         sections.push(if gateway {
-            pool(net)
+            pool(net, serves_time)
         } else {
             ignored(net.id())
         });
@@ -105,13 +113,40 @@ fn dnsmasq(domain: &str) -> Section {
         .with("ednspacket_max", "1232")
 }
 
+/// Where dnsmasq forwards what it can't answer: the WAN's servers (its resolv file), the
+/// site's own servers, or DoH's local instances, with the NTP servers' names resolved through
+/// a plain bootstrap server as DoH's TLS needs the right time first.
+fn upstream(plan: &Plan<'_>, dnsmasq: Section) -> Section {
+    match &plan.site.services.upstream {
+        Upstream::Isp => dnsmasq,
+        Upstream::Custom { servers } => dnsmasq
+            .with("noresolv", "1")
+            .list("server", servers.iter().map(ToString::to_string)),
+        Upstream::Doh { resolvers } => {
+            let bootstrap = crate::doh::bootstrap(resolvers);
+            let ntp = plan
+                .site
+                .site
+                .ntp_servers
+                .iter()
+                .filter(|name| name.parse::<IpAddr>().is_err());
+            let pinned = bootstrap
+                .into_iter()
+                .flat_map(|ip| ntp.clone().map(move |name| format!("/{name}/{ip}")));
+            dnsmasq
+                .with("noresolv", "1")
+                .list("server", pinned.chain(crate::doh::servers(resolvers)))
+        }
+    }
+}
+
 fn ignored(interface: &str) -> Section {
     Section::named("dhcp", interface)
         .with("interface", interface)
         .with("ignore", "1")
 }
 
-fn pool(net: &Net<'_>) -> Section {
+fn pool(net: &Net<'_>, serves_time: bool) -> Section {
     let network = net.network;
     let section = Section::named("dhcp", net.id()).with("interface", net.id());
     let dhcp = network
@@ -132,7 +167,7 @@ fn pool(net: &Net<'_>) -> Section {
                 // still runs its stock one (found by the system harness, D-068).
                 .with("force", "1")
                 .with("dhcpv4", "server")
-                .list("dhcp_option", options(&dhcp.options))
+                .list("dhcp_option", options(&dhcp.options, serves_time))
         }
         None => section.with("ignore", "1"),
     };
@@ -154,8 +189,10 @@ fn pool(net: &Net<'_>) -> Section {
         .list("ra_flags", flags.iter().copied())
 }
 
-/// A pool's `dhcp_option`s: DNS (6), NTP (42), the domain (15), then the custom ones.
-pub(crate) fn options(options: &DhcpOptions) -> Vec<String> {
+/// A pool's `dhcp_option`s: DNS (6), NTP (42: the pool's servers, else the gateway itself
+/// where it serves time, `0.0.0.0` being dnsmasq's own address), the domain (15), then the
+/// custom ones.
+pub(crate) fn options(options: &DhcpOptions, serves_time: bool) -> Vec<String> {
     let servers = |code: u8, list: &[std::net::Ipv4Addr]| {
         (!list.is_empty()).then(|| {
             let ips: Vec<String> = list.iter().map(ToString::to_string).collect();
@@ -164,7 +201,7 @@ pub(crate) fn options(options: &DhcpOptions) -> Vec<String> {
     };
     servers(6, &options.dns)
         .into_iter()
-        .chain(servers(42, &options.ntp))
+        .chain(servers(42, &options.ntp).or_else(|| serves_time.then(|| "42,0.0.0.0".to_owned())))
         .chain(options.domain.as_ref().map(|d| format!("15,{d}")))
         .chain(options.custom.iter().cloned())
         .collect()

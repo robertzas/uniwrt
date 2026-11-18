@@ -122,6 +122,9 @@ export function siteConfig(): SiteConfig {
     },
     services: {
       dns_records: [],
+      upstream: { kind: "isp" },
+      ddns: [],
+      ntp_server: true,
     },
     adoption_port: null,
     nodes: [],

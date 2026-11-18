@@ -10,6 +10,7 @@ import type { NeighborFacts } from "./NeighborFacts";
 import type { PhyFacts } from "./PhyFacts";
 import type { PortMapping } from "./PortMapping";
 import type { RadioFacts } from "./RadioFacts";
+import type { ServiceFacts } from "./ServiceFacts";
 import type { StationFacts } from "./StationFacts";
 import type { SystemFacts } from "./SystemFacts";
 import type { Timestamp } from "./Timestamp";
@@ -64,4 +65,8 @@ batman: Array<BatmanFacts>,
  * The SHA-256 (lowercase hex) of each UCI package in `/etc/config`, by package: what drift
  * detection compares with the files the controller confirmed (features/lifecycle.md, Drift).
  */
-config: { [key in string]: string }, };
+config: { [key in string]: string }, 
+/**
+ * The gateway's network services as they run (DDNS, DoH).
+ */
+services: ServiceFacts, };

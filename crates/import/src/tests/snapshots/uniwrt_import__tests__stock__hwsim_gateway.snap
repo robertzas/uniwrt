@@ -14,8 +14,6 @@ raw firewall.iot_dns (rule)
 raw firewall.uniwrt (include)
 ~ system.@system[0]
     timezone: 'GMT0' → 'UTC0'
-~ system.ntp
-    enable_server: '0' → '1'
 ~ network.lan
     ip6hint: ∅ → '1'
 ~ network.guest

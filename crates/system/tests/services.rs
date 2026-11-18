@@ -1,0 +1,102 @@
+//! The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology:
+//! DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and
+//! `firewall` packages render owns.
+
+use std::time::{Duration, Instant};
+
+use uniwrt_model::{
+    node::NodeRole,
+    site::{
+        node::ManagedPackage,
+        services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
+    },
+};
+use uniwrt_system::{
+    Node, ipv4, render_for,
+    site::{self, GATEWAY, Uplink, secret},
+};
+
+const UP: Duration = Duration::from_secs(45);
+
+/// Waits until `check` holds, up to `within`.
+fn eventually(within: Duration, what: &str, mut check: impl FnMut() -> bool) {
+    let deadline = Instant::now() + within;
+    while !check() {
+        assert!(Instant::now() < deadline, "{what}");
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn doh_and_ddns_run_beside_what_render_owns() {
+    let mut site = site::defaults(Uplink::Static);
+    site.services.upstream = Upstream::Doh {
+        resolvers: vec![
+            DohResolver {
+                url: "https://cloudflare-dns.com/dns-query".to_owned(),
+                bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
+            },
+            DohResolver {
+                url: "https://9.9.9.9/dns-query".to_owned(),
+                bootstrap: Vec::new(),
+            },
+        ],
+    };
+    site.services.ddns = vec![Ddns {
+        id: "lab".to_owned(),
+        enabled: true,
+        hostname: "gw.example.net".to_owned(),
+        // The ISP answers no HTTP: the update fails, the updater keeps running.
+        provider: DdnsProvider::Custom {
+            url: "http://192.0.2.1/update?h=[DOMAIN]&ip=[IP]&p=[PASSWORD]".to_owned(),
+            username: None,
+        },
+        ipv6: false,
+        source: DdnsSource::Wan,
+        secret: Some(secret(7)),
+    }];
+    let gw = Node::new("uniwrt-system-gw");
+    let rendered = render_for(&site, &gw, GATEWAY, NodeRole::Gateway);
+    assert_eq!(rendered.services.get("https-dns-proxy"), Some(&true));
+    assert_eq!(rendered.services.get("ddns"), Some(&true));
+    gw.apply(&rendered);
+    gw.wait_interface("wan", UP, |s| ipv4(s) == ["192.0.2.2/24"]);
+
+    // procd runs an instance per resolver, each on its port on the loopback.
+    eventually(UP, "two https-dns-proxy instances", || {
+        gw.facts().services.doh_instances == Some(2)
+    });
+    let udp = gw.sh("cat /proc/net/udp", &[]);
+    for port in ["0100007F:13BD", "0100007F:13BE"] {
+        assert!(udp.contains(port), "127.0.0.1 listens on {port}:\n{udp}");
+    }
+    // dnsmasq forwards to them alone, and resolves the NTP servers through the bootstrap.
+    let conf = gw.sh("cat /var/etc/dnsmasq.conf.*", &[]);
+    for line in [
+        "no-resolv",
+        "server=127.0.0.1#5053",
+        "server=127.0.0.1#5054",
+        "server=/0.openwrt.pool.ntp.org/1.1.1.1",
+    ] {
+        assert!(conf.lines().any(|l| l == line), "{line} in:\n{conf}");
+    }
+    // The proxy's init script left dnsmasq's and the firewall's packages as render wrote them.
+    for package in [ManagedPackage::Dhcp, ManagedPackage::Firewall] {
+        let name = package.name();
+        let export = gw.sh(r#"uci export "$1""#, &[name]);
+        let read = uniwrt_uci::parse_export(&export).unwrap();
+        let diff = uniwrt_uci::diff(&rendered.packages[&package], &read[0]);
+        assert!(diff.is_empty(), "{name} changed: {diff:?}");
+    }
+
+    // ddns-scripts runs the entry's updater, which the services set sees.
+    eventually(UP, "the DDNS updater runs", || {
+        let facts = gw.facts();
+        facts
+            .services
+            .ddns
+            .iter()
+            .any(|d| d.id == "lab" && d.running)
+    });
+}

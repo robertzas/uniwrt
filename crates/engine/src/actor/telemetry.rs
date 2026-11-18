@@ -247,6 +247,7 @@ fn differs(set: Set, a: &NodeFacts, b: &NodeFacts) -> bool {
         Set::Neighbors => a.neighbors != b.neighbors || a.fdb != b.fdb,
         Set::Phys => a.phys != b.phys,
         Set::Radios => a.radios != b.radios,
+        Set::Services => a.services != b.services,
         Set::Stations => a.stations != b.stations,
         Set::System => a.system != b.system,
     }

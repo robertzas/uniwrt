@@ -13,8 +13,6 @@ wireless.mesh_radio1 (wifi-iface) → uw_mesh
 kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
 ~ system.@system[0]
     timezone: 'GMT0' → 'UTC0'
-~ system.ntp
-    enable_server: '0' → '1'
 ~ network.lan
     ip6assign: '60' → '64'
 ~ network.bat0

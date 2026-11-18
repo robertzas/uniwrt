@@ -16,7 +16,8 @@ use uniwrt_model::{
     events::EventRecord,
     facts::{
         BatmanFacts, BoardFacts, Capabilities, DeviceFacts, FdbEntry, InterfaceFacts, LeaseFacts,
-        NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, StationFacts, SystemFacts,
+        NeighborFacts, NodeFacts, PhyFacts, PortMapping, RadioFacts, ServiceFacts, StationFacts,
+        SystemFacts,
     },
     job::Job,
     log::LogRecord,
@@ -224,6 +225,9 @@ pub struct FactsPatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub batman: Option<Vec<BatmanFacts>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub services: Option<ServiceFacts>,
 }
 
 impl FactsPatch {
@@ -245,6 +249,7 @@ impl FactsPatch {
             neighbors: has(Set::Neighbors).then(|| facts.neighbors.clone()),
             fdb: has(Set::Neighbors).then(|| facts.fdb.clone()),
             batman: has(Set::Batman).then(|| facts.batman.clone()),
+            services: has(Set::Services).then(|| facts.services.clone()),
         }
     }
 }

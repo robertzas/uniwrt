@@ -1,5 +1,13 @@
 {
  "sets": {
+    "services": {
+      "now": 1763400600,
+      "uptime": 86400,
+      "ddns": [
+        {"id": "home", "ip": "203.0.113.7", "update": "85800", "running": true}
+      ],
+      "doh": 2
+    },
   "batman": {
    "bat0": {
     "mesh": {

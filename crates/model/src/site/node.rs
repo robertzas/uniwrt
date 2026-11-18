@@ -57,6 +57,8 @@ pub enum ManagedPackage {
     Sqm,
     Mwan3,
     Upnpd,
+    HttpsDnsProxy,
+    Ddns,
     Wireguard,
 }
 
@@ -74,6 +76,8 @@ impl ManagedPackage {
             Self::Sqm => "sqm",
             Self::Mwan3 => "mwan3",
             Self::Upnpd => "upnpd",
+            Self::HttpsDnsProxy => "https-dns-proxy",
+            Self::Ddns => "ddns",
             Self::Wireguard => "wireguard",
         }
     }

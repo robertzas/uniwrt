@@ -7,7 +7,10 @@ use std::net::{IpAddr, Ipv4Addr};
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{Ipv4Net, Ipv6Net, MacAddr};
 
-use super::SecretRef;
+use super::{
+    SecretRef,
+    services::{Ddns, Upstream},
+};
 
 /// The gateway's uplink (features/wan.md). The wizard fills it from an ISP preset; every field
 /// stays editable.
@@ -181,11 +184,36 @@ pub enum BackupProto {
 }
 
 /// Services on the gateway.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Services {
     /// Custom local DNS records, besides the automatic `<hostname>.<domain>`.
     pub dns_records: Vec<DnsRecord>,
+    /// Where dnsmasq forwards what it can't answer (schema v12).
+    #[serde(default)]
+    pub upstream: Upstream,
+    /// DDNS names kept pointing at the gateway (schema v12).
+    #[serde(default)]
+    pub ddns: Vec<Ddns>,
+    /// The gateway answers NTP on its networks, and pools without NTP servers of their own
+    /// hand it out (schema v12; before, it always served without handing itself out).
+    #[serde(default = "serves_time")]
+    pub ntp_server: bool,
+}
+
+impl Default for Services {
+    fn default() -> Self {
+        Self {
+            dns_records: Vec::new(),
+            upstream: Upstream::default(),
+            ddns: Vec::new(),
+            ntp_server: true,
+        }
+    }
+}
+
+fn serves_time() -> bool {
+    true
 }
 
 /// The host name that always resolves to the controller on the LAN (`uniwrt.<domain>`): the

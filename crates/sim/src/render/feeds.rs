@@ -1,5 +1,5 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM, failover, UPnP, steering and the mesh need, which brings their init
+//! update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH and DDNS need, which brings their init
 //! scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init
 //! scripts' `start`, `stop`, `enable` and `disable`.
 
@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 9] = [
+pub(crate) const FEED: [FeedPackage; 15] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -75,6 +75,35 @@ pub(crate) const FEED: [FeedPackage; 9] = [
     ("kmod-batman-adv", "6.12.58.2025.4-r1", None, None),
     ("batctl-default", "2025.4-r1", None, None),
     ("kmod-usb-net-cdc-ether", "6.12.58-r1", None, None),
+    // DoH and DDNS (D-132), with their stock configuration trimmed.
+    (
+        "https-dns-proxy",
+        "2025.12.29-r1",
+        Some("https-dns-proxy"),
+        Some((
+            "https-dns-proxy",
+            "config main 'config'\n\toption dnsmasq_config_update '*'\n\toption force_dns '1'\n\
+             \toption listen_addr '127.0.0.1'\n\nconfig https-dns-proxy\n\
+             \toption bootstrap_dns '1.1.1.1,1.0.0.1'\n\
+             \toption resolver_url 'https://cloudflare-dns.com/dns-query'\n\toption listen_port '5053'\n",
+        )),
+    ),
+    (
+        "ddns-scripts",
+        "2.8.4-r9",
+        Some("ddns"),
+        Some((
+            "ddns",
+            "config ddns 'global'\n\toption ddns_dateformat '%F %R'\n\toption ddns_loglines '250'\n\
+             \toption upd_privateip '0'\n\nconfig service 'myddns_ipv4'\n\
+             \toption service_name 'dyndns.org'\n\toption lookup_host 'yourhost.example.com'\n\
+             \toption domain 'yourhost.example.com'\n\toption interface 'wan'\n",
+        )),
+    ),
+    ("ddns-scripts-services", "2.8.4-r9", None, None),
+    ("ddns-scripts-cloudflare", "2.8.4-r9", None, None),
+    ("ddns-scripts-noip", "2.8.4-r9", None, None),
+    ("curl", "8.17.0-r1", None, None),
 ];
 
 /// The version of a package from the feeds.

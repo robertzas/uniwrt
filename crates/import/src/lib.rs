@@ -10,7 +10,8 @@
 //!   [`NodeImport`]: each section's [`Fate`], the residual (what applying the import would
 //!   still change), render's issues and a confidence score.
 //! - **Method:** the gateway gives the site-wide parts (site settings, networks with their DHCP
-//!   options and IPv6 modes, WAN, firewall, DNS), every node its WLANs, radios, mesh and port
+//!   options and IPv6 modes, WAN, firewall, DNS with its upstream, the NTP server and DDNS),
+//!   every node its WLANs, radios, mesh and port
 //!   profiles, and the first node holding usteer the steering profile. Each node is then rendered with the result
 //!   and its sections are paired with the rendered ones, by name or by their type's key
 //!   ([`uniwrt_render::raw::key`]), after the renames render's naming needs (`uw_<wlan>_<band>`,
@@ -46,6 +47,7 @@ mod fit;
 mod networks;
 mod ports;
 mod read;
+mod services;
 mod settings;
 mod steering;
 #[cfg(test)]
@@ -141,6 +143,7 @@ pub fn import(
         uplink::import(&mut site, base, gateway, &mut renames);
         adoption::import(&mut site, gateway);
         firewall::import(&mut site, gateway, &mut renames);
+        services::import(&mut site, gateway, &mut seal);
     }
     wireless::import(&mut site, sources, &renames, &mut seal);
     steering::import(&mut site, sources);

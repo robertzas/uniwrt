@@ -204,3 +204,44 @@ async fn the_history_pages_compares_and_restores() {
     .await;
     assert_eq!(again["revision"]["id"], 4);
 }
+
+#[tokio::test]
+async fn a_ddns_token_is_sealed_with_its_name_and_the_upstream_checked() {
+    let demo = Demo::start_with(false).await;
+    let (_, site) = send(&demo, Method::GET, "/v1/site", None).await;
+    let mut config = site["config"].clone();
+    config["services"]["ddns"] = json!([{
+        "id": "home", "enabled": true, "hostname": "home.example.com",
+        "provider": { "kind": "cloudflare", "zone": "example.com" },
+        "ipv6": false, "source": "wan", "secret": null,
+    }]);
+    config["services"]["upstream"] = json!({
+        "kind": "doh",
+        "resolvers": [{ "url": "https://dns.quad9.net/dns-query", "bootstrap": ["9.9.9.9"] }],
+    });
+    let save =
+        |config: &Value, secrets: Value| json!({ "base": 1, "config": config, "secrets": secrets });
+    let token = json!({ "services/ddns/home/secret": "cf-token-123" });
+    // One bootstrap server: refused at its path.
+    let (status, body) = put(&demo, &save(&config, token.clone())).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(
+        body["issues"][0]["path"],
+        "services/upstream/resolvers/0/bootstrap"
+    );
+    config["services"]["upstream"]["resolvers"][0]["bootstrap"] =
+        json!(["9.9.9.9", "149.112.112.112"]);
+    let (status, saved) = put(&demo, &save(&config, token)).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let reference = saved["config"]["services"]["ddns"][0]["secret"]
+        .as_str()
+        .unwrap();
+    assert!(reference.starts_with("config/"), "{reference}");
+    assert!(!saved.to_string().contains("cf-token-123"));
+    assert!(
+        saved["secrets"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({ "path": "services/ddns/home/secret", "set": true }))
+    );
+}

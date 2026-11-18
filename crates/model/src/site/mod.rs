@@ -2,7 +2,7 @@
 //! controller owns, [`SiteConfig`], and its history of [`revision`]s.
 //!
 //! - **Shape:** site settings and the address plan, then [`network::Network`]s, WLANs and the
-//!   mesh ([`wireless`]), the WAN and services ([`gateway`]), the firewall ([`firewall`]), the
+//!   mesh ([`wireless`]), the WAN and services ([`gateway`], [`services`]), the firewall ([`firewall`]), the
 //!   gateway's [`adoption`] port, and per node
 //!   its overrides ([`node::NodeConfig`]). Schema v1 has every section; the fields are the ones
 //!   M3.3 renders, and later WPs extend them through [`migrate`].
@@ -29,6 +29,7 @@ pub mod node;
 pub mod remove;
 pub mod replace;
 pub mod revision;
+pub mod services;
 pub mod steering;
 pub mod tz;
 pub mod validate;
@@ -50,7 +51,7 @@ use self::{
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 11;
+pub const SCHEMA_VERSION: u32 = 12;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +235,10 @@ impl SiteConfig {
                 value: password.as_ref(),
             });
         }
+        slots.extend(self.services.ddns.iter().map(|ddns| SecretSlot {
+            path: format!("services/ddns/{}/secret", ddns.id),
+            value: ddns.secret.as_ref(),
+        }));
         for config in &self.nodes {
             for (i, raw) in config.raw.iter().enumerate() {
                 for (option, value) in &raw.options {
@@ -265,7 +270,17 @@ impl SiteConfig {
                 node::RawValue::Secret { secret } => Some(secret),
                 _ => None,
             });
-        for secret in wlans.chain(self.mesh.key.as_mut()).chain(wan).chain(raw) {
+        let ddns = self
+            .services
+            .ddns
+            .iter_mut()
+            .filter_map(|d| d.secret.as_mut());
+        for secret in wlans
+            .chain(self.mesh.key.as_mut())
+            .chain(wan)
+            .chain(ddns)
+            .chain(raw)
+        {
             if secret == from {
                 *secret = to.clone();
             }
@@ -286,6 +301,12 @@ impl SiteConfig {
                 WanProto::Pppoe { password, .. } => Some(password),
                 _ => None,
             },
+            ["services", "ddns", id, "secret"] => self
+                .services
+                .ddns
+                .iter_mut()
+                .find(|ddns| ddns.id == *id)
+                .map(|ddns| &mut ddns.secret),
             _ => None,
         }
     }
@@ -301,7 +322,8 @@ impl SiteConfig {
 
 /// Whether `value` suits the secret at `path`: a Wi-Fi passphrase or the mesh key is 8 to 63
 /// printable ASCII characters (a WLAN's may instead be 64 hexadecimal digits, a raw PSK), a PPPoE
-/// password 1 to 128 characters without control characters, and a raw section's any value
+/// password 1 to 128 characters without control characters, a DDNS token or password 1 to 256
+/// printable ASCII characters, and a raw section's any value
 /// without line breaks.
 pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     let printable = |value: &str| value.bytes().all(|b| (b' '..=b'~').contains(&b));
@@ -317,6 +339,13 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
             Err("A PPPoE password is 1 to 128 characters")
         } else if value.chars().any(char::is_control) {
             Err("A PPPoE password has no control characters")
+        } else {
+            Ok(())
+        };
+    }
+    if path.starts_with("services/ddns/") {
+        return if value.is_empty() || value.len() > 256 || !printable(value) {
+            Err("A DDNS token or password is 1 to 256 printable ASCII characters")
         } else {
             Ok(())
         };
@@ -339,5 +368,7 @@ mod firewall_tests;
 mod lan_tests;
 #[cfg(test)]
 mod plan_tests;
+#[cfg(test)]
+mod services_tests;
 #[cfg(test)]
 mod tests;

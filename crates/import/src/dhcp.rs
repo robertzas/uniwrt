@@ -67,6 +67,9 @@ fn options(items: &[&str]) -> DhcpOptions {
             "6" | "option:dns-server" if options.dns.is_empty() => {
                 servers().map(|ips| options.dns = ips)
             }
+            // `0.0.0.0` is dnsmasq's own address: the gateway, which render hands out by
+            // itself while it serves time.
+            "42" | "option:ntp-server" if value == "0.0.0.0" => Some(()),
             "42" | "option:ntp-server" if options.ntp.is_empty() => {
                 servers().map(|ips| options.ntp = ips)
             }

@@ -63,6 +63,7 @@ pub fn secrets() -> Secrets {
         (secret(4), "pppoe-pass".to_owned()),
         (secret(5), "uniwrt-lab-key".to_owned()),
         (secret(6), "uniwrt-lab-mesh-key".to_owned()),
+        (secret(7), "uniwrt-lab-ddns".to_owned()),
     ]))
 }
 
@@ -78,6 +79,8 @@ fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
         ManagedPackage::Upnpd,
+        ManagedPackage::HttpsDnsProxy,
+        ManagedPackage::Ddns,
     ]
     .into();
     config

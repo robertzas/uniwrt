@@ -12,6 +12,7 @@ import * as leases from "./collect/leases.uc";
 import * as neighbors from "./collect/neighbors.uc";
 import * as phys from "./collect/phys.uc";
 import * as radios from "./collect/radios.uc";
+import * as services from "./collect/services.uc";
 import * as stations from "./collect/stations.uc";
 import * as system from "./collect/system.uc";
 import { BAD_REQUEST, FAILED } from "./proto.uc";
@@ -27,6 +28,7 @@ const SETS = {
 	neighbors: neighbors.collect,
 	phys: phys.collect,
 	radios: radios.collect,
+	services: services.collect,
 	stations: stations.collect,
 	system: system.collect,
 };

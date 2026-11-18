@@ -7,8 +7,6 @@ kept [filter_aaaa, filter_a] dhcp.@ (dnsmasq)
 ~ system.@system[0]
     timezone: 'UTC' → 'UTC0'
     zonename: ∅ → 'UTC'
-~ system.ntp
-    enable_server: '0' → '1'
 ~ network.loopback
     ipaddr: '127.0.0.1' → '127.0.0.1/8'
     netmask: '255.0.0.0' → ∅

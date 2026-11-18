@@ -8,6 +8,7 @@ mod support;
 
 mod firewall;
 mod golden;
+mod services;
 mod sim;
 mod stock;
 

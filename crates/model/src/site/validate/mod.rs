@@ -12,6 +12,7 @@ mod names;
 mod network;
 mod nodes;
 mod ports;
+mod services;
 mod wireless;
 
 use std::collections::BTreeSet;
@@ -23,6 +24,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 
 pub use dhcp::is_dhcp_option;
 pub use names::{is_hostname, is_id};
+pub use services::{doh_host, needs_secret};
 pub use uniwrt_uci::{
     is_name as is_uci_name, is_package as is_uci_package, is_type as is_uci_type,
 };
@@ -94,6 +96,8 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     gateway::wan(config, &mut issues);
     firewall::firewall(config, &mut issues);
     gateway::services(config, &mut issues);
+    services::upstream(config, &mut issues);
+    services::ddns(config, &mut issues);
     gateway::adoption_port(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
     issues.0

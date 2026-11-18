@@ -112,6 +112,7 @@ pub(crate) fn collected(sets: &[Set]) -> Value {
             let raw = match (set, &captured[set.as_str()]) {
                 // Captured before the set existed.
                 (Set::Config, Value::Null) => json!({"files": {}}),
+                (Set::Services, Value::Null) => json!({"ddns": [], "doh": null}),
                 (_, raw) => raw.clone(),
             };
             (set.as_str().to_owned(), raw)

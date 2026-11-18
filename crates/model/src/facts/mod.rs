@@ -8,6 +8,7 @@ mod lease;
 mod neighbor;
 mod phy;
 mod radio;
+mod services;
 mod station;
 mod system;
 mod upnp;
@@ -29,6 +30,7 @@ pub use self::{
     neighbor::{FdbEntry, NeighborFacts, NeighborState},
     phy::{Channel, DfsState, PhyBand, PhyFacts},
     radio::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
+    services::{DdnsFacts, ServiceFacts},
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, Memory, Release, Storage, SystemFacts},
     upnp::PortMapping,
@@ -74,6 +76,9 @@ pub struct NodeFacts {
     /// detection compares with the files the controller confirmed (features/lifecycle.md, Drift).
     #[serde(default)]
     pub config: BTreeMap<String, String>,
+    /// The gateway's network services as they run (DDNS, DoH).
+    #[serde(default)]
+    pub services: ServiceFacts,
 }
 
 #[cfg(test)]

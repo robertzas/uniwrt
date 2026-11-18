@@ -108,6 +108,8 @@ pub enum Set {
     Phys,
     /// Radios and their interfaces: configuration, channel, power, noise, utilization.
     Radios,
+    /// The gateway's network services as they run: DDNS names, DoH instances.
+    Services,
     /// Wi-Fi clients and mesh peers: signal, rates, counters, capabilities.
     Stations,
     /// Resource usage, the node's clock and temperatures.
@@ -115,7 +117,7 @@ pub enum Set {
 }
 
 impl Set {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Batman,
         Self::Board,
         Self::Capabilities,
@@ -126,6 +128,7 @@ impl Set {
         Self::Neighbors,
         Self::Phys,
         Self::Radios,
+        Self::Services,
         Self::Stations,
         Self::System,
     ];
@@ -142,6 +145,7 @@ impl Set {
             Self::Neighbors => "neighbors",
             Self::Phys => "phys",
             Self::Radios => "radios",
+            Self::Services => "services",
             Self::Stations => "stations",
             Self::System => "system",
         }
@@ -363,7 +367,7 @@ mod tests {
             serde_json::to_value(Collect::all()).unwrap(),
             json!({"sets": [
                 "batman", "board", "capabilities", "config", "devices", "interfaces", "leases", "neighbors",
-                "phys", "radios", "stations", "system"
+                "phys", "radios", "services", "stations", "system"
             ]})
         );
         assert_eq!(

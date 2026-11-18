@@ -24,7 +24,10 @@ use super::{
 };
 use crate::Fate;
 
-fn round_trip(site: &SiteConfig, nodes: &[(NodeId, NodeRole, NodeFacts)]) -> crate::Import {
+pub(super) fn round_trip(
+    site: &SiteConfig,
+    nodes: &[(NodeId, NodeRole, NodeFacts)],
+) -> crate::Import {
     round_trip_from(site, nodes, None)
 }
 

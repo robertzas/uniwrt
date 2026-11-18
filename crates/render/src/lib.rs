@@ -7,9 +7,9 @@
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
 //!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `usteer` (only with steering
-//!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd` (the
-//!   last three only on the gateway, only with SQM, failover or UPnP on or the node holding
-//!   them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd`,
+//!   `https-dns-proxy`, `ddns` (the last five only on the gateway, only with SQM, failover,
+//!   UPnP, DoH or DDNS names on or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
@@ -19,8 +19,9 @@
 //!   interface. A swconfig switch maps each VLAN to the CPU port, whose `<cpu>.<vid>` devices
 //!   join the bridge as access ports, and its user ports per their profiles. The gateway
 //!   routes: a static interface per network, the WAN, dnsmasq (pools with their options and
-//!   network boot, and `uniwrt.<domain>` for the controller when [`Target::controller`] sits in
-//!   a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
+//!   network boot, the gateway as NTP server where a pool names none and it serves time, the
+//!   upstream DNS: the ISP's, custom servers or DoH's local instances, and `uniwrt.<domain>`
+//!   for the controller when [`Target::controller`] sits in a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
 //!   seeded by its purpose, port forwards and the DMZ host as `redirect`s, and miniupnpd for
 //!   the networks UPnP serves; a network overlapping the subnet its uplink holds now is an issue.
 //!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
@@ -53,7 +54,9 @@ use uniwrt_uci::Package;
 
 mod adoption;
 mod backhaul;
+mod ddns;
 mod dhcp;
+mod doh;
 mod ext;
 mod failover;
 mod firewall;
@@ -199,7 +202,7 @@ pub use self::{
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 9] = [
+pub const RENDERABLE: [ManagedPackage; 11] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
@@ -209,6 +212,8 @@ pub const RENDERABLE: [ManagedPackage; 9] = [
     ManagedPackage::Sqm,
     ManagedPackage::Mwan3,
     ManagedPackage::Upnpd,
+    ManagedPackage::HttpsDnsProxy,
+    ManagedPackage::Ddns,
 ];
 
 /// A package of what the feeds bring, on the gateway: the package, its init script, whether
@@ -220,11 +225,11 @@ struct FeedRendered {
     requires: Vec<Requirement>,
 }
 
-/// SQM's, mwan3's or miniupnpd's package; `None` where there is nothing to own (not the
+/// SQM's, mwan3's, miniupnpd's, https-dns-proxy's or ddns-scripts' package; `None` where there is nothing to own (not the
 /// gateway, or the feature off and the package not on the node).
 fn feed_package(
     package: ManagedPackage,
-    plan: &plan::Plan<'_>,
+    plan: &mut plan::Plan<'_>,
     held: bool,
 ) -> Option<FeedRendered> {
     let (rendered, service, on, requires) = match package {
@@ -252,6 +257,20 @@ fn feed_package(
                 on,
                 vec![upnp::REQUIRES],
             )
+        }
+        ManagedPackage::HttpsDnsProxy => {
+            let on = doh::resolvers(plan).is_some();
+            (
+                doh::render(plan, held)?,
+                "https-dns-proxy",
+                on,
+                vec![doh::REQUIRES],
+            )
+        }
+        ManagedPackage::Ddns => {
+            let rendered = ddns::render(plan, held)?;
+            let on = ddns::enabled(plan).next().is_some();
+            (rendered, "ddns", on, ddns::requires(plan))
         }
         _ => return None,
     };
@@ -322,8 +341,12 @@ pub fn render(
                 }
                 rendered
             }
-            ManagedPackage::Sqm | ManagedPackage::Mwan3 | ManagedPackage::Upnpd => {
-                let Some(rendered) = feed_package(*package, &plan, held) else {
+            ManagedPackage::Sqm
+            | ManagedPackage::Mwan3
+            | ManagedPackage::Upnpd
+            | ManagedPackage::HttpsDnsProxy
+            | ManagedPackage::Ddns => {
+                let Some(rendered) = feed_package(*package, &mut plan, held) else {
                     continue;
                 };
                 services.insert(rendered.service, rendered.on);

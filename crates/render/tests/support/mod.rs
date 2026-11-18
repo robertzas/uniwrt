@@ -59,6 +59,7 @@ pub(crate) fn secrets() -> TestSecrets {
             (secret(2), "things-only-2024".to_owned()),
             (secret(3), "mesh key 0123456789".to_owned()),
             (secret(4), "pppoe-pass".to_owned()),
+            (secret(5), "ddns-token".to_owned()),
         ]),
         ft_keys: ["home", "things", "guest"]
             .into_iter()
@@ -235,6 +236,8 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Sqm,
         ManagedPackage::Mwan3,
         ManagedPackage::Upnpd,
+        ManagedPackage::HttpsDnsProxy,
+        ManagedPackage::Ddns,
     ]
     .into();
     config

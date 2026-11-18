@@ -14,7 +14,7 @@ type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
     v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
-    v10_to_v11,
+    v10_to_v11, v11_to_v12,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -259,6 +259,36 @@ fn v10_to_v11(value: &mut Value) -> Result<(), String> {
         .and_then(Value::as_object_mut)
         .ok_or("the document has no radio policy")?
         .insert("plan".to_owned(), json!({ "radios": [], "mesh": null }));
+    Ok(())
+}
+
+/// v12 (M8.1a1, D-132): services gain the upstream DNS (the ISP's, as rendered before), DDNS
+/// (none) and the NTP server (on, as before); nodes that manage `dhcp` manage `https-dns-proxy`
+/// and `ddns` too (render writes them only on the gateway, while in use or held).
+fn v11_to_v12(value: &mut Value) -> Result<(), String> {
+    let services = value
+        .get_mut("services")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no services")?;
+    services.insert("upstream".to_owned(), json!({ "kind": "isp" }));
+    services.insert("ddns".to_owned(), json!([]));
+    services.insert("ntp_server".to_owned(), json!(true));
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let Some(managed) = node.get_mut("managed").and_then(Value::as_array_mut) else {
+            return Err("a node has no managed packages".to_owned());
+        };
+        if managed.iter().any(|p| p == "dhcp") {
+            for package in ["https_dns_proxy", "ddns"] {
+                if !managed.iter().any(|p| p == package) {
+                    managed.push(json!(package));
+                }
+            }
+        }
+    }
     Ok(())
 }
 
