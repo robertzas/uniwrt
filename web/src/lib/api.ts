@@ -5,6 +5,8 @@ import type { ApplyBody } from "../api/gen/ApplyBody";
 import type { ApplyPlan } from "../api/gen/ApplyPlan";
 import type { AuthState } from "../api/gen/AuthState";
 import type { BackhaulFailure } from "../api/gen/BackhaulFailure";
+import type { Backup } from "../api/gen/Backup";
+import type { BackupId } from "../api/gen/BackupId";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
 import type { CableEnd } from "../api/gen/CableEnd";
@@ -308,6 +310,19 @@ export const api = {
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
     rootPassword: (id: NodeId) =>
       request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),
+    /** Configuration backups (D-126); the jobs are followed on the WS topic `jobs`. */
+    backups: {
+      /** The node's backups, newest first. */
+      list: (id: NodeId, signal?: AbortSignal) =>
+        request<Backup[]>(`/nodes/${id}/backups`, { signal }),
+      /** *Back up now* (admins). */
+      create: (id: NodeId) => request<Job>(`/nodes/${id}/backups`, { method: "POST" }),
+      /** The `sysupgrade -b` tarball (admins; audited): a link, not a request. */
+      archiveUrl: (id: NodeId, backup: BackupId) => `/api/v1/nodes/${id}/backups/${backup}/archive`,
+      /** Its `/etc/config` back onto the managed node (admins; audited). */
+      restore: (id: NodeId, backup: BackupId) =>
+        request<Job>(`/nodes/${id}/backups/${backup}/restore`, { method: "POST" }),
+    },
   },
   /** First run (adoption.md, Path E): the routers that could be the gateway to set up (admins). */
   bootstrap: {

@@ -658,6 +658,13 @@ export const strings = {
         record: "Grade the line",
       },
       wpad: { verify: "Find 802.11v" },
+      restore: {
+        check: "Check the device and the backup",
+        backup: "Back up what it holds now",
+        stage: "Stage the backup's configuration",
+        apply: "Apply it",
+        verify: "Check it against before",
+      },
       upgrade: {
         check: "Check the device and pick its image",
         download: "Download the image",
@@ -1411,6 +1418,43 @@ export const strings = {
       done: "The full wpad is installed",
       doneHint: "Review and apply to turn 802.11v on.",
       failed: "The full wpad isn't installed",
+    },
+    backups: {
+      title: "Backups",
+      hint: "Configuration backups (sysupgrade -b) kept on the controller, sealed: weekly, before every apply or upgrade, and when asked. The newest 10 stay, and the adoption's always.",
+      none: "No backups yet.",
+      backUp: "Back up now",
+      taken: (when: string) => `Taken ${when}`,
+      unchanged: (when: string) => `unchanged as of ${when}`,
+      reason: {
+        adoption: "At adoption",
+        upgrade: "Before an upgrade",
+        scheduled: "Weekly",
+        apply: "Before an apply",
+        manual: "Asked for",
+        restore: "Before a restore",
+      },
+      download: "Download",
+      downloadLabel: (when: string) => `Download the backup taken ${when}`,
+      restore: "Restore",
+      restoreLabel: (when: string) => `Restore the backup taken ${when}`,
+      observe: "Turn management on to restore a backup onto this device.",
+      adminOnly:
+        "Only admins back up, download and restore: a backup holds the device's passwords and keys.",
+      confirm: {
+        title: (name: string) => `Restore a backup onto ${name}?`,
+        body: (when: string) =>
+          `The configuration (/etc/config) of the backup taken ${when} goes back onto the device as one transaction: what it holds now is backed up first, and unless the device is as healthy afterwards, it rolls back by itself.`,
+        rest: "Passwords, host keys and scripts in the backup are not restored: download it and run sysupgrade -r on the device for those.",
+        drift:
+          "Afterwards the device differs from the site's configuration until the next apply, which writes the site's back.",
+        action: "Restore",
+      },
+      cancel: "Cancel",
+      backedUp: (name: string) => `${name} is backed up`,
+      backUpFailed: (name: string) => `${name} isn't backed up`,
+      restored: (name: string) => `The backup is restored onto ${name}`,
+      restoreFailed: (name: string) => `The backup isn't restored onto ${name}`,
     },
     packages: {
       title: "Managed packages",

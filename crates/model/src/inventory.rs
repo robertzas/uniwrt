@@ -26,7 +26,7 @@ pub struct Package {
 /// A configuration backup kept on the controller: the tarball `sysupgrade -b` makes, sealed at
 /// rest because it holds the node's password hashes, private host keys and Wi-Fi keys.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Backup {
     pub id: BackupId,
     pub node: NodeId,
