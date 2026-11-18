@@ -7,18 +7,22 @@
 //!   record ([`forget`]). A failure watches it again (offline, once the wipe has run).
 //! - **Forget:** record alone, for a node that can't be reached: nothing changes on it.
 //!
-//! Both hold the node and the site's configuration (no apply runs meanwhile), and are refused
-//! for the gateway while other nodes are adopted (they depend on it: replace it instead) and
-//! for a node an active rollout still has to upgrade.
+//! - **Reset & replace** ([`replace`]): the wipe with `firstboot`, the record then awaiting
+//!   the device's re-adoption; or a new device adopted into the record.
+//!
+//! All hold the node and the site's configuration (no apply runs meanwhile), and are refused
+//! for a node an active rollout still has to upgrade; all but replace for the gateway while
+//! other nodes are adopted (they depend on it: replace it instead).
 
 mod forget;
+mod replace;
 #[cfg(test)]
 mod tests;
 
 use std::sync::Arc;
 
 use tracing::{info, warn};
-use uniwrt_core::{NodeId, UserId};
+use uniwrt_core::NodeId;
 use uniwrt_model::{
     job::{Job, JobError, JobErrorCode, JobKind, NewJob, StepName},
     node::{Node, NodeMode, NodeRole},
@@ -27,6 +31,7 @@ use uniwrt_model::{
 use uniwrt_node::{HostKey, decommission};
 use uniwrt_store::{HostKeyRepo as _, NodeRepo as _, RolloutRepo as _};
 
+use crate::revise::Author;
 use crate::{
     Error, Jobs, Remote, Result, apply,
     errors::{internal, node_error},
@@ -34,13 +39,6 @@ use crate::{
     progress::Progress,
     runner::Shared,
 };
-
-/// Who asked, for the revision that leaves the node out.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Author {
-    pub id: UserId,
-    pub name: String,
-}
 
 const DECOMMISSION: [StepName; 4] = [
     StepName::Connect,
@@ -83,6 +81,12 @@ impl Jobs {
 
     /// The node about to leave the site, unless a rule of the site keeps it.
     async fn leaving(&self, id: NodeId) -> Result<Node> {
+        self.held(id, true).await
+    }
+
+    /// The node, unless a rule of the site keeps it as it is: a rollout still to upgrade it,
+    /// or with `gateway` the other nodes depending on it as their gateway.
+    async fn held(&self, id: NodeId, gateway: bool) -> Result<Node> {
         let store = &self.shared.store;
         let nodes = store.nodes().await?;
         let node = nodes
@@ -90,7 +94,7 @@ impl Jobs {
             .find(|node| node.id == id)
             .ok_or(Error::NoNode(id))?
             .clone();
-        if node.role == NodeRole::Gateway && nodes.len() > 1 {
+        if gateway && node.role == NodeRole::Gateway && nodes.len() > 1 {
             return Err(Error::Refused(format!(
                 "{} is the site's gateway and the other devices depend on it: remove them \
                  first, or replace it",

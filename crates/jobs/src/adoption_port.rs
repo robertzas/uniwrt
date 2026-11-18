@@ -120,7 +120,10 @@ async fn look(
         return Ok(PortLook::Nothing);
     };
     if let Some(adopted) = nodes.iter().find(|node| node.mac == mac) {
-        return Ok(PortLook::Adopted(adopted.id));
+        // A reset node's device back on the port is adopted into its record (D-131).
+        if !shared.store.awaiting_nodes().await?.contains(&adopted.id) {
+            return Ok(PortLook::Adopted(adopted.id));
+        }
     }
     let now = shared.clock.now();
     let board = reached.board;

@@ -72,6 +72,7 @@ async fn a_factory_device_on_the_adoption_port_is_adopted_through_the_gateway() 
         role: Some(NodeRole::Ap),
         ztp: None,
         port: Some(PortPath { gateway: GATEWAY }),
+        replace: None,
     };
     let started = lab
         .jobs

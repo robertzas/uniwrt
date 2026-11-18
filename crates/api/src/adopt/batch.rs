@@ -117,6 +117,7 @@ pub(crate) async fn adopt(
             role: node.role,
             ztp: None,
             port: None,
+            replace: None,
             target,
         });
     }

@@ -8,18 +8,16 @@ use uniwrt_core::RevisionId;
 use uniwrt_model::{
     job::{JobError, StepName},
     node::Node,
-    site::{
-        remove::remove_node,
-        revision::{NewRevision, RevisionKind},
-    },
+    site::{remove::remove_node, revision::RevisionKind},
 };
-use uniwrt_store::{NodeRepo as _, RevisionRepo as _};
+use uniwrt_store::NodeRepo as _;
 
-use super::Author;
-use crate::{errors::internal, progress::Progress, runner::Shared};
-
-/// How often a revision saved meanwhile is read again before giving up.
-const TRIES: usize = 3;
+use crate::{
+    errors::internal,
+    progress::Progress,
+    revise::{Author, revise},
+    runner::Shared,
+};
 
 pub(super) async fn forget(
     shared: &Shared,
@@ -52,36 +50,9 @@ async fn leave_out(
     node: &Node,
     by: Option<&Author>,
 ) -> Result<Option<RevisionId>, JobError> {
-    for _ in 0..TRIES {
-        let Some(head) = shared
-            .store
-            .head_revision()
-            .await
-            .map_err(|err| internal("reading the site's configuration", &err))?
-        else {
-            return Ok(None);
-        };
-        let mut config = head.config;
-        if !remove_node(&mut config, node.id, &[node.mac]) {
-            return Ok(None);
-        }
-        let new = NewRevision {
-            base: Some(head.meta.id),
-            kind: RevisionKind::Remove,
-            restored_from: None,
-            author_id: by.map(|author| author.id),
-            author: by.map(|author| author.name.clone()),
-            message: format!("Removed {}", node.name),
-            config,
-        };
-        match shared.store.commit_revision(new, Vec::new()).await {
-            Ok(meta) => return Ok(Some(meta.id)),
-            Err(uniwrt_store::Error::NotLatest { .. }) => {}
-            Err(err) => return Err(internal("saving the site without the node", &err)),
-        }
-    }
-    Err(internal(
-        "saving the site without the node",
-        &"other revisions kept being saved meanwhile",
-    ))
+    let message = format!("Removed {}", node.name);
+    revise(shared, by, RevisionKind::Remove, &message, |config| {
+        remove_node(config, node.id, &[node.mac])
+    })
+    .await
 }

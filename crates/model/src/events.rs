@@ -138,6 +138,10 @@ pub enum EventKind {
         name: String,
         wiped: bool,
     },
+    /// A node's failed device was replaced by another, which took over its record (D-131).
+    NodeReplaced,
+    /// A node was reset to its image's defaults; its record awaits the device (D-131).
+    NodeReset,
     /// A node became unreachable (raises its `offline` condition).
     NodeOffline {
         reasons: Vec<StatusReason>,
@@ -370,6 +374,8 @@ impl EventKind {
             Self::ControllerStarted { .. }
             | Self::NodeAdopted
             | Self::NodeRemoved { .. }
+            | Self::NodeReplaced
+            | Self::NodeReset
             | Self::NodeOnline { .. }
             | Self::NodeRecovered { .. }
             | Self::FlashOk { .. }
@@ -414,6 +420,8 @@ impl EventKind {
             Self::ControllerStarted { .. } => "controller_started",
             Self::NodeAdopted => "node_adopted",
             Self::NodeRemoved { .. } => "node_removed",
+            Self::NodeReplaced => "node_replaced",
+            Self::NodeReset => "node_reset",
             Self::NodeOffline { .. } => "node_offline",
             Self::NodeOnline { .. } => "node_online",
             Self::NodeDegraded { .. } => "node_degraded",
@@ -648,6 +656,8 @@ mod tests {
                 name: "ap".to_owned(),
                 wiped: true,
             },
+            EventKind::NodeReplaced,
+            EventKind::NodeReset,
             EventKind::NodeOnline { down_ms: None },
             EventKind::ClientLeft { connected_ms: None },
             EventKind::NewClient {

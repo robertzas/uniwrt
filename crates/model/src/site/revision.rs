@@ -44,6 +44,8 @@ pub enum RevisionKind {
     File,
     /// A node decommissioned or forgotten, taken out of the document (D-131).
     Remove,
+    /// A node's device replaced: its settings moved to the new device (D-131).
+    Replace,
 }
 
 /// A revision with its document, upgraded to the current schema, and its changes from its

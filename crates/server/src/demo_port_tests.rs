@@ -128,6 +128,7 @@ async fn the_bench_device_is_found_adopted_through_the_gateway_and_configured() 
         port: Some(PortPath {
             gateway: gateway.id,
         }),
+        replace: None,
     };
     let adopted = jobs.adopt(request, None).await.unwrap();
     let adopted = finished(&jobs, adopted, Duration::from_secs(300)).await;

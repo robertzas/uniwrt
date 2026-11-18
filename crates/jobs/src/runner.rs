@@ -22,7 +22,9 @@ use uniwrt_model::{
     node::Node,
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
-use uniwrt_store::{BackupRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault};
+use uniwrt_store::{
+    BackupRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault, ZtpRepo as _,
+};
 
 use crate::{
     AdoptRequest, BoxFuture, Dial, Error, ImportDraft, ImportScope, Result,
@@ -559,7 +561,25 @@ impl Jobs {
         adopted: &[(Node, Option<Arc<NodeFacts>>)],
         wait: Duration,
     ) -> DiscoveryReport {
-        self.shared.discovery.scan(adopted, wait).await
+        // A node reset to its defaults is offline, and its device is to be found again.
+        let awaiting = self
+            .shared
+            .store
+            .awaiting_nodes()
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(%err, "cannot read the nodes awaiting their devices");
+                Vec::new()
+            });
+        if awaiting.is_empty() {
+            return self.shared.discovery.scan(adopted, wait).await;
+        }
+        let watching: Vec<_> = adopted
+            .iter()
+            .filter(|(node, _)| !awaiting.contains(&node.id))
+            .cloned()
+            .collect();
+        self.shared.discovery.scan(&watching, wait).await
     }
 
     /// Reads `node`'s packages again from its package manager's database and keeps them as

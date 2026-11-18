@@ -103,7 +103,10 @@ pub enum PendingSource {
 }
 
 /// The owner's approval of a device by MAC before it calls home: its first hello starts the
-/// adoption. Single-use, and it expires ([`ZtpApproval::LIFETIME`]).
+/// adoption. Single-use, and it expires ([`ZtpApproval::LIFETIME`]). A node reset to its
+/// defaults awaits its device's re-adoption with one ([`ZtpApproval::awaiting`], D-131): any
+/// adoption path that finds the MAC and board adopts it back into the node's record, and it
+/// never expires.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ZtpApproval {
@@ -116,6 +119,12 @@ pub struct ZtpApproval {
     pub expires_at: Timestamp,
     /// The admin who approved it.
     pub created_by: Option<String>,
+    /// The node whose record the device is adopted back into (a reset's, D-131).
+    #[serde(default)]
+    pub node: Option<NodeId>,
+    /// The board the device must be, when given (a reset's).
+    #[serde(default)]
+    pub board_name: Option<String>,
 }
 
 impl ZtpInbox {
@@ -126,6 +135,23 @@ impl ZtpInbox {
 impl ZtpApproval {
     /// Seven days (D-102).
     pub const LIFETIME: std::time::Duration = std::time::Duration::from_hours(7 * 24);
+    /// A re-adoption's `expires_at`: never (the last millisecond of 9999, which JavaScript's
+    /// dates still hold).
+    pub const NEVER: Timestamp = Timestamp::from_unix_ms(253_402_300_799_999);
+
+    /// The approval a reset `node` awaits its device with.
+    pub fn awaiting(node: &crate::node::Node, now: Timestamp, by: Option<String>) -> Self {
+        Self {
+            mac: node.mac,
+            name: Some(node.name.clone()),
+            role: Some(node.role),
+            created_at: now,
+            expires_at: Self::NEVER,
+            created_by: by,
+            node: Some(node.id),
+            board_name: Some(node.board_name.clone()),
+        }
+    }
 }
 
 /// The inbox as `GET /api/v1/ztp/pending` shows it.

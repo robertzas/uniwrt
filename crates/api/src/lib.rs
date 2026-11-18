@@ -14,7 +14,9 @@
 //!   session: `POST v1/auth/logout`, `GET v1/auth/me`, `GET v1/nodes` ([`NodeSummary`]s),
 //!   `GET v1/nodes/{id}` ([`NodeDetail`]), `PUT v1/nodes/{id}/management` (admins: management
 //!   on or off, a job), `POST v1/nodes/{id}/decommission` and `DELETE v1/nodes/{id}` (admins:
-//!   the node leaves the site, a job; see `decommission`, D-131), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
+//!   the node leaves the site, a job; see `decommission`, D-131), `POST v1/nodes/{id}/replace`
+//!   and `…/reset` (admins: a new device into the node's record, or `firstboot` with the record
+//!   awaiting the device; jobs, see `replace`), `PUT v1/nodes/{id}/role` (admins: the node's role, D-100), `POST v1/nodes/{id}/wpad` (admins: the full wpad on a managed node, a
 //!   job, D-089), node backups (`GET v1/nodes/{id}/backups`, admins: `POST` it (a job), `GET
 //!   …/backups/{backup}/archive`, `POST …/backups/{backup}/restore` (a job); see `backups`, D-126), the apply (admins: `GET v1/apply/plan` ([`ApplyPlan`](uniwrt_model::apply::ApplyPlan)), `POST v1/apply`
 //!   ([`ApplyBody`], a job), `GET v1/apply/applied`; see `apply`), the import (admins: `POST
@@ -154,6 +156,7 @@ mod node_role;
 mod nodes;
 mod notifiers;
 pub mod problem;
+mod replace;
 mod rf;
 #[cfg(test)]
 mod rf_tests;
@@ -214,6 +217,7 @@ pub use notifiers::{
     SecretsInput, SecretsView,
 };
 pub use problem::{ApiError, ApiResult, no_route};
+pub use replace::ReplaceBody;
 pub use rf::{ScanRequest, ScansQueued};
 pub use site::{
     FirstSite, RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
@@ -340,6 +344,8 @@ fn node_routes() -> Router<Api> {
             get(nodes::get).delete(decommission::delete),
         )
         .route("/v1/nodes/{id}/decommission", post(decommission::post))
+        .route("/v1/nodes/{id}/replace", post(replace::replace))
+        .route("/v1/nodes/{id}/reset", post(replace::reset))
         .route("/v1/nodes/{id}/management", put(management::put))
         .route("/v1/nodes/{id}/role", put(node_role::put))
         .route("/v1/nodes/{id}/wpad", post(wpad::post))

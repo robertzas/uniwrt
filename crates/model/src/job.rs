@@ -120,6 +120,12 @@ pub enum JobKind {
     /// Forgetting a node on the controller alone, as decommissioning does, for one that can't
     /// be reached (D-131).
     Forget,
+    /// Adopting a new device into a node's record, in place of its failed device (D-131): the
+    /// adoption's steps, then its settings moved to the new device.
+    Replace,
+    /// Resetting a node to its image's defaults (`firstboot`), its record then awaiting the
+    /// device's re-adoption (D-131).
+    Reset,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

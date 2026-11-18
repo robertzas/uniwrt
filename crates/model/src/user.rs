@@ -105,6 +105,9 @@ pub enum AuditAction {
     Backup,
     /// An admin decommissioned a node or forgot it (the detail names it and says which; D-131).
     Decommission,
+    /// An admin replaced a node's device or reset it to await its re-adoption (the detail
+    /// says which; D-131).
+    Replace,
 }
 
 /// One audit log entry.

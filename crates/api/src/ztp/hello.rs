@@ -50,12 +50,22 @@ pub(crate) async fn hello(
     let mac = device.mac;
     let answer = |state| Ok(Json(HelloAnswer { state }));
 
-    if api
+    let now = api.now();
+    // A node reset to its defaults awaits this device (D-131): its record isn't adopted, and
+    // its approval stays until the adoption records the device (any path may).
+    let awaiting = api
         .store()
-        .nodes()
+        .ztp_approvals(now)
         .await?
-        .iter()
-        .any(|node| node.mac == mac)
+        .into_iter()
+        .find(|approval| approval.mac == mac && approval.node.is_some());
+    if awaiting.is_none()
+        && api
+            .store()
+            .nodes()
+            .await?
+            .iter()
+            .any(|node| node.mac == mac)
     {
         api.store().forget_ztp_pending(mac).await?;
         return answer(HelloState::Adopted);
@@ -63,10 +73,10 @@ pub(crate) async fn hello(
     let stored = api.store().ztp_hello(device, ZtpInbox::MAX_PENDING).await?;
     match super::job_state(&api, &stored).await? {
         Some(JobState::Running) => return answer(HelloState::Adopting),
-        Some(JobState::Succeeded) => return answer(HelloState::Adopted),
-        Some(JobState::Failed) | None => {}
+        // An earlier adoption of the device, before its reset, doesn't count.
+        Some(JobState::Succeeded) if awaiting.is_none() => return answer(HelloState::Adopted),
+        _ => {}
     }
-    let now = api.now();
     // A one-liner's token first, then a pre-approval of the MAC.
     let redeemed = hello
         .token
@@ -74,6 +84,8 @@ pub(crate) async fn hello(
         .and_then(|token| api.one_liners().redeem(token, mac, now));
     let grant = if let Some(one_liner) = redeemed {
         Grant::OneLiner(one_liner)
+    } else if let Some(approval) = awaiting {
+        Grant::Approval(approval)
     } else {
         let Some(approval) = api.store().take_ztp_approval(mac, now).await? else {
             info!(%mac, address = %stored.address, "a ZTP device waits for adoption");

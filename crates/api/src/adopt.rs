@@ -31,7 +31,7 @@ const MAX_NAME_CHARS: usize = 64;
 const MAX_PASSWORD_BYTES: usize = 1024;
 
 /// The port when a request leaves it out.
-const SSH_PORT: u16 = 22;
+pub(crate) const SSH_PORT: u16 = 22;
 
 /// Where a node's SSH server listens.
 #[derive(Debug, Deserialize, TS)]
@@ -126,6 +126,7 @@ pub(crate) async fn adopt(
         role: body.role,
         ztp: None,
         port: None,
+        replace: None,
     };
     let user = user.user;
     let job = api
@@ -158,7 +159,7 @@ async fn audit(api: &Api, user: &User, client: &Client, job: &Job) -> ApiResult<
     Ok(())
 }
 
-fn password(password: Option<String>) -> ApiResult<Option<Zeroizing<String>>> {
+pub(crate) fn password(password: Option<String>) -> ApiResult<Option<Zeroizing<String>>> {
     let password = password.map(Zeroizing::new);
     if password
         .as_ref()
@@ -171,7 +172,10 @@ fn password(password: Option<String>) -> ApiResult<Option<Zeroizing<String>>> {
     Ok(password)
 }
 
-fn remember(remember: Option<bool>, password: Option<&Zeroizing<String>>) -> ApiResult<bool> {
+pub(crate) fn remember(
+    remember: Option<bool>,
+    password: Option<&Zeroizing<String>>,
+) -> ApiResult<bool> {
     let remember = remember.unwrap_or(false);
     if remember && password.is_none() {
         return Err(ApiError::BadRequest(
@@ -181,14 +185,14 @@ fn remember(remember: Option<bool>, password: Option<&Zeroizing<String>>) -> Api
     Ok(remember)
 }
 
-fn host_key(host_key: &str) -> ApiResult<HostKey> {
+pub(crate) fn host_key(host_key: &str) -> ApiResult<HostKey> {
     HostKey::parse(host_key.trim())
         .map_err(|_| ApiError::BadRequest("The host key must be an OpenSSH public key".to_owned()))
 }
 
 /// `root` at `host:port`: a host name or an IP address (IPv6 without brackets), never anything
 /// a shell or SSH option could read otherwise.
-fn target(host: &str, port: u16) -> ApiResult<Target> {
+pub(crate) fn target(host: &str, port: u16) -> ApiResult<Target> {
     let host = host.trim();
     let valid = !host.is_empty()
         && host.len() <= MAX_HOST

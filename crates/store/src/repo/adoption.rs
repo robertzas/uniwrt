@@ -96,6 +96,23 @@ pub(crate) fn record(
     Ok(())
 }
 
+/// Writes the rest of an adoption into node `id`'s record, replacing its old device's host key,
+/// facts and inventory; its backups stay.
+pub(crate) fn take_over(
+    conn: &rusqlite::Connection,
+    node: NodeId,
+    adoption: Adoption,
+    encoded: &Encoded,
+) -> Result<()> {
+    for table in ["node_host_keys", "node_facts", "node_inventory"] {
+        conn.execute(
+            &format!("DELETE FROM {table} WHERE node_id = ?1"),
+            [node.get()],
+        )?;
+    }
+    record(conn, node, adoption, encoded)
+}
+
 pub(crate) fn insert_backup(
     conn: &rusqlite::Connection,
     node: NodeId,
@@ -305,6 +322,69 @@ mod tests {
             .unwrap();
         assert_eq!(backups, 1);
         assert_eq!(store.backups(first.id).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_new_device_takes_over_the_record_keeping_its_history() {
+        use uniwrt_model::{node::NodeMode, ztp::ZtpApproval};
+
+        use crate::ZtpRepo as _;
+
+        let (_dir, store, _clock) = testing::open().await;
+        let vault = Vault::open(&store, &MasterKey::generate().unwrap())
+            .await
+            .unwrap();
+        let old = store.adopt_node(adoption(&vault, 2, b"old")).await.unwrap();
+        let other = store
+            .adopt_node(adoption(&vault, 3, b"other"))
+            .await
+            .unwrap();
+        store
+            .set_node_mode(old.id, NodeMode::Managed)
+            .await
+            .unwrap();
+        store
+            .put_ztp_approval(ZtpApproval::awaiting(&old, testing::START, None))
+            .await
+            .unwrap();
+        assert_eq!(store.awaiting_nodes().await.unwrap(), [old.id]);
+
+        let mut new = adoption(&vault, 9, b"new");
+        "openwrt,one".clone_into(&mut new.node.board_name);
+        new.node.name = "ignored".to_owned();
+        new.pin.fingerprint = "SHA256:new".to_owned();
+        "hall-new".clone_into(&mut new.facts.board.hostname);
+        let node = store.replace_node(old.id, new).await.unwrap().unwrap();
+        assert_eq!(node.id, old.id);
+        assert_eq!(node.name, old.name);
+        assert_eq!(node.mac, MacAddr::new([0x94, 0x83, 0xc4, 0, 0, 9]));
+        assert_eq!(node.board_name, "openwrt,one");
+        assert_eq!(node.host, "10.0.0.9");
+        assert_eq!(node.mode, NodeMode::Observe);
+        let pin = store.host_key(node.id).await.unwrap().unwrap();
+        assert_eq!(pin.fingerprint, "SHA256:new");
+        let facts = store.latest_facts(node.id).await.unwrap().unwrap();
+        assert_eq!(facts.board.hostname, "hall-new");
+        assert_eq!(store.backups(node.id).await.unwrap().len(), 2);
+        assert_eq!(store.ztp_approvals(testing::START).await.unwrap(), []);
+        assert_eq!(store.awaiting_nodes().await.unwrap(), []);
+
+        // Another node's MAC conflicts, and nothing changes.
+        let err = store
+            .replace_node(old.id, adoption(&vault, 3, b"clash"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::Conflict { .. }), "{err:?}");
+        assert_eq!(store.node(old.id).await.unwrap(), Some(node));
+        assert_eq!(store.backups(other.id).await.unwrap().len(), 1);
+        assert_eq!(store.backups(old.id).await.unwrap().len(), 2);
+        assert!(
+            store
+                .replace_node(uniwrt_core::NodeId::new(99), adoption(&vault, 7, b""))
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

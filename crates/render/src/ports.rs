@@ -133,6 +133,24 @@ fn ethernet<'a>(
     names
 }
 
+/// The ports a profile of the node may name (D-131 remaps profiles by them): its Ethernet
+/// devices, and a swconfig switch's user ports as `switch0:3`.
+pub fn port_names(role: NodeRole, facts: &NodeFacts) -> Vec<String> {
+    let switch = match facts.capabilities.switch {
+        Some(uniwrt_model::facts::SwitchKind::Swconfig) => facts.board.layout.switch.as_ref(),
+        _ => None,
+    };
+    let mut names: Vec<String> = ethernet(role, facts, switch).into_iter().cloned().collect();
+    if let Some(switch) = switch {
+        names.extend(
+            switch_ports(role, switch)
+                .into_iter()
+                .map(|n| PortConfig::switch_port(&switch.name, n)),
+        );
+    }
+    names
+}
+
 /// The switch's user ports a profile may name: the LAN's (on an AP the WAN's too).
 pub(crate) fn switch_ports(role: NodeRole, switch: &SwitchLayout) -> Vec<u8> {
     let mut user = switch.lan_ports.clone();

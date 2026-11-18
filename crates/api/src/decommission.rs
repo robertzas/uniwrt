@@ -80,22 +80,22 @@ pub(crate) async fn delete(
     accepted(&api, &user, &client, job, "forgot").await
 }
 
-fn node_id(id: Result<Path<i64>, PathRejection>) -> ApiResult<NodeId> {
+pub(crate) fn node_id(id: Result<Path<i64>, PathRejection>) -> ApiResult<NodeId> {
     let Path(id) = id.map_err(|_| ApiError::BadRequest("A node ID is a number".to_owned()))?;
     Ok(NodeId::new(id))
 }
 
-fn admin(user: CurrentUser) -> ApiResult<User> {
+pub(crate) fn admin(user: CurrentUser) -> ApiResult<User> {
     let user = user.user;
     if user.role != Role::Admin {
         return Err(ApiError::Forbidden(
-            "Only admins remove devices from the site".to_owned(),
+            "Only admins remove, replace or reset devices".to_owned(),
         ));
     }
     Ok(user)
 }
 
-fn author(user: &User) -> Author {
+pub(crate) fn author(user: &User) -> Author {
     Author {
         id: user.id,
         name: user.username.clone(),
@@ -109,10 +109,22 @@ async fn accepted(
     job: Job,
     how: &str,
 ) -> ApiResult<Response> {
+    audited(api, user, client, job, AuditAction::Decommission, how).await
+}
+
+/// Audits the job an admin started for a node, as `action`, and answers 202 with it.
+pub(crate) async fn audited(
+    api: &Api,
+    user: &User,
+    client: &Client,
+    job: Job,
+    action: AuditAction,
+    how: &str,
+) -> ApiResult<Response> {
     api.store()
         .record(AuditEntry {
             at: api.now(),
-            action: AuditAction::Decommission,
+            action,
             user_id: Some(user.id),
             username: Some(user.username.clone()),
             ip: Some(client.ip.to_string()),

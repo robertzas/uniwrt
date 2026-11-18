@@ -4,7 +4,8 @@
 //! the node (directive 8), but for root's password on a node that had none ([`login`]); the
 //! agent runs from `/tmp`. A factory-default device on the gateway's adoption port takes
 //! [`port`]'s path instead (Path C): the same steps through the gateway, then staged, managed
-//! and confirmed at its lease on the LAN.
+//! and confirmed at its lease on the LAN. A device may go into a record that exists already
+//! ([`takeover`]): a replace's, or a reset node's awaiting it (D-131).
 
 pub(crate) mod check;
 mod login;
@@ -12,10 +13,13 @@ mod port;
 #[cfg(test)]
 mod port_tests;
 mod prepare;
+mod takeover;
+#[cfg(test)]
+mod takeover_tests;
 #[cfg(test)]
 mod tests;
 
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Write as _, sync::Arc, time::Duration};
 
 use tracing::{info, warn};
 use uniwrt_model::{
@@ -31,6 +35,7 @@ use zeroize::Zeroizing;
 use self::login::Login;
 pub use self::port::PortPath;
 pub(crate) use self::port::STEPS as PORT_STEPS;
+pub use self::takeover::Replace;
 use crate::{
     Dial, Remote,
     errors::{chain, internal, node_error, unsupported},
@@ -85,6 +90,9 @@ pub struct AdoptRequest {
     /// A factory-default device on the gateway's adoption port (Path C, D-107): reached through
     /// the gateway, staged, and confirmed at its lease on the LAN; `target` is 192.168.1.1.
     pub port: Option<PortPath>,
+    /// The node whose record the device takes over, in place of its failed one (D-131); its
+    /// name and role stay, so `name` and `role` are ignored.
+    pub replace: Option<Replace>,
 }
 
 /// A zero-touch device's hello, as far as adoption checks it.
@@ -108,6 +116,8 @@ pub(crate) async fn run(shared: Arc<Shared>, request: AdoptRequest, mut progress
 
 /// What the steps on the node found, for the steps that record it.
 struct Found {
+    /// The record it goes into, when not a new one.
+    into: Option<uniwrt_core::NodeId>,
     facts: NodeFacts,
     mac: uniwrt_core::MacAddr,
     inventory: Inventory,
@@ -146,6 +156,7 @@ async fn record(
 ) -> Result<uniwrt_model::node::Node, JobError> {
     progress.start(StepName::Record).await;
     let Found {
+        into,
         facts,
         mac,
         inventory,
@@ -174,14 +185,25 @@ async fn record(
         inventory,
         backup: Some(backup),
     };
-    let mut node = shared
-        .store
-        .adopt_node(adoption)
-        .await
-        .map_err(|err| match err {
-            uniwrt_store::Error::Conflict { .. } => already_adopted(None),
-            err => internal("cannot record the node", &err),
-        })?;
+    let (mut node, taken_over) = if let Some(id) = into {
+        let by = request
+            .replace
+            .as_ref()
+            .and_then(|replace| replace.by.as_ref());
+        // Boxed: the takeover's revision would swell every adoption's future.
+        let (node, detail) = Box::pin(takeover::take_over(shared, id, adoption, by)).await?;
+        (node, Some(detail))
+    } else {
+        let node = shared
+            .store
+            .adopt_node(adoption)
+            .await
+            .map_err(|err| match err {
+                uniwrt_store::Error::Conflict { .. } => already_adopted(None),
+                err => internal("cannot record the node", &err),
+            })?;
+        (node, None)
+    };
     progress.set_node(node.id);
     if managed {
         node = shared
@@ -191,15 +213,32 @@ async fn record(
             .map_err(|err| internal("recording the node's mode", &err))?
             .ok_or_else(|| internal("recording the node's mode", &"the node is gone"))?;
     }
-    let mut detail = format!(
-        "Recorded as {}{}",
-        node.name,
-        if managed {
-            ", managed"
-        } else {
-            " in observe mode"
-        }
-    );
+    let mut detail = taken_over.unwrap_or_else(|| {
+        format!(
+            "Recorded as {}{}",
+            node.name,
+            if managed {
+                ", managed"
+            } else {
+                " in observe mode"
+            }
+        )
+    });
+    if managed && into.is_some() {
+        detail.push_str("; managed");
+    }
+    keep_passwords(shared, request, &node, &mut detail).await;
+    progress.done(Some(detail)).await;
+    Ok(node)
+}
+
+/// Moves the node's root password to its name, and keeps the one given when asked.
+async fn keep_passwords(
+    shared: &Shared,
+    request: &AdoptRequest,
+    node: &uniwrt_model::node::Node,
+    detail: &mut String,
+) {
     match login::keep_pending(shared, node.mac, node.id).await {
         Ok(true) => detail.push_str("; its root password is kept in the vault"),
         Ok(false) => {}
@@ -227,8 +266,6 @@ async fn record(
             detail.push_str("; the password is kept in the vault");
         }
     }
-    progress.done(Some(detail)).await;
-    Ok(node)
 }
 
 async fn watch(
@@ -301,6 +338,7 @@ async fn on_node(
 
 /// What the check found: the facts, the node's identity, and notes for the inventory step.
 struct Checked {
+    into: Option<uniwrt_core::NodeId>,
     facts: NodeFacts,
     mac: uniwrt_core::MacAddr,
     notes: Vec<String>,
@@ -349,9 +387,14 @@ async fn check(
         .nodes()
         .await
         .map_err(|err| internal("cannot read the nodes", &err))?;
-    if let Some(node) = adopted.iter().find(|node| node.mac == mac) {
-        return Err(already_adopted(Some(&node.name)));
-    }
+    let into = takeover::into(
+        shared,
+        request.replace.as_ref(),
+        mac,
+        &facts.board.board_name,
+        &adopted,
+    )
+    .await?;
     let board = &facts.board;
     let mut detail = format!(
         "{release} on {} ({}, {})",
@@ -361,8 +404,12 @@ async fn check(
         detail.push_str("; ");
         detail.push_str(warning);
     }
+    if let Some(node) = into.and_then(|id| adopted.iter().find(|node| node.id == id)) {
+        let _ = write!(detail, "; into {}'s record", node.name);
+    }
     progress.done(Some(detail)).await;
     Ok(Checked {
+        into,
         notes: errors.iter().map(ToString::to_string).collect(),
         facts,
         mac,
@@ -438,6 +485,7 @@ async fn inspect(
     checked: Checked,
 ) -> Result<Found, JobError> {
     let Checked {
+        into,
         facts,
         mac,
         mut notes,
@@ -489,6 +537,7 @@ async fn inspect(
         )))
         .await;
     Ok(Found {
+        into,
         facts,
         mac,
         inventory,

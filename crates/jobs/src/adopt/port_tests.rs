@@ -150,6 +150,7 @@ fn request(device: &FakeNode, gateway: NodeId, role: Option<NodeRole>) -> AdoptR
         role,
         ztp: None,
         port: Some(PortPath { gateway }),
+        replace: None,
     }
 }
 

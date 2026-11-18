@@ -312,6 +312,7 @@ mod tests {
             role: None,
             ztp: None,
             port: None,
+            replace: None,
         };
 
         let rejected = jobs.adopt(request("root"), None).await.unwrap();
@@ -362,6 +363,7 @@ mod tests {
             role: Some(uniwrt_model::node::NodeRole::Gateway),
             ztp: None,
             port: None,
+            replace: None,
         }
     }
 

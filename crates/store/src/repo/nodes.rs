@@ -72,6 +72,52 @@ impl NodeRepo for Store {
         .await
     }
 
+    async fn replace_node(&self, id: NodeId, adoption: Adoption) -> Result<Option<Node>> {
+        let now = self.now().as_unix_ms();
+        let encoded = adoption.encode()?;
+        self.write(move |conn| {
+            let NewNode {
+                mac,
+                board_name,
+                host,
+                port,
+                ..
+            } = adoption.node.clone();
+            let Some(node) = conn
+                .prepare_cached(
+                    "UPDATE nodes SET mac = ?2, board_name = ?3, host = ?4, port = ?5, mode = ?6,
+                     updated_at = ?7 WHERE id = ?1
+                     RETURNING id, name, mac, board_name, host, port, role, mode, created_at, updated_at",
+                )?
+                .query_row(
+                    params![
+                        id.get(),
+                        mac.to_string(),
+                        board_name,
+                        host,
+                        port,
+                        enum_text(NodeMode::Observe),
+                        now
+                    ],
+                    node_from_row,
+                )
+                .optional()
+                .map_err(|err| constraint(err, "node", mac))?
+            else {
+                return Ok(None);
+            };
+            // What the controller knew of the old device's configuration.
+            for table in ["node_config", "config_drift", "drift_mutes", "node_applied"] {
+                conn.execute(&format!("DELETE FROM {table} WHERE node_id = ?1"), [id.get()])?;
+            }
+            conn.prepare_cached("DELETE FROM ztp_approvals WHERE node_id = ?1 OR mac = ?2")?
+                .execute(params![id.get(), mac.to_string()])?;
+            adoption::take_over(conn, id, adoption, &encoded)?;
+            Ok(Some(node))
+        })
+        .await
+    }
+
     async fn node(&self, id: NodeId) -> Result<Option<Node>> {
         self.read(move |conn| {
             Ok(conn

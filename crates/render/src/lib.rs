@@ -191,6 +191,7 @@ pub use self::{
     firewall::seeded,
     mesh::MESH_IFACE,
     plan::{BAT, BRIDGE},
+    ports::port_names,
     split::{wan_interface, wan_sections, without_wan},
     staging::{Staging, staging},
     upnp::LEASE_FILE as UPNP_LEASE_FILE,

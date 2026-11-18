@@ -300,6 +300,8 @@ describe("Waiting for adoption", () => {
           created_at: NOW,
           expires_at: NOW + 7 * 86_400_000,
           created_by: "admin",
+          node: null,
+          board_name: null,
         };
         inbox = { pending: [], approvals: [approval] };
         return approval;

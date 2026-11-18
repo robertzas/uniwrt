@@ -74,6 +74,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
 - `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
+- `src/replace.rs`: Replacing a node's device and resetting a node, with an admin's session (features/ lifecycle.md, Replace / RMA / decommission; D-131), each a job answered 202 with it:
+- `src/replace_tests.rs`: (no header comment)
 - `src/rf.rs`: The RF insight routes, with a session (features/wifi.md, RF insight):
 - `src/rf_tests.rs`: The RF insight routes over the demo, whose scanner scans the simulated radios at once: the view once every radio has a scan, scans queued and refused, the stored scans, the settings.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
@@ -304,6 +306,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/port.rs`: The adopt job's path for a factory-default device on the gateway's adoption port (features/adoption.md, Path C; D-107).
 - `src/adopt/port_tests.rs`: The port path of the adopt job (Path C, D-107) over a fake gateway and the factory device behind it: staged through the tunnel, the port lent, confirmed at the lease, recorded managed; the port given back and the device rolled back when it fails.
 - `src/adopt/prepare.rs`: The port path's Prepare step (features/adoption.md, Path C, step 5; D-108).
+- `src/adopt/takeover.rs`: Adopting a device into a node's record that exists already (features/lifecycle.md, Replace / RMA / decommission; D-131): a replace names the record, and a node reset to its defaults awaits its device with a pre-approval of its MAC and board, which any adoption path finds here.
+- `src/adopt/takeover_tests.rs`: Replacing a node's device and re-adopting a reset one (D-131), over the scripted node of [`crate::testing`].
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
 - `src/adoption_port.rs`: A look on the adoption port (features/adoption.md, Path C; D-106): whether a factory-default OpenWrt device answers at 192.168.1.1 on the gateway's adoption port, and if so, its entry in the pending inbox.
 - `src/adoption_port_tests.rs`: Looks on the adoption port over a fake gateway and the fake device behind it.
@@ -352,6 +356,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/bootstrap.rs`: Finding the gateway to set up at first run (features/adoption.md, Path E): the controller sits behind a factory-default OpenWrt router, which is its default gateway (or, from a container on a bridge network, still at OpenWrt's 192.168.1.1 through the host).
 - `src/decommission/forget.rs`: The controller's side of a node leaving the site (D-131): it stops watching the node, a revision leaves it out of the site's document ([`uniwrt_model::site::remove`]), and its record goes with everything stored about it ([`uniwrt_store::NodeRepo::delete_node`]).
 - `src/decommission/mod.rs`: Taking a node out of the site (features/lifecycle.md, Replace / RMA / decommission; D-131).
+- `src/decommission/replace.rs`: Replace and factory reset (features/lifecycle.md, Replace / RMA / decommission; D-131).
 - `src/decommission/tests.rs`: Decommissioning and forgetting over the scripted node of [`crate::testing`].
 - `src/discovery/mod.rs`: Discovery (features/adoption.md, Discovery): the devices the adopted nodes see ([`sightings`]), probed on port 22, and reported when they look like OpenWrt nodes: a dropbear banner, a default OpenWrt or uniwrt hostname, or a batman-adv originator that nothing else accounts for.
 - `src/discovery/sightings.rs`: Sightings: the devices the adopted nodes see in their DHCP leases, their IPv4 neighbors on non-WAN interfaces and their batman-adv meshes, less the adopted nodes themselves.
@@ -367,6 +372,7 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/restart.rs`: Restarting the radios still catching up after a channel switch (features/wifi.md, RF planner: Apply, step 4; M6.1 b3b, D-113, D-116).
 - `src/restart/tests.rs`: The radio restart over the scripted node of [`crate::testing`], adopted and managed, with a 5 GHz radio moved by a channel switch from 36 to 44.
+- `src/revise.rs`: Revisions a job commits for an admin (D-131): the site's latest document edited and saved on top of it, read again when another save came first.
 - `src/role.rs`: A node's role, changed after adoption (D-100): the router that becomes a dumb access point, or the access point promoted to the site's gateway.
 - `src/rollout/canary.rs`: The canary's check at the end of its soak (D-125): it stayed up (no `node_offline` or `node_rebooted` event since its upgrade ended), it still accepts the controller's login with its pinned host key, and it runs the release it was upgraded to.
 - `src/rollout/drive.rs`: The driver: one task that moves the active rollout on (D-125).
@@ -465,6 +471,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/node.rs`: Per-node desired state: which UCI packages the controller owns on the node (D-011), its radios' overrides, and raw UCI sections (the validated escape hatch, also where brownfield import keeps what it cannot map).
 - `src/site/plan_tests.rs`: The RF plan the site follows (schema v11, D-112): its migration and validation.
 - `src/site/remove.rs`: A node leaving the site (features/lifecycle.md, Replace / RMA / decommission; D-131): what the document says about it goes with it, so the next revision names no node that isn't adopted.
+- `src/site/replace.rs`: A node's device replaced (features/lifecycle.md, Replace / RMA / decommission; D-131): the new device takes over the node's settings.
+- `src/site/replace_tests.rs`: (no header comment)
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
 - `src/site/tests.rs`: The site document: the fixture of every schema, defaults, secrets, validation and the diff.
@@ -935,7 +943,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (445 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (446 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

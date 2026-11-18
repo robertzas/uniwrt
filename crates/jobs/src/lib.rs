@@ -24,7 +24,9 @@
 //!   [`RolloutTiming`]);
 //!   [`Jobs::decommission`] takes a node out of the site (the mesh left, its footprint wiped,
 //!   `firstboot` optionally, then forgotten) and [`Jobs::forget`] forgets it on the controller
-//!   alone ([`Author`], D-131; `decommission/`);
+//!   alone ([`Author`], D-131; `decommission/`); [`Jobs::replace`] adopts a new device into a
+//!   node's record in place of its failed one ([`Replace`]), and [`Jobs::reset`] resets a node
+//!   to its defaults, its record awaiting the device's re-adoption by any path;
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -139,6 +141,7 @@ mod manage_tests;
 mod progress;
 mod remote;
 mod restart;
+mod revise;
 mod role;
 mod rollout;
 mod runner;
@@ -150,12 +153,12 @@ mod wan_test;
 mod wpad;
 mod ztp;
 
-pub use adopt::{AdoptRequest, PortPath, ZtpClaim};
+pub use adopt::{AdoptRequest, PortPath, Replace, ZtpClaim};
 pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
-pub use decommission::Author;
 pub use import::{ImportDraft, ImportScope};
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
+pub use revise::Author;
 pub use rollout::{CanaryRequest, RolloutImages, RolloutRequest, RolloutTiming, Rollouts};
 pub use runner::{Jobs, JobsConfig, Watch};
 pub use speed_test::SpeedTestRequest;

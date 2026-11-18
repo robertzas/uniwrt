@@ -144,6 +144,10 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return { title: titles.nodeAdopted(node) };
     case "node_removed":
       return { title: titles.nodeRemoved(what.name, what.wiped) };
+    case "node_replaced":
+      return { title: titles.nodeReplaced(node) };
+    case "node_reset":
+      return { title: titles.nodeReset(node) };
     case "node_offline":
       return withDetail(titles.nodeOffline(node), reasonText(what.reasons[0]));
     case "node_online": {

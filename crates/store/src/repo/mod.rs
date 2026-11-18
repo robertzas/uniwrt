@@ -226,6 +226,18 @@ pub trait NodeRepo: Send + Sync {
     /// [`Error::Conflict`](crate::Error::Conflict).
     fn adopt_node(&self, adoption: Adoption) -> impl Future<Output = Result<Node>> + Send;
 
+    /// Adopts a device into node `id`'s record in place of the one it had (D-131), all or
+    /// nothing: the node's MAC, board, address and port become the adoption's (its name and
+    /// role stay), with its host key, facts, inventory and a backup kept beside the old
+    /// device's; it is in observe mode, nothing applied to it, and its re-adoption approval
+    /// is used up. `None` when there is no such node; another node's MAC is an
+    /// [`Error::Conflict`](crate::Error::Conflict).
+    fn replace_node(
+        &self,
+        id: NodeId,
+        adoption: Adoption,
+    ) -> impl Future<Output = Result<Option<Node>>> + Send;
+
     fn node(&self, id: NodeId) -> impl Future<Output = Result<Option<Node>>> + Send;
 
     /// All nodes, oldest first.

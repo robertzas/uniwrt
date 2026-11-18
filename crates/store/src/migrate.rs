@@ -43,6 +43,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0023_floor_walls",
     "0024_rollouts",
     "0025_backup_retention",
+    "0026_ztp_readoption",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

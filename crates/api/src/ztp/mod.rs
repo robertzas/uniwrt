@@ -113,11 +113,13 @@ pub struct ZtpApprovalBody {
 
 pub(crate) async fn inbox(State(api): State<Api>, user: CurrentUser) -> ApiResult<Json<ZtpInbox>> {
     admin(&user.user, "see the devices waiting for adoption")?;
+    let awaiting = api.store().awaiting_nodes().await?;
     let adopted: Vec<MacAddr> = api
         .store()
         .nodes()
         .await?
         .into_iter()
+        .filter(|node| !awaiting.contains(&node.id))
         .map(|node| node.mac)
         .collect();
     let mut pending = Vec::new();
@@ -231,6 +233,8 @@ pub(crate) async fn approve(
         created_at: now,
         expires_at: now.saturating_add(ZtpApproval::LIFETIME),
         created_by: Some(user.username.clone()),
+        node: None,
+        board_name: None,
     };
     api.store().put_ztp_approval(approval.clone()).await?;
     audit(
@@ -302,6 +306,7 @@ pub(crate) async fn start(
                 // A locked device showed neither its board nor its identity.
                 ztp: (!device.locked).then_some(claim),
                 port: Some(PortPath { gateway: *gateway }),
+                replace: None,
             }
         }
         PendingSource::Hello => AdoptRequest {
@@ -314,6 +319,7 @@ pub(crate) async fn start(
             role,
             ztp: Some(claim),
             port: None,
+            replace: None,
         },
     };
     let job = api.jobs().adopt(request, by).await.map_err(jobs_error)?;

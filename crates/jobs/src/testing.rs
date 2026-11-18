@@ -469,6 +469,7 @@ impl Setup {
             role: None,
             ztp: None,
             port: None,
+            replace: None,
         }
     }
 

@@ -55,6 +55,10 @@ pub trait ZtpRepo: Send + Sync {
         mac: MacAddr,
         now: Timestamp,
     ) -> impl Future<Output = Result<Option<ZtpApproval>>> + Send;
+
+    /// The nodes reset to their defaults whose records await their devices (D-131): every
+    /// adoption path treats them as not adopted.
+    fn awaiting_nodes(&self) -> impl Future<Output = Result<Vec<NodeId>>> + Send;
 }
 
 const PENDING_COLUMNS: &str = "mac, board_name, model, hostname, release, role, address, \
@@ -98,6 +102,8 @@ fn approval(row: &Row<'_>) -> rusqlite::Result<ZtpApproval> {
         created_at: timestamp_column(row, 3)?,
         expires_at: timestamp_column(row, 4)?,
         created_by: row.get(5)?,
+        node: row.get::<_, Option<i64>>(6)?.map(NodeId::new),
+        board_name: row.get(7)?,
     })
 }
 
@@ -208,8 +214,8 @@ impl ZtpRepo for Store {
         self.write(move |conn| {
             conn.prepare_cached(
                 "INSERT OR REPLACE INTO ztp_approvals
-                 (mac, name, role, created_at, expires_at, created_by)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                 (mac, name, role, created_at, expires_at, created_by, node_id, board_name)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?
             .execute(params![
                 approval.mac.to_string(),
@@ -218,6 +224,8 @@ impl ZtpRepo for Store {
                 approval.created_at.as_unix_ms(),
                 approval.expires_at.as_unix_ms(),
                 approval.created_by,
+                approval.node.map(NodeId::get),
+                approval.board_name,
             ])?;
             Ok(())
         })
@@ -228,7 +236,7 @@ impl ZtpRepo for Store {
         self.read(move |conn| {
             Ok(conn
                 .prepare_cached(
-                    "SELECT mac, name, role, created_at, expires_at, created_by
+                    "SELECT mac, name, role, created_at, expires_at, created_by, node_id, board_name
                      FROM ztp_approvals WHERE expires_at > ?1 ORDER BY mac",
                 )?
                 .query_map(params![now.as_unix_ms()], approval)?
@@ -252,11 +260,24 @@ impl ZtpRepo for Store {
             let taken = conn
                 .prepare_cached(
                     "DELETE FROM ztp_approvals WHERE mac = ?1
-                     RETURNING mac, name, role, created_at, expires_at, created_by",
+                     RETURNING mac, name, role, created_at, expires_at, created_by, node_id,
+                     board_name",
                 )?
                 .query_row(params![mac.to_string()], approval)
                 .optional()?;
             Ok(taken.filter(|approval| approval.expires_at > now))
+        })
+        .await
+    }
+
+    async fn awaiting_nodes(&self) -> Result<Vec<NodeId>> {
+        self.read(|conn| {
+            Ok(conn
+                .prepare_cached(
+                    "SELECT node_id FROM ztp_approvals WHERE node_id IS NOT NULL ORDER BY node_id",
+                )?
+                .query_map([], |row| Ok(NodeId::new(row.get(0)?)))?
+                .collect::<rusqlite::Result<_>>()?)
         })
         .await
     }
@@ -374,6 +395,8 @@ mod tests {
             created_at: at(0),
             expires_at: at(expires),
             created_by: Some("admin".to_owned()),
+            node: None,
+            board_name: None,
         };
         store.put_ztp_approval(approval(1, 100)).await.unwrap();
         store.put_ztp_approval(approval(2, 50)).await.unwrap();

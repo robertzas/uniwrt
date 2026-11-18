@@ -295,7 +295,9 @@ function Approval(props: { approval: ZtpApproval; now: number; onWithdraw: () =>
         {(role) => <Badge tone="neutral">{strings.devices.role[role()]}</Badge>}
       </Show>
       <span class="text-fg-subtle text-xs">
-        {t.approvals.expires(relative(a().expires_at, props.now))}
+        {a().node === null
+          ? t.approvals.expires(relative(a().expires_at, props.now))
+          : t.approvals.awaiting}
         <Show when={a().created_by}>{(user) => ` · ${t.approvals.by(user())}`}</Show>
       </span>
       <Button size="sm" variant="ghost" class="ml-auto" onClick={props.onWithdraw}>
