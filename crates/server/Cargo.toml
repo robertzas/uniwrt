@@ -20,6 +20,7 @@ axum = { workspace = true, features = ["http2"] }
 bytes.workspace = true
 clap.workspace = true
 ipnet.workspace = true
+mimalloc.workspace = true
 rcgen.workspace = true
 ring.workspace = true
 rustix.workspace = true

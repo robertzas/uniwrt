@@ -81,6 +81,8 @@ sha2 = "0.11.1"
 # in the tree through rustls), the certificate's Sigstore extensions with x509-parser.
 rustls-webpki = { version = "0.103.17", default-features = false, features = ["ring", "std"] }
 x509-parser = "0.18.1"
+# The global allocator (D-128): mimalloc v3, compiled in; no debug or secure modes.
+mimalloc = { version = "0.1.52", default-features = false }
 # The launcher forwards SIGTERM and SIGINT to the controller it supervises (D-123); already in the
 # tree through tempfile.
 rustix = { version = "1.1.6", default-features = false, features = ["std", "process"] }

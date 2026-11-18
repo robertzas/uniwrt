@@ -53,6 +53,11 @@ use clap::Parser as _;
 
 use crate::cli::{Cli, Command};
 
+/// mimalloc (D-128): about a fifth less CPU per request than musl's malloc, for about twice the
+/// memory; jemalloc saved as much CPU but took more memory still.
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
