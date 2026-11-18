@@ -1431,7 +1431,7 @@ export const strings = {
         upgrade: "Before an upgrade",
         scheduled: "Weekly",
         apply: "Before an apply",
-        manual: "Asked for",
+        manual: "On request",
         restore: "Before a restore",
       },
       download: "Download",

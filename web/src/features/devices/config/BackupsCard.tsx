@@ -97,6 +97,7 @@ export function BackupsCard(props: { node: Node; admin: boolean }) {
     <Card aria-label={b.title}>
       <CardHeader
         title={b.title}
+        description={b.hint}
         actions={
           <Show when={props.admin}>
             <Button
@@ -112,7 +113,6 @@ export function BackupsCard(props: { node: Node; admin: boolean }) {
         }
       />
       <div class="flex flex-col gap-3 px-4 pb-4">
-        <p class="text-fg-muted text-sm">{b.hint}</p>
         <RequestError text={error() ?? (backups.isError ? errorText(backups.error) : undefined)} />
         <Show when={job()?.state === "running" || (job()?.state === "failed" && started())}>
           <div class="rounded-control border border-edge p-2" role="status">

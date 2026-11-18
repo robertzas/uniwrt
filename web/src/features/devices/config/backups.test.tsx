@@ -178,7 +178,7 @@ describe("Device › Config › Backups", () => {
     );
     const progress = await within(card).findByRole("list", { name: "Restoring gw" });
     expect(progress).toHaveTextContent("Stage the backup's configuration");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("shows viewers the backups without their actions", async () => {
