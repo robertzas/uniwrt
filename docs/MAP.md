@@ -953,8 +953,9 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
-- `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, address.ts
+- `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, HostKey.tsx, address.ts
 - `features/devices/config/`: BackupsCard.tsx, ConfigTab.tsx, DriftCard.tsx, FirmwareCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, WpadCard.tsx, backups.ts, packages.ts
+- `features/devices/lifecycle/`: AwaitingCard.tsx, LifecycleCard.tsx, RemoveDialog.tsx, Removed.tsx, ReplaceDialog.tsx
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts

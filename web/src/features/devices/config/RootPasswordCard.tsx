@@ -15,6 +15,18 @@ const t = strings.setup.rootPassword;
  * remember. Admins read it on demand, for emergencies; each view is audited.
  */
 export function RootPasswordCard(props: { node: Node }) {
+  return (
+    <Card aria-label={t.title}>
+      <CardHeader title={t.title} />
+      <div class="px-4 pb-4">
+        <RootPasswordReveal node={props.node} hint={t.hint} />
+      </div>
+    </Card>
+  );
+}
+
+/** The password itself, revealed on demand (audited), with copy and hide; also shown before a decommission. */
+export function RootPasswordReveal(props: { node: Node; hint: string }) {
   const [value, setValue] = createSignal<string>();
   const [none, setNone] = createSignal(false);
   const [error, setError] = createSignal<string>();
@@ -43,41 +55,38 @@ export function RootPasswordCard(props: { node: Node }) {
   };
 
   return (
-    <Card aria-label={t.title}>
-      <CardHeader title={t.title} />
-      <div class="flex flex-col items-start gap-3 px-4 pb-4">
-        <p class="text-fg-muted text-sm">{none() ? t.none : t.hint}</p>
-        <Show
-          when={value()}
-          fallback={
-            <Show when={!none()}>
-              <Button size="sm" variant="secondary" icon={Eye} disabled={busy()} onClick={show}>
-                {t.show}
+    <div class="flex flex-col items-start gap-3">
+      <p class="text-fg-muted text-sm">{none() ? t.none : props.hint}</p>
+      <Show
+        when={value()}
+        fallback={
+          <Show when={!none()}>
+            <Button size="sm" variant="secondary" icon={Eye} disabled={busy()} onClick={show}>
+              {t.show}
+            </Button>
+          </Show>
+        }
+      >
+        {(password) => (
+          <>
+            <output
+              aria-label={t.title}
+              class="select-all break-all rounded-control border border-edge bg-canvas px-3 py-2 font-mono text-sm"
+            >
+              {password()}
+            </output>
+            <div class="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={copy}>
+                {copied() ? t.copied : t.copy}
               </Button>
-            </Show>
-          }
-        >
-          {(password) => (
-            <>
-              <output
-                aria-label={t.title}
-                class="select-all break-all rounded-control border border-edge bg-canvas px-3 py-2 font-mono text-sm"
-              >
-                {password()}
-              </output>
-              <div class="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={copy}>
-                  {copied() ? t.copied : t.copy}
-                </Button>
-                <Button size="sm" variant="ghost" icon={EyeOff} onClick={hide}>
-                  {t.hide}
-                </Button>
-              </div>
-            </>
-          )}
-        </Show>
-        <RequestError text={error()} />
-      </div>
-    </Card>
+              <Button size="sm" variant="ghost" icon={EyeOff} onClick={hide}>
+                {t.hide}
+              </Button>
+            </div>
+          </>
+        )}
+      </Show>
+      <RequestError text={error()} />
+    </div>
   );
 }

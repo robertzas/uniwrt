@@ -21,6 +21,7 @@ import type { ControllerUpdate } from "../api/gen/ControllerUpdate";
 import type { ControllerUpdates } from "../api/gen/ControllerUpdates";
 import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
+import type { DecommissionBody } from "../api/gen/DecommissionBody";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { DriftMuteBody } from "../api/gen/DriftMuteBody";
 import type { DriftState } from "../api/gen/DriftState";
@@ -76,6 +77,7 @@ import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { Purpose } from "../api/gen/Purpose";
+import type { ReplaceBody } from "../api/gen/ReplaceBody";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
 import type { RestoreState } from "../api/gen/RestoreState";
@@ -340,6 +342,16 @@ export const api = {
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
     rootPassword: (id: NodeId) =>
       request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),
+    /**
+     * Replace, reset and remove a node (admins, D-131), each a job followed on the WS topic `jobs`;
+     * 409 with the reason when the site's rules refuse it.
+     */
+    replace: (id: NodeId, body: ReplaceBody) =>
+      request<Job>(`/nodes/${id}/replace`, { method: "POST", body }),
+    reset: (id: NodeId) => request<Job>(`/nodes/${id}/reset`, { method: "POST" }),
+    decommission: (id: NodeId, body: DecommissionBody) =>
+      request<Job>(`/nodes/${id}/decommission`, { method: "POST", body }),
+    forget: (id: NodeId) => request<Job>(`/nodes/${id}`, { method: "DELETE" }),
     /** Configuration backups (D-126); the jobs are followed on the WS topic `jobs`. */
     backups: {
       /** The node's backups, newest first. */

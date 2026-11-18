@@ -1466,6 +1466,81 @@ export const strings = {
       restored: (name: string) => `The backup is restored onto ${name}`,
       restoreFailed: (name: string) => `The backup isn't restored onto ${name}`,
     },
+    lifecycle: {
+      title: "Replace or remove",
+      hint: "When the device fails, starts over from its defaults or leaves the network.",
+      gatewayHeld:
+        "The other devices depend on the gateway: remove them first, or replace its device.",
+      cancel: "Cancel",
+      close: "Close",
+      replace: {
+        label: "Replace its device",
+        hint: "New hardware, any model, takes over this record: its name, role, settings, floor placement and history carry on.",
+        action: "Replace…",
+        title: (name: string) => `Replace ${name}'s device`,
+        description:
+          "Set up the new device with OpenWrt and connect it, then give its address. uniwrt adopts it into this record: radios follow their band, port settings the port's name.",
+        submit: "It matches, replace",
+        progress: (name: string) => `Replacing ${name}'s device`,
+        running:
+          "You can close this window: the replacement continues, and this page shows the new device once it is recorded.",
+        succeeded:
+          "Replaced. The new device is watched in observe mode. Review the moved settings, then turn management on and apply.",
+        review: "Review changes",
+      },
+      reset: {
+        label: "Reset to its defaults",
+        hint: "firstboot erases the device's settings and restarts it; its record waits and adopts it back by its MAC.",
+        action: "Reset…",
+        title: (name: string) => `Reset ${name} to its defaults?`,
+        body: (mac: string, board: string) =>
+          `firstboot erases every setting on the device and restarts it at 192.168.1.1 with no root password. Its record stays and waits for it: the device with MAC ${mac} (${board}) is adopted back into it, with its name, settings and history.`,
+        offline:
+          "Until then it is offline, and so are the devices that reach the network through it.",
+        submit: "Reset",
+        succeeded: "Reset. Its record now waits for the device: this page says how it comes back.",
+      },
+      decommission: {
+        label: "Decommission",
+        hint: "uniwrt removes itself from the device and the device leaves the mesh; then its record and history are deleted.",
+        action: "Decommission…",
+        title: (name: string) => `Decommission ${name}?`,
+        body: "uniwrt removes itself from the device (its tools, scripts and SSH key) and the device leaves the mesh; its other settings stay. Then its record goes: settings, charts and backups. The timeline keeps the event.",
+        reach: "uniwrt logs in to the device for this: if it can't be reached, forget it instead.",
+        firstboot: "Also reset it to its defaults",
+        firstbootHint:
+          "firstboot erases every setting and restarts the device at 192.168.1.1 with no root password.",
+        password:
+          "The device keeps the root password uniwrt set, and the controller forgets it with the record. Note it down first.",
+        submit: "Decommission",
+      },
+      forget: {
+        label: "Forget",
+        hint: "For a device that can't be reached: its record and history are deleted, and nothing changes on it.",
+        action: "Forget…",
+        title: (name: string) => `Forget ${name}?`,
+        body: "Nothing changes on the device: it keeps its settings, uniwrt's SSH key and tools. Its record goes: settings, charts, backups and the root password the vault keeps. The timeline keeps the event.",
+        submit: "Forget",
+      },
+      removed: {
+        done: (name: string, kind: "decommission" | "forget") =>
+          kind === "decommission" ? `${name} is decommissioned` : `${name} is forgotten`,
+        body: "Its record and history are gone; the timeline keeps the event.",
+      },
+      awaiting: {
+        title: "Waiting for its device",
+        body: (mac: string, board: string) =>
+          `Reset to its defaults: the device with MAC ${mac} (${board}) is adopted back into this record once uniwrt finds it.`,
+        image:
+          "Running a uniwrt image (Devices › Set up a device): it calls home by itself once it has booted and reaches the controller.",
+        port: (port: string) =>
+          `Running a stock image: plug its LAN port into the gateway's adoption port (${port}). It shows up under Waiting for adoption; adopt it there.`,
+        manual:
+          "Running a stock image: it answers at 192.168.1.1 with no root password. Adopt it there (Devices › Adopt device) from where the controller reaches that address, or give the site an adoption port.",
+        stop: "Stop waiting",
+        stopHint: "The record stays, offline, until you forget it.",
+      },
+    },
     packages: {
       title: "Managed packages",
       description:

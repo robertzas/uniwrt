@@ -1,5 +1,4 @@
 import type { JSX } from "@solidjs/web";
-import { Fingerprint, Terminal } from "lucide";
 import { createSignal, For, Match, Show, Switch, untrack } from "solid-js";
 import type { AdoptBody } from "../../../api/gen/AdoptBody";
 import type { Job } from "../../../api/gen/Job";
@@ -14,11 +13,11 @@ import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
 import { Dialog } from "../../../ui/Dialog";
-import { Icon } from "../../../ui/Icon";
 import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { JobSteps } from "../../../ui/JobSteps";
 import { TextField } from "../../../ui/TextField";
 import { formatAddress, parseAddress } from "./address";
+import { HostKey } from "./HostKey";
 
 const s = strings.adopt;
 
@@ -280,23 +279,7 @@ function Confirm(props: {
         <p class="mt-1 text-fg-muted text-sm">{s.confirm.description}</p>
       </div>
       <RequestError text={props.error} />
-      <div class="rounded-control border border-accent/40 bg-accent/5 px-3.5 py-3">
-        <p class="flex items-center gap-1.5 text-fg-muted text-xs">
-          <Icon icon={Fingerprint} class="size-3.5 text-accent" />
-          {s.confirm.fingerprint(props.probe.algorithm)} ·{" "}
-          <span class="font-mono">{formatAddress(props.probe.host, props.probe.port)}</span>
-        </p>
-        <p class="mt-1.5 break-all font-medium font-mono text-fg text-sm" data-testid="fingerprint">
-          {props.probe.fingerprint}
-        </p>
-      </div>
-      <div class="text-fg-muted text-xs">
-        <p>{s.confirm.howTo}</p>
-        <p class="mt-1 flex items-center gap-1.5 overflow-x-auto rounded-control bg-raised px-2.5 py-1.5 font-mono text-fg">
-          <Icon icon={Terminal} class="size-3.5 shrink-0 text-fg-subtle" />
-          <span class="whitespace-nowrap">{s.confirm.command}</span>
-        </p>
-      </div>
+      <HostKey probe={props.probe} />
       <TextField
         label={s.confirm.name}
         name="name"

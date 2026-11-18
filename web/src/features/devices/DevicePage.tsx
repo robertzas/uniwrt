@@ -8,6 +8,7 @@ import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { api } from "../../lib/api";
 import { formatBytes, formatCelsius, formatDuration, formatPercent, NONE } from "../../lib/format";
 import { createNodeView, type Live, LiveContext, type NodeViewState } from "../../lib/live";
+import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
@@ -18,6 +19,8 @@ import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { ClientsCard, clientRows } from "./ClientsCard";
 import { ConfigTab } from "./config/ConfigTab";
 import { DeviceCharts } from "./DeviceCharts";
+import { AwaitingCard } from "./lifecycle/AwaitingCard";
+import { Removed } from "./lifecycle/Removed";
 import { MeshTab } from "./mesh/MeshTab";
 import { PortsTab } from "./ports/PortsTab";
 import { RadiosCard } from "./RadiosCard";
@@ -67,11 +70,11 @@ function LiveDevice(props: { id: number }) {
           {d.loading}…
         </p>
       </Match>
+      <Match when={view.missing}>
+        <Removed node={props.id} fallback={<NotFound />} />
+      </Match>
       <Match when={view.detail}>
         {(detail) => <Overview detail={detail()} view={view} leases={leases()} />}
-      </Match>
-      <Match when={view.missing}>
-        <NotFound />
       </Match>
     </Switch>
   );
@@ -101,6 +104,8 @@ function Overview(props: {
 }) {
   const node = () => props.detail.node;
   const status = () => props.detail.status;
+  const session = useContext(SessionContext);
+  const admin = () => session.user.role === "admin";
   const [params, setParams] = useSearchParams<{ tab?: string }>();
   const tab = () =>
     params.tab === "config" || params.tab === "ports" || params.tab === "mesh"
@@ -155,6 +160,9 @@ function Overview(props: {
             </For>
           </ul>
         </Card>
+      </Show>
+      <Show when={admin() && status().state === "offline"}>
+        <AwaitingCard node={node()} />
       </Show>
       <Tabs
         value={tab()}

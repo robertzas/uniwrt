@@ -3,6 +3,7 @@ import type { Node } from "../../../api/gen/Node";
 import type { NodeFacts } from "../../../api/gen/NodeFacts";
 import { LiveContext } from "../../../lib/live";
 import { SessionContext } from "../../../lib/session";
+import { LifecycleCard } from "../lifecycle/LifecycleCard";
 import { BackupsCard } from "./BackupsCard";
 import { DriftCard, hasDrift } from "./DriftCard";
 import { FirmwareCard } from "./FirmwareCard";
@@ -14,7 +15,7 @@ import { WpadCard } from "./WpadCard";
 
 /**
  * A device's Config tab (ui.md, Device page): its role (D-100), its management, its Wi-Fi daemon (the full wpad or
- * the basic one), its firmware and the upgrades on offer (D-121), for admins the root password the vault keeps, the packages uniwrt owns, its backups (D-126) and,
+ * the basic one), its firmware and the upgrades on offer (D-121), for admins the root password the vault keeps, the packages uniwrt owns, its backups (D-126), for admins its replacement, reset and removal (D-131) and,
  * once managed, their drift, which comes first while there is any.
  */
 export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
@@ -35,6 +36,9 @@ export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
       <div class="flex min-w-0 flex-col gap-4 lg:col-span-3">
         <PackagesCard node={props.node} admin={admin()} />
         <BackupsCard node={props.node} admin={admin()} />
+        <Show when={admin()}>
+          <LifecycleCard node={props.node} />
+        </Show>
       </div>
       <Show when={props.node.mode === "managed"}>
         <div

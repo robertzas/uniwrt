@@ -215,11 +215,21 @@ describe("Devices", () => {
 
   it("says when a device does not exist", async () => {
     const { ws } = renderAt("/devices/9");
-    await waitFor(() =>
-      expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "config", "jobs", "node:9"] }),
-    );
+    const subscribed = () =>
+      waitFor(() => {
+        const sent = ws.sent.at(-1) as { sub?: string[] } | undefined;
+        expect(new Set(sent?.sub)).toEqual(
+          new Set(["fleet", "alerts", "config", "jobs", "node:9"]),
+        );
+      });
+    await subscribed();
     ws.receive({ type: "error", topic: "node:9", message: "no node 9" });
-    await screen.findByRole("heading", { name: "Device not found" });
+    // Not found unless a decommission or forget removed it, which the jobs tell (their view
+    // subscribes once the node is missing: snapshot until it has heard).
+    await waitFor(() => {
+      ws.receive({ type: "jobs_snapshot", topic: "jobs", jobs: [] });
+      expect(screen.getByRole("heading", { name: "Device not found" })).toBeInTheDocument();
+    });
   });
 
   it("names an access point's clients from the gateway's leases", async () => {
