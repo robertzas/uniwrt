@@ -12,7 +12,9 @@
 //! - [`Encryptor`] writes it through any [`Write`](std::io::Write), [`Decryptor`] reads it from
 //!   any [`Read`](std::io::Read), both in constant memory. Files of other recipients (X25519,
 //!   plugins) are refused, as are work factors over [`MAX_LOG_N`].
+//! - [`armor`]: age's ASCII armor, for an age file inside text (a site export's secrets, D-130).
 
+pub mod armor;
 mod stream;
 
 use std::io::{self, BufRead, Write as _};

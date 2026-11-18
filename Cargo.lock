@@ -3383,6 +3383,7 @@ dependencies = [
  "ts-rs",
  "uniwrt-core",
  "uniwrt-uci",
+ "zeroize",
 ]
 
 [[package]]

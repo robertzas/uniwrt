@@ -76,6 +76,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/rf.rs`: The RF insight routes, with a session (features/wifi.md, RF insight):
 - `src/rf_tests.rs`: The RF insight routes over the demo, whose scanner scans the simulated radios at once: the view once every radio has a scan, scans queued and refused, the stored scans, the settings.
 - `src/security.rs`: Security headers on every response (features/security.md): a strict CSP, no framing, no MIME sniffing, no referrers and same-origin isolation.
+- `src/site/file.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), with a session:
+- `src/site/file_tests.rs`: The site file routes over the demo: an export without and with its secrets, imported back (unchanged, then over later edits), onto a site without the file's nodes, with secrets missing and given on accept; files and passphrases refused, stale previews.
 - `src/site/mod.rs`: The site's desired state, with a session (features/lifecycle.md, Desired state & revisions; D-065):
 - `src/site/revisions.rs`: The site's history, with a session (features/lifecycle.md, Desired state & revisions):
 - `src/site/tests.rs`: The site and revisions routes over the demo: the defaults of a new site, saves with secrets sealed in the vault and never sent back, conflicts and invalid documents refused, the history paged and compared, restores, and revealing a secret.
@@ -443,6 +445,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
 - `src/site/adoption_tests.rs`: The adoption port (schema v10, D-105): its migration and validation.
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
+- `src/site/export.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), for migration or config-as-code: the latest revision's document with a table of its nodes by MAC, and its secrets, if exported, in one passphrase-encrypted blob.
+- `src/site/export_tests.rs`: The site as a file: an export imports back unchanged, onto the same controller or another with the same nodes under other ids; secrets from the file, kept or missing; files refused.
 - `src/site/firewall.rs`: The gateway's firewall (features/network.md, Firewall policy): the policy between networks, port forwards and the DMZ host, and UPnP.
 - `src/site/firewall_tests.rs`: Validating the firewall's parts that M4.2b added (port forwards, the DMZ, UPnP), and their migration.
 - `src/site/gateway.rs`: What only the gateway renders besides its firewall ([`firewall`](super::firewall)): the WAN (features/wan.md) and services such as local DNS.
@@ -748,6 +752,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 
 SQLite persistence: one database in WAL mode, a batching writer thread, a read pool and repositories.
 
+- `src/age/armor.rs`: age's ASCII armor (C2SP's strict PEM): the file as standard Base64 with padding, 64 columns to a line (the last shorter or equal), between `-----BEGIN AGE ENCRYPTED FILE-----` and `-----END AGE ENCRYPTED FILE-----`, so that an age file fits in a JSON string or a text file and `age -d` still opens it (a site export's secrets, D-130).
 - `src/age/mod.rs`: The age file format (`age-encryption.org/v1`) with one recipient, a passphrase (age's scrypt stanza), so that a controller backup also opens without uniwrt: `age -d FILE | tar xz` (features/lifecycle.md, Backups; D-129).
 - `src/age/stream.rs`: age's STREAM payload: 64 KiB chunks, each sealed with a counter nonce, the last one flagged.
 - `src/age/tests.rs`: (no header comment)
@@ -922,7 +927,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (434 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (444 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

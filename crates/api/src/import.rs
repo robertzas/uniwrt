@@ -211,7 +211,7 @@ fn import_error(err: uniwrt_jobs::Error) -> ApiError {
     }
 }
 
-fn random_id() -> ApiResult<String> {
+pub(crate) fn random_id() -> ApiResult<String> {
     let mut id = [0_u8; 16];
     SystemRandom::new()
         .fill(&mut id)

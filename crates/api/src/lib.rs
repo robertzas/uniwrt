@@ -78,7 +78,9 @@
 //!   ([`SiteView`], [`SiteSave`]), `POST v1/site/secrets/reveal` ([`RevealSecret`]), and its
 //!   history: `GET v1/revisions` ([`RevisionPage`]), `GET v1/revisions/{id}`,
 //!   `GET v1/revisions/{id}/diff` ([`RevisionDiff`]), `POST v1/revisions/{id}/restore`
-//!   ([`RestoreBody`]); see `site`), and `v1/ws`
+//!   ([`RestoreBody`]); the site as a file: `GET` and `POST v1/site/export` ([`SiteExportBody`]),
+//!   `POST v1/site/import/preview` ([`SiteImportBody`]) and `…/accept` ([`SiteImportAccept`]),
+//!   D-130; see `site`), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
 //!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `alerts`,
 //!   `jobs`, `topology`, `clients`, `client:<mac>`, `rf`, see `ws`). Handlers that need a user
@@ -212,6 +214,7 @@ pub use problem::{ApiError, ApiResult, no_route};
 pub use rf::{ScanRequest, ScansQueued};
 pub use site::{
     FirstSite, RevealSecret, RevealedSecret, SecretState, SiteSave, SiteView,
+    file::{SiteExportBody, SiteImportAccept, SiteImportBody},
     revisions::{RestoreBody, RevisionDiff, RevisionPage},
 };
 pub use speed::SpeedTestBody;
@@ -355,6 +358,12 @@ fn config_routes() -> Router<Api> {
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))
+        .route(
+            "/v1/site/export",
+            get(site::file::export_plain).post(site::file::export_secret),
+        )
+        .route("/v1/site/import/preview", post(site::file::preview))
+        .route("/v1/site/import/accept", post(site::file::accept))
         .route("/v1/revisions", get(site::revisions::list))
         .route("/v1/revisions/{id}", get(site::revisions::get))
         .route("/v1/revisions/{id}/diff", get(site::revisions::changes))

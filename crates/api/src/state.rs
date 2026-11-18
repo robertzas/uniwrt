@@ -146,6 +146,8 @@ struct Inner {
     nodes: tokio::sync::broadcast::Sender<NodeId>,
     /// The newest import preview, until accepted (`import.rs`).
     imports: std::sync::Mutex<Option<crate::import::Held>>,
+    /// The newest site file import's preview, until accepted (`site/file.rs`).
+    site_imports: std::sync::Mutex<Option<crate::site::file::Held>>,
 }
 
 impl Api {
@@ -188,6 +190,7 @@ impl Api {
                     .map(crate::controller_backups::Backups::new),
                 vault: config.vault,
                 imports: std::sync::Mutex::default(),
+                site_imports: std::sync::Mutex::default(),
             }),
         };
         crate::site::ensure_first_revision(&api, first_site).await?;
@@ -368,6 +371,16 @@ impl Api {
     /// Drift detection's handle, when it runs (the WS hub's `config` topic).
     pub(crate) fn drifts(&self) -> Option<&Drifts> {
         self.inner.drift.as_ref()
+    }
+
+    /// The held site file import's preview; a poisoned lock is recovered.
+    pub(crate) fn site_imports(
+        &self,
+    ) -> std::sync::MutexGuard<'_, Option<crate::site::file::Held>> {
+        self.inner
+            .site_imports
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// The held import preview; a poisoned lock is recovered (it holds no invariant).

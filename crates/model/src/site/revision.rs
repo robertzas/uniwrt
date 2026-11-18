@@ -40,6 +40,8 @@ pub enum RevisionKind {
     Restore,
     /// The configuration the adopted nodes held, imported (brownfield import, D-072).
     Import,
+    /// A site file, imported (D-130).
+    File,
 }
 
 /// A revision with its document, upgraded to the current schema, and its changes from its

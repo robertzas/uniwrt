@@ -14,10 +14,12 @@
 //!   `wlans/home/passphrase`.
 //! - **Checks:** [`validate`] finds errors (a save is refused) and warnings; [`diff`] compares two
 //!   documents by structure, matching list items by key. [`ipam`] suggests new networks and
-//!   reserved addresses under the address plan (D-077).
+//!   reserved addresses under the address plan (D-077); [`export`] is the site as a file and its
+//!   import (D-130).
 
 pub mod adoption;
 pub mod diff;
+pub mod export;
 pub mod firewall;
 pub mod gateway;
 pub mod ipam;

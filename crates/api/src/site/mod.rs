@@ -9,11 +9,13 @@
 //!   the document holds. A document with errors is refused with 422 and its `issues`; one
 //!   that changes nothing saves no revision.
 //! - `POST /api/v1/site/secrets/reveal` (admins; audited): a secret's value ([`RevealSecret`]).
-//! - The history, under `v1/revisions`: see [`revisions`].
+//! - The history, under `v1/revisions`: see [`revisions`]. The site as a file, under
+//!   `v1/site/export` and `v1/site/import`: see [`file`] (D-130).
 //!
 //! [`ensure_first_revision`] gives a new site its first revision when the API starts: the
 //! defaults, or a [`FirstSite`] (demo mode's, from the simulated network).
 
+pub(crate) mod file;
 pub(crate) mod revisions;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -336,7 +338,7 @@ pub(crate) async fn ensure_first_revision(api: &Api, first: Option<FirstSite>) -
 
 /// Seals the secrets found for `config`, held under placeholder references, each checked as
 /// its slot requires, and points the slots at their new names.
-fn seal_found(
+pub(crate) fn seal_found(
     api: &Api,
     config: &mut SiteConfig,
     found: BTreeMap<SecretRef, Zeroizing<String>>,
