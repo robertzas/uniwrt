@@ -26,6 +26,9 @@ const STEERING_PROFILES: Record<string, { label: string; text: string }> = {
   },
 };
 
+/** A label inside a sentence: its first letter lowercased, unless it starts an acronym (API). */
+const lowerFirst = (label: string) => label.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
+
 const profileLabel = (profile: string) => STEERING_PROFILES[profile]?.label ?? profile;
 
 export const strings = {
@@ -4331,6 +4334,165 @@ export const strings = {
         ip: "Not an IP address",
         target: "Not a DNS name",
       },
+    },
+    upstream: {
+      title: "Upstream DNS",
+      description:
+        "Where the gateway sends the queries it can't answer itself: the ISP's servers, servers of your choice, or encrypted DNS over HTTPS.",
+      modeLabel: "Upstream",
+      modes: { isp: "ISP", custom: "Custom servers", doh: "DNS over HTTPS" } as Record<
+        string,
+        string
+      >,
+      modeHints: {
+        isp: "The servers the WAN connection hands out, as stock OpenWrt uses them.",
+        custom: "Up to 4 plain DNS servers, IPv4 or IPv6, asked in turn.",
+        doh: "Up to 4 resolvers, each an encrypted proxy on the gateway. Queries leave the network unreadable to the ISP.",
+      } as Record<string, string>,
+      isp: "The ISP's servers, from the WAN connection",
+      server: (n: number) => `Server ${n}`,
+      addServer: "Add a server",
+      removeServer: (n: number) => `Remove server ${n}`,
+      resolver: (n: number) => `Resolver ${n}`,
+      presets: {
+        cloudflare: "Cloudflare",
+        quad9: "Quad9",
+        google: "Google",
+        nextdns: "NextDNS",
+        adguard: "AdGuard",
+        custom: "Custom URL",
+      } as Record<string, string>,
+      addResolver: "Add a resolver",
+      removeResolver: (name: string) => `Remove ${name}`,
+      url: "Resolver URL",
+      urlHint: "Its RFC 8484 endpoint, such as https://dns.example/dns-query",
+      profile: "NextDNS profile ID",
+      profileHint: "The ID on your NextDNS setup page, such as abc123",
+      bootstrap: "Bootstrap servers",
+      bootstrapHint:
+        "2 to 4 plain DNS servers, separated by commas, that find the resolver when the gateway starts. The gateway also resolves its time servers through the first one.",
+      bootstrapLabel: "bootstrap",
+      proxies: (running: number, wanted: number) =>
+        running >= wanted
+          ? `${running} DoH ${running === 1 ? "proxy" : "proxies"} running on the gateway`
+          : `${running} of ${wanted} DoH proxies running on the gateway`,
+      noProxy: "No DoH proxy runs on the gateway yet: apply the latest revision.",
+      edit: "Edit",
+      cancel: "Cancel",
+      save: "Save",
+      message: (mode: string) => `Upstream DNS: ${mode}`,
+      errors: {
+        servers: "Name 1 to 4 DNS servers",
+        resolvers: "Add 1 to 4 resolvers",
+        ip: "Not an IP address",
+        twice: "Named twice",
+        url: "An https:// URL, such as https://dns.quad9.net/dns-query",
+        profile: "Enter your NextDNS profile ID: letters and digits",
+        bootstrap: "Name 2 to 4 IP addresses",
+        bootstrapIp: (text: string) => `${text} is not an IP address`,
+      },
+    },
+    ddns: {
+      title: "Dynamic DNS",
+      description:
+        "Names a DDNS provider keeps pointing at the gateway's public address, so you can reach home by name.",
+      none: "No DDNS names.",
+      add: "Add a name",
+      edit: (name: string) => `Edit ${name}`,
+      providers: {
+        cloudflare: "Cloudflare",
+        duckdns: "DuckDNS",
+        desec: "deSEC",
+        no_ip: "No-IP",
+        dynu: "Dynu",
+        freedns: "FreeDNS (afraid.org)",
+        custom: "Custom URL",
+      } as Record<string, string>,
+      record: { false: "A", true: "AAAA" } as Record<string, string>,
+      sources: { wan: "WAN address", web: "Web echo" } as Record<string, string>,
+      status: {
+        off: "Off",
+        unknown: "No report from the gateway yet",
+        stopped: "Updater not running",
+        waiting: "Waiting for the first update",
+        registered: (address: string) => `Registered ${address}`,
+      },
+      updated: (when: string) => `updated ${when}`,
+      editor: {
+        titleNew: "Add a DDNS name",
+        title: (name: string) => `Edit ${name}`,
+        hostname: "Hostname",
+        hostnameHint: "The full name kept up to date, such as home.example.com",
+        duckdnsHint: "<name>.duckdns.org",
+        provider: "Provider",
+        zone: "Zone",
+        zoneHint: "The Cloudflare zone (domain) the name sits in",
+        username: "Username",
+        usernameOptional: "Username (optional)",
+        url: "Update URL",
+        urlHint:
+          "ddns-scripts fills in [DOMAIN], [IP], [USERNAME] and [PASSWORD]. Prefer https://.",
+        secret: {
+          cloudflare: "API token",
+          duckdns: "Token",
+          desec: "Token",
+          no_ip: "Password",
+          dynu: "Password",
+          freedns: "Update token",
+          custom: "Password",
+        } as Record<string, string>,
+        secretHint: {
+          cloudflare: "A token that may edit the zone's DNS (Zone · DNS · Edit).",
+          duckdns: "The token on your DuckDNS account page.",
+          desec: "A token of the deSEC account that holds the domain.",
+          no_ip: "The account's password, or a DDNS key's.",
+          dynu: "The account's password, or its IP update password.",
+          freedns: "The token in the record's dynamic update URL (version 2).",
+          custom: "Sent where the URL says [PASSWORD].",
+        } as Record<string, string>,
+        secretKeep: "Stored in the vault. Leave empty to keep it.",
+        record: "Record",
+        records: { a: "IPv4 (A)", aaaa: "IPv6 (AAAA)" } as Record<string, string>,
+        source: "Address from",
+        sources: { wan: "The WAN interface", web: "A web echo" } as Record<string, string>,
+        sourceHints: {
+          wan: "The gateway's own WAN address. Private addresses are never published.",
+          web: "Asks api.ipify.org: for a gateway behind another router.",
+        } as Record<string, string>,
+        enabled: "Keep this name updated",
+        enabledHint: "The address is checked every 10 minutes and sent anyway every 3 days.",
+        delete: "Delete",
+        confirmDelete: (name: string) =>
+          `Delete ${name}? The gateway stops updating it; the provider keeps the last address.`,
+        cancel: "Cancel",
+        save: "Save",
+        close: "Close",
+        messageNew: (name: string) => `Add DDNS name ${name}`,
+        message: (name: string) => `Edit DDNS name ${name}`,
+        messageDelete: (name: string) => `Delete DDNS name ${name}`,
+      },
+      errors: {
+        hostname: "A full DNS name, such as home.example.com",
+        duckdns: "A DuckDNS name is <name>.duckdns.org",
+        twice: (record: string) => `Another name already keeps this ${record} record`,
+        zone: "The zone is a domain, such as example.com",
+        notInZone: (name: string, zone: string) => `${name} is not in the zone ${zone}`,
+        username: "1 to 128 printable characters without spaces",
+        url: "An http:// or https:// URL without spaces or quotes",
+        secret: "1 to 256 printable ASCII characters",
+        secretNeeded: (label: string) => `Enter the ${lowerFirst(label)}`,
+        secretChanged: (label: string) => `Another provider needs its own ${lowerFirst(label)}`,
+      },
+    },
+    ntp: {
+      title: "Time server",
+      description:
+        "The gateway answers NTP on its networks, and networks without time servers of their own hand it out over DHCP.",
+      label: "Serve time to the networks",
+      hint: "Clients and the access points keep the gateway's clock, even while the internet is down.",
+      cancel: "Cancel",
+      save: "Save",
+      message: (on: boolean) => (on ? "Turn the NTP server on" : "Turn the NTP server off"),
     },
   },
   ports: {

@@ -23,7 +23,7 @@ export function recordDraft(record: DnsRecord): RecordDraft {
 }
 
 /** A rough IPv6 check; the server parses it fully. */
-function isIpv6(text: string): boolean {
+export function isIpv6(text: string): boolean {
   return /^[0-9a-f:]+$/i.test(text) && text.includes(":") && text.split("::").length <= 2;
 }
 

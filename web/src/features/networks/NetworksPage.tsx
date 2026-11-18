@@ -19,6 +19,9 @@ import { DnsCard } from "./DnsCard";
 import { NetworkEditor } from "./NetworkEditor";
 import { NetworkRow } from "./NetworkRow";
 import { NewNetworkDialog } from "./NewNetworkDialog";
+import { DdnsCard } from "./services/DdnsCard";
+import { NtpCard } from "./services/NtpCard";
+import { UpstreamCard } from "./services/UpstreamCard";
 import { useOf, warningsOf } from "./summary";
 
 const t = strings.networks;
@@ -31,7 +34,8 @@ type Editing = { network: Network; isNew: boolean; view: SiteView };
 
 /**
  * `/networks` (network.md, Networks; D-077): the site's networks with their subnet, VLAN,
- * purpose, pool use and clients, and its local DNS records. Admins edit each in a dialog and
+ * purpose, pool use and clients, its local DNS records, upstream DNS, DDNS names and NTP server
+ * (D-132). Admins edit each in a dialog and
  * save it as the next revision, then review and apply.
  */
 export function NetworksPage() {
@@ -53,6 +57,8 @@ export function NetworksPage() {
     refetchInterval: 60_000,
   }));
   const leases = () => gatewayDetail.data?.facts?.leases ?? [];
+  /** What the gateway's DDNS updaters and DoH proxies report. */
+  const services = () => gatewayDetail.data?.facts?.services;
   const networks = createMemo(() => sortNetworks(site.data?.config.networks ?? []));
   const [choosing, setChoosing] = createSignal(false);
   const [editing, setEditing] = createSignal<Editing>();
@@ -134,7 +140,16 @@ export function NetworksPage() {
           <p class="text-fg-subtle text-xs">{admin() ? t.ports : t.adminOnly}</p>
         </div>
       </Card>
-      <Show when={site.data}>{(view) => <DnsCard view={view()} admin={admin()} />}</Show>
+      <Show when={site.data}>
+        {(view) => (
+          <>
+            <DnsCard view={view()} admin={admin()} />
+            <UpstreamCard view={view()} admin={admin()} services={services()} />
+            <DdnsCard view={view()} admin={admin()} services={services()} />
+            <NtpCard view={view()} admin={admin()} />
+          </>
+        )}
+      </Show>
       <NewNetworkDialog
         open={choosing()}
         onOpenChange={setChoosing}
