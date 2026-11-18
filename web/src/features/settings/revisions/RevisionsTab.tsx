@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { Download, RotateCw } from "lucide";
+import { Download, FileDown, FileUp, RotateCw } from "lucide";
 import { createEffect, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import type { RevisionMeta } from "../../../api/gen/RevisionMeta";
 import { api } from "../../../lib/api";
@@ -8,6 +8,7 @@ import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card } from "../../../ui/Card";
 import { merge } from "./changes";
+import { ExportDialog } from "./ExportDialog";
 import { RevisionRow } from "./RevisionRow";
 
 const t = strings.settings.revisions;
@@ -32,6 +33,7 @@ export function RevisionsTab(props: {
   const [older, setOlder] = createSignal<"idle" | "loading" | "failed">("idle");
   const [open, setOpen] = createSignal<number | undefined>();
   const [now, setNow] = createSignal(Date.now());
+  const [exporting, setExporting] = createSignal(false);
 
   const load = (signal?: AbortSignal) =>
     api.revisions
@@ -117,12 +119,26 @@ export function RevisionsTab(props: {
               </p>
               <p class="mt-1 text-fg-muted text-xs">{t.hint}</p>
             </div>
-            <Show when={props.admin}>
-              <Button size="sm" icon={Download} onClick={() => navigate("/settings/import")}>
-                {strings.settings.importLink}
+            <div class="flex shrink-0 flex-wrap justify-end gap-2">
+              <Button
+                size="sm"
+                icon={FileDown}
+                disabled={list().length === 0}
+                onClick={() => setExporting(true)}
+              >
+                {t.exportAction}
               </Button>
-            </Show>
+              <Show when={props.admin}>
+                <Button size="sm" icon={FileUp} onClick={() => navigate("/settings/import/file")}>
+                  {strings.settings.fileImportLink}
+                </Button>
+                <Button size="sm" icon={Download} onClick={() => navigate("/settings/import")}>
+                  {strings.settings.importLink}
+                </Button>
+              </Show>
+            </div>
           </div>
+          <ExportDialog open={exporting()} onOpenChange={setExporting} admin={props.admin} />
           <Show
             when={list().length > 0}
             fallback={<p class="px-6 py-12 text-center font-medium text-sm">{t.empty}</p>}

@@ -81,6 +81,14 @@ export const routes: RouteDefinition[] = [
     ),
   },
   {
+    path: "/settings/import/file",
+    component: lazy(() =>
+      import("../features/settings/import/FileImportPage").then((m) => ({
+        default: m.FileImportPage,
+      })),
+    ),
+  },
+  {
     path: "/settings/import",
     component: lazy(() =>
       import("../features/settings/import/ImportPage").then((m) => ({ default: m.ImportPage })),

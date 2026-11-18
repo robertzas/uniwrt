@@ -1,5 +1,5 @@
-import { useNavigate, useSearchParams } from "@solidjs/router";
-import { CircleCheck, Download, Lock, RotateCw } from "lucide";
+import { useSearchParams } from "@solidjs/router";
+import { Download, Lock, RotateCw } from "lucide";
 import { createEffect, createMemo, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import type { DriftTarget } from "../../../api/gen/DriftTarget";
 import type { ImportPreview } from "../../../api/gen/ImportPreview";
@@ -17,6 +17,7 @@ import { TextField } from "../../../ui/TextField";
 import { showToast } from "../../../ui/Toast";
 import { ChangeList } from "../revisions/ChangeList";
 import { NodeImportCard } from "./NodeImportCard";
+import { ImportDone, Issues } from "./parts";
 import { sortIssues, stateCounts } from "./preview";
 
 const t = strings.settings.import;
@@ -92,7 +93,6 @@ export function ImportPage() {
 
 function Flow(props: { scope: DriftTarget | undefined; name: string }) {
   const live = useContext(LiveContext);
-  const navigate = useNavigate();
   const [preview, setPreview] = createSignal<ImportPreview>();
   const [error, setError] = createSignal<string>();
   const [loading, setLoading] = createSignal(false);
@@ -303,33 +303,12 @@ function Flow(props: { scope: DriftTarget | undefined; name: string }) {
             }
           >
             {(done) => (
-              <Card aria-label={t.crumb}>
-                <div role="status" class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start">
-                  <Icon icon={CircleCheck} class="mt-0.5 size-5 shrink-0 text-ok" />
-                  <div class="min-w-0 flex-1">
-                    <p class="font-medium text-fg">
-                      {done().id === done().base ? t.done.none : t.done.title(done().id)}
-                    </p>
-                    <Show when={done().id !== done().base}>
-                      <p class="mt-1 text-fg-muted text-sm">
-                        {props.scope ? t.drift.reviewHint : t.done.body}
-                      </p>
-                    </Show>
-                  </div>
-                  <div class="flex shrink-0 flex-wrap gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/settings?tab=revisions")}
-                    >
-                      {t.done.revisions}
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => navigate("/changes")}>
-                      {t.done.review}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+              <ImportDone
+                id={done().id}
+                base={done().base}
+                label={t.crumb}
+                body={props.scope ? t.drift.reviewHint : t.done.body}
+              />
             )}
           </Show>
           <Card aria-label={t.changesTitle}>
@@ -359,32 +338,5 @@ function Flow(props: { scope: DriftTarget | undefined; name: string }) {
         </>
       )}
     </Show>
-  );
-}
-
-function Issues(props: {
-  title: string;
-  tone: "crit" | "warn";
-  issues: readonly { path: string; message: string }[];
-}) {
-  return (
-    <div
-      role={props.tone === "crit" ? "alert" : undefined}
-      class={[
-        "border-t px-4 py-3 text-sm",
-        props.tone === "crit" ? "border-crit/40 bg-crit/10" : "border-warn/40 bg-warn/10",
-      ]}
-    >
-      <p class="font-medium text-fg">{props.title}</p>
-      <ul class="mt-1 flex flex-col gap-0.5 text-fg-muted">
-        <For each={props.issues}>
-          {(issue) => (
-            <li>
-              <span class="font-mono text-fg-subtle text-xs">{issue.path}</span> {issue.message}
-            </li>
-          )}
-        </For>
-      </ul>
-    </div>
   );
 }

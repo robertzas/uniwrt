@@ -73,6 +73,14 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(init?.method === "POST" ? `POST ${url} ${init.body}` : url);
       if (init?.method === "POST" && url.endsWith("/restore")) return Response.json(siteView(4));
+      if (url === "/api/v1/site/export") {
+        return new Response('{"format": "uniwrt-site"}', {
+          headers: {
+            "content-type": "application/json",
+            "content-disposition": 'attachment; filename="uniwrt-site-r3.json"',
+          },
+        });
+      }
       const page = url.match(/^\/api\/v1\/revisions\?limit=\d+(?:&before=(\d+))?$/);
       if (page) return Response.json(pages[page[1] ?? ""] ?? { revisions: [], more: false });
       const diff = url.match(/^\/api\/v1\/revisions\/(\d+)\/diff(.*)$/);
@@ -196,11 +204,68 @@ describe("Settings › Revisions", () => {
     expect(within(list).queryByRole("button", { name: "Import from the devices" })).toBeNull();
   });
 
-  it("links admins to the import", async () => {
+  it("links admins to the imports", async () => {
     const user = userEvent.setup();
     const list = await renderRevisions("admin");
-    await user.click(within(list).getByRole("button", { name: "Import from the devices" }));
+    await user.click(within(list).getByRole("button", { name: "Import a file" }));
+    await waitFor(() => expect(lastHistory?.get()).toBe("/settings/import/file"));
+    lastHistory?.set({ value: "/settings?tab=revisions" });
+    const again = await screen.findByRole("region", { name: "Revisions" });
+    await user.click(within(again).getByRole("button", { name: "Import from the devices" }));
     await waitFor(() => expect(lastHistory?.get()).toBe("/settings/import"));
+  });
+
+  describe("export", () => {
+    let saved: string[] = [];
+    beforeEach(() => {
+      saved = [];
+      // jsdom has no object URLs.
+      Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        saved.push(this.download);
+      });
+    });
+
+    it("downloads the site without secrets, for viewers too", async () => {
+      const user = userEvent.setup();
+      const list = await renderRevisions();
+      await user.click(within(list).getByRole("button", { name: "Export" }));
+      const dialog = await screen.findByRole("dialog", { name: "Export the site" });
+      // Only admins may export the secrets.
+      expect(within(dialog).queryByRole("radio")).toBeNull();
+      await user.click(within(dialog).getByRole("button", { name: "Download" }));
+      expect(await within(dialog).findByText("Downloaded uniwrt-site-r3.json")).toBeVisible();
+      expect(calls).toContain("/api/v1/site/export");
+      expect(saved).toEqual(["uniwrt-site-r3.json"]);
+    });
+
+    it("seals the secrets under a passphrase typed twice, for admins", async () => {
+      const user = userEvent.setup();
+      const list = await renderRevisions("admin");
+      await user.click(within(list).getByRole("button", { name: "Export" }));
+      const dialog = await screen.findByRole("dialog", { name: "Export the site" });
+      await user.click(within(dialog).getByRole("radio", { name: /With secrets/ }));
+      await user.type(within(dialog).getByLabelText("Passphrase"), "too short");
+      await user.type(within(dialog).getByLabelText("Confirm the passphrase"), "too short");
+      await user.click(within(dialog).getByRole("button", { name: "Download" }));
+      expect(within(dialog).getByText("At least 12 characters.")).toBeVisible();
+      await user.clear(within(dialog).getByLabelText("Passphrase"));
+      await user.type(within(dialog).getByLabelText("Passphrase"), "correct horse battery");
+      await user.click(within(dialog).getByRole("button", { name: "Download" }));
+      expect(within(dialog).getByText("The two passphrases differ.")).toBeVisible();
+      expect(saved).toEqual([]);
+      await user.clear(within(dialog).getByLabelText("Confirm the passphrase"));
+      await user.type(
+        within(dialog).getByLabelText("Confirm the passphrase"),
+        "correct horse battery",
+      );
+      await user.click(within(dialog).getByRole("button", { name: "Download" }));
+      expect(await within(dialog).findByText("Downloaded uniwrt-site-r3.json")).toBeVisible();
+      expect(calls).toContain('POST /api/v1/site/export {"passphrase":"correct horse battery"}');
+      expect(saved).toEqual(["uniwrt-site-r3.json"]);
+    });
   });
 
   it("offers to try again when the list fails", async () => {

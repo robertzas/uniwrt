@@ -98,6 +98,10 @@ import type { ScanRequest } from "../api/gen/ScanRequest";
 import type { ScanSummary } from "../api/gen/ScanSummary";
 import type { ScansQueued } from "../api/gen/ScansQueued";
 import type { SeriesInfo } from "../api/gen/SeriesInfo";
+import type { SiteExportBody } from "../api/gen/SiteExportBody";
+import type { SiteImportAccept } from "../api/gen/SiteImportAccept";
+import type { SiteImportBody } from "../api/gen/SiteImportBody";
+import type { SiteImportPreview } from "../api/gen/SiteImportPreview";
 import type { SiteSave } from "../api/gen/SiteSave";
 import type { SiteSources } from "../api/gen/SiteSources";
 import type { SiteView } from "../api/gen/SiteView";
@@ -166,7 +170,8 @@ interface Options {
   session?: boolean;
 }
 
-async function request<T>(path: string, options: Options = {}): Promise<T> {
+/** Sends a request and answers its response, or throws an `ApiError` for an error status. */
+async function send(path: string, options: Options = {}): Promise<Response> {
   const method = options.method ?? "GET";
   const headers = new Headers({ accept: "application/json" });
   // Every state-changing request carries the CSRF header (security.md).
@@ -184,6 +189,11 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
     if (response.status === 401 && options.session !== false) sessionEnded?.();
     throw await toError(response);
   }
+  return response;
+}
+
+async function request<T>(path: string, options: Options = {}): Promise<T> {
+  const response = await send(path, options);
   if (response.status === 204) return undefined as T;
   // A 202 may carry no body (a restore's restart): no content, as with 204.
   const text = await response.text();
@@ -209,6 +219,20 @@ async function toError(response: Response): Promise<ApiError> {
   }
   const title = response.statusText || `HTTP ${response.status}`;
   return new ApiError(response.status, title, undefined, retryAfter);
+}
+
+/** A file the controller answers as an attachment, and the name it gives it. */
+export interface Attachment {
+  blob: Blob;
+  name: string;
+}
+
+/** The body of an attachment, named by its `content-disposition` (else `fallback`). */
+async function attachment(path: string, options: Options, fallback: string): Promise<Attachment> {
+  const response = await send(path, options);
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallback;
+  return { blob: await response.blob(), name };
 }
 
 /** What `api.metrics.get` reads: an entity's metrics over a time range (ms). */
@@ -344,6 +368,20 @@ export const api = {
       const body: RevealSecret = { path };
       return request<RevealedSecret>("/site/secrets/reveal", { method: "POST", body });
     },
+  },
+  /** The site as a file (lifecycle.md, Backups: Site export/import; D-130). */
+  siteFile: {
+    /** The latest revision without its secrets (any session). */
+    export: () => attachment("/site/export", {}, "uniwrt-site.json"),
+    /** The same with its secrets sealed for the passphrase (admins; audited). */
+    exportSecrets: (body: SiteExportBody) =>
+      attachment("/site/export", { method: "POST", body }, "uniwrt-site.json"),
+    /** What importing the file would save; held 15 minutes (admins). 400 for a wrong passphrase. */
+    preview: (body: SiteImportBody) =>
+      request<SiteImportPreview>("/site/import/preview", { method: "POST", body }),
+    /** Saves the held preview: 404 once not held, 409 when stale, 422 with errors (still held). */
+    accept: (body: SiteImportAccept) =>
+      request<SiteView>("/site/import/accept", { method: "POST", body }),
   },
   /** The address plan's suggestions (network.md, Address plan; D-077); nothing is saved. */
   ipam: {
