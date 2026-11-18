@@ -35,7 +35,8 @@
 //!   pre-approvals (D-102); [`firmware`] is OpenWrt's catalog and the zero-touch images ASU builds
 //!   (D-104); [`floor`] is the floor plans: each floor's image, scale and the nodes placed on it
 //!   ([`floor::Floor`], D-117); [`controller`] is the controller's own update: the release on
-//!   offer, the install's progress and the automatic nightly install (D-123).
+//!   offer, the install's progress and the automatic nightly install (D-123); [`blocklists`] is
+//!   the DNS blocklists' download state and compiled file (D-133).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -51,6 +52,7 @@
 
 pub mod alerts;
 pub mod apply;
+pub mod blocklists;
 pub mod client;
 pub mod controller;
 pub mod controller_backup;

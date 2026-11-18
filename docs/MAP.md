@@ -139,6 +139,19 @@ Shared vocabulary of every uniwrt crate: IDs, MAC and IP types, timestamps and t
 - `src/mac.rs`: MAC addresses (EUI-48): lenient parsing, canonical formatting and the address bits that matter.
 - `src/time.rs`: Timestamps: Unix milliseconds in UTC, with saturating arithmetic and RFC 3339 display.
 
+### `uniwrt-dns` (crates/dns)
+
+DNS filtering's lists (features/network.md, Blocklists; D-133).
+
+- `src/compile.rs`: The compiler: lists in, one dnsmasq `servers-file` out (D-133).
+- `src/compile_tests.rs`: (no header comment)
+- `src/http.rs`: Where lists come from: [`Source`], over HTTP(S) in production ([`HttpSource`]: hyper over rustls (ring) with Mozilla's roots, HTTP/1.1, conditional GETs with the copy's `ETag` and `Last-Modified`, up to five redirects to HTTPS, at most [`MAX_LIST`] bytes, a timeout on the whole exchange).
+- `src/http_tests.rs`: (no header comment)
+- `src/lib.rs`: DNS filtering's lists (features/network.md, Blocklists; D-133).
+- `src/lists.rs`: [`Blocklists`]: the lists' copies in the data directory and their state.
+- `src/lists_tests.rs`: (no header comment)
+- `src/parse.rs`: Reading a list: each line's blocked domains, whatever the list's format.
+
 ### `uniwrt-engine` (crates/engine)
 
 The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
@@ -422,6 +435,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/alerts/mod.rs`: Alerts (features/observability.md, Alerts): a rule firing for one subject (a node, a radio, a client, a link, the site) until it resolves on its own.
 - `src/alerts/rule.rs`: Alert rules: when an alert fires.
 - `src/apply.rs`: An apply's plan (features/lifecycle.md, Render → diff → apply): what applying a revision would change on each node, for the review screen, before anything changes.
+- `src/blocklists.rs`: DNS blocklists as the controller holds them (features/network.md, Blocklists; D-133): each list's download state, the compiled file's summary, how many domains a gateway can hold, and the header line that names the compiled file on the gateway.
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/controller.rs`: The controller's own update (lifecycle.md, Firmware; D-123): the newest release on offer ([`ControllerUpdate`]), an install's progress ([`InstallProgress`]), the last trial that failed ([`TrialFailure`]) and the automatic install's setting ([`ControllerUpdates`]).
 - `src/controller_backup.rs`: Controller backups (lifecycle.md, Backups; D-126, D-129): age-encrypted tarballs of the database and the master key, taken nightly once an admin has set the passphrase, the newest [`KEEP`] in each backup directory ([`ControllerBackup`]), each described by its [`BackupManifest`]; and a restore staged from one ([`RestoreState`]), applied at the next start.
