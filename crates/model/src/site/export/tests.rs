@@ -9,7 +9,7 @@ use zeroize::Zeroizing;
 
 use super::{
     FileError, FileNode, Head, SecretSource, SiteFile, SiteImport, exported_secrets, fill_secret,
-    import,
+    import::import,
 };
 use crate::{
     node::{Node, NodeMode, NodeRole},
@@ -28,7 +28,7 @@ const WAN: &str = "wan/password";
 
 fn head() -> SiteConfig {
     let mut site =
-        upgrade(serde_json::from_str(include_str!("../../fixtures/site/v11.json")).unwrap())
+        upgrade(serde_json::from_str(include_str!("../../../fixtures/site/v11.json")).unwrap())
             .unwrap();
     // A raw secret, as brownfield import keeps a WireGuard key.
     site.nodes[1].raw[0].options.insert(
@@ -371,7 +371,7 @@ fn files_it_can_t_read_are_refused() {
 #[test]
 fn an_older_schema_is_upgraded() {
     let mut file = exported(&head(), &adopted());
-    file.config = serde_json::from_str(include_str!("../../fixtures/site/v1.json")).unwrap();
+    file.config = serde_json::from_str(include_str!("../../../fixtures/site/v1.json")).unwrap();
     file.nodes.clear();
     let head = head();
     let none = BTreeMap::new();
