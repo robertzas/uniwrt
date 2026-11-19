@@ -1,15 +1,26 @@
 import { useParams, useSearchParams } from "@solidjs/router";
 import { useQuery } from "@tanstack/solid-query";
-import { ArrowLeft, BellRing, CircleAlert, Router, ScrollText } from "lucide";
-import { createEffect, createMemo, For, Match, Show, Switch, useContext } from "solid-js";
+import { ArrowLeft, BellRing, CircleAlert, RotateCw, Router, ScrollText } from "lucide";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  Show,
+  Switch,
+  useContext,
+} from "solid-js";
 import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { NodeDetail } from "../../api/gen/NodeDetail";
 import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { api } from "../../lib/api";
 import { formatBytes, formatCelsius, formatDuration, formatPercent, NONE } from "../../lib/format";
+import { createJobsView } from "../../lib/jobs";
 import { createNodeView, type Live, LiveContext, type NodeViewState } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
+import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
@@ -24,6 +35,8 @@ import { Removed } from "./lifecycle/Removed";
 import { MeshTab } from "./mesh/MeshTab";
 import { PortsTab } from "./ports/PortsTab";
 import { RadiosCard } from "./RadiosCard";
+import { RebootDialog } from "./reboot/RebootDialog";
+import { canReboot, runningReboot } from "./reboot/reboot";
 import { SteeringCard } from "./SteeringCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
 
@@ -145,6 +158,9 @@ function Overview(props: {
             <Icon icon={ScrollText} class="size-4" />
             {d.logs}
           </a>
+          <Show when={admin()}>
+            <RestartButton id={node().id} />
+          </Show>
         </div>
       </header>
       <Show when={status().reasons.length > 0}>
@@ -209,6 +225,45 @@ function Overview(props: {
         </TabPanel>
       </Tabs>
     </div>
+  );
+}
+
+/** Restarts the device after asking (managed and answering only), or shows its restart. */
+function RestartButton(props: { id: number }) {
+  const live = useContext(LiveContext);
+  const [jobs, addJobs] = createJobsView(live);
+  const [open, setOpen] = createSignal(false);
+  const summary = () => live.fleet.nodes.find((node) => node.id === props.id);
+  const running = () => runningReboot(jobs, [props.id]) !== undefined;
+  const why = () => {
+    const node = summary();
+    if (!node || running()) return undefined;
+    if (!canReboot(node)) return d.restartObserve;
+    return node.status.state === "offline" ? strings.devices.reboot.offline : undefined;
+  };
+  return (
+    <Show when={summary()}>
+      {(node) => (
+        <>
+          <Button
+            size="sm"
+            icon={RotateCw}
+            disabled={why() !== undefined}
+            title={why()}
+            onClick={() => setOpen(true)}
+          >
+            {running() ? d.restarting : d.restart}
+          </Button>
+          <RebootDialog
+            open={open()}
+            onOpenChange={setOpen}
+            nodes={[node()]}
+            jobs={jobs}
+            addJobs={addJobs}
+          />
+        </>
+      )}
+    </Show>
   );
 }
 

@@ -16,9 +16,12 @@ import { kickToast } from "./ClientActions";
 
 const MAC = "f0:18:98:00:00:01";
 let calls: { key: string; body?: unknown }[] = [];
+/** How `POST …/wake` answers: sent, or refused as the gateway in observe mode is. */
+let wakeRefused = false;
 
 function stubApi() {
   calls = [];
+  wakeRefused = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -28,6 +31,17 @@ function stubApi() {
         return Response.json(client(MAC, { alias: "Anna's phone" }));
       if (key === `POST /api/v1/clients/${encodeURIComponent(MAC)}/kick`)
         return Response.json({ nodes: 2, from: [{ node: 2, ifname: "phy1-ap0" }], failed: [] });
+      if (key === `POST /api/v1/clients/${encodeURIComponent(MAC)}/wake`)
+        return wakeRefused
+          ? new Response(
+              JSON.stringify({
+                title: "Conflict",
+                status: 409,
+                detail: "Gateway is in observe mode and has no etherwake",
+              }),
+              { status: 409, headers: { "content-type": "application/problem+json" } },
+            )
+          : Response.json({ node: 1, devices: ["br-lan"], installed: true });
       if (key === `PUT /api/v1/clients/${encodeURIComponent(MAC)}/block`)
         return Response.json(client(MAC, { blocked: NOW }));
       if (key === `DELETE /api/v1/clients/${encodeURIComponent(MAC)}/block`)
@@ -286,6 +300,29 @@ describe("a client's page", () => {
         `PUT /api/v1/clients/${encodeURIComponent(MAC)}/block`,
       ),
     );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("wakes the client through the gateway, and keeps a refusal in the dialog", async () => {
+    const user = userEvent.setup();
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: detail(),
+    });
+    wakeRefused = true;
+    await user.click(await screen.findByRole("button", { name: "Wake" }));
+    const dialog = await screen.findByRole("dialog", { name: "Wake Annas-iPhone?" });
+    await user.click(within(dialog).getByRole("button", { name: "Wake" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Gateway is in observe mode and has no etherwake",
+    );
+
+    wakeRefused = false;
+    await user.click(within(dialog).getByRole("button", { name: "Wake" }));
+    expect(await screen.findByText("Wake-on-LAN sent to Annas-iPhone")).toBeVisible();
+    expect(
+      screen.getByText("Sent on br-lan. The gateway installed etherwake for it."),
+    ).toBeVisible();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 

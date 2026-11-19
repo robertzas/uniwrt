@@ -1,15 +1,18 @@
 import { createEffect, createSignal, Show, useContext } from "solid-js";
 import type { KickOutcome } from "../../api/gen/KickOutcome";
-import { ApiError, api } from "../../lib/api";
+import type { WakeOutcome } from "../../api/gen/WakeOutcome";
+import { ApiError, api, errorText } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
+import { RequestError } from "../../ui/JobOutcome";
 import { Segmented } from "../../ui/Segmented";
 import { showToast } from "../../ui/Toast";
 
 const k = strings.client.kickDialog;
 const b = strings.client.blockDialog;
+const w = strings.client.wakeDialog;
 
 /** How long a kick keeps the client off, in seconds (features/wifi.md, Client actions). */
 type Ban = keyof typeof k.ban;
@@ -163,4 +166,69 @@ export async function unblock(mac: string) {
       tone: "crit",
     });
   }
+}
+
+/** What a wake did, for a toast: where the packet went, and whether the gateway got a sender. */
+export function wakeToast(outcome: WakeOutcome, name: string) {
+  const parts = [w.sentOn(outcome.devices.join(", ")), outcome.installed ? w.installed : undefined];
+  return { title: w.sent(name), description: parts.filter(Boolean).join(" "), tone: "ok" as const };
+}
+
+/**
+ * Has the gateway send a Wake-on-LAN packet (network.md, Wake-on-LAN; D-137). The first may take
+ * minutes, while the gateway installs `etherwake`, so it says so while it waits; refusals (observe
+ * mode, a running job, the gateway offline) stay in the dialog with the server's words.
+ */
+export function WakeDialog(props: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mac: string;
+  name: string;
+}) {
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string>();
+  createEffect(
+    () => props.open,
+    (open) => {
+      if (open) setError(undefined);
+    },
+  );
+  const wake = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const outcome = await api.clients.wake(props.mac);
+      showToast(wakeToast(outcome, props.name));
+      props.onOpenChange(false);
+    } catch (err) {
+      setError(errorText(err) ?? w.failed);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={w.title(props.name)}
+      description={w.description}
+    >
+      <div class="flex flex-col gap-4 px-5 pt-2 pb-5">
+        <Show when={busy()}>
+          <p role="status" class="text-fg-muted text-sm">
+            {w.waiting}
+          </p>
+        </Show>
+        <RequestError text={error()} />
+        <div class="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
+            {w.cancel}
+          </Button>
+          <Button type="button" variant="primary" disabled={busy()} onClick={() => void wake()}>
+            {busy() ? w.sending : w.wake}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
 }

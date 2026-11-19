@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
-import { Download, Plus, RadioTower, Router } from "lucide";
+import { Download, Plus, RadioTower, RotateCw, Router } from "lucide";
 import { createEffect, createSignal, Show, useContext } from "solid-js";
 import type { Discovered } from "../../api/gen/Discovered";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
@@ -16,6 +16,8 @@ import { type Column, Table } from "../../ui/Table";
 import { AdoptDialog } from "./adopt/AdoptDialog";
 import { BatchDialog } from "./adopt/BatchDialog";
 import { DiscoveredCard } from "./adopt/DiscoveredCard";
+import { RebootDialog } from "./reboot/RebootDialog";
+import { canReboot } from "./reboot/reboot";
 import { ModeBadge, StatusBadge } from "./status";
 import { ZtpCard } from "./ztp/ZtpCard";
 
@@ -102,6 +104,7 @@ export function DevicesPage() {
       {strings.adopt.open}
     </Button>
   );
+  const [rebooting, setRebooting] = createSignal(false);
   createEffect(
     () => strings.devices.title,
     (title) => {
@@ -138,7 +141,26 @@ export function DevicesPage() {
             <CardHeader
               title={strings.devices.title}
               description={strings.devices.count(live.fleet.nodes.length)}
-              actions={adoptButton()}
+              actions={
+                <div class="flex flex-wrap gap-2">
+                  <Show when={session.user.role === "admin"}>
+                    <Button
+                      size="sm"
+                      icon={RotateCw}
+                      disabled={!live.fleet.nodes.some(canReboot)}
+                      title={
+                        live.fleet.nodes.some(canReboot)
+                          ? undefined
+                          : strings.devices.reboot.noneManaged
+                      }
+                      onClick={() => setRebooting(true)}
+                    >
+                      {strings.devices.reboot.open}
+                    </Button>
+                  </Show>
+                  {adoptButton()}
+                </div>
+              }
             />
             <Table
               label={strings.devices.title}
@@ -164,6 +186,13 @@ export function DevicesPage() {
         jobs={jobs}
         addJobs={addJobs}
         onOpenDevice={(id) => navigate(`/devices/${id}`)}
+      />
+      <RebootDialog
+        open={rebooting()}
+        onOpenChange={setRebooting}
+        nodes={live.fleet.nodes}
+        jobs={jobs}
+        addJobs={addJobs}
       />
       <BatchDialog
         open={batch() !== undefined}

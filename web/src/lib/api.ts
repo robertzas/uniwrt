@@ -82,6 +82,7 @@ import type { Preset } from "../api/gen/Preset";
 import type { ProbeRequest } from "../api/gen/ProbeRequest";
 import type { ProbeResult } from "../api/gen/ProbeResult";
 import type { Purpose } from "../api/gen/Purpose";
+import type { RebootBody } from "../api/gen/RebootBody";
 import type { ReplaceBody } from "../api/gen/ReplaceBody";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
@@ -122,6 +123,7 @@ import type { UpgradeBody } from "../api/gen/UpgradeBody";
 import type { UpgradeInstallBody } from "../api/gen/UpgradeInstallBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { WakeOutcome } from "../api/gen/WakeOutcome";
 import type { Wall } from "../api/gen/Wall";
 import type { WanTestBody } from "../api/gen/WanTestBody";
 import type { WindowList } from "../api/gen/WindowList";
@@ -541,6 +543,16 @@ export const api = {
       request<Client>(`/clients/${encodeURIComponent(mac)}/block`, { method: "PUT" }),
     unblock: (mac: string) =>
       request<Client>(`/clients/${encodeURIComponent(mac)}/block`, { method: "DELETE" }),
+    /**
+     * Has the gateway send the client a Wake-on-LAN packet; admins only. The first may take
+     * minutes: a managed gateway without `etherwake` installs it first.
+     */
+    wake: (mac: string) =>
+      request<WakeOutcome>(`/clients/${encodeURIComponent(mac)}/wake`, { method: "POST" }),
+  },
+  /** Restarts managed nodes one at a time, the gateway last: a job on the `jobs` topic; admins. */
+  reboots: {
+    start: (body: RebootBody) => request<Job>("/reboots", { method: "POST", body }),
   },
   /** Stored time series (observability.md, Metrics). */
   metrics: {

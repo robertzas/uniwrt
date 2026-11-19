@@ -1,38 +1,14 @@
-import {
-  Circle,
-  CircleCheck,
-  CircleCheckBig,
-  CircleDot,
-  CircleMinus,
-  CircleX,
-  LoaderCircle,
-  RotateCw,
-  Undo2,
-} from "lucide";
-import { For, Show } from "solid-js";
+import { RotateCw } from "lucide";
+import { Show } from "solid-js";
 import type { Job } from "../../api/gen/Job";
-import type { JobNodeState } from "../../api/gen/JobNodeState";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
-import { Icon, type IconNode } from "../../ui/Icon";
+import { JobNodes } from "../../ui/JobNodes";
 import { JobErrorNote, JobSuccessNote } from "../../ui/JobOutcome";
 import { JobSteps, jobProgress } from "../../ui/JobSteps";
 
 const t = strings.changes.progress;
-
-const NODE_ICONS: Record<JobNodeState, { icon: IconNode; class: string }> = {
-  pending: { icon: Circle, class: "text-fg-subtle" },
-  unchanged: { icon: CircleMinus, class: "text-fg-subtle" },
-  skipped: { icon: CircleMinus, class: "text-fg-subtle" },
-  staged: { icon: CircleDot, class: "text-info" },
-  applied: { icon: LoaderCircle, class: "animate-spin text-accent" },
-  verified: { icon: CircleCheck, class: "text-accent" },
-  confirmed: { icon: CircleCheckBig, class: "text-ok" },
-  rolled_back: { icon: Undo2, class: "text-warn" },
-  backed_up: { icon: CircleCheckBig, class: "text-ok" },
-  failed: { icon: CircleX, class: "text-crit" },
-};
 
 /** An apply as it runs (the `jobs` topic): its steps, each node's state, then how it ended. */
 export function ApplyProgress(props: { job: Job; onAgain: () => void }) {
@@ -91,43 +67,12 @@ export function ApplyProgress(props: { job: Job; onAgain: () => void }) {
           <div class="rounded-control border border-edge p-2">
             <JobSteps job={props.job} />
           </div>
-          <div class="rounded-control border border-edge">
-            <h3 class="border-edge/60 border-b px-3 py-2 font-medium text-fg-muted text-xs">
-              {t.devices}
-            </h3>
-            <ul aria-label={t.devices} class="flex flex-col">
-              <For each={props.job.nodes}>
-                {(node) => (
-                  <li class="flex items-start gap-2.5 border-edge/40 border-b px-3 py-2 last:border-b-0">
-                    <Icon
-                      icon={NODE_ICONS[node.state].icon}
-                      class={[
-                        "mt-0.5 size-4 shrink-0",
-                        NODE_ICONS[node.state].class,
-                        { "animate-none": !running() },
-                      ]}
-                    />
-                    <div class="min-w-0 flex-1">
-                      <p class="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
-                        <span class="font-medium text-fg">{node.name}</span>
-                        <span class="text-fg-muted text-xs">{t.state[node.state]}</span>
-                      </p>
-                      <Show
-                        when={
-                          node.detail?.toLowerCase() !== t.state[node.state].toLowerCase() &&
-                          node.detail
-                        }
-                      >
-                        {(detail) => (
-                          <p class="mt-0.5 break-words text-fg-subtle text-xs">{detail()}</p>
-                        )}
-                      </Show>
-                    </div>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </div>
+          <JobNodes
+            nodes={props.job.nodes}
+            label={t.devices}
+            states={t.state}
+            running={running()}
+          />
         </div>
       </div>
     </Card>

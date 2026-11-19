@@ -176,6 +176,43 @@ export const strings = {
   devices: {
     title: "Devices",
     count: (count: number) => `${count} ${count === 1 ? "device" : "devices"}`,
+    /** Restarting devices (network.md, Restarts; D-137). */
+    reboot: {
+      open: "Restart…",
+      title: "Restart devices",
+      titleOne: (name: string) => `Restart ${name}?`,
+      description:
+        "One at a time, farthest from the gateway first and the gateway last. Each is back before the next goes down.",
+      pick: "Devices to restart",
+      noneManaged: "Turn management on for a device to restart it from here.",
+      observe: "Observe mode: turn management on to restart it.",
+      offline: "Offline: it can't be restarted until it answers.",
+      gatewayLast: "Restarts last. The network has no internet meanwhile.",
+      confirm:
+        "Each device is offline for a few minutes. Its clients move to the others meanwhile, if they can.",
+      confirmGateway: "While the gateway restarts, the whole network has no internet.",
+      stops: "The first device that doesn't come back stops the restarts.",
+      cancel: "Cancel",
+      close: "Close",
+      start: (n: number) => (n === 1 ? "Restart" : `Restart ${n} devices`),
+      starting: "Starting…",
+      running: "You can close this: the restarts go on, and the top bar shows them.",
+      devices: "Devices",
+      state: {
+        pending: "Waiting",
+        unchanged: "Up to date",
+        skipped: "Skipped",
+        staged: "Staged",
+        applied: "Restarting",
+        verified: "Back",
+        confirmed: "Back",
+        rolled_back: "Rolled back",
+        backed_up: "Backed up",
+        failed: "Failed",
+      },
+      done: (n: number) => (n === 1 ? "The device restarted." : `All ${n} devices restarted.`),
+      failed: "The restarts stopped",
+    },
     loading: "Loading devices",
     columns: {
       name: "Name",
@@ -1081,6 +1118,21 @@ export const strings = {
       refused: (devices: string) => `Not kicked on ${devices}`,
       failed: "Couldn't kick the client",
     },
+    wake: "Wake",
+    wakeDialog: {
+      title: (name: string) => `Wake ${name}?`,
+      description:
+        "The gateway sends it a Wake-on-LAN packet. Only a device set up for it wakes, usually one on a cable.",
+      cancel: "Cancel",
+      wake: "Wake",
+      sending: "Sending…",
+      waiting:
+        "The first time, the gateway installs etherwake to send it: that can take a minute or more.",
+      sent: (name: string) => `Wake-on-LAN sent to ${name}`,
+      sentOn: (devices: string) => `Sent on ${devices}.`,
+      installed: "The gateway installed etherwake for it.",
+      failed: "Couldn't wake the client",
+    },
     blockDialog: {
       title: (name: string) => `Block ${name}?`,
       description:
@@ -1217,6 +1269,9 @@ export const strings = {
     back: "All devices",
     logs: "Logs",
     events: "Events",
+    restart: "Restart",
+    restarting: "Restarting…",
+    restartObserve: "Turn management on to restart it.",
     steering: {
       title: "Steering",
       description: "Clients this access point steered in the last 24 hours",

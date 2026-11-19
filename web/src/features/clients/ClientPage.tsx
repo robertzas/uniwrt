@@ -1,5 +1,5 @@
 import { useParams } from "@solidjs/router";
-import { ArrowLeft, Ban, BellRing, Pencil, Pin, ShieldCheck, Users, UserX } from "lucide";
+import { ArrowLeft, Ban, BellRing, Pencil, Pin, Power, ShieldCheck, Users, UserX } from "lucide";
 import { createEffect, createSignal, Match, Show, Switch, useContext } from "solid-js";
 import type { ClientDetail } from "../../api/gen/ClientDetail";
 import { clientName, kindIcons } from "../../lib/clients";
@@ -12,7 +12,7 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
-import { BlockDialog, KickDialog, unblock } from "./ClientActions";
+import { BlockDialog, KickDialog, unblock, WakeDialog } from "./ClientActions";
 import { ClientOverview } from "./ClientOverview";
 import { ClientTimeline } from "./ClientTimeline";
 import { FixIpDialog, ipv4Of } from "./FixIpDialog";
@@ -77,6 +77,7 @@ function Client(props: { detail: ClientDetail }) {
   const [fixing, setFixing] = createSignal(false);
   const [kicking, setKicking] = createSignal(false);
   const [blocking, setBlocking] = createSignal(false);
+  const [waking, setWaking] = createSignal(false);
   const client = () => props.detail.client;
   const onWifi = () => client().online && client().connection?.medium === "wifi";
   const subtitle = () =>
@@ -132,6 +133,9 @@ function Client(props: { detail: ClientDetail }) {
                 {d.fixIp.action}
               </Button>
             </Show>
+            <Button size="sm" icon={Power} onClick={() => setWaking(true)}>
+              {d.wake}
+            </Button>
             <Button
               size="sm"
               variant="ghost"
@@ -185,6 +189,12 @@ function Client(props: { detail: ClientDetail }) {
       <Show when={fixing()}>
         <FixIpDialog client={client()} onClose={() => setFixing(false)} />
       </Show>
+      <WakeDialog
+        open={waking()}
+        onOpenChange={setWaking}
+        mac={client().mac}
+        name={clientName(client())}
+      />
       <KickDialog open={kicking()} onOpenChange={setKicking} mac={client().mac} />
       <BlockDialog
         open={blocking()}
