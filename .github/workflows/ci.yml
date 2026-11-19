@@ -130,8 +130,8 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -186,8 +186,8 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
@@ -214,8 +214,8 @@ jobs:
           persist-credentials: false
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
@@ -260,8 +260,8 @@ jobs:
           modinfo -F filename mac80211_hwsim batman-adv
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
@@ -299,8 +299,8 @@ jobs:
           sudo modprobe -a 8021q pppoe
       - name: Install the toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustc --version
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # The container tests share the dependencies agent builds (node, engine, jobs).
@@ -346,8 +346,8 @@ jobs:
           path: web/dist
       - name: Install the toolchain and the target
         run: rustup toolchain install && rustup target add "$TARGET"
-      - name: Install the wild linker (D-127)
-        run: scripts/wild.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the mold linker (D-134)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.target }}

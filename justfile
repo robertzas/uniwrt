@@ -118,7 +118,8 @@ demo seed="": (dev "--demo" (if seed == "" { "" } else { "--demo-seed " + seed }
 
 # Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
-    cargo install --locked cargo-nextest@0.9.152 cargo-deny@0.21.0 cargo-insta@1.49.0 wild-linker@0.11.0
+    cargo install --locked cargo-nextest@0.9.152 cargo-deny@0.21.0 cargo-insta@1.49.0
+    scripts/mold.sh "$HOME/.local/bin"
     cd web && bun install --frozen-lockfile
 
 [private]

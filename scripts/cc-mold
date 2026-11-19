@@ -1,0 +1,6 @@
+#!/bin/sh
+# rustc's linker for the host's builds (D-134): the system C compiler, linking with mold. Set as
+# `linker` in .cargo/config.toml, which cargo also uses for a `--target` build's build scripts and
+# proc macros (rustflags don't reach those), so every artifact built for the host links with mold.
+# `-fuse-ld=mold` comes last: rustc's own `-fuse-ld=lld` (its bundled rust-lld) would win otherwise.
+exec cc "$@" -fuse-ld=mold

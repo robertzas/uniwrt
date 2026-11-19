@@ -54,8 +54,9 @@ if [[ ! -x $zig/zig ]]; then
   rm "$tarball"
 fi
 
-# The wild linker for the 64-bit targets (D-127): a static build, on the container's PATH.
-scripts/wild.sh "$cache/wild" >/dev/null
+# The mold linker (D-134), on the container's PATH: it links every release target, and the build
+# scripts and proc macros through scripts/cc-mold.
+scripts/mold.sh "$cache/mold" >/dev/null
 
 docker run --rm --user "$(id -u):$(id -g)" \
   --volume "$PWD:/src" --workdir /src \
@@ -64,11 +65,11 @@ docker run --rm --user "$(id -u):$(id -g)" \
   --env HOME="/src/$cache/home" --env XDG_CACHE_HOME="/src/$cache/home" \
   --env CARGO_TARGET_DIR="/src/$cache/build" \
   --env CARGO_ZIGBUILD_ZIG_PATH="/src/$zig/zig" \
-  --env WILD_DIR="/src/$cache/wild" \
+  --env MOLD_DIR="/src/$cache/mold" \
   --env UNIWRT_WEB_DIST=web/dist \
   --env UNIWRT_VERSION --env UNIWRT_COMMIT --env SOURCE_DATE_EPOCH \
   "$image" bash -euc '
-    export PATH="$WILD_DIR:$PATH"
+    export PATH="$MOLD_DIR:$PATH"
     rustup --quiet toolchain install --no-self-update
     rustup --quiet target add "$@"
     targets=()

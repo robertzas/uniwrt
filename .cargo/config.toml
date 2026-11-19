@@ -4,18 +4,33 @@ TS_RS_EXPORT_DIR = { value = "web/src/api/gen", relative = true }
 # JSON numbers are doubles in the browser, so 64-bit integers map to `number`, not `bigint`.
 TS_RS_LARGE_INT = "number"
 
-# The wild linker (D-127). Native builds: clang drives it, as rustc's cc flavour expects; `-C
-# linker` sits in rustflags rather than `linker`, so a `--target` build's build scripts and proc
-# macros (in scripts/cross.sh's container, which has no clang) keep the default linker.
+# The mold linker everywhere (D-134). Builds for the host (native ones, and a `--target` build's
+# build scripts and proc macros) link through scripts/cc-mold, `cc -fuse-ld=mold`: `linker` is the
+# one setting cargo applies to host artifacts too.
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "linker=clang", "-C", "link-arg=--ld-path=wild"]
+linker = "scripts/cc-mold"
 
-# The 64-bit release targets: wild links directly (ld flavour) against rustc's self-contained musl,
+[target.aarch64-unknown-linux-gnu]
+linker = "scripts/cc-mold"
+
+# The release targets: mold links directly (ld flavour) against rustc's self-contained musl,
 # overriding cargo-zigbuild's zig linker; zig still compiles the C (ring, SQLite). `-m` names the
-# target, since wild otherwise assumes the host's. Wild doesn't link 32-bit targets: i686 and armv7
-# keep zig's.
+# target's emulation.
 [target.x86_64-unknown-linux-musl]
-rustflags = ["-C", "linker=wild", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_x86_64"]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_x86_64"]
+
+[target.i686-unknown-linux-musl]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_i386"]
+
+# libmimalloc-sys asks for `-latomic` on 32-bit ARM, which rustc's musl lacks (zig's linker
+# answered it): .cargo/armv7/libatomic.a is an empty archive, as the atomics come from Rust's
+# compiler_builtins; a symbol really missing would still fail the static link. (rustc runs from the
+# workspace root, so the path is relative to it.)
+[target.armv7-unknown-linux-musleabihf]
+rustflags = [
+  "-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-marmelf_linux_eabi",
+  "-L", "native=.cargo/armv7",
+]
 
 [target.aarch64-unknown-linux-musl]
-rustflags = ["-C", "linker=wild", "-C", "linker-flavor=ld", "-C", "link-arg=-maarch64linux"]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-maarch64linux"]
