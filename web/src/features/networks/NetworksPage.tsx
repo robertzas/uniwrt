@@ -21,6 +21,7 @@ import { NetworkRow } from "./NetworkRow";
 import { NewNetworkDialog } from "./NewNetworkDialog";
 import { BlockingCard } from "./services/BlockingCard";
 import { DdnsCard } from "./services/DdnsCard";
+import { DnsQueriesCard } from "./services/DnsQueriesCard";
 import { NtpCard } from "./services/NtpCard";
 import { UpstreamCard } from "./services/UpstreamCard";
 import { useOf, warningsOf } from "./summary";
@@ -147,6 +148,13 @@ export function NetworksPage() {
             <DnsCard view={view()} admin={admin()} />
             <UpstreamCard view={view()} admin={admin()} services={services()} />
             <BlockingCard view={view()} admin={admin()} clients={clients.clients} />
+            <Show
+              when={
+                view().config.services.blocking.enabled && view().config.services.blocking.stats
+              }
+            >
+              <DnsQueriesCard view={view()} admin={admin()} clients={clients.clients} />
+            </Show>
             <DdnsCard view={view()} admin={admin()} services={services()} />
             <NtpCard view={view()} admin={admin()} />
           </>

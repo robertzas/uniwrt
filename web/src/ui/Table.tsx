@@ -186,7 +186,7 @@ function Row<T>(props: {
       onClick={() => props.table.onRowClick?.(props.row)}
       onKeyDown={(event) => (props.table.onRowClick ? activate(event) : undefined)}
       class={[
-        "h-row border-edge border-b last:border-b-0",
+        "group h-row border-edge border-b last:border-b-0",
         {
           "cursor-pointer outline-none hover:bg-raised/60 focus-visible:bg-raised":
             props.table.onRowClick !== undefined,

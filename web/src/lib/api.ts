@@ -24,6 +24,10 @@ import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DecommissionBody } from "../api/gen/DecommissionBody";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
+import type { DnsOutcome } from "../api/gen/DnsOutcome";
+import type { DnsQueryPage } from "../api/gen/DnsQueryPage";
+import type { DnsRange } from "../api/gen/DnsRange";
+import type { DnsStats } from "../api/gen/DnsStats";
 import type { DriftMuteBody } from "../api/gen/DriftMuteBody";
 import type { DriftState } from "../api/gen/DriftState";
 import type { DriftTarget } from "../api/gen/DriftTarget";
@@ -245,6 +249,31 @@ export interface MetricsQuery {
   from: number;
   to: number;
   width: number;
+}
+
+/** Which stored DNS queries to read (`crates/api/src/dns_stats.rs`); empty parts left out. */
+export interface DnsQueryFilter {
+  /** A MAC, or the address of a client no MAC was known for. */
+  client?: string | undefined;
+  outcome?: DnsOutcome | undefined;
+  /** Text the domain contains. */
+  domain?: string | undefined;
+}
+
+/** The query string of a page of DNS queries: `before` is the previous page's `next`. */
+export function dnsQueryParams(
+  filter: DnsQueryFilter,
+  before: string | null,
+  limit: number,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter.client) params.set("client", filter.client);
+  if (filter.outcome) params.set("outcome", filter.outcome);
+  const domain = filter.domain?.trim();
+  if (domain) params.set("domain", domain);
+  if (before !== null) params.set("before", before);
+  params.set("limit", String(limit));
+  return params;
 }
 
 /** A log filter as the logs routes read it (`crates/api/src/logs.rs`); empty parts left out. */
@@ -788,6 +817,19 @@ export const api = {
     /** Downloads the lists again now (admins); 409 while blocking is off, saved and applied. */
     refreshBlocklists: () =>
       request<BlocklistsView>("/services/blocklists/refresh", { method: "POST" }),
+    /** DNS query statistics over `range` (network.md, Query statistics). */
+    dnsStats: (range: DnsRange, signal?: AbortSignal) =>
+      request<DnsStats>(`/services/dns/stats?range=${range}`, { signal }),
+    /** A page of the stored DNS queries, newest first. */
+    dnsQueries: (
+      filter: DnsQueryFilter,
+      before: string | null,
+      limit: number,
+      signal?: AbortSignal,
+    ) =>
+      request<DnsQueryPage>(`/services/dns/queries?${dnsQueryParams(filter, before, limit)}`, {
+        signal,
+      }),
   },
   backhaul: {
     failures: (signal?: AbortSignal) =>

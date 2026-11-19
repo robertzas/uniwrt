@@ -8,7 +8,7 @@ import type { SiteConfig } from "../../../api/gen/SiteConfig";
 import type { SiteSave } from "../../../api/gen/SiteSave";
 import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
-import { blocklistsView } from "../../../test/blocklists";
+import { blocklistsView, dnsStats } from "../../../test/blocklists";
 import { detail, facts, summary } from "../../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../../test/providers";
 import { revisionMeta, siteConfig, siteView } from "../../../test/site";
@@ -78,6 +78,7 @@ beforeEach(() => {
         lists = { ...lists, refreshing: true };
         return Response.json(lists, { status: 202 });
       }
+      if (url.startsWith("/api/v1/services/dns/stats")) return Response.json(dnsStats());
       if (url === "/api/v1/nodes/1") return Response.json(detail(facts(1)));
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
