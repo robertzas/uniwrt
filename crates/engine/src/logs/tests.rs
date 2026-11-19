@@ -11,7 +11,7 @@ use uniwrt_model::{
     facts::NodeFacts,
     log::{LogEntry, LogFilter, LogRecord, LogVia, NewLog, Severity},
 };
-use uniwrt_store::{DnsQueryRepo as _, LogRepo as _, Store};
+use uniwrt_store::{DnsQueryFilter, DnsQueryRepo as _, LogRepo as _, Store};
 use uniwrt_syslog::{Message, Received};
 
 use super::{DnsStatsConfig, LogRecorder, LogsConfig};
@@ -324,7 +324,12 @@ async fn dnsmasq_s_query_log_goes_to_the_statistics_not_the_logs() {
     }
     let wait = async {
         loop {
-            let queries = h.store.dns_queries(START, 10).await.unwrap();
+            let filter = DnsQueryFilter {
+                since: Some(START),
+                ..DnsQueryFilter::default()
+            };
+            let page = h.store.dns_queries(filter, None, 10).await.unwrap();
+            let queries: Vec<_> = page.into_iter().map(|(_, query)| query).collect();
             if queries.len() == 2 {
                 return queries;
             }

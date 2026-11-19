@@ -45,6 +45,7 @@ const MIGRATIONS: &[Migration] = migrations![
     "0025_backup_retention",
     "0026_ztp_readoption",
     "0027_dns_queries",
+    "0028_dns_domains",
 ];
 
 /// Applies the migrations the database lacks, each in its own transaction.

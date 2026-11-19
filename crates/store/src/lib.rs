@@ -72,12 +72,12 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, BackupRepo, ClientRepo, DnsPrune,
-    DnsQueryRepo, DriftRepo, EventRepo, EventsPrune, FactsRepo, FloorRepo, HostKeyRepo,
-    InventoryRepo, JobRepo, Kept, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewFloorImage,
-    NewSession, NodeRepo, NotifierRepo, Pin, RevisionRepo, RfRepo, RolloutRepo, Secret,
-    SessionRepo, SettingsRepo, SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
-    ZtpRepo,
+    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, BackupRepo, ClientRepo, DnsClient,
+    DnsPrune, DnsQueryFilter, DnsQueryRepo, DnsTotals, DriftRepo, EventRepo, EventsPrune,
+    FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, Kept, LogRepo, LogsPrune,
+    MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo, NotifierRepo, Pin,
+    RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo,
+    TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

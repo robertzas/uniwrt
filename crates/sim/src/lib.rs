@@ -13,7 +13,9 @@
 //!   clearly worse, with 802.11r where they support it (as the world starts, one walks across
 //!   the house and is steered over, so a roam between two of the first nodes comes within half
 //!   a minute); traffic, retries and air time follow
-//!   the signal; dnsmasq's leases renew at half time; access points reboot about every
+//!   the signal; dnsmasq's leases renew at half time, and the gateway's dnsmasq logs its
+//!   clients' queries while its `dhcp` sets `logqueries` (`world/queries.rs`: names blocked
+//!   from the blocklist pushed to its `/tmp`, D-133); access points reboot about every
 //!   `reboot_every` and their clients move. The gateway reaches one access point by wire and
 //!   the others over a batman-adv mesh on 5 GHz, multi-hop where that is better. A plain cable
 //!   joins the first two access points (`world/cables.rs`): bridged at both ends until an apply

@@ -58,6 +58,8 @@ pub(crate) struct Disk {
     pub(crate) switched: Option<(Option<String>, BTreeMap<usize, u8>)>,
     /// `/tmp`, emptied by a boot ([`super::tmp`]).
     pub(crate) tmp: super::tmp::Tmp,
+    /// What [`Disk::query_log`] last read ([`super::queries`]).
+    pub(crate) queries_from: Option<super::queries::QueriesFrom>,
 }
 
 impl Default for Disk {
@@ -77,6 +79,7 @@ impl Default for Disk {
             wired_from: None,
             switched: None,
             tmp: super::tmp::Tmp::default(),
+            queries_from: None,
         }
     }
 }

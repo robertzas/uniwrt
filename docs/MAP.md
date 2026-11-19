@@ -43,6 +43,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/controller_update_tests.rs`: The controller's own update through the router (D-123), against the fake releases on loopback and a scripted [`SelfUpdate`]: the offer, installs, refusals and the setting.
 - `src/decommission.rs`: A node leaving the site, with an admin's session (features/lifecycle.md, Replace / RMA / decommission; D-131), each a job answered 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it):
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
+- `src/dns_stats.rs`: DNS query statistics (features/network.md, Query statistics; D-133), with a session:
+- `src/dns_stats_tests.rs`: DNS query statistics' routes over the demo's store: totals, series and clients named as `/clients` names them, the top domains, and pages of queries filtered and followed.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
@@ -776,6 +778,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
+- `src/render/queries.rs`: What the gateway's disk says of its dnsmasq query log (D-133): on while the main instance's section of `dhcp` sets `logqueries` and dnsmasq runs; the names it blocks are a sample of the blocklist the controller pushed to `/tmp` since the boot; the clients bypassing the filter are those of the firewall's redirects to the unfiltered instance.
 - `src/render/scan.rs`: The `scan` op's answer in the agent's raw shape (`node-agent/scan.uc`): the networks next door (a fixed set outside the house), the other nodes' access points and mesh points (an unadopted one too), each at the signal the path between them leaves, with their information elements; and the channel survey of the band, busier where networks crowd.
 - `src/render/services.rs`: The `services` set as the sim's gateway reports it (D-132): each enabled DDNS section of its `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address), updated a minute after boot, its updater running while the `ddns` service is on; and one https-dns-proxy instance per section of its package while that service is on; and the DNS blocklist's files the controller uploaded to its `/tmp` since it booted (D-133).
 - `src/render/system.rs`: The sets `board`, `system` and `capabilities`, shaped as `node-agent/collect/` sends them: ubus `system board` and `system info`, `/etc/openwrt_release`, board.json, thermal zones.
@@ -793,6 +796,8 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/world/layout.rs`: Building the world from a [`SimConfig`]: the gateway and the access points at their places, then the clients dealt from the deck, settled where they would be after a while.
 - `src/world/mod.rs`: [`World`]: the simulated house.
 - `src/world/nodes.rs`: The nodes' second: reboots (an access point goes down and boots again, its clients move to the others), drifting load, memory and temperature, the radios' noise and air time, and the routine lines of their logs.
+- `src/world/queries.rs`: The gateway's dnsmasq query log (features/network.md, Query statistics; D-133), in the extra form OpenWrt's `logqueries` gives: while the gateway's disk turns it on ([`World::set_query_log`]), each connected client asks now and then for a popular name (answered from the cache or forwarded upstream), a local one (answered from the leases' hosts file) or a name the blocklist the controller pushed blocks (`config … is NXDOMAIN`).
+- `src/world/queries_tests.rs`: The gateway's query log as the controller reads it: every query paired with its answer, blocked names only from the blocklist and never for a bypassed client, and the rest of the world unchanged by it.
 - `src/world/radio.rs`: Radio arithmetic: bands and channels, indoor path loss, and the rates a signal-to-noise ratio buys (MCS tables of 802.11n, ac and ax).
 - `src/world/steering.rs`: Client steering where the controller asks (features/wifi.md, Steering & balancing; D-093): the agent's `btm` op has the client's access point send a BSS transition request, and an 802.11v client (the sim's WPA3 ones, whose extended capabilities say so) agrees and goes: hostapd pushes its answer as `bss-transition-response`, then the client roams. usteer, where it runs ([`Node::steers`], set from the node's disk), tells the controller where it hears a client (`get_client_info`) and no longer steers on its own: the render turns its band steering and roam triggers off.
 - `src/world/tests.rs`: The world's dynamics over simulated hours: determinism, roaming, leaving, reboots.
@@ -832,7 +837,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/backhaul.rs`: [`BackhaulRepo`] on SQLite: the `backhaul_failures` table.
 - `src/repo/backups.rs`: [`BackupRepo`] on SQLite: the `node_backups` table kept by count and content (features/ lifecycle.md, Backups; D-126).
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
-- `src/repo/dns.rs`: [`DnsQueryRepo`] on SQLite: the `dns_queries` and `dns_hours` tables.
+- `src/repo/dns.rs`: [`DnsQueryRepo`] on SQLite: the `dns_queries` and `dns_hours` tables, and the statistics' reads over them (pages of queries, totals, top domains).
 - `src/repo/dns_tests.rs`: DNS query statistics over a real database: stored, counted by the hour, read and pruned.
 - `src/repo/drift.rs`: [`DriftRepo`] on SQLite: the `node_config` table (what the controller confirmed, written by [`ApplyRepo::record_applied`](super::ApplyRepo::record_applied)), `config_drift` and `drift_mutes`.
 - `src/repo/drift_tests.rs`: (no header comment)
@@ -989,7 +994,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (467 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (473 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

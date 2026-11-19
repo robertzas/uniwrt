@@ -74,6 +74,7 @@ pub(super) fn build(config: &SimConfig, epoch_ms: i64) -> World {
         next_reboot,
         pending: Vec::new(),
         bench,
+        queries: super::queries::Queries::new(config.seed),
     };
     world.settle();
     world

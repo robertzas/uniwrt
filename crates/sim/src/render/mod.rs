@@ -11,6 +11,7 @@ mod feeds;
 mod l2;
 mod logs;
 mod net;
+mod queries;
 pub(crate) mod scan;
 mod services;
 mod system;

@@ -13,6 +13,7 @@ pub(crate) mod catalog;
 pub(crate) mod clients;
 mod layout;
 mod nodes;
+mod queries;
 pub(crate) mod radio;
 mod steering;
 mod traffic;
@@ -28,6 +29,7 @@ use uniwrt_core::{MacAddr, Timestamp};
 pub(crate) use self::{
     bench::{Bench, LendReply, PORT as BENCH_PORT, SEGMENT_ADDRESS},
     layout::FACTORY_LAN,
+    queries::QueryLog,
 };
 use self::{
     cables::{Cable, Wiring},
@@ -57,6 +59,8 @@ pub(crate) struct World {
     pending: Vec<Happening>,
     /// The adoption port's device, if the world has one ([`bench`]).
     pub(crate) bench: Option<Bench>,
+    /// The gateway's dnsmasq query log ([`queries`]).
+    queries: queries::Queries,
 }
 
 #[expect(clippy::struct_excessive_bools, reason = "a node's traits")]
@@ -364,6 +368,7 @@ impl World {
         self.step_nodes(&mut out);
         self.step_bench(&mut out);
         self.step_clients(&mut out);
+        self.step_queries();
         self.step_air();
         out
     }

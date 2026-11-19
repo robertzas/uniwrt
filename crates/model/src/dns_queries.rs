@@ -70,6 +70,33 @@ pub struct DnsHour {
     pub blocked: u64,
 }
 
+/// The queries and blocked queries of one hour, summed over clients.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct DnsHourTotal {
+    /// The hour's start.
+    pub hour: Timestamp,
+    pub queries: u64,
+    pub blocked: u64,
+}
+
+/// One client's queries and blocked queries over a span.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DnsClientTotal {
+    /// [`DnsQuery::client_key`].
+    pub client: String,
+    pub queries: u64,
+    pub blocked: u64,
+}
+
+/// How often a domain was asked for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct DomainCount {
+    pub domain: String,
+    pub queries: u64,
+}
+
 /// What a query-log line says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Line<'a> {

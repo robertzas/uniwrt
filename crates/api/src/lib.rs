@@ -28,6 +28,8 @@
 //!   `drift`), the address plan's suggestions (`GET v1/ipam/network`, `GET
 //!   v1/ipam/reservation` ([`ReservationSuggestion`]); see `ipam`), DNS filtering's lists (`GET
 //!   v1/services/blocklists` ([`BlocklistsView`]), admins: `POST …/refresh`; see `blocklists`),
+//!   DNS query statistics (`GET v1/services/dns/stats` ([`DnsStats`]), `GET
+//!   v1/services/dns/queries` ([`DnsQueryPage`]); see `dns_stats`),
 //!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
@@ -127,6 +129,7 @@ pub mod controller_update;
 mod controller_update_tests;
 mod decommission;
 mod discovered;
+mod dns_stats;
 mod drift;
 mod events;
 mod firmware;
@@ -199,6 +202,7 @@ pub use client::Client;
 pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
 pub use clients::{ClientDetail, ClientPatch};
 pub use decommission::DecommissionBody;
+pub use dns_stats::{DnsClientStats, DnsQueryPage, DnsRange, DnsStats};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
 pub use firmware::{PlanBody, UpgradeBody};
@@ -314,6 +318,8 @@ pub fn router(api: Api) -> Router {
         .merge(backups::routes())
         .route("/v1/services/blocklists", get(blocklists::get))
         .route("/v1/services/blocklists/refresh", post(blocklists::refresh))
+        .route("/v1/services/dns/stats", get(dns_stats::stats))
+        .route("/v1/services/dns/queries", get(dns_stats::queries))
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",

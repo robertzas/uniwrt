@@ -200,6 +200,9 @@ impl Shared {
             if let Some(wiring) = disk.rewired() {
                 world.nodes[node].wiring = wiring;
             }
+            if world.nodes[node].gateway {
+                disk.query_log(world.nodes[node].booted_ms, |log| world.set_query_log(log));
+            }
         }
         if let Some(bench) = world.bench.as_mut() {
             let files = &lock(&self.nodes[bench.node].disk).tool.files;

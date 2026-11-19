@@ -34,6 +34,8 @@ mod topology;
 mod users;
 mod ztp;
 
+use std::net::IpAddr;
+
 use uniwrt_core::{
     AlertId, EventId, FloorId, JobId, LogId, MacAddr, NodeId, NotifierId, RevisionId, RolloutId,
     RuleId, ScanId, SearchId, Timestamp, UserId, WindowId,
@@ -45,7 +47,7 @@ use uniwrt_model::{
     },
     apply::{Applied, AppliedRevision, BackhaulFailure, CableEnd},
     client::{ClientRecord, ClientSession},
-    dns_queries::{DnsHour, DnsQuery},
+    dns_queries::{DnsClientTotal, DnsHour, DnsHourTotal, DnsQuery, DomainCount, Outcome},
     drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
@@ -600,6 +602,31 @@ pub struct DnsPrune {
     pub hours_before: Timestamp,
 }
 
+/// Who asked a DNS query, as the statistics count clients ([`DnsQuery::client_key`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DnsClient {
+    Mac(MacAddr),
+    /// A client whose MAC the controller didn't know.
+    Address(IpAddr),
+}
+
+/// Which DNS queries [`DnsQueryRepo::dns_queries`] reads.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DnsQueryFilter {
+    pub since: Option<Timestamp>,
+    pub client: Option<DnsClient>,
+    pub outcome: Option<Outcome>,
+    /// Text the domain contains, in any case.
+    pub domain: Option<String>,
+}
+
+/// The hourly counts of a span, summed ([`DnsQueryRepo::dns_totals`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DnsTotals {
+    pub hours: Vec<DnsHourTotal>,
+    pub clients: Vec<DnsClientTotal>,
+}
+
 /// DNS query statistics (features/network.md, Query statistics; D-133): the gateway's queries
 /// and each client's hourly counts.
 pub trait DnsQueryRepo: Send + Sync {
@@ -610,12 +637,26 @@ pub trait DnsQueryRepo: Send + Sync {
         hours: Vec<DnsHour>,
     ) -> impl Future<Output = Result<()>> + Send;
 
-    /// The queries at or after `since`, newest first, at most `limit`.
+    /// The queries `filter` keeps, newest first, from just before `before` (a row's time and
+    /// id, as the returned rows carry them), at most `limit`.
     fn dns_queries(
         &self,
-        since: Timestamp,
+        filter: DnsQueryFilter,
+        before: Option<(Timestamp, i64)>,
         limit: usize,
-    ) -> impl Future<Output = Result<Vec<DnsQuery>>> + Send;
+    ) -> impl Future<Output = Result<Vec<(i64, DnsQuery)>>> + Send;
+
+    /// The hourly counts from the hour holding `since`, summed per hour (oldest first) and per
+    /// client (most queries first).
+    fn dns_totals(&self, since: Timestamp) -> impl Future<Output = Result<DnsTotals>> + Send;
+
+    /// The domains asked for most at or after `since`, blocked or not, at most `limit`.
+    fn dns_top_domains(
+        &self,
+        since: Timestamp,
+        blocked: bool,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<DomainCount>>> + Send;
 
     /// The hourly counts from the hour holding `since`, oldest first.
     fn dns_hours(&self, since: Timestamp) -> impl Future<Output = Result<Vec<DnsHour>>> + Send;
