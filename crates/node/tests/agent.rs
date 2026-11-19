@@ -94,6 +94,7 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
             "scan",
             "set_interval",
             "subscribe",
+            "tailscale",
             "ubus",
             "unsubscribe"
         ]
