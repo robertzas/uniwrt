@@ -39,7 +39,11 @@ pub(super) fn firewall(config: &SiteConfig, issues: &mut Issues) {
 }
 
 fn policies(config: &SiteConfig, issues: &mut Issues) {
-    let known = |zone: &str| zone == "wan" || config.networks.iter().any(|n| n.id == zone);
+    let known = |zone: &str| {
+        zone == "wan"
+            || (zone == crate::site::vpn::ZONE && config.vpn.wireguard.is_some())
+            || config.networks.iter().any(|n| n.id == zone)
+    };
     let mut cells = BTreeSet::new();
     for (i, policy) in config.firewall.policies.iter().enumerate() {
         let at = format!("firewall/policies/{i}");

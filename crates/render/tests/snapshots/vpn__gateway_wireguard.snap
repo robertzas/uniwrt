@@ -1,0 +1,61 @@
+---
+source: crates/render/tests/vpn.rs
+expression: vpn_sections(&rendered)
+---
+
+config interface 'vpn'
+	option proto 'wireguard'
+	option private_key 'yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk='
+	option listen_port '51820'
+	list addresses '10.0.250.1/24'
+
+config wireguard_vpn 'wg_phone'
+	option description 'The phone'
+	option public_key 'gN65BkIKy1eCE9pP1wdc8ROUtkHLF2PfAqYdyYBz6EA='
+	option preshared_key 'FpCyhws9cxwWoV4xELtfJvjJN+zQVRPISllRWgeopVE='
+	list allowed_ips '10.0.250.2/32'
+
+config wireguard_vpn 'wg_cabin'
+	option description 'The cabin'
+	option public_key 'TrMvSoP4jYQlY6RIzBgbssQqY3vxI2Pi+y71lOWWXX0='
+	option preshared_key '6rR6j1nKMBNAuOkOfPC1IP1HTGRrkEzdh7MCXvsUzHM='
+	list allowed_ips '10.0.250.3/32'
+	list allowed_ips '192.168.50.0/24'
+	option route_allowed_ips '1'
+	option endpoint_host 'cabin.example.net'
+	option endpoint_port '51821'
+	option persistent_keepalive '25'
+
+config zone
+	option name 'vpn'
+	list network 'vpn'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+
+config forwarding
+	option src 'lan'
+	option dest 'vpn'
+
+config forwarding
+	option src 'vpn'
+	option dest 'lan'
+
+config forwarding
+	option src 'vpn'
+	option dest 'iot'
+
+config forwarding
+	option src 'vpn'
+	option dest 'guest'
+
+config forwarding
+	option src 'vpn'
+	option dest 'wan'
+
+config rule
+	option name 'Allow-WireGuard'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '51820'
+	option target 'ACCEPT'

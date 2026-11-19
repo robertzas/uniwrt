@@ -50,6 +50,8 @@ pub(crate) struct Plan<'a> {
     /// The gateway's adoption port.
     pub adoption: Option<&'a AdoptionPort>,
     pub mesh: Option<Mesh<'a>>,
+    /// The gateway's WireGuard server, when it is on.
+    pub vpn: Option<crate::wireguard::Tunnel<'a>>,
     /// The cables batman-adv runs over.
     pub backhaul: Vec<&'a Backhaul>,
     /// The node runs `bat0`: for its mesh radio, its backhaul or both.
@@ -183,6 +185,7 @@ impl<'a> Plan<'a> {
         if target.role == NodeRole::Gateway {
             errors.extend(upstream_overlaps(site, facts));
         }
+        let vpn = crate::wireguard::plan(site, secrets, target.role, &mut errors);
         if !errors.is_empty() {
             return Err(errors);
         }
@@ -201,6 +204,7 @@ impl<'a> Plan<'a> {
             backup,
             adoption,
             mesh,
+            vpn,
             backhaul,
             bat,
             controller: target.controller,

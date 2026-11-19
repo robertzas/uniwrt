@@ -10,6 +10,7 @@ import type { Schedules } from "./Schedules";
 import type { Services } from "./Services";
 import type { SiteSettings } from "./SiteSettings";
 import type { Steering } from "./Steering";
+import type { Vpn } from "./Vpn";
 import type { WanConfig } from "./WanConfig";
 import type { Wlan } from "./Wlan";
 
@@ -33,6 +34,10 @@ adoption_port: AdoptionPort | null,
  * Scheduled restarts and LEDs (schema v16, D-138); both off when left out.
  */
 schedules: Schedules, 
+/**
+ * The WireGuard server (schema v17, D-140); none when left out.
+ */
+vpn: Vpn, 
 /**
  * Overrides per adopted node; a node without an entry takes the site's settings.
  */

@@ -29,7 +29,6 @@ export const PACKAGES: readonly ManagedPackage[] = [
   "sqm",
   "mwan3",
   "upnpd",
-  "wireguard",
 ];
 
 /** In the server's order, each once. */

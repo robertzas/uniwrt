@@ -73,7 +73,6 @@ pub enum ManagedPackage {
     HttpsDnsProxy,
     Ddns,
     MdnsRepeater,
-    Wireguard,
 }
 
 impl ManagedPackage {
@@ -93,7 +92,6 @@ impl ManagedPackage {
             Self::HttpsDnsProxy => "https-dns-proxy",
             Self::Ddns => "ddns",
             Self::MdnsRepeater => "mdns_repeater",
-            Self::Wireguard => "wireguard",
         }
     }
 }

@@ -3,12 +3,12 @@
 //!
 //! - **Shape:** site settings and the address plan, then [`network::Network`]s, WLANs and the
 //!   mesh ([`wireless`]), the WAN and services ([`gateway`], [`services`]), the firewall ([`firewall`]), the
-//!   gateway's [`adoption`] port, and per node
+//!   gateway's [`adoption`] port, the [`vpn`], and per node
 //!   its overrides ([`node::NodeConfig`]). Schema v1 has every section; the fields are the ones
 //!   M3.3 renders, and later WPs extend them through [`migrate`].
 //! - **Keys:** networks and WLANs have ids (`[a-z][a-z0-9_]{0,11}`), which name their UCI
 //!   sections and devices, so they never change once created; nodes are keyed by `NodeId`.
-//! - **Secrets** are never in the document: a field holds a [`SecretRef`], the name of a vault
+//! - **Secrets** ([`secrets`](self::secrets)) are never in the document: a field holds a [`SecretRef`], the name of a vault
 //!   entry (`config/<32 hex digits>`). A new value gets a new entry, so an older revision still
 //!   finds the value it had. [`SiteConfig::secrets`] lists the slots by path, such as
 //!   `wlans/home/passphrase`.
@@ -31,10 +31,12 @@ pub mod remove;
 pub mod replace;
 pub mod revision;
 pub mod schedules;
+mod secrets;
 pub mod services;
 pub mod steering;
 pub mod tz;
 pub mod validate;
+pub mod vpn;
 pub mod wireless;
 
 use std::net::Ipv4Addr;
@@ -45,16 +47,19 @@ use uniwrt_core::{Ipv4Net, Ipv6Net};
 use self::{
     adoption::AdoptionPort,
     firewall::{FirewallConfig, Upnp},
-    gateway::{Services, WanConfig, WanProto},
+    gateway::{Services, WanConfig},
     network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
     node::NodeConfig,
     schedules::Schedules,
     steering::Steering,
+    vpn::Vpn,
     wireless::{MeshConfig, RadioPolicy, Wlan},
 };
 
+pub use self::secrets::{SecretSlot, check_secret};
+
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 16;
+pub const SCHEMA_VERSION: u32 = 17;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +85,9 @@ pub struct SiteConfig {
     /// Scheduled restarts and LEDs (schema v16, D-138); both off when left out.
     #[serde(default)]
     pub schedules: Schedules,
+    /// The WireGuard server (schema v17, D-140); none when left out.
+    #[serde(default)]
+    pub vpn: Vpn,
     /// Overrides per adopted node; a node without an entry takes the site's settings.
     pub nodes: Vec<NodeConfig>,
 }
@@ -149,14 +157,6 @@ impl SecretRef {
     }
 }
 
-/// One place in the document that holds a secret.
-#[derive(Debug, PartialEq, Eq)]
-pub struct SecretSlot<'a> {
-    /// Its path, such as `wlans/home/passphrase`, `mesh/key` or `wan/password`.
-    pub path: String,
-    pub value: Option<&'a SecretRef>,
-}
-
 impl SiteConfig {
     /// The defaults of a new site: the 10.0.0.0/16 plan with the given ULA, and the default LAN
     /// at 10.0.0.0/24 (gateway .1, DHCP .100–.249); no WLANs, the mesh off, DHCP on the WAN.
@@ -218,152 +218,9 @@ impl SiteConfig {
             services: Services::default(),
             adoption_port: None,
             schedules: Schedules::default(),
+            vpn: Vpn::default(),
             nodes: Vec::new(),
         }
-    }
-
-    /// Every slot that can hold a secret, set or not, in document order.
-    pub fn secrets(&self) -> Vec<SecretSlot<'_>> {
-        let mut slots: Vec<SecretSlot<'_>> = self
-            .wlans
-            .iter()
-            .map(|wlan| SecretSlot {
-                path: format!("wlans/{}/passphrase", wlan.id),
-                value: wlan.passphrase.as_ref(),
-            })
-            .collect();
-        slots.push(SecretSlot {
-            path: "mesh/key".to_owned(),
-            value: self.mesh.key.as_ref(),
-        });
-        if let WanProto::Pppoe { password, .. } = &self.wan.proto {
-            slots.push(SecretSlot {
-                path: "wan/password".to_owned(),
-                value: password.as_ref(),
-            });
-        }
-        slots.extend(self.services.ddns.iter().map(|ddns| SecretSlot {
-            path: format!("services/ddns/{}/secret", ddns.id),
-            value: ddns.secret.as_ref(),
-        }));
-        for config in &self.nodes {
-            for (i, raw) in config.raw.iter().enumerate() {
-                for (option, value) in &raw.options {
-                    if let node::RawValue::Secret { secret } = value {
-                        slots.push(SecretSlot {
-                            path: format!("nodes/{}/raw/{i}/{option}", config.node),
-                            value: Some(secret),
-                        });
-                    }
-                }
-            }
-        }
-        slots
-    }
-
-    /// Points every slot that holds `from` at `to` instead: a secret sealed under a new name.
-    pub fn replace_secret(&mut self, from: &SecretRef, to: &SecretRef) {
-        let wlans = self.wlans.iter_mut().filter_map(|w| w.passphrase.as_mut());
-        let wan = match &mut self.wan.proto {
-            WanProto::Pppoe { password, .. } => password.as_mut(),
-            _ => None,
-        };
-        let raw = self
-            .nodes
-            .iter_mut()
-            .flat_map(|config| config.raw.iter_mut())
-            .flat_map(|raw| raw.options.values_mut())
-            .filter_map(|value| match value {
-                node::RawValue::Secret { secret } => Some(secret),
-                _ => None,
-            });
-        let ddns = self
-            .services
-            .ddns
-            .iter_mut()
-            .filter_map(|d| d.secret.as_mut());
-        for secret in wlans
-            .chain(self.mesh.key.as_mut())
-            .chain(wan)
-            .chain(ddns)
-            .chain(raw)
-        {
-            if secret == from {
-                *secret = to.clone();
-            }
-        }
-    }
-
-    /// The slot at `path` ([`SiteConfig::secrets`]), to set or clear; not a raw section's, which
-    /// only brownfield import fills ([`SiteConfig::replace_secret`]).
-    pub fn secret_mut(&mut self, path: &str) -> Option<&mut Option<SecretRef>> {
-        match path.split('/').collect::<Vec<_>>().as_slice() {
-            ["wlans", id, "passphrase"] => self
-                .wlans
-                .iter_mut()
-                .find(|wlan| wlan.id == *id)
-                .map(|wlan| &mut wlan.passphrase),
-            ["mesh", "key"] => Some(&mut self.mesh.key),
-            ["wan", "password"] => match &mut self.wan.proto {
-                WanProto::Pppoe { password, .. } => Some(password),
-                _ => None,
-            },
-            ["services", "ddns", id, "secret"] => self
-                .services
-                .ddns
-                .iter_mut()
-                .find(|ddns| ddns.id == *id)
-                .map(|ddns| &mut ddns.secret),
-            _ => None,
-        }
-    }
-
-    /// The secret at `path`, if set.
-    pub fn secret(&self, path: &str) -> Option<&SecretRef> {
-        self.secrets()
-            .into_iter()
-            .find(|slot| slot.path == path)
-            .and_then(|slot| slot.value)
-    }
-}
-
-/// Whether `value` suits the secret at `path`: a Wi-Fi passphrase or the mesh key is 8 to 63
-/// printable ASCII characters (a WLAN's may instead be 64 hexadecimal digits, a raw PSK), a PPPoE
-/// password 1 to 128 characters without control characters, a DDNS token or password 1 to 256
-/// printable ASCII characters, and a raw section's any value
-/// without line breaks.
-pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
-    let printable = |value: &str| value.bytes().all(|b| (b' '..=b'~').contains(&b));
-    if path.starts_with("nodes/") {
-        return if value.contains(['\0', '\n', '\r']) {
-            Err("A value holds no line breaks or NUL characters")
-        } else {
-            Ok(())
-        };
-    }
-    if path == "wan/password" {
-        return if value.is_empty() || value.chars().count() > 128 {
-            Err("A PPPoE password is 1 to 128 characters")
-        } else if value.chars().any(char::is_control) {
-            Err("A PPPoE password has no control characters")
-        } else {
-            Ok(())
-        };
-    }
-    if path.starts_with("services/ddns/") {
-        return if value.is_empty() || value.len() > 256 || !printable(value) {
-            Err("A DDNS token or password is 1 to 256 printable ASCII characters")
-        } else {
-            Ok(())
-        };
-    }
-    let raw_psk = path.starts_with("wlans/")
-        && value.len() == 64
-        && value.bytes().all(|b| b.is_ascii_hexdigit());
-    if raw_psk || ((8..=63).contains(&value.len()) && printable(value)) {
-        Ok(())
-    } else {
-        Err("A passphrase is 8 to 63 printable ASCII characters")
     }
 }
 
@@ -383,3 +240,5 @@ mod plan_tests;
 mod services_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vpn_tests;

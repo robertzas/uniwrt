@@ -82,6 +82,7 @@ pub fn subnet(config: &SiteConfig, vlan: Option<u16>) -> Option<Ipv4Net> {
         .iter()
         .filter_map(|n| n.ipv4.as_ref())
         .map(|v4| v4.address.trunc())
+        .chain(config.vpn.wireguard.as_ref().map(|w| w.address.trunc()))
         .chain([FACTORY])
         .collect();
     let free = |candidate: &Ipv4Net| {

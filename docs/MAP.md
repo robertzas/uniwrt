@@ -522,6 +522,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/replace_tests.rs`: (no header comment)
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
 - `src/site/schedules.rs`: Controller-run schedules (features/network.md, Other services; D-138): restarts at a time of the week, and the LEDs off at night.
+- `src/site/secrets.rs`: The document's secret slots: where a [`SecretRef`] may sit, by path, and what each value may be.
 - `src/site/services.rs`: The gateway's network services (features/network.md, DHCP & local DNS and Other services; D-132): where dnsmasq forwards the queries it can't answer, the DDNS names kept pointing at the WAN, and whether the gateway serves time.
 - `src/site/services_tests.rs`: The gateway's services (schema v12, D-132): migration, validation and the DDNS secrets.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
@@ -538,7 +539,10 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/validate/ports.rs`: Port profiles: which networks a node's Ethernet ports carry.
 - `src/site/validate/schedules.rs`: The schedules (D-138): restart times, the LEDs schedule, and each node's own restart time.
 - `src/site/validate/services.rs`: The gateway's network services (D-132): the upstream DNS and DDNS.
+- `src/site/validate/vpn.rs`: The VPN (D-140): the WireGuard server's port, tunnel subnet, endpoint and keys, and its peers' addresses, keys and routes.
 - `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
+- `src/site/vpn.rs`: The site's VPN (features/network.md, VPN; D-140): a WireGuard server on the gateway and its peers, remote clients dialing in and other sites' routers.
+- `src/site/vpn_tests.rs`: The VPN (D-140): its validation, secret slots, migration and the subnet IPAM keeps free.
 - `src/site/wireless.rs`: Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
 - `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076): the line's rates and its latency idle and under load, graded for bufferbloat, and what they suggest for SQM.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
@@ -685,6 +689,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/upnp.rs`: The `upnpd` package (miniupnpd; features/network.md, Firewall policy; D-079): UPnP IGD and NAT-PMP/PCP for the chosen networks, in secure mode (a client maps ports only to itself), with OpenWrt's stock permissions (ports from 1024 only) and lease file, which the agent's `leases` set reads for the live mappings.
 - `src/usteer.rs`: The `usteer` package (features/wifi.md, Steering & balancing; D-090): usteer on each node that carries a steered WLAN, set by the site's profile, exchanging what it sees with the other nodes' over the management network (UDP 16720, which that network's zone accepts).
 - `src/wan.rs`: The gateway's uplink in the `network` package (features/wan.md, Rendering on the gateway): the WAN device (an ISP's VLAN with its 802.1p priority, a cloned or the board's MAC, the MTU), `wan` by DHCP, static, PPPoE or DS-Lite, and `wan6` by DHCPv6 with prefix delegation or by 6rd.
+- `src/wireguard.rs`: WireGuard on the gateway (features/network.md, VPN; D-140), through netifd's `wireguard` protocol: in `network` the interface `vpn` (the server's key, port and tunnel address) and a `wireguard_vpn` section per enabled peer, `wg_<id>` (its keys, its address and, for a site, the networks routed to it, where to dial it and a keepalive); in `firewall` the `vpn` zone, whose row in the matrix is seeded like the default LAN's ([`matrix`](crate::firewall::matrix)), and the WAN's rule for the port.
 - `src/wireless.rs`: The `wireless` package: a `wifi-device` per radio (its channel, width and power from the node's overrides and the band's policy, and where those leave it on Auto from the RF plan the site follows, D-112; within what its phy supports), each WLAN's `wifi-iface` on every radio of its bands (`uw_<wlan>_<band>`, features/wifi.md), and the mesh point.
 - `tests/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port taken out of the LAN into `br-adopt`, with its own zone and no DHCP, and the ports and uplinks that can't serve.
 - `tests/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable on the backhaul VLAN, beside the networks (overlay) or alone (exclusive), and the cables a node can't give it.
@@ -695,6 +700,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `tests/services.rs`: The gateway's network services (features/network.md; D-132): the upstream DNS in dnsmasq, https-dns-proxy for DoH, ddns-scripts for DDNS, the NTP server, and what is left when they go off.
 - `tests/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): usteer's package per profile, where it runs, and what is left when steering goes off.
 - `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
+- `tests/vpn.rs`: The gateway's WireGuard server (features/network.md, VPN; D-140): the tunnel and its peers in `network`, the `vpn` zone, its matrix row and the WAN's rule in `firewall`, and nothing while it is off or on an AP.
 
 ### `uniwrt-rf` (crates/rf)
 
@@ -1024,7 +1030,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (487 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (493 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

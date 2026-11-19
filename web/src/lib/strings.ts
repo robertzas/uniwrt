@@ -1663,7 +1663,6 @@ export const strings = {
         https_dns_proxy: "DNS over HTTPS (https-dns-proxy)",
         ddns: "Dynamic DNS names (ddns-scripts)",
         mdns_repeater: "mDNS reflection between networks (mdns-repeater)",
-        wireguard: "WireGuard VPN",
       },
       message: (name: string, added: readonly string[], removed: readonly string[]) =>
         [

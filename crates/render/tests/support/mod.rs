@@ -60,6 +60,19 @@ pub(crate) fn secrets() -> TestSecrets {
             (secret(3), "mesh key 0123456789".to_owned()),
             (secret(4), "pppoe-pass".to_owned()),
             (secret(5), "ddns-token".to_owned()),
+            // WireGuard's server key and two peers' preshared keys.
+            (
+                secret(6),
+                "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=".to_owned(),
+            ),
+            (
+                secret(7),
+                "FpCyhws9cxwWoV4xELtfJvjJN+zQVRPISllRWgeopVE=".to_owned(),
+            ),
+            (
+                secret(8),
+                "6rR6j1nKMBNAuOkOfPC1IP1HTGRrkEzdh7MCXvsUzHM=".to_owned(),
+            ),
         ]),
         ft_keys: ["home", "things", "guest"]
             .into_iter()

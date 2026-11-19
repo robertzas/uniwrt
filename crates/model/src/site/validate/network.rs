@@ -14,8 +14,8 @@ use crate::site::{
     network::{Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
 };
 
-const CGNAT: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(100, 64, 0, 0), 10);
-const FACTORY: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(192, 168, 1, 0), 24);
+pub(super) const CGNAT: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(100, 64, 0, 0), 10);
+pub(super) const FACTORY: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(192, 168, 1, 0), 24);
 
 pub(super) fn addressing(config: &SiteConfig, issues: &mut Issues) {
     let plan = &config.addressing;

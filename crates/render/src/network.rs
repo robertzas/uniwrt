@@ -37,6 +37,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     sections.extend(failover::network(plan));
     sections.extend(crate::adoption::network(plan));
     sections.extend(mesh::interfaces(plan));
+    sections.extend(crate::wireguard::network(plan));
     let mut package = Package::new("network");
     package.sections = sections;
     package

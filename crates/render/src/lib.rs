@@ -25,7 +25,8 @@
 //!   their DNS to ([`blocking`](mod@blocking), D-133), and `uniwrt.<domain>`
 //!   for the controller when [`Target::controller`] sits in a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
 //!   seeded by its purpose, port forwards and the DMZ host as `redirect`s, and miniupnpd for
-//!   the networks UPnP serves; a network overlapping the subnet its uplink holds now is an issue.
+//!   the networks UPnP serves, and the WireGuard server ([`wireguard`](mod@wireguard): the `vpn`
+//!   interface with its peers, its zone and the WAN's rule; D-140); a network overlapping the subnet its uplink holds now is an issue.
 //!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
 //!   firewall off.
 //! - **Staging** ([`staging`], D-107): a factory-default device's packages made safe on any LAN
@@ -80,6 +81,7 @@ mod system;
 mod upnp;
 mod usteer;
 mod wan;
+mod wireguard;
 mod wireless;
 
 /// The vault's values of the site's secrets.
@@ -371,7 +373,7 @@ pub fn render(
                 }
                 rendered.package
             }
-            _ => continue,
+            ManagedPackage::Dropbear => continue,
         };
         let mut rendered = rendered;
         preserve::carry_over(&mut rendered, target.current);
@@ -388,6 +390,9 @@ pub fn render(
             ));
         }
         packages.insert(*package, rendered);
+    }
+    if plan.vpn.is_some() && packages.contains_key(&ManagedPackage::Network) {
+        requires.push(wireguard::REQUIRES);
     }
     errors.append(&mut plan.errors);
     if errors.is_empty() {

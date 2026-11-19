@@ -15,6 +15,7 @@ mod nodes;
 mod ports;
 mod schedules;
 mod services;
+mod vpn;
 mod wireless;
 
 use std::collections::BTreeSet;
@@ -106,6 +107,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     gateway::adoption_port(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
     schedules::schedules(config, &mut issues);
+    vpn::vpn(config, &mut issues);
     issues.0
 }
 
