@@ -88,6 +88,7 @@ export function facts(cpu: number): NodeFacts {
     services: {
       ddns: [],
       doh_instances: null,
+      wireguard: null,
       blocklist: { sha256: null, domains: null, conf: false },
     },
     config: {},

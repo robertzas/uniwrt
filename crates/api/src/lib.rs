@@ -240,7 +240,7 @@ pub use site::{
 pub use speed::SpeedTestBody;
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
-pub use vpn::PeerConfig as VpnPeerConfig;
+pub use vpn::{PeerConfig as VpnPeerConfig, VpnPeerStatus, VpnStatus};
 pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 pub use ztp::{
@@ -392,6 +392,7 @@ fn config_routes() -> Router<Api> {
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))
+        .route("/v1/vpn/wireguard/peers", get(vpn::stats::peers))
         .route("/v1/vpn/wireguard/peers/{id}/config", post(vpn::config))
         .route(
             "/v1/site/export",

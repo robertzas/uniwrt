@@ -2,7 +2,8 @@
 //! `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address),
 //! updated a minute after boot, its updater running while the `ddns` service is on; and one
 //! https-dns-proxy instance per section of its package while that service is on; and the DNS
-//! blocklist's files the controller uploaded to its `/tmp` since it booted (D-133).
+//! blocklist's files the controller uploaded to its `/tmp` since it booted (D-133); and the
+//! WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140).
 
 use std::collections::BTreeMap;
 
@@ -58,8 +59,10 @@ pub(super) fn services(
         String::from_utf8_lossy(line).into_owned()
     });
     let conf = tmp.file(node.booted_ms, BLOCKLIST_CONF).is_some();
+    let network = parse("network");
+    let wireguard = super::wireguard::wireguard(network.as_ref(), now, uptime);
     json!({
         "now": now, "uptime": uptime, "ddns": ddns, "doh": doh,
-        "blocklist": head, "blocklist_conf": conf,
+        "blocklist": head, "blocklist_conf": conf, "wireguard": wireguard,
     })
 }

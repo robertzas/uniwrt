@@ -245,3 +245,24 @@ async fn an_import_without_the_keys_makes_new_ones() {
         &reveal(&demo, "vpn/wireguard/peers/phone/preshared_key").await
     ));
 }
+
+#[tokio::test]
+async fn the_peers_status_lists_the_revision_s_peers() {
+    let demo = Demo::start_with(false).await;
+    let (status, none) = send(&demo, Method::GET, "/v1/vpn/wireguard/peers", None).await;
+    assert_eq!(status, StatusCode::OK, "{none}");
+    assert_eq!(none["peers"], json!([]));
+    save(&demo, &tunneled(&demo).await, json!({})).await;
+    let (status, listed) = send(&demo, Method::GET, "/v1/vpn/wireguard/peers", None).await;
+    assert_eq!(status, StatusCode::OK, "{listed}");
+    let ids: Vec<&str> = listed["peers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|peer| peer["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["phone", "cabin"]);
+    // The demo's gateway hasn't been given the tunnel: no peer is on it yet.
+    assert_eq!(listed["running"], false);
+    assert_eq!(listed["peers"][0]["on_gateway"], false);
+}

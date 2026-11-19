@@ -31,6 +31,7 @@ Marks: ✅ verified (release notes, a test, or a real device) · ⚠️ from doc
 | `/tmp/dhcp.leases` | dnsmasq leases (gateway) |
 | `/var/run/miniupnpd.leases` | miniupnpd's mappings (`upnpd.config.upnp_lease_file`): `<PROTO>:<ext port>:<client>:<int port>:<expiry>:<description>`, expiry 0 for none (before 2.0 without the expiry field); the description may hold colons ⚠️ |
 | `/var/run/ddns/<section>.{ip,update,pid}` | ddns-scripts' state per `ddns.service`: the address last registered, the uptime (s) of the last update (0 before one), the updater's pid; the `services` set reads them (D-132) |
+| `wg show <dev> dump` | WireGuard's state (`wireguard-tools`), tab-separated: the interface's line (private key, public key, port, fwmark `off`), then a line per peer (public key, preshared key or `(none)`, endpoint or `(none)`, allowed IPs comma-separated, latest handshake in Unix seconds or 0, rx bytes, tx bytes, keepalive or `off`); netifd names the device after the interface. Checked on 24.10.8 and 25.12.6 with a live handshake (2026-11-19); the `services` set reads it through a pipe (D-140) |
 | `/etc/dropbear/authorized_keys` | SSH keys |
 | `/etc/sysupgrade.conf`, `/lib/upgrade/keep.d/*` | Extra files preserved across sysupgrade |
 | `/etc/uci-defaults/*` | First-boot scripts (deleted after they succeed) |

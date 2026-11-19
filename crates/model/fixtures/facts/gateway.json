@@ -926,6 +926,20 @@
       "sha256": "9f2c4a7e1b3d5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e",
       "domains": 182044,
       "conf": true
+    },
+    "wireguard": {
+      "node_time": 1763400600000,
+      "public_key": "QmlnFfTbdGOlCuYgv5KxCctUC7CJsvt/a0Ndpz5f0CI=",
+      "port": 51820,
+      "peers": [
+        {
+          "public_key": "GnqCvJ+uxy1o2zm5hhM6gku7LKY7Mi1cPw2kZn1FrgE=",
+          "endpoint": "198.51.100.7:40000",
+          "handshake_at": 1763400500000,
+          "rx_bytes": 404,
+          "tx_bytes": 92
+        }
+      ]
     }
   }
 }

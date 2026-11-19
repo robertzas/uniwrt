@@ -18,7 +18,12 @@ let calls: { method: string; url: string; body: unknown }[] = [];
 let head = 2;
 let config: SiteConfig = siteConfig();
 const NO_BLOCKLIST = { sha256: null, domains: null, conf: false };
-let services: ServiceFacts = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST };
+let services: ServiceFacts = {
+  ddns: [],
+  doh_instances: null,
+  blocklist: NO_BLOCKLIST,
+  wireguard: null,
+};
 let issues: { path: string; severity: "warning"; message: string }[] = [];
 /** A refusal the next save answers with, once. */
 let refusal: { path: string; message: string } | undefined;
@@ -37,7 +42,7 @@ beforeEach(() => {
   calls = [];
   head = 2;
   config = siteConfig();
-  services = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST };
+  services = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST, wireguard: null };
   issues = [];
   refusal = undefined;
   vi.stubGlobal(
@@ -103,6 +108,7 @@ describe("Network services", () => {
     services = {
       ddns: [{ id: "home", address: "203.0.113.7", updated_at: 0, running: true }],
       doh_instances: 1,
+      wireguard: null,
       blocklist: NO_BLOCKLIST,
     };
     issues = [

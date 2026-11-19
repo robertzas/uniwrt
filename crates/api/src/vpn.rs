@@ -7,9 +7,15 @@
 //!   its private key. 404 for a peer the revision lacks; 409 while the server has no keypair or
 //!   its endpoint names a DDNS entry that is gone.
 //!
+//! - `GET /api/v1/vpn/wireguard/peers` ([`VpnStatus`]): the peers as the gateway's tunnel
+//!   reports them (handshake, endpoint, traffic; [`stats`]).
+//!
 //! The site's saves and imports make the keys the server and its peers lack ([`keys`]).
 
 pub(crate) mod keys;
+pub(crate) mod stats;
+
+pub use stats::{VpnPeerStatus, VpnStatus};
 
 use axum::{
     Json,

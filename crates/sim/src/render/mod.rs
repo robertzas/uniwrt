@@ -20,6 +20,7 @@ mod services;
 pub(crate) mod system;
 pub(crate) mod tmp;
 pub(crate) mod wifi;
+mod wireguard;
 pub(crate) mod wpad;
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -1,15 +1,15 @@
 //! The `services` set: ddns-scripts' run files per section (the registered address, the last
 //! update in seconds of uptime, whether the updater runs) and https-dns-proxy's running
 //! instances, with the node's clock and uptime, which place the update in time; and the DNS
-//! blocklist's header line and conf file (D-133).
+//! blocklist's header line and conf file (D-133); and the WireGuard tunnel's peers (D-140).
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use serde::Deserialize;
 use uniwrt_core::Timestamp;
 use uniwrt_model::{
     blocklists::parse_header,
-    facts::{BlocklistFacts, DdnsFacts, ServiceFacts},
+    facts::{BlocklistFacts, DdnsFacts, ServiceFacts, WireguardFacts, WireguardPeerFacts},
 };
 
 #[derive(Deserialize)]
@@ -27,6 +27,32 @@ pub(super) struct Raw {
     blocklist: Option<String>,
     #[serde(default)]
     blocklist_conf: bool,
+    #[serde(default)]
+    wireguard: Option<Wireguard>,
+}
+
+/// `wg show vpn dump`'s fields, as text.
+#[derive(Deserialize)]
+struct Wireguard {
+    #[serde(default)]
+    public_key: Option<String>,
+    #[serde(default)]
+    port: Option<String>,
+    #[serde(default)]
+    peers: Vec<WireguardPeer>,
+}
+
+#[derive(Deserialize)]
+struct WireguardPeer {
+    public_key: String,
+    #[serde(default)]
+    endpoint: Option<String>,
+    #[serde(default)]
+    handshake: Option<String>,
+    #[serde(default)]
+    rx: Option<String>,
+    #[serde(default)]
+    tx: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -74,6 +100,38 @@ pub(super) fn parse(raw: Raw) -> ServiceFacts {
             domains,
             conf: raw.blocklist_conf,
         },
+        wireguard: raw.wireguard.map(|wg| wireguard(wg, raw.now)),
+    }
+}
+
+/// `(none)` stands for no endpoint and a handshake of 0 for none; a key that isn't one is
+/// kept as it is (the API matches peers by it).
+fn wireguard(raw: Wireguard, now: Option<i64>) -> WireguardFacts {
+    let number = |text: Option<&str>| text.and_then(|t| t.trim().parse::<u64>().ok());
+    let peers = raw
+        .peers
+        .into_iter()
+        .map(|peer| WireguardPeerFacts {
+            public_key: peer.public_key,
+            endpoint: peer
+                .endpoint
+                .and_then(|e| e.trim().parse::<SocketAddr>().ok()),
+            handshake_at: number(peer.handshake.as_deref())
+                .filter(|&at| at > 0)
+                .and_then(|at| i64::try_from(at).ok())
+                .map(Timestamp::from_unix_secs),
+            rx_bytes: number(peer.rx.as_deref()).unwrap_or_default(),
+            tx_bytes: number(peer.tx.as_deref()).unwrap_or_default(),
+        })
+        .collect();
+    WireguardFacts {
+        node_time: now.map(Timestamp::from_unix_secs),
+        public_key: raw.public_key.filter(|key| key != "(none)"),
+        port: raw
+            .port
+            .and_then(|p| p.trim().parse().ok())
+            .filter(|&p| p != 0),
+        peers,
     }
 }
 
@@ -115,6 +173,45 @@ mod tests {
             (facts.ddns[3].address, facts.ddns[3].updated_at),
             (None, None)
         );
+    }
+
+    #[test]
+    fn the_tunnel_s_peers_are_read_from_the_dump() {
+        let raw = serde_json::json!({
+            "now": 1_700_000_000, "wireguard": {
+                "public_key": "c2VydmVy", "port": "51820", "peers": [
+                    {"public_key": "cGhvbmU=", "endpoint": "198.51.100.7:40000",
+                     "handshake": "1699999950", "rx": "1234", "tx": "5678"},
+                    {"public_key": "Y2FiaW4=", "endpoint": "[2001:db8::2]:51820",
+                     "handshake": "0", "rx": "0", "tx": "92"},
+                    {"public_key": "bmV3", "endpoint": "(none)", "handshake": "0",
+                     "rx": "0", "tx": "0"}
+                ]
+            }
+        });
+        let wg = parse(serde_json::from_value(raw).unwrap())
+            .wireguard
+            .unwrap();
+        assert_eq!(wg.node_time, Some(Timestamp::from_unix_secs(1_700_000_000)));
+        assert_eq!(
+            (wg.public_key.as_deref(), wg.port),
+            (Some("c2VydmVy"), Some(51820))
+        );
+        let [phone, cabin, new] = &wg.peers[..] else {
+            panic!("{:?}", wg.peers)
+        };
+        assert_eq!(phone.endpoint, Some("198.51.100.7:40000".parse().unwrap()));
+        assert_eq!(
+            phone.handshake_at,
+            Some(Timestamp::from_unix_secs(1_699_999_950))
+        );
+        assert_eq!((phone.rx_bytes, phone.tx_bytes), (1234, 5678));
+        assert_eq!(cabin.endpoint, Some("[2001:db8::2]:51820".parse().unwrap()));
+        assert_eq!((cabin.handshake_at, cabin.tx_bytes), (None, 92));
+        assert_eq!((new.endpoint, new.handshake_at), (None, None));
+        // A gateway without the tunnel reports none.
+        let facts = parse(serde_json::from_value(serde_json::json!({})).unwrap());
+        assert_eq!(facts.wireguard, None);
     }
 
     #[test]
