@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Wlan } from "../../api/gen/Wlan";
+import { daysText, isOn, localTime, minutesOf, onNow, spanText } from "../../lib/schedule";
 import { siteConfig } from "../../test/site";
 import {
   draftOf,
@@ -7,13 +8,12 @@ import {
   fastRoams,
   idOf,
   joinCode,
-  minutesOf,
   presetWlan,
   withWlan,
   wlanOf,
 } from "./draft";
 import { qrPath } from "./JoinDialog";
-import { daysText, isOn, localTime, onNow, scopeText, spanText, wiredVlanError } from "./summary";
+import { scopeText, wiredVlanError } from "./summary";
 
 const home = (): Wlan => siteConfig().wlans[0] as Wlan;
 

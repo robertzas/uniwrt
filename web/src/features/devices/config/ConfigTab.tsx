@@ -11,11 +11,12 @@ import { ManagementCard } from "./ManagementCard";
 import { PackagesCard } from "./PackagesCard";
 import { RoleCard } from "./RoleCard";
 import { RootPasswordCard } from "./RootPasswordCard";
+import { SchedulesCard } from "./SchedulesCard";
 import { WpadCard } from "./WpadCard";
 
 /**
  * A device's Config tab (ui.md, Device page): its role (D-100), its management, its Wi-Fi daemon (the full wpad or
- * the basic one), its firmware and the upgrades on offer (D-121), for admins the root password the vault keeps, the packages uniwrt owns, its backups (D-126), for admins its replacement, reset and removal (D-131) and,
+ * the basic one), its firmware and the upgrades on offer (D-121), for admins the root password the vault keeps, the packages uniwrt owns, its backups (D-126), its schedules (D-138), for admins its replacement, reset and removal (D-131) and,
  * once managed, their drift, which comes first while there is any.
  */
 export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
@@ -35,6 +36,7 @@ export function ConfigTab(props: { node: Node; facts: NodeFacts | null }) {
       </div>
       <div class="flex min-w-0 flex-col gap-4 lg:col-span-3">
         <PackagesCard node={props.node} admin={admin()} />
+        <SchedulesCard node={props.node} facts={props.facts} admin={admin()} />
         <BackupsCard node={props.node} admin={admin()} />
         <Show when={admin()}>
           <LifecycleCard node={props.node} />

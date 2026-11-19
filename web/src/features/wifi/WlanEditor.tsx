@@ -12,8 +12,10 @@ import { Dialog } from "../../ui/Dialog";
 import { FormField, SELECT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
+import { ScheduleField } from "../../ui/ScheduleField";
 import { Segmented } from "../../ui/Segmented";
 import { TextField } from "../../ui/TextField";
+import { TOGGLE, toggled } from "../../ui/Weekdays";
 import {
   BANDS,
   type DraftErrors,
@@ -29,7 +31,6 @@ import {
   withWlan,
   wlanOf,
 } from "./draft";
-import { ScheduleField, TOGGLE, toggled } from "./ScheduleField";
 import { BAND_DOT } from "./WlanRow";
 
 const t = strings.wifi.editor;
@@ -341,9 +342,11 @@ export function WlanEditor(props: {
             />
           </section>
           <ScheduleField
+            title={t.schedule}
+            label={t.scheduled}
+            hint={t.scheduledHint(props.view.config.site.timezone)}
             scheduled={draft().scheduled}
             spans={draft().spans}
-            zone={props.view.config.site.timezone}
             error={errors().schedule}
             onChange={change}
           />

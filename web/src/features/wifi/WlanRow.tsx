@@ -2,12 +2,12 @@ import { Clock, QrCode, TriangleAlert } from "lucide";
 import { For, Show } from "solid-js";
 import type { Band } from "../../api/gen/Band";
 import type { Wlan } from "../../api/gen/Wlan";
+import { spanText } from "../../lib/schedule";
 import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { needsPassphrase } from "./draft";
-import { spanText } from "./summary";
 
 const t = strings.wifi;
 

@@ -2,16 +2,14 @@ import type { Band } from "../../api/gen/Band";
 import type { Issue } from "../../api/gen/Issue";
 import type { NodeScope } from "../../api/gen/NodeScope";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
-import type { Span } from "../../api/gen/Span";
-import type { Weekday } from "../../api/gen/Weekday";
 import type { Wlan } from "../../api/gen/Wlan";
 import type { WlanSecurity } from "../../api/gen/WlanSecurity";
+import { type SpanDraft, spanDrafts, spansOf } from "../../lib/schedule";
 import { strings } from "../../lib/strings";
 
 const e = strings.wifi.errors;
 
 export const BANDS: readonly Band[] = ["2g", "5g", "6g"];
-export const WEEKDAYS: readonly Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const SECURITIES: readonly WlanSecurity[] = [
   "wpa2_wpa3",
   "wpa3",
@@ -25,13 +23,6 @@ export type Preset = "main" | "guest" | "iot";
 /** Whether the mode has a passphrase. */
 export function needsPassphrase(security: WlanSecurity): boolean {
   return security === "wpa2" || security === "wpa2_wpa3" || security === "wpa3";
-}
-
-/** A span of the schedule as typed: `from` and `to` are `HH:MM`. */
-export interface SpanDraft {
-  days: Weekday[];
-  from: string;
-  to: string;
 }
 
 /** A WLAN as the editor holds it. */
@@ -66,19 +57,6 @@ export type DraftErrors = Partial<
   Record<"ssid" | "network" | "passphrase" | "bands" | "nodes" | "maxClients" | "schedule", string>
 >;
 
-/** Minutes after midnight as `HH:MM`. */
-export const clock = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-
-/** `HH:MM` as minutes after midnight. */
-export function minutesOf(text: string): number | undefined {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(text.trim());
-  return match ? Number(match[1]) * 60 + Number(match[2]) : undefined;
-}
-
-/** The span a new schedule starts with: every day, 07:00 to 22:00. */
-export const newSpan = (): SpanDraft => ({ days: [...WEEKDAYS], from: "07:00", to: "22:00" });
-
 export function draftOf(wlan: Wlan): WlanDraft {
   return {
     ssid: wlan.ssid,
@@ -94,13 +72,7 @@ export function draftOf(wlan: Wlan): WlanDraft {
     multicastToUnicast: wlan.multicast_to_unicast,
     maxClients: wlan.max_clients === null ? "" : String(wlan.max_clients),
     scheduled: wlan.schedule !== null,
-    spans: wlan.schedule
-      ? wlan.schedule.spans.map((span) => ({
-          days: [...span.days],
-          from: clock(span.from),
-          to: clock(span.to),
-        }))
-      : [newSpan()],
+    spans: spanDrafts(wlan.schedule),
     fast: wlan.roaming.fast === null ? "auto" : wlan.roaming.fast ? "on" : "off",
     hints: wlan.roaming.hints,
     steer: wlan.roaming.steer,
@@ -166,19 +138,6 @@ export const bytes = (text: string) => new TextEncoder().encode(text).length;
 /** A passphrase the server takes: 8 to 63 printable ASCII characters, or a 64-digit hex key. */
 export function passphraseOk(value: string): boolean {
   return /^[\x20-\x7e]{8,63}$/.test(value) || /^[0-9a-fA-F]{64}$/.test(value);
-}
-
-function spansOf(drafts: readonly SpanDraft[]): Span[] | string {
-  if (drafts.length === 0) return e.noSpans;
-  const spans: Span[] = [];
-  for (const draft of drafts) {
-    const from = minutesOf(draft.from);
-    const to = minutesOf(draft.to);
-    if (from === undefined || to === undefined) return e.time;
-    if (draft.days.length === 0) return e.noDays;
-    spans.push({ days: WEEKDAYS.filter((day) => draft.days.includes(day)), from, to });
-  }
-  return spans;
 }
 
 /**

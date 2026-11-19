@@ -12,6 +12,7 @@ import { FormField, SELECT } from "../../../ui/FormField";
 import { RequestError } from "../../../ui/JobOutcome";
 import { SavedRevision } from "../../../ui/SavedRevision";
 import { TextField } from "../../../ui/TextField";
+import { SchedulesCard } from "./SchedulesCard";
 
 const t = strings.settings.site;
 
@@ -31,7 +32,8 @@ export function zones(current: string): string[] {
 
 /**
  * Settings › Site (D-083): the site's name, its country (the radios' regulatory domain) and its
- * time zone (the devices' clocks, the WLANs' schedules). A save is the site's next revision.
+ * time zone (the devices' clocks, the schedules), then its schedules (D-138). A save is the site's
+ * next revision.
  */
 export function SiteTab(props: { admin: boolean }) {
   const live = useContext(LiveContext);
@@ -40,24 +42,27 @@ export function SiteTab(props: { admin: boolean }) {
     queryFn: ({ signal }) => api.site.get(signal),
   }));
   return (
-    <Card aria-label={t.title}>
-      <CardHeader title={t.title} description={t.description} />
-      <Show
-        when={site.data}
-        fallback={
-          <div class="px-4 pb-4">
-            <Show when={!site.isError}>
-              <p role="status" class="text-fg-muted text-sm">
-                {t.loading}…
-              </p>
-            </Show>
-            <RequestError text={site.error?.message} />
-          </div>
-        }
-      >
-        {(view) => <SiteForm view={view()} admin={props.admin} />}
-      </Show>
-    </Card>
+    <div class="flex flex-col gap-4">
+      <Card aria-label={t.title}>
+        <CardHeader title={t.title} description={t.description} />
+        <Show
+          when={site.data}
+          fallback={
+            <div class="px-4 pb-4">
+              <Show when={!site.isError}>
+                <p role="status" class="text-fg-muted text-sm">
+                  {t.loading}…
+                </p>
+              </Show>
+              <RequestError text={site.error?.message} />
+            </div>
+          }
+        >
+          {(view) => <SiteForm view={view()} admin={props.admin} />}
+        </Show>
+      </Card>
+      <Show when={site.data}>{(view) => <SchedulesCard view={view()} admin={props.admin} />}</Show>
+    </div>
   );
 }
 

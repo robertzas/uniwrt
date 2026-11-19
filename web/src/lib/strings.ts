@@ -1404,6 +1404,36 @@ export const strings = {
         forgotten: "Forgotten: the next apply probes the cable again.",
       },
     },
+    schedules: {
+      title: "Schedules",
+      description: (zone: string) =>
+        `The site's restart and LED schedules, as this device follows them (${zone} time). Saved, they need no apply.`,
+      observed: "Only managed devices follow schedules: this one is in observe mode.",
+      reboot: "Restarts",
+      rebootKinds: { site: "The site's", never: "Never", own: "Its own" },
+      siteTime: (when: string) => `The site's schedule: ${when}.`,
+      siteNone: "The site has no restart schedule (Settings › Site).",
+      next: (when: string) => `Next restart: ${when}`,
+      noNext: "No restart scheduled.",
+      missed: (when: string, why: string) => `Missed on ${when}: ${why}`,
+      leds: "LEDs",
+      ledsFollow: "Turn its LEDs off with the site's schedule",
+      ledsSite: (spans: string) => `The site's LEDs are off ${spans}.`,
+      ledsNone: "The site has no LEDs-off schedule (Settings › Site).",
+      ledsNow: (lit: number, count: number) =>
+        count === 0
+          ? "It reports no LEDs."
+          : lit === 0
+            ? `Its ${count} LEDs are dark.`
+            : `${lit} of its ${count} LEDs are lit.`,
+      ledsHeld: "The controller holds them off: it lights them again when the schedule ends.",
+      ledsFailed: (error: string) => `It couldn't follow the schedule: ${error}`,
+      save: "Save",
+      cancel: "Cancel",
+      saved:
+        "The controller follows it from now on, without an apply: nothing changes in the device's configuration.",
+      message: (name: string) => `Edit ${name}'s schedules`,
+    },
     role: {
       title: "Role",
       what: {
@@ -3233,9 +3263,32 @@ export const strings = {
         "Sets the radios' regulatory domain: the channels and power they may use. A wrong country is illegal on the air.",
       pickCountry: "Choose a country",
       timezone: "Time zone",
-      timezoneHint: "The devices' clocks and logs, and the WLANs' schedules.",
+      timezoneHint: "The devices' clocks and logs, and the WLANs', restarts' and LEDs' schedules.",
       save: "Save",
       message: "Edit the site's settings",
+    },
+    schedules: {
+      title: "Schedules",
+      description: (zone: string) =>
+        `Run by the controller on managed devices, in the site's time zone (${zone}). They change nothing in the devices' configuration, so they need no apply.`,
+      saved:
+        "The controller follows them from now on, without an apply: nothing changes in the devices' configuration.",
+      adminOnly: "Only admins can change the schedules.",
+      reboot: "Scheduled restarts",
+      rebootOn: "Restart the devices on a schedule",
+      rebootHint:
+        "One at a time, the farthest first and the gateway last, as Restart does. A device offline or busy waits up to an hour, then the restart is missed (an event says why).",
+      leds: "LEDs off",
+      ledsOn: "Turn the LEDs off at certain times",
+      ledsHint:
+        "Every LED goes dark within these times and comes back as it was after them. A restart lights them until the controller turns them off again.",
+      next: (when: string) => `Next restart: ${when}`,
+      followers: (names: string) => `Followed by ${names}`,
+      noFollowers: "No managed device follows it yet.",
+      ownTime: (name: string, when: string) => `${name} (its own: ${when})`,
+      save: "Save",
+      cancel: "Cancel",
+      message: "Edit the site's schedules",
     },
     importLink: "Import from the devices",
     fileImportLink: "Import a file",
@@ -4083,26 +4136,6 @@ export const strings = {
     schedule: {
       on: "on now",
       off: "off now",
-      everyDay: "Every day",
-      allDay: "all day",
-      days: {
-        mon: "Mon",
-        tue: "Tue",
-        wed: "Wed",
-        thu: "Thu",
-        fri: "Fri",
-        sat: "Sat",
-        sun: "Sun",
-      } as Record<string, string>,
-      dayNames: {
-        mon: "Monday",
-        tue: "Tuesday",
-        wed: "Wednesday",
-        thu: "Thursday",
-        fri: "Friday",
-        sat: "Saturday",
-        sun: "Sunday",
-      } as Record<string, string>,
     },
     errors: {
       ssid: "A name is 1 to 32 bytes.",
@@ -4114,9 +4147,6 @@ export const strings = {
       sixGhz: "6 GHz requires WPA3 or OWE: pick one, or leave 6 GHz out.",
       nodes: "Pick one device at least.",
       maxClients: "A number from 1 to 2007, or empty for no limit.",
-      noSpans: "Add a time, or turn the schedule off.",
-      noDays: "Each time needs one day at least.",
-      time: "Times are HH:MM.",
     },
     editor: {
       titleNew: "New WLAN",
@@ -4181,12 +4211,6 @@ export const strings = {
       scheduled: "Only on at certain times",
       scheduledHint: (zone: string) =>
         `The controller turns the WLAN off outside these times (${zone} time). It stays as it is while the controller is down.`,
-      from: "From",
-      to: "To",
-      nextDay: "until the next day",
-      wholeDay: "the whole day",
-      addSpan: "Add a time",
-      removeSpan: "Remove this time",
       delete: "Delete",
       confirmDelete: (ssid: string) =>
         `Delete ${ssid}? Its clients lose their connection at the next apply.`,
@@ -5238,6 +5262,42 @@ export const strings = {
         too_small: "That image is too small to be a plan (under 16 px).",
       },
       failed: "That didn't work.",
+    },
+  },
+  /** Weekly schedules (lib/schedule.ts, ui/ScheduleField.tsx): WLANs, restarts, LEDs. */
+  schedule: {
+    everyDay: "Every day",
+    allDay: "all day",
+    days: {
+      mon: "Mon",
+      tue: "Tue",
+      wed: "Wed",
+      thu: "Thu",
+      fri: "Fri",
+      sat: "Sat",
+      sun: "Sun",
+    } as Record<string, string>,
+    dayNames: {
+      mon: "Monday",
+      tue: "Tuesday",
+      wed: "Wednesday",
+      thu: "Thursday",
+      fri: "Friday",
+      sat: "Saturday",
+      sun: "Sunday",
+    } as Record<string, string>,
+    from: "From",
+    to: "To",
+    at: "At",
+    nextDay: "until the next day",
+    wholeDay: "the whole day",
+    addSpan: "Add a time",
+    removeSpan: "Remove this time",
+    errors: {
+      noSpans: "Add a time, or turn the schedule off.",
+      noDays: "Each time needs one day at least.",
+      noDay: "Pick one day at least.",
+      time: "Times are HH:MM.",
     },
   },
   common: {
