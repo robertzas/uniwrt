@@ -1,6 +1,6 @@
 //! The gateway's WireGuard server (features/network.md, VPN; D-140): the tunnel and its peers in
 //! `network`, the `vpn` zone, its matrix row and the WAN's rule in `firewall`, and nothing
-//! while it is off or on an AP.
+//! while it is off or on an AP; the peers' `.conf` files.
 
 // Tests and their fixtures may panic on what they set up.
 #![allow(clippy::unwrap_used)]
@@ -19,7 +19,7 @@ use uniwrt_model::{
         vpn::{Endpoint, Peer, PeerRole, SiteEndpoint, WireGuard},
     },
 };
-use uniwrt_render::Rendered;
+use uniwrt_render::{PeerKeys, Rendered, peer_conf};
 use uniwrt_uci::Package;
 
 use support::*;
@@ -215,5 +215,120 @@ fn a_key_the_vault_lacks_is_an_error() {
             "vpn/wireguard/private_key",
             "vpn/wireguard/peers/phone/preshared_key"
         ]
+    );
+}
+
+const PHONE_KEY: &str = "cGhvbmUtcHJpdmF0ZS1rZXktMzItYnl0ZXMtbG9uZyE=";
+
+#[test]
+fn a_full_tunnel_client_s_configuration_routes_everything() {
+    let site = tunneled();
+    let server = site.vpn.wireguard.as_ref().unwrap();
+    let keys = PeerKeys {
+        private_key: Some(PHONE_KEY),
+        preshared_key: "psk",
+    };
+    let conf = peer_conf(&site, &server.peers[0], keys).unwrap();
+    assert_eq!(
+        conf,
+        "# The phone (uniwrt: WireGuard peer phone)\n\
+         [Interface]\n\
+         PrivateKey = cGhvbmUtcHJpdmF0ZS1rZXktMzItYnl0ZXMtbG9uZyE=\n\
+         Address = 10.0.250.2/32\n\
+         DNS = 10.0.250.1\n\
+         \n\
+         [Peer]\n\
+         PublicKey = HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=\n\
+         PresharedKey = psk\n\
+         Endpoint = vpn.example.com:51820\n\
+         AllowedIPs = 0.0.0.0/0, ::/0\n\
+         PersistentKeepalive = 25\n"
+    );
+}
+
+fn line<'a>(conf: &'a str, key: &str) -> Option<&'a str> {
+    conf.lines()
+        .find_map(|line| line.strip_prefix(key)?.strip_prefix(" = "))
+}
+
+#[test]
+fn a_split_tunnel_routes_what_the_vpn_zone_reaches_and_the_sites() {
+    let mut site = tunneled();
+    let keys = PeerKeys {
+        private_key: None,
+        preshared_key: "psk",
+    };
+    let laptop = site.vpn.wireguard.as_ref().unwrap().peers[2].clone();
+    let conf = peer_conf(&site, &laptop, keys).unwrap();
+    assert_eq!(
+        line(&conf, "AllowedIPs"),
+        Some("10.0.250.0/24, 10.0.0.0/24, 10.0.30.0/24, 10.0.40.0/24, 192.168.50.0/24")
+    );
+    // A peer with its own keypair: the controller has no private key to write.
+    assert_eq!(line(&conf, "PrivateKey"), None);
+    assert!(conf.contains("# PrivateKey = this device's own private key"));
+
+    // A blocked cell leaves its network out, a disabled site its networks; no DNS when the
+    // server offers none.
+    site.firewall.policies.push(ZonePolicy {
+        from: "vpn".to_owned(),
+        to: "guest".to_owned(),
+        action: ZoneAction::Block,
+    });
+    let server = site.vpn.wireguard.as_mut().unwrap();
+    server.peers[1].enabled = false;
+    server.dns = false;
+    let conf = peer_conf(&site, &laptop, keys).unwrap();
+    assert_eq!(
+        line(&conf, "AllowedIPs"),
+        Some("10.0.250.0/24, 10.0.0.0/24, 10.0.30.0/24")
+    );
+    assert_eq!(line(&conf, "DNS"), None);
+}
+
+#[test]
+fn a_site_s_configuration_listens_where_it_is_dialed_and_routes_the_site() {
+    let mut site = tunneled();
+    let keys = PeerKeys {
+        private_key: Some(PHONE_KEY),
+        preshared_key: "psk",
+    };
+    let server = site.vpn.wireguard.as_mut().unwrap();
+    server.endpoint = Endpoint::Host {
+        host: "2001:db8::1".to_owned(),
+    };
+    let cabin = server.peers[1].clone();
+    let conf = peer_conf(&site, &cabin, keys).unwrap();
+    assert_eq!(line(&conf, "ListenPort"), Some("51821"));
+    assert_eq!(line(&conf, "DNS"), None);
+    assert_eq!(line(&conf, "Endpoint"), Some("[2001:db8::1]:51820"));
+    // Its own networks aren't routed back to it.
+    assert_eq!(
+        line(&conf, "AllowedIPs"),
+        Some("10.0.250.0/24, 10.0.0.0/24, 10.0.30.0/24, 10.0.40.0/24")
+    );
+}
+
+#[test]
+fn a_configuration_needs_the_server_s_key_and_its_endpoint() {
+    let mut site = tunneled();
+    let keys = PeerKeys {
+        private_key: None,
+        preshared_key: "psk",
+    };
+    let server = site.vpn.wireguard.as_mut().unwrap();
+    let phone = server.peers[0].clone();
+    server.endpoint = Endpoint::Ddns {
+        id: "gone".to_owned(),
+    };
+    let issue = peer_conf(&site, &phone, keys).unwrap_err();
+    assert_eq!(issue.path, "vpn/wireguard/endpoint");
+    site.vpn.wireguard.as_mut().unwrap().public_key = None;
+    let issue = peer_conf(&site, &phone, keys).unwrap_err();
+    assert_eq!(issue.path, "vpn/wireguard/public_key");
+    site.vpn.wireguard = None;
+    assert_eq!(
+        peer_conf(&site, &phone, keys).unwrap_err().path,
+        "vpn/wireguard"
     );
 }

@@ -142,6 +142,16 @@ pub struct SiteEndpoint {
     pub port: u16,
 }
 
+/// Whether the secret at `path` is a key the controller makes where it is missing: the server's
+/// private key and the peers' preshared keys. A peer's private key isn't: a peer without one
+/// brought its own keypair.
+pub fn generated(path: &str) -> bool {
+    path == "vpn/wireguard/private_key"
+        || path
+            .strip_prefix("vpn/wireguard/peers/")
+            .is_some_and(|rest| rest.ends_with("/preshared_key"))
+}
+
 /// Whether `key` is a WireGuard key as `wg` prints it: 32 bytes in padded base64, 44
 /// characters.
 pub fn is_key(key: &str) -> bool {
@@ -158,7 +168,7 @@ pub fn is_key(key: &str) -> bool {
 mod tests {
     use std::net::Ipv4Addr;
 
-    use super::{Endpoint, Peer, PeerRole, WireGuard, is_key};
+    use super::{Endpoint, Peer, PeerRole, WireGuard, generated, is_key};
 
     #[test]
     fn keys_are_32_bytes_of_padded_base64() {
@@ -168,6 +178,14 @@ mod tests {
         assert!(!is_key("yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk"));
         assert!(!is_key(&format!("{}=", "-".repeat(43))));
         assert!(!is_key(""));
+    }
+
+    #[test]
+    fn the_server_s_private_key_and_preshared_keys_are_generated() {
+        assert!(generated("vpn/wireguard/private_key"));
+        assert!(generated("vpn/wireguard/peers/phone/preshared_key"));
+        assert!(!generated("vpn/wireguard/peers/phone/private_key"));
+        assert!(!generated("wlans/home/passphrase"));
     }
 
     #[test]

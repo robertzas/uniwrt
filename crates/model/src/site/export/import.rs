@@ -90,6 +90,9 @@ pub enum SecretSource {
     Kept,
     /// None: the slot is cleared (a value can be given when accepting).
     Missing,
+    /// None: the controller makes a new key when accepting it (the VPN server's private key
+    /// and the peers' preshared keys, [`vpn::generated`](crate::site::vpn::generated); D-140).
+    Generated,
 }
 
 /// A file imported: the document to save, the values to seal under the placeholder references
@@ -158,7 +161,18 @@ pub fn import(
     site.nodes.sort_by_key(|entry| entry.node);
     let ids: BTreeSet<NodeId> = adopted.iter().map(|node| node.id).collect();
     let mut issues = rejected.clone();
-    issues.extend(validate(&site, &ids));
+    // The keys the accept makes count as set.
+    let mut checked = site.clone();
+    for secret in secrets
+        .iter()
+        .filter(|s| s.source == SecretSource::Generated)
+    {
+        let made = placeholder(&checked, &sealed);
+        if let Some(slot) = checked.secret_mut(&secret.path) {
+            *slot = Some(made);
+        }
+    }
+    issues.extend(validate(&checked, &ids));
     let preview = SiteImportPreview {
         id: String::new(),
         base: RevisionId::new(0),

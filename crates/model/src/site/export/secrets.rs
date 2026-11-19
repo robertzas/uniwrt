@@ -1,5 +1,6 @@
 //! An import's secrets (D-130): each slot the file sets takes the file's value, the latest
-//! revision's at the same path, or none; the file's references never meet the vault's.
+//! revision's at the same path, or none (a VPN key the accept makes, D-140); the file's
+//! references never meet the vault's.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -10,6 +11,7 @@ use crate::site::{
     SecretRef, SiteConfig, check_secret,
     node::RawValue,
     validate::{Issue, Severity},
+    vpn,
 };
 
 /// Points every secret slot the imported document sets at its value: the file's (under a
@@ -87,7 +89,11 @@ pub(super) fn resolve_secrets(
                     SecretSource::Kept
                 } else {
                     clear_secret(site, &placeholder);
-                    SecretSource::Missing
+                    if vpn::generated(&path) {
+                        SecretSource::Generated
+                    } else {
+                        SecretSource::Missing
+                    }
                 }
             }
         };
@@ -116,18 +122,16 @@ pub(super) fn placeholder(
 
 /// Clears every slot that holds `secret`: a field becomes unset, a raw option goes.
 fn clear_secret(site: &mut SiteConfig, secret: &SecretRef) {
-    for wlan in &mut site.wlans {
-        if wlan.passphrase.as_ref() == Some(secret) {
-            wlan.passphrase = None;
+    let paths: Vec<String> = site
+        .secrets()
+        .into_iter()
+        .filter(|slot| slot.value == Some(secret))
+        .map(|slot| slot.path)
+        .collect();
+    for path in paths {
+        if let Some(slot) = site.secret_mut(&path) {
+            *slot = None;
         }
-    }
-    if site.mesh.key.as_ref() == Some(secret) {
-        site.mesh.key = None;
-    }
-    if let Some(password) = site.secret_mut("wan/password")
-        && password.as_ref() == Some(secret)
-    {
-        *password = None;
     }
     for raw in site.nodes.iter_mut().flat_map(|entry| entry.raw.iter_mut()) {
         raw.options.retain(

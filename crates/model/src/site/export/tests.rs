@@ -383,3 +383,62 @@ fn an_older_schema_is_upgraded() {
     assert_eq!(imported.preview.file.schema, 1);
     assert_eq!(imported.site.schema, crate::site::SCHEMA_VERSION);
 }
+
+#[test]
+fn missing_vpn_keys_are_made_on_accept() {
+    use crate::site::vpn::{Endpoint, Peer, PeerRole, WireGuard};
+
+    let mut site = head();
+    let mut server = WireGuard::new(Endpoint::Host {
+        host: "vpn.example.com".to_owned(),
+    });
+    server.private_key = Some(SecretRef::numbered(0xa1));
+    server.public_key = Some("HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=".to_owned());
+    server.peers.push(Peer {
+        id: "phone".to_owned(),
+        name: "Phone".to_owned(),
+        enabled: true,
+        address: std::net::Ipv4Addr::new(10, 0, 250, 2),
+        public_key: "gN65BkIKy1eCE9pP1wdc8ROUtkHLF2PfAqYdyYBz6EA=".to_owned(),
+        private_key: Some(SecretRef::numbered(0xa2)),
+        preshared_key: Some(SecretRef::numbered(0xa3)),
+        role: PeerRole::Client { full_tunnel: true },
+    });
+    site.vpn.wireguard = Some(server);
+    let file = exported(&site, &adopted());
+    // Another site without a VPN, and no values: the keys can't be kept.
+    let none = BTreeMap::new();
+    let at = Head {
+        config: &head(),
+        values: &none,
+    };
+    let imported = import(file, None, at, &adopted()).unwrap();
+    let vpn: Vec<_> = sources(&imported)
+        .into_iter()
+        .filter(|(path, _)| path.starts_with("vpn/"))
+        .collect();
+    assert_eq!(
+        vpn,
+        [
+            ("vpn/wireguard/private_key", SecretSource::Generated),
+            (
+                "vpn/wireguard/peers/phone/private_key",
+                SecretSource::Missing
+            ),
+            (
+                "vpn/wireguard/peers/phone/preshared_key",
+                SecretSource::Generated
+            ),
+        ]
+    );
+    // Cleared, for the accept to make; a key it makes is no error.
+    let server = imported.site.vpn.wireguard.as_ref().unwrap();
+    assert_eq!(server.private_key, None);
+    assert_eq!(server.peers[0].private_key, None);
+    assert_eq!(server.peers[0].preshared_key, None);
+    assert!(
+        !has_errors(&imported.preview.issues),
+        "{:?}",
+        imported.preview.issues
+    );
+}

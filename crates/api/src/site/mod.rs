@@ -6,7 +6,8 @@
 //! - `PUT /api/v1/site` (admins; audited): a [`SiteSave`] becomes the next revision. `base` must
 //!   still be the latest (else 409); `secrets` sets (a value) or clears (`null`) secrets by path,
 //!   each new value sealed in the vault under a new name; secrets left out keep the references
-//!   the document holds. A document with errors is refused with 422 and its `issues`; one
+//!   the document holds. The VPN's server and peers get the keys they lack, and public keys
+//!   follow private keys ([`vpn::keys`]). A document with errors is refused with 422 and its `issues`; one
 //!   that changes nothing saves no revision.
 //! - `POST /api/v1/site/secrets/reveal` (admins; audited): a secret's value ([`RevealSecret`]).
 //! - The history, under `v1/revisions`: see [`revisions`]. The site as a file, under
@@ -42,6 +43,7 @@ use zeroize::Zeroizing;
 use crate::{
     Api, ApiError, ApiResult, Client, CurrentUser,
     alerts::{admin, audit},
+    vpn,
 };
 
 /// The longest message a revision takes.
@@ -121,7 +123,15 @@ pub(crate) async fn put(
         )));
     }
     let head = api.store().head_revision().await?.ok_or_else(no_site)?;
-    let sealed = secrets(&api, &mut config, save.secrets.unwrap_or_default())?;
+    let mut known = BTreeMap::new();
+    let mut sealed = secrets(
+        &api,
+        &mut config,
+        save.secrets.unwrap_or_default(),
+        &mut known,
+    )?;
+    let server = head.config.vpn.wireguard.as_ref();
+    sealed.extend(vpn::keys::fill(&api, &mut config, server, &known).await?);
     if sealed.is_empty() && config == head.config {
         return Ok(Json(view(&api, head.meta, head.config).await?));
     }
@@ -182,10 +192,12 @@ pub(crate) async fn reveal(
 }
 
 /// Seals the secrets a save sets and points their slots at them; clears the ones it clears.
+/// The VPN's new values go to `known` too, whose public keys are derived from them.
 fn secrets(
     api: &Api,
     config: &mut SiteConfig,
     secrets: BTreeMap<String, Option<String>>,
+    known: &mut BTreeMap<SecretRef, Zeroizing<String>>,
 ) -> ApiResult<Vec<SealedSecret>> {
     let mut sealed = Vec::new();
     for (path, value) in secrets {
@@ -207,6 +219,9 @@ fn secrets(
         }
         let secret = api.vault()?.seal_config_secret(value.as_bytes())?;
         *slot = Some(secret.reference().clone());
+        if path.starts_with("vpn/") {
+            known.insert(secret.reference().clone(), value);
+        }
         sealed.push(secret);
     }
     Ok(sealed)

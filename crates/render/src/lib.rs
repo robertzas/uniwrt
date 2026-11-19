@@ -67,6 +67,7 @@ mod firewall;
 mod mdns;
 mod mesh;
 mod network;
+mod peer_conf;
 mod plan;
 mod ports;
 mod preserve;
@@ -200,6 +201,7 @@ pub use self::{
     blocking::BYPASS_PREFIX as DNS_BYPASS_PREFIX,
     firewall::seeded,
     mesh::MESH_IFACE,
+    peer_conf::{PeerKeys, peer_conf},
     plan::{BAT, BRIDGE},
     ports::port_names,
     split::{wan_interface, wan_sections, without_wan},

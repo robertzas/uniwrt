@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 argon2.workspace = true
 axum.workspace = true
+curve25519-dalek.workspace = true
 data-encoding.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
@@ -31,6 +32,7 @@ uniwrt-metrics.workspace = true
 uniwrt-model = { workspace = true, features = ["ts"] }
 uniwrt-node.workspace = true
 uniwrt-notify.workspace = true
+uniwrt-render.workspace = true
 uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true
 uniwrt-rf = { workspace = true, features = ["ts"] }

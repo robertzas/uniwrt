@@ -3189,6 +3189,7 @@ version = "0.0.0"
 dependencies = [
  "argon2",
  "axum",
+ "curve25519-dalek",
  "data-encoding",
  "futures-util",
  "http-body-util",
@@ -3215,6 +3216,7 @@ dependencies = [
  "uniwrt-model",
  "uniwrt-node",
  "uniwrt-notify",
+ "uniwrt-render",
  "uniwrt-rf",
  "uniwrt-sim",
  "uniwrt-store",

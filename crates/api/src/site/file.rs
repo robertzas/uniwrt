@@ -50,6 +50,7 @@ use crate::{
     Api, ApiError, ApiResult, Client, CurrentUser,
     alerts::{admin, audit},
     import::{HELD, random_id},
+    vpn,
 };
 
 /// scrypt's work factor for exported secrets: age's own, cheap in tests.
@@ -303,10 +304,15 @@ pub(crate) async fn accept(
             issues.push(issue);
         }
     }
-    // The file's values that failed their check and weren't given now, then the document's.
+    // The file's values that failed their check and weren't given now, then the document's,
+    // checked with the VPN keys it lacks made (kept only once it is accepted).
     issues.extend(import.rejected.iter().cloned());
+    let head = api.store().head_revision().await?.ok_or_else(no_site)?;
+    let mut site = import.site.clone();
+    let server = head.config.vpn.wireguard.as_ref();
+    let generated = vpn::keys::fill(&api, &mut site, server, &import.values).await?;
     let adopted = api.store().nodes().await?;
-    issues.extend(validate(&import.site, &ids(&adopted)));
+    issues.extend(validate(&site, &ids(&adopted)));
     if has_errors(&issues) {
         let errors = issues
             .iter()
@@ -325,7 +331,6 @@ pub(crate) async fn accept(
         };
         return Err(ApiError::Invalid(detail, issues));
     }
-    let head = api.store().head_revision().await?.ok_or_else(no_site)?;
     if head.meta.id != import.preview.base {
         return Err(ApiError::Conflict(format!(
             "Revision {} was saved since this preview: import the file again",
@@ -333,12 +338,10 @@ pub(crate) async fn accept(
         )));
     }
     let SiteImport {
-        mut site,
-        values,
-        preview,
-        ..
+        values, preview, ..
     } = import;
-    let sealed = seal_found(&api, &mut site, values)?;
+    let mut sealed = seal_found(&api, &mut site, values)?;
+    sealed.extend(generated);
     if sealed.is_empty() && diff(&head.config, &site).is_empty() {
         return Ok(Json(view(&api, head.meta, head.config).await?));
     }

@@ -99,6 +99,9 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
 - `src/topology/layout.rs`: The topology view's layout: where users pinned its vertices, one layout for every user and browser.
 - `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
+- `src/vpn.rs`: The WireGuard server's peers (features/network.md, VPN; D-140), with a session:
+- `src/vpn/keys.rs`: WireGuard keys (features/network.md, VPN; D-140), made by the controller as a save or an import gives the site its next revision ([`fill`]):
+- `src/vpn/tests.rs`: The VPN over the demo: a save makes the keys the server and its peers lack, public keys follow private keys, a peer may bring its own, a peer's configuration is revealed (audited), and an import without the keys makes new ones.
 - `src/wan.rs`: The WAN wizard's API (features/wan.md; D-075):
 - `src/wan_tests.rs`: The WAN wizard's routes against the simulated fleet, whose ISP serves DHCP on VLAN 201.
 - `src/wpad.rs`: The wpad swap, with an admin's session (D-085, D-089): `POST /api/v1/nodes/{id}/wpad` starts the job that swaps a managed node's basic wpad for the full one, which adds 802.11v.
@@ -503,7 +506,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/diff.rs`: The structural diff of two documents: what was added, removed or changed, by path.
 - `src/site/export/import.rs`: Importing a site file (D-130): the document upgraded, its nodes mapped by MAC, its secrets resolved ([`secrets`](super::secrets)), and the preview to review.
 - `src/site/export/mod.rs`: The site as a file (features/lifecycle.md, Backups: Site export/import; D-130), for migration or config-as-code: the latest revision's document with a table of its nodes by MAC, and its secrets, if exported, in one passphrase-encrypted blob.
-- `src/site/export/secrets.rs`: An import's secrets (D-130): each slot the file sets takes the file's value, the latest revision's at the same path, or none; the file's references never meet the vault's.
+- `src/site/export/secrets.rs`: An import's secrets (D-130): each slot the file sets takes the file's value, the latest revision's at the same path, or none (a VPN key the accept makes, D-140); the file's references never meet the vault's.
 - `src/site/export/tests.rs`: The site as a file: an export imports back unchanged, onto the same controller or another with the same nodes under other ids; secrets from the file, kept or missing; files refused.
 - `src/site/firewall.rs`: The gateway's firewall (features/network.md, Firewall policy): the policy between networks, port forwards and the DMZ host, and UPnP.
 - `src/site/firewall_tests.rs`: Validating the firewall's parts that M4.2b added (port forwards, the DMZ, UPnP), and their migration.
@@ -675,6 +678,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/mdns.rs`: The `mdns_repeater` package (features/network.md, Other services; D-136): the gateway's `mdns-repeater` reflects mDNS (IPv4) between the networks that have it on and an address on the gateway, at most [`MDNS_NETWORKS`] (validation refuses more).
 - `src/mesh.rs`: The mesh backhaul (features/mesh.md, D-013): batman-adv's `bat0` in the `network` package, a bridge trunk like the Ethernet ports, and an 802.11s mesh point as its hard interface in `wireless`, and the wired backhaul's hard interfaces ([`backhaul`](crate::backhaul)).
 - `src/network.rs`: The `network` package: loopback, the ULA, the bridge every network joins and its VLANs, the swconfig switch, one interface per network, the WAN, the adoption port and the mesh.
+- `src/peer_conf.rs`: A peer's WireGuard configuration (features/network.md, VPN; D-140): the `.conf` file that `wg-quick` and the WireGuard apps import, which the UI also shows as a QR code.
 - `src/plan.rs`: What every package's renderer shares, worked out once per node: the VLAN each network has on the bridge, the bridge's ports, the WAN's device, the mesh radio and the wired backhaul, and the issues found.
 - `src/ports.rs`: The bridge's ports and what each carries (features/network.md, Networks): an Ethernet port is a trunk (the untagged network untagged, every network with a VLAN tagged) unless the node's port profile says otherwise; a port that carries nothing leaves the bridge.
 - `src/preserve.rs`: Values the node generated for itself, carried over from its current packages: they are the node's, not the site's, and losing them would change it.
@@ -700,7 +704,7 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `tests/services.rs`: The gateway's network services (features/network.md; D-132): the upstream DNS in dnsmasq, https-dns-proxy for DoH, ddns-scripts for DDNS, the NTP server, and what is left when they go off.
 - `tests/steering.rs`: Steering (features/wifi.md, Steering & balancing; D-090): usteer's package per profile, where it runs, and what is left when steering goes off.
 - `tests/support/mod.rs`: Inputs for the golden tests: the canonical gateway's facts and variants of it for each capability set, a home site, its secrets, and OpenWrt's stock packages as a node's current ones.
-- `tests/vpn.rs`: The gateway's WireGuard server (features/network.md, VPN; D-140): the tunnel and its peers in `network`, the `vpn` zone, its matrix row and the WAN's rule in `firewall`, and nothing while it is off or on an AP.
+- `tests/vpn.rs`: The gateway's WireGuard server (features/network.md, VPN; D-140): the tunnel and its peers in `network`, the `vpn` zone, its matrix row and the WAN's rule in `firewall`, and nothing while it is off or on an AP; the peers' `.conf` files.
 
 ### `uniwrt-rf` (crates/rf)
 
@@ -1030,7 +1034,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (493 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (494 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

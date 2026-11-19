@@ -3456,7 +3456,12 @@ export const strings = {
       secrets: "Secrets",
       secretsHint:
         "Where each secret's value comes from. Values are sealed in the vault on accept.",
-      source: { file: "From the file", kept: "Kept from the site", missing: "Missing" },
+      source: {
+        file: "From the file",
+        kept: "Kept from the site",
+        missing: "Missing",
+        generated: "Made anew on accept",
+      },
       missingHint: "Give it a value, or leave it empty to save without it.",
       value: (path: string) => `Value of ${path}`,
       noSecretsIn: "The imported document sets no secrets.",

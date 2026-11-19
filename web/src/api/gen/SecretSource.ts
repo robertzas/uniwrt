@@ -3,4 +3,4 @@
 /**
  * Where an imported secret's value comes from.
  */
-export type SecretSource = "file" | "kept" | "missing";
+export type SecretSource = "file" | "kept" | "missing" | "generated";

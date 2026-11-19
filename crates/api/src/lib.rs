@@ -87,7 +87,8 @@
 //!   `GET v1/revisions/{id}/diff` ([`RevisionDiff`]), `POST v1/revisions/{id}/restore`
 //!   ([`RestoreBody`]); the site as a file: `GET` and `POST v1/site/export` ([`SiteExportBody`]),
 //!   `POST v1/site/import/preview` ([`SiteImportBody`]) and `…/accept` ([`SiteImportAccept`]),
-//!   D-130; see `site`), and `v1/ws`
+//!   D-130; see `site`), a VPN peer's configuration (admins: `POST
+//!   v1/vpn/wireguard/peers/{id}/config` ([`VpnPeerConfig`]); see `vpn`, D-140), and `v1/ws`
 //!   (the hub: GET, or CONNECT over HTTP/2; topics `fleet`, `node:<id>`,
 //!   `logs[?node=<id>|host=<name>&min=<severity>]`, `events[?node=<id>&min=<level>]`, `alerts`,
 //!   `jobs`, `topology`, `clients`, `client:<mac>`, `rf`, see `ws`). Handlers that need a user
@@ -176,6 +177,7 @@ mod state;
 mod testing;
 mod tls;
 mod topology;
+mod vpn;
 mod wan;
 #[cfg(test)]
 mod wan_tests;
@@ -238,6 +240,7 @@ pub use site::{
 pub use speed::SpeedTestBody;
 pub use state::{Api, ApiConfig};
 pub use tls::{Certificate, TlsInfo};
+pub use vpn::PeerConfig as VpnPeerConfig;
 pub use wan::WanTestBody;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 pub use ztp::{
@@ -389,6 +392,7 @@ fn config_routes() -> Router<Api> {
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))
+        .route("/v1/vpn/wireguard/peers/{id}/config", post(vpn::config))
         .route(
             "/v1/site/export",
             get(site::file::export_plain).post(site::file::export_secret),

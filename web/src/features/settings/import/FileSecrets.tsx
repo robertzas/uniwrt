@@ -14,11 +14,13 @@ const TONE: Record<SecretSource, "ok" | "neutral" | "warn"> = {
   file: "ok",
   kept: "neutral",
   missing: "warn",
+  generated: "neutral",
 };
 
 /**
  * Each secret of the imported document and where its value comes from (the file, the site's
- * own at the same path, or nowhere), with a field for each missing one; its error, if the
+ * own at the same path, a VPN key made anew on accept, or nowhere), with a field for each
+ * missing one; its error, if the
  * document needs it or the accept refused the value, under the field.
  */
 export function FileSecrets(props: {

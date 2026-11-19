@@ -13,6 +13,7 @@
 use uniwrt_model::{
     node::NodeRole,
     site::{
+        SiteConfig,
         firewall::ZoneAction,
         network::{Ipv6Mode, Purpose},
     },
@@ -123,21 +124,24 @@ pub(crate) fn matrix<'p>(plan: &'p Plan<'_>) -> Vec<(&'p str, &'p str)> {
             if from == to {
                 continue;
             }
-            let seeded = purpose.is_some_and(|purpose| seeded(purpose, to == WAN));
-            let allowed = plan
-                .site
-                .firewall
-                .policies
-                .iter()
-                .rev()
-                .find(|p| p.from == from && p.to == to)
-                .map_or(seeded, |p| p.action == ZoneAction::Allow);
-            if allowed {
+            if allowed(plan.site, from, purpose, to) {
                 cells.push((from, to));
             }
         }
     }
     cells
+}
+
+/// Whether the matrix lets zone `from` (seeded by its network's `purpose`; none for the WAN)
+/// reach zone `to`: the last of the site's policies on the cell, else the seed.
+pub(crate) fn allowed(site: &SiteConfig, from: &str, purpose: Option<Purpose>, to: &str) -> bool {
+    let seeded = purpose.is_some_and(|purpose| seeded(purpose, to == WAN));
+    site.firewall
+        .policies
+        .iter()
+        .rev()
+        .find(|p| p.from == from && p.to == to)
+        .map_or(seeded, |p| p.action == ZoneAction::Allow)
 }
 
 fn rule(name: &str) -> Section {
