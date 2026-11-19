@@ -19,6 +19,9 @@ pub struct ServiceFacts {
     /// The WireGuard tunnel `vpn` (D-140); `None` where the gateway has no such device.
     #[serde(default)]
     pub wireguard: Option<WireguardFacts>,
+    /// The gateway's Tailscale (D-140); `None` where the package isn't installed.
+    #[serde(default)]
+    pub tailscale: Option<Box<super::TailscaleFacts>>,
 }
 
 /// The tunnel as `wg show vpn dump` reports it, without its private and preshared keys.

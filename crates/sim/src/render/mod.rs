@@ -18,6 +18,7 @@ mod queries;
 pub(crate) mod scan;
 mod services;
 pub(crate) mod system;
+mod tailscale;
 pub(crate) mod tmp;
 pub(crate) mod wifi;
 mod wireguard;

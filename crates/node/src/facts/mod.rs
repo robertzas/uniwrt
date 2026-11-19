@@ -20,6 +20,7 @@ pub mod scan;
 mod services;
 mod stations;
 mod system;
+mod tailscale;
 mod upnp;
 mod wifi;
 

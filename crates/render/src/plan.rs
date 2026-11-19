@@ -52,6 +52,8 @@ pub(crate) struct Plan<'a> {
     pub mesh: Option<Mesh<'a>>,
     /// The gateway's WireGuard server, when it is on.
     pub vpn: Option<crate::wireguard::Tunnel<'a>>,
+    /// The gateway's Tailscale, when it is on.
+    pub tailscale: Option<&'a uniwrt_model::site::vpn::tailscale::Tailscale>,
     /// The cables batman-adv runs over.
     pub backhaul: Vec<&'a Backhaul>,
     /// The node runs `bat0`: for its mesh radio, its backhaul or both.
@@ -205,6 +207,7 @@ impl<'a> Plan<'a> {
             adoption,
             mesh,
             vpn,
+            tailscale: crate::tailscale::plan(site, target.role),
             backhaul,
             bat,
             controller: target.controller,

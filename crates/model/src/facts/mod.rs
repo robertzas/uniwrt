@@ -11,6 +11,7 @@ mod radio;
 mod services;
 mod station;
 mod system;
+mod tailscale;
 mod upnp;
 
 use std::collections::BTreeMap;
@@ -33,6 +34,9 @@ pub use self::{
     services::{BlocklistFacts, DdnsFacts, ServiceFacts, WireguardFacts, WireguardPeerFacts},
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, LedFacts, Memory, Release, Storage, SystemFacts},
+    tailscale::{
+        MAX_PEERS as TAILSCALE_MAX_PEERS, TailscaleFacts, TailscalePeerFacts, TailscaleState,
+    },
     upnp::PortMapping,
 };
 

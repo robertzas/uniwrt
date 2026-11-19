@@ -42,6 +42,7 @@ fn policies(config: &SiteConfig, issues: &mut Issues) {
     let known = |zone: &str| {
         zone == "wan"
             || (zone == crate::site::vpn::ZONE && config.vpn.wireguard.is_some())
+            || (zone == crate::site::vpn::tailscale::ZONE && config.vpn.tailscale.is_some())
             || config.networks.iter().any(|n| n.id == zone)
     };
     let mut cells = BTreeSet::new();

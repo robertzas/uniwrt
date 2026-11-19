@@ -4,7 +4,8 @@
 // https-dns-proxy instances procd runs, with the clock and uptime that convert `.update`; and
 // the DNS blocklist the controller pushed (D-133): the header line of its servers-file (only the
 // first bytes are read: the list may hold a million lines) and whether its conf file is there;
-// and the WireGuard tunnel `vpn` (D-140) as `wg show vpn dump` reports it, without its keys.
+// and the WireGuard tunnel `vpn` (D-140) as `wg show vpn dump` reports it, without its keys;
+// and Tailscale (D-140) as `tailscale status --json` reports it, without its login URL.
 
 import * as fs from "fs";
 import * as uci from "uci";
@@ -20,6 +21,13 @@ const WG = "/usr/bin/wg";
 // output files would hold the private and preshared keys the dump starts each line with; `wg`
 // reads the kernel over netlink, so it doesn't wait on the network.
 const WG_DUMP = "/usr/bin/wg show vpn dump 2>/dev/null";
+const TAILSCALE = "/usr/sbin/tailscale";
+// tailscaled's default socket: the package's init script names none.
+const TS_SOCKET = "/var/run/tailscale/tailscaled.sock";
+// A constant command, answered by the local daemon without waiting on the network.
+const TS_STATUS = "/usr/sbin/tailscale status --json 2>/dev/null";
+// The most peers sent (model's TAILSCALE_MAX_PEERS), online ones first.
+const TS_PEERS = 200;
 
 // The running instances of an init script's service, or null where procd has none.
 function instances(name) {
@@ -59,6 +67,60 @@ function wireguard() {
 	return tunnel;
 }
 
+// Tailscale: the daemon's state, the gateway's names, addresses and routes, its warnings and its
+// peers, with only the fields the controller reads; never the login URL (`AuthURL`), which the
+// facts would show to every user. Null without the package; `state` null where the daemon
+// doesn't answer.
+function tailscale() {
+	if (!fs.access(TAILSCALE, "x"))
+		return null;
+	if (!fs.access(TS_SOCKET))
+		return { state: null };
+	let p = fs.popen(TS_STATUS, "r");
+	if (!p)
+		return { state: null };
+	let text = p.read("all");
+	p.close();
+	let s = null;
+	try {
+		s = json(text);
+	}
+	catch (e) {
+		return { state: null };
+	}
+	if (type(s) != "object")
+		return { state: null };
+	let me = s.Self ?? {};
+	let peers = [];
+	let count = 0;
+	for (let online in [true, false])
+		for (let key, peer in s.Peer ?? {}) {
+			if ((peer.Online == true) != online)
+				continue;
+			count++;
+			if (length(peers) < TS_PEERS)
+				push(peers, {
+					name: peer.HostName, dns_name: peer.DNSName, os: peer.OS, ips: peer.TailscaleIPs,
+					online: peer.Online, active: peer.Active, exit_node_option: peer.ExitNodeOption,
+					cur_addr: peer.CurAddr, relay: peer.Relay, last_seen: peer.LastSeen,
+					rx: peer.RxBytes, tx: peer.TxBytes,
+				});
+		}
+	return {
+		state: s.BackendState,
+		version: s.Version,
+		tailnet: s.CurrentTailnet?.Name,
+		dns_suffix: s.CurrentTailnet?.MagicDNSSuffix ?? s.MagicDNSSuffix,
+		self: {
+			dns_name: me.DNSName, ips: me.TailscaleIPs, online: me.Online,
+			allowed_ips: me.AllowedIPs, primary_routes: me.PrimaryRoutes,
+		},
+		health: s.Health,
+		peer_count: count,
+		peers: peers,
+	};
+}
+
 function collect() {
 	let cursor = uci.cursor();
 	let rundir = cursor.get("ddns", "global", "ddns_rundir") ?? RUNDIR;
@@ -83,6 +145,7 @@ function collect() {
 		blocklist: head == null ? null : split(head, "\n")[0],
 		blocklist_conf: fs.access(BLOCKLIST_CONF) == true,
 		wireguard: wireguard(),
+		tailscale: tailscale(),
 	};
 }
 

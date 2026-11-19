@@ -15,6 +15,7 @@ mod nodes;
 mod ports;
 mod schedules;
 mod services;
+mod tailscale;
 mod vpn;
 mod wireless;
 
@@ -108,6 +109,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     nodes::nodes(config, nodes, &mut issues);
     schedules::schedules(config, &mut issues);
     vpn::vpn(config, &mut issues);
+    tailscale::tailscale(config, &mut issues);
     issues.0
 }
 

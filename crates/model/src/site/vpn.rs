@@ -1,5 +1,6 @@
 //! The site's VPN (features/network.md, VPN; D-140): a WireGuard server on the gateway and its
-//! peers, remote clients dialing in and other sites' routers. Schema v17 adds it.
+//! peers, remote clients dialing in and other sites' routers (schema v17), and the gateway's
+//! [`tailscale`] (schema v18).
 //!
 //! - **Keys:** the controller makes the server's keypair, each peer's preshared key and a
 //!   peer's keypair unless the peer brings its own public key. Private and preshared keys are
@@ -15,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use uniwrt_core::Ipv4Net;
 
 use super::SecretRef;
+
+pub mod tailscale;
 
 /// The tunnel's UCI interface and its firewall zone.
 pub const ZONE: &str = "vpn";
@@ -37,6 +40,8 @@ pub const MAX_PEERS: usize = 250;
 pub struct Vpn {
     /// The WireGuard server; absent until it is set up.
     pub wireguard: Option<WireGuard>,
+    /// The gateway's Tailscale; absent until it is set up.
+    pub tailscale: Option<tailscale::Tailscale>,
 }
 
 /// The gateway's WireGuard server.

@@ -49,6 +49,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
             );
         }
         sections.extend(crate::wireguard::zone(plan));
+        sections.extend(crate::tailscale::zone(plan));
         sections.push(
             Section::anonymous("zone")
                 .with("name", WAN)
@@ -85,6 +86,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         sections.extend(crate::backhaul::firewall(plan));
         sections.extend(crate::adoption::firewall(plan));
         sections.extend(crate::wireguard::rules(plan, WAN));
+        sections.extend(crate::tailscale::rules(plan, WAN));
     }
     let mut package = Package::new("firewall");
     package.sections = sections;
@@ -105,7 +107,7 @@ const fn trusted(purpose: Purpose) -> bool {
 
 /// The allowed `(from, to)` cells between zones: each network's purpose seeds its row (the
 /// default and management networks reach everything, the others the internet only, the WAN
-/// nothing; the VPN's tunnel as the default network), then the site's policies override
+/// nothing; the VPN's tunnel and Tailscale as the default network), then the site's policies override
 /// cells, in order.
 pub(crate) fn matrix<'p>(plan: &'p Plan<'_>) -> Vec<(&'p str, &'p str)> {
     let mut zones: Vec<(&str, Option<Purpose>)> = plan
@@ -116,6 +118,13 @@ pub(crate) fn matrix<'p>(plan: &'p Plan<'_>) -> Vec<(&'p str, &'p str)> {
     if plan.vpn.is_some() {
         // The tunnel's row is seeded like the default LAN's (D-140).
         zones.push((uniwrt_model::site::vpn::ZONE, Some(Purpose::Default)));
+    }
+    if plan.tailscale.is_some() {
+        // Tailscale's row too, a zone of its own (D-140).
+        zones.push((
+            uniwrt_model::site::vpn::tailscale::ZONE,
+            Some(Purpose::Default),
+        ));
     }
     zones.push((WAN, None));
     let mut cells = Vec::new();

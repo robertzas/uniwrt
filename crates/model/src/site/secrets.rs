@@ -1,7 +1,12 @@
 //! The document's secret slots: where a [`SecretRef`] may sit, by path, and what each value
 //! may be.
 
-use super::{SecretRef, SiteConfig, gateway::WanProto, node, vpn::is_key};
+use super::{
+    SecretRef, SiteConfig,
+    gateway::WanProto,
+    node,
+    vpn::{is_key, tailscale},
+};
 
 /// One place in the document that holds a secret.
 #[derive(Debug, PartialEq, Eq)]
@@ -53,6 +58,12 @@ impl SiteConfig {
                 }
             }
         }
+        if let Some(tailscale) = &self.vpn.tailscale {
+            slots.push(SecretSlot {
+                path: tailscale::AUTH_KEY.to_owned(),
+                value: tailscale.auth_key.as_ref(),
+            });
+        }
         for config in &self.nodes {
             for (i, raw) in config.raw.iter().enumerate() {
                 for (option, value) in &raw.options {
@@ -98,11 +109,17 @@ impl SiteConfig {
                 .chain(peers)
                 .filter_map(Option::as_mut)
         });
+        let tailscale = self
+            .vpn
+            .tailscale
+            .iter_mut()
+            .filter_map(|t| t.auth_key.as_mut());
         for secret in wlans
             .chain(self.mesh.key.as_mut())
             .chain(wan)
             .chain(ddns)
             .chain(vpn)
+            .chain(tailscale)
             .chain(raw)
         {
             if secret == from {
@@ -148,6 +165,9 @@ impl SiteConfig {
                     _ => None,
                 }
             }
+            ["vpn", "tailscale", "auth_key"] => {
+                self.vpn.tailscale.as_mut().map(|t| &mut t.auth_key)
+            }
             _ => None,
         }
     }
@@ -164,7 +184,8 @@ impl SiteConfig {
 /// Whether `value` suits the secret at `path`: a Wi-Fi passphrase or the mesh key is 8 to 63
 /// printable ASCII characters (a WLAN's may instead be 64 hexadecimal digits, a raw PSK), a PPPoE
 /// password 1 to 128 characters without control characters, a DDNS token or password 1 to 256
-/// printable ASCII characters, a WireGuard key 32 bytes in base64 ([`is_key`]), and a raw
+/// printable ASCII characters, a WireGuard key 32 bytes in base64 ([`is_key`]), a Tailscale
+/// auth key `tskey-…` ([`tailscale::is_auth_key`]), and a raw
 /// section's any value without line breaks.
 pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
     let printable = |value: &str| value.bytes().all(|b| (b' '..=b'~').contains(&b));
@@ -189,6 +210,13 @@ pub fn check_secret(path: &str, value: &str) -> Result<(), &'static str> {
             Ok(())
         } else {
             Err("A WireGuard key is 32 bytes in base64, 44 characters")
+        };
+    }
+    if path == tailscale::AUTH_KEY {
+        return if tailscale::is_auth_key(value) {
+            Ok(())
+        } else {
+            Err("A Tailscale auth key starts with tskey- and holds letters, digits, - and _")
         };
     }
     if path.starts_with("services/ddns/") {

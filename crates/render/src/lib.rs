@@ -26,7 +26,8 @@
 //!   for the controller when [`Target::controller`] sits in a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
 //!   seeded by its purpose, port forwards and the DMZ host as `redirect`s, and miniupnpd for
 //!   the networks UPnP serves, and the WireGuard server ([`wireguard`](mod@wireguard): the `vpn`
-//!   interface with its peers, its zone and the WAN's rule; D-140); a network overlapping the subnet its uplink holds now is an issue.
+//!   interface with its peers, its zone and the WAN's rule) and Tailscale ([`tailscale`](mod@tailscale):
+//!   its zone and the WAN's rule; D-140); a network overlapping the subnet its uplink holds now is an issue.
 //!   APs bridge only: a DHCP client on the management network, and dnsmasq, odhcpd and the
 //!   firewall off.
 //! - **Staging** ([`staging`], D-107): a factory-default device's packages made safe on any LAN
@@ -79,11 +80,28 @@ mod sqm;
 mod staging;
 mod switch;
 mod system;
+mod tailscale;
 mod upnp;
 mod usteer;
 mod wan;
 mod wireguard;
 mod wireless;
+
+/// What the gateway's VPNs need, where the packages they ride on are rendered: WireGuard's tools
+/// with `network`, Tailscale's daemon with `firewall`.
+fn vpn_requires(
+    plan: &plan::Plan<'_>,
+    packages: &BTreeMap<ManagedPackage, Package>,
+) -> Vec<Requirement> {
+    let mut requires = Vec::new();
+    if plan.vpn.is_some() && packages.contains_key(&ManagedPackage::Network) {
+        requires.push(wireguard::REQUIRES);
+    }
+    if plan.tailscale.is_some() && packages.contains_key(&ManagedPackage::Firewall) {
+        requires.push(tailscale::REQUIRES);
+    }
+    requires
+}
 
 /// The vault's values of the site's secrets.
 pub trait Secrets {
@@ -393,9 +411,7 @@ pub fn render(
         }
         packages.insert(*package, rendered);
     }
-    if plan.vpn.is_some() && packages.contains_key(&ManagedPackage::Network) {
-        requires.push(wireguard::REQUIRES);
-    }
+    requires.extend(vpn_requires(&plan, &packages));
     errors.append(&mut plan.errors);
     if errors.is_empty() {
         Ok(Rendered {

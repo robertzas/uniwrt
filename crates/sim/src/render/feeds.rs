@@ -1,5 +1,6 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH, DDNS and Wake-on-LAN need, which brings their init
+//! update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH, DDNS, Wake-on-LAN,
+//! WireGuard and Tailscale need, which brings their init
 //! scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init
 //! scripts' `start`, `stop`, `enable` and `disable`.
 
@@ -20,7 +21,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 17] = [
+pub(crate) const FEED: [FeedPackage; 19] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -113,6 +114,18 @@ pub(crate) const FEED: [FeedPackage; 17] = [
     ("curl", "8.17.0-r1", None, None),
     // Wake-on-LAN's sender (D-137).
     ("etherwake", "1.09-r5", None, None),
+    ("wireguard-tools", "1.0.20250521-r1", None, None),
+    (
+        "tailscale",
+        "1.104.1-r1",
+        Some("tailscale"),
+        Some((
+            "tailscale",
+            "config settings 'settings'\n\toption log_stderr '1'\n\toption log_stdout '1'\n\
+             \toption port '41641'\n\toption state_file '/etc/tailscale/tailscaled.state'\n\
+             \toption fw_mode 'nftables'\n",
+        )),
+    ),
 ];
 
 /// The version of a package from the feeds.

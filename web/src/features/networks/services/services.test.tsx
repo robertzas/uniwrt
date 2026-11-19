@@ -23,6 +23,7 @@ let services: ServiceFacts = {
   doh_instances: null,
   blocklist: NO_BLOCKLIST,
   wireguard: null,
+  tailscale: null,
 };
 let issues: { path: string; severity: "warning"; message: string }[] = [];
 /** A refusal the next save answers with, once. */
@@ -42,7 +43,13 @@ beforeEach(() => {
   calls = [];
   head = 2;
   config = siteConfig();
-  services = { ddns: [], doh_instances: null, blocklist: NO_BLOCKLIST, wireguard: null };
+  services = {
+    ddns: [],
+    doh_instances: null,
+    blocklist: NO_BLOCKLIST,
+    wireguard: null,
+    tailscale: null,
+  };
   issues = [];
   refusal = undefined;
   vi.stubGlobal(
@@ -109,6 +116,7 @@ describe("Network services", () => {
       ddns: [{ id: "home", address: "203.0.113.7", updated_at: 0, running: true }],
       doh_instances: 1,
       wireguard: null,
+      tailscale: null,
       blocklist: NO_BLOCKLIST,
     };
     issues = [

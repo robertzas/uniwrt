@@ -940,6 +940,40 @@
           "tx_bytes": 92
         }
       ]
+    },
+    "tailscale": {
+      "state": "running",
+      "version": "1.104.1-1 (OpenWrt)",
+      "tailnet": "robin@example.com",
+      "dns_suffix": "tail1234.ts.net",
+      "dns_name": "home-gateway.tail1234.ts.net",
+      "addresses": [
+        "100.101.102.103"
+      ],
+      "online": true,
+      "approved_routes": [
+        "10.0.0.0/24"
+      ],
+      "health": [],
+      "peer_count": 1,
+      "peers": [
+        {
+          "name": "phone",
+          "dns_name": "phone.tail1234.ts.net",
+          "os": "iOS",
+          "addresses": [
+            "100.64.1.3"
+          ],
+          "online": true,
+          "active": true,
+          "exit_node_option": false,
+          "direct": "198.51.100.7:41641",
+          "relay": "fra",
+          "last_seen": null,
+          "rx_bytes": 1234,
+          "tx_bytes": 5678
+        }
+      ]
     }
   }
 }

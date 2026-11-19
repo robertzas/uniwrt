@@ -1,7 +1,8 @@
 //! The `services` set: ddns-scripts' run files per section (the registered address, the last
 //! update in seconds of uptime, whether the updater runs) and https-dns-proxy's running
 //! instances, with the node's clock and uptime, which place the update in time; and the DNS
-//! blocklist's header line and conf file (D-133); and the WireGuard tunnel's peers (D-140).
+//! blocklist's header line and conf file (D-133); and the WireGuard tunnel's peers and
+//! [`Tailscale`](super::tailscale) (D-140).
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -29,6 +30,8 @@ pub(super) struct Raw {
     blocklist_conf: bool,
     #[serde(default)]
     wireguard: Option<Wireguard>,
+    #[serde(default)]
+    tailscale: Option<super::tailscale::Raw>,
 }
 
 /// `wg show vpn dump`'s fields, as text.
@@ -101,6 +104,7 @@ pub(super) fn parse(raw: Raw) -> ServiceFacts {
             conf: raw.blocklist_conf,
         },
         wireguard: raw.wireguard.map(|wg| wireguard(wg, raw.now)),
+        tailscale: raw.tailscale.map(|t| Box::new(super::tailscale::parse(t))),
     }
 }
 

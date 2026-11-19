@@ -3,7 +3,8 @@
 //! updated a minute after boot, its updater running while the `ddns` service is on; and one
 //! https-dns-proxy instance per section of its package while that service is on; and the DNS
 //! blocklist's files the controller uploaded to its `/tmp` since it booted (D-133); and the
-//! WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140).
+//! WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140), and Tailscale
+//! where its `firewall` file has the zone ([`super::tailscale`]).
 
 use std::collections::BTreeMap;
 
@@ -61,8 +62,10 @@ pub(super) fn services(
     let conf = tmp.file(node.booted_ms, BLOCKLIST_CONF).is_some();
     let network = parse("network");
     let wireguard = super::wireguard::wireguard(network.as_ref(), now, uptime);
+    let tailscale = super::tailscale::tailscale(parse("firewall").as_ref());
     json!({
         "now": now, "uptime": uptime, "ddns": ddns, "doh": doh,
         "blocklist": head, "blocklist_conf": conf, "wireguard": wireguard,
+        "tailscale": tailscale,
     })
 }

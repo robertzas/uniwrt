@@ -138,7 +138,7 @@ export function siteConfig(): SiteConfig {
     },
     adoption_port: null,
     schedules: { reboot: null, leds_off: null },
-    vpn: { wireguard: null },
+    vpn: { wireguard: null, tailscale: null },
     nodes: [],
   };
 }

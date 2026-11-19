@@ -89,6 +89,7 @@ export function facts(cpu: number): NodeFacts {
       ddns: [],
       doh_instances: null,
       wireguard: null,
+      tailscale: null,
       blocklist: { sha256: null, domains: null, conf: false },
     },
     config: {},
