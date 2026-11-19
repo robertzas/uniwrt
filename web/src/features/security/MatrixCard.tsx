@@ -2,7 +2,7 @@ import { Ban, Check, CornerDownLeft } from "lucide";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { SiteView } from "../../api/gen/SiteView";
 import { errorText } from "../../lib/api";
-import { saveSite, sortNetworks } from "../../lib/site";
+import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
@@ -19,6 +19,7 @@ import {
   seededGrid,
   WAN,
   withCell,
+  zonesOf,
 } from "./matrix";
 
 const t = strings.security.matrix;
@@ -29,7 +30,7 @@ const t = strings.security.matrix;
  * as one revision; cells that differ from the purpose's default are marked.
  */
 export function MatrixCard(props: { view: SiteView; admin: boolean }) {
-  const networks = createMemo(() => sortNetworks(props.view.config.networks));
+  const networks = createMemo(() => zonesOf(props.view.config));
   const saved = createMemo(() => gridOf(networks(), props.view.config.firewall.policies));
   const [draft, setDraft] = createSignal<Grid>();
   const [busy, setBusy] = createSignal(false);
@@ -59,7 +60,7 @@ export function MatrixCard(props: { view: SiteView; admin: boolean }) {
           ...config,
           firewall: {
             ...config.firewall,
-            policies: policiesOf(next, config.networks, config.firewall.policies),
+            policies: policiesOf(next, zonesOf(config), config.firewall.policies),
           },
         }),
         t.message,
@@ -141,7 +142,12 @@ export function MatrixCard(props: { view: SiteView; admin: boolean }) {
         </table>
       </div>
       <div class="flex flex-col gap-3 px-4 pt-2 pb-4">
-        <p class="text-fg-subtle text-xs">{t.legend}</p>
+        <p class="text-fg-subtle text-xs">
+          {t.legend}
+          <Show when={networks().some((z) => z.id === "vpn" || z.id === "tailscale")}>
+            {` ${t.tunnels}`}
+          </Show>
+        </p>
         <Show when={draft()}>
           <div class="flex flex-wrap items-center gap-2">
             <Button

@@ -126,6 +126,8 @@ import type { UpgradeBody } from "../api/gen/UpgradeBody";
 import type { UpgradeInstallBody } from "../api/gen/UpgradeInstallBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { VpnPeerConfig } from "../api/gen/VpnPeerConfig";
+import type { VpnStatus } from "../api/gen/VpnStatus";
 import type { WakeOutcome } from "../api/gen/WakeOutcome";
 import type { Wall } from "../api/gen/Wall";
 import type { WanTestBody } from "../api/gen/WanTestBody";
@@ -834,6 +836,18 @@ export const api = {
         request<RestoreState>("/controller/restore/unlock", { method: "POST", body }),
       apply: () => request<void>("/controller/restore/apply", { method: "POST" }),
       discard: () => request<void>("/controller/restore", { method: "DELETE" }),
+    },
+  },
+  /** The gateway's VPNs (network.md, VPN; D-140). */
+  vpn: {
+    wireguard: {
+      /** The revision's peers as the gateway's tunnel reports them (any user). */
+      peers: (signal?: AbortSignal) => request<VpnStatus>("/vpn/wireguard/peers", { signal }),
+      /** A peer's `.conf` from the latest revision (admins; audited as a secret revealed). */
+      config: (id: string) =>
+        request<VpnPeerConfig>(`/vpn/wireguard/peers/${encodeURIComponent(id)}/config`, {
+          method: "POST",
+        }),
     },
   },
   /** The gateway's services beyond the site document (network.md, DHCP & local DNS; D-133). */

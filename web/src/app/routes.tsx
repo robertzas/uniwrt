@@ -31,6 +31,7 @@ const pages: Record<string, RouteDefinition["component"]> = {
   "/security": lazy(() =>
     import("../features/security/SecurityPage").then((m) => ({ default: m.SecurityPage })),
   ),
+  "/vpn": lazy(() => import("../features/vpn/VpnPage").then((m) => ({ default: m.VpnPage }))),
   "/insights/logs": lazy(() =>
     import("../features/logs/LogsPage").then((m) => ({ default: m.LogsPage })),
   ),

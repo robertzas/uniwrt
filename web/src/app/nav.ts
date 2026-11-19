@@ -4,6 +4,7 @@ import {
   ChartLine,
   CircleArrowUp,
   Globe,
+  GlobeLock,
   Laptop,
   Layers,
   LayoutDashboard,
@@ -47,6 +48,7 @@ export const nav: readonly NavEntry[] = [
   { path: "/networks", ...s.networks, icon: Layers },
   { path: "/internet", ...s.internet, icon: Globe },
   { path: "/security", ...s.security, icon: ShieldCheck },
+  { path: "/vpn", ...s.vpn, icon: GlobeLock },
   {
     ...s.insights,
     icon: ChartLine,

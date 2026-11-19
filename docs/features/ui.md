@@ -34,7 +34,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 
 ## Information architecture
 
-- **Sidebar:** Dashboard · Topology · Devices · Clients · Wi-Fi · Networks · Internet · Security · Insights (Logs, Events, Alerts, Metrics, RF, Floor plans) · Updates · Settings.
+- **Sidebar:** Dashboard · Topology · Devices · Clients · Wi-Fi · Networks · Internet · Security · VPN · Insights (Logs, Events, Alerts, Metrics, RF, Floor plans) · Updates · Settings.
 - **Global:**
   - top bar: site health pill, search, pending changes, notifications, user menu
   - **⌘K command palette:** navigate, find any client/device/MAC/IP, run actions ("reboot AP2", "optimize channels")

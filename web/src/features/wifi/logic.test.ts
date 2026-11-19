@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Wlan } from "../../api/gen/Wlan";
 import { daysText, isOn, localTime, minutesOf, onNow, spanText } from "../../lib/schedule";
 import { siteConfig } from "../../test/site";
+import { qrPath } from "../../ui/QrCode";
 import {
   draftOf,
   errorsOfIssues,
@@ -12,7 +13,6 @@ import {
   withWlan,
   wlanOf,
 } from "./draft";
-import { qrPath } from "./JoinDialog";
 import { scopeText, wiredVlanError } from "./summary";
 
 const home = (): Wlan => siteConfig().wlans[0] as Wlan;

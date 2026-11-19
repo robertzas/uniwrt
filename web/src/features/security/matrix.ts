@@ -1,9 +1,30 @@
 import type { Network } from "../../api/gen/Network";
 import type { Purpose } from "../../api/gen/Purpose";
+import type { SiteConfig } from "../../api/gen/SiteConfig";
 import type { ZonePolicy } from "../../api/gen/ZonePolicy";
+import { sortNetworks } from "../../lib/site";
+import { strings } from "../../lib/strings";
 
 /** The WAN's zone: the matrix's last column, "Internet". */
 export const WAN = "wan";
+
+/** A row of the matrix: a network, or a tunnel's zone seeded like the default network. */
+export type Zone = Pick<Network, "id" | "name" | "purpose">;
+
+/**
+ * The matrix's rows: the networks in the list's order, then the zones of the tunnels set up
+ * (on or off, as the model knows them), each seeded like the default network (render's
+ * `firewall::matrix`; D-140).
+ */
+export function zonesOf(config: SiteConfig): Zone[] {
+  const zones: Zone[] = sortNetworks(config.networks);
+  const names = strings.security.matrix.zones;
+  if (config.vpn.wireguard) zones.push({ id: "vpn", name: names.vpn, purpose: "default" });
+  if (config.vpn.tailscale) {
+    zones.push({ id: "tailscale", name: names.tailscale, purpose: "default" });
+  }
+  return zones;
+}
 
 /**
  * Whether a network of `purpose` reaches another network (or with `toWan` the internet) before
@@ -18,18 +39,18 @@ export function seeded(purpose: Purpose, toWan: boolean): boolean {
 export type Grid = Record<string, Record<string, boolean>>;
 
 /** Whether traffic from `from` to `to` passes: the last policy on the cell, else the seed. */
-function allowedBy(policies: readonly ZonePolicy[], from: Network, to: string): boolean {
+function allowedBy(policies: readonly ZonePolicy[], from: Zone, to: string): boolean {
   const policy = policies.findLast((p) => p.from === from.id && p.to === to);
   return policy ? policy.action === "allow" : seeded(from.purpose, to === WAN);
 }
 
 /** The columns of `from`'s row: every other network, then the internet. */
-function targets(networks: readonly Network[], from: Network): string[] {
+function targets(networks: readonly Zone[], from: Zone): string[] {
   return [...networks.filter((n) => n.id !== from.id).map((n) => n.id), WAN];
 }
 
 /** The matrix the policies make, one row per network. */
-export function gridOf(networks: readonly Network[], policies: readonly ZonePolicy[]): Grid {
+export function gridOf(networks: readonly Zone[], policies: readonly ZonePolicy[]): Grid {
   return Object.fromEntries(
     networks.map((from) => [
       from.id,
@@ -39,7 +60,7 @@ export function gridOf(networks: readonly Network[], policies: readonly ZonePoli
 }
 
 /** The matrix every network's purpose seeds. */
-export function seededGrid(networks: readonly Network[]): Grid {
+export function seededGrid(networks: readonly Zone[]): Grid {
   return gridOf(networks, []);
 }
 
@@ -52,7 +73,7 @@ export interface Cell {
   changed: boolean;
 }
 
-export function cellOf(grid: Grid, from: Network, to: string): Cell {
+export function cellOf(grid: Grid, from: Zone, to: string): Cell {
   const allowed = grid[from.id]?.[to] ?? false;
   return {
     allowed,
@@ -74,7 +95,7 @@ export function withCell(grid: Grid, from: string, to: string, allowed: boolean)
  */
 export function policiesOf(
   grid: Grid,
-  networks: readonly Network[],
+  networks: readonly Zone[],
   existing: readonly ZonePolicy[],
 ): ZonePolicy[] {
   const rows = new Set(networks.map((n) => n.id));

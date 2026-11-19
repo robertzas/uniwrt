@@ -1,26 +1,14 @@
 import { createMemo, createSignal, onSettled, Show } from "solid-js";
-import { encode } from "uqr";
 import type { Wlan } from "../../api/gen/Wlan";
 import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
+import { QrCode } from "../../ui/QrCode";
 import { joinCode, needsPassphrase } from "./draft";
 
 const t = strings.wifi.qr;
-
-/** The modules of a QR code as one SVG path, a unit square each, inside a quiet zone. */
-export function qrPath(text: string): { size: number; d: string } {
-  const code = encode(text, { ecc: "M", border: 2 });
-  let d = "";
-  code.data.forEach((row, y) => {
-    row.forEach((dark, x) => {
-      if (dark) d += `M${x} ${y}h1v1h-1z`;
-    });
-  });
-  return { size: code.size, d };
-}
 
 /**
  * A WLAN's join code for a phone's camera (wifi.md, WLANs). A passphrase is read from the vault
@@ -31,7 +19,7 @@ export function JoinDialog(props: { wlan: Wlan; onClose: () => void }) {
   const [passphrase, setPassphrase] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   const ready = () => !secret() || passphrase() !== undefined;
-  const code = createMemo(() => (ready() ? qrPath(joinCode(props.wlan, passphrase())) : undefined));
+  const code = createMemo(() => (ready() ? joinCode(props.wlan, passphrase()) : undefined));
 
   onSettled(() => {
     if (!secret()) return;
@@ -54,18 +42,7 @@ export function JoinDialog(props: { wlan: Wlan; onClose: () => void }) {
             </Show>
           }
         >
-          {(qr) => (
-            // Dark on white whatever the theme: cameras expect it.
-            <svg
-              viewBox={`0 0 ${qr().size} ${qr().size}`}
-              class="size-56 rounded-control bg-white"
-              role="img"
-              aria-label={t.title(props.wlan.ssid)}
-              shape-rendering="crispEdges"
-            >
-              <path d={qr().d} fill="#000" />
-            </svg>
-          )}
+          {(text) => <QrCode text={text()} label={t.title(props.wlan.ssid)} />}
         </Show>
         <RequestError text={error()} />
         <Show when={code()}>
