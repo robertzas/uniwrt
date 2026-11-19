@@ -45,6 +45,9 @@
 //!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
 //!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
+//!   [`wake`] wakes a client from the gateway with `etherwake`, installing it there when the
+//!   gateway lacks it and may be changed ([`Woken`], [`WakeError`]; D-137), through
+//!   [`Fleet::exec`], which runs a command over a watched node's link;
 //!   [`BlocklistSync`] ([`BlocklistConfig`]) refreshes DNS filtering's lists (`uniwrt_dns`),
 //!   compiles them for the gateway's applied revision and pushes the file when the gateway's
 //!   copy differs; [`Blocklist`] is the API's handle on it (its state, [`Blocklist::refresh`];
@@ -113,6 +116,7 @@ mod steering;
 #[cfg(test)]
 mod testing;
 mod topology;
+mod wake;
 mod wlans;
 
 pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
@@ -124,7 +128,7 @@ pub use config::EngineConfig;
 pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;
 pub use events::{EventRecorder, EventsConfig};
-pub use fleet::Fleet;
+pub use fleet::{Exec, Fleet};
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use live::NodeView;
@@ -137,4 +141,5 @@ pub use schedule::Intervals;
 pub use snapshots::Snapshots;
 pub use steering::{ClientSteering, SteeringConfig};
 pub use topology::Identity;
+pub use wake::{WakeError, Woken, wake};
 pub use wlans::{SchedulesConfig, WlanSchedules};

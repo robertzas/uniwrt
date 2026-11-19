@@ -600,6 +600,7 @@ export const strings = {
       forget: (target: string) => `Forgetting ${target}`,
       replace: (target: string) => `Replacing ${target}'s device`,
       reset: (target: string) => `Resetting ${target} to its defaults`,
+      reboot: (target: string) => `Restarting ${target}`,
     },
     step: {
       connect: "Log in",
@@ -1989,6 +1990,7 @@ export const strings = {
         forget: "forgetting a device",
         replace: "replacing a device",
         reset: "resetting a device",
+        reboot: "restarting devices",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,

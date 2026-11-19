@@ -1,5 +1,5 @@
 //! The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk
-//! update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH and DDNS need, which brings their init
+//! update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH, DDNS and Wake-on-LAN need, which brings their init
 //! scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init
 //! scripts' `start`, `stop`, `enable` and `disable`.
 
@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 16] = [
+pub(crate) const FEED: [FeedPackage; 17] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -111,6 +111,8 @@ pub(crate) const FEED: [FeedPackage; 16] = [
         None,
     ),
     ("curl", "8.17.0-r1", None, None),
+    // Wake-on-LAN's sender (D-137).
+    ("etherwake", "1.09-r5", None, None),
 ];
 
 /// The version of a package from the feeds.
@@ -165,6 +167,7 @@ pub(crate) fn exec(
             }
             ok(Vec::new())
         }
+        ["etherwake", "-b", "-i", _, _] if installed.contains("etherwake") => ok(Vec::new()),
         [script, action] if script.starts_with("/etc/init.d/") => {
             let name = &script["/etc/init.d/".len()..];
             let Some(enabled) = tool.services.get_mut(name) else {

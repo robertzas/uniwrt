@@ -23,7 +23,8 @@ use uniwrt_model::{
 };
 use uniwrt_node::{ControllerKey, HostKey, Target};
 use uniwrt_store::{
-    BackupRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault, ZtpRepo as _,
+    BackupRepo as _, FactsRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault,
+    ZtpRepo as _,
 };
 
 use crate::{
@@ -186,6 +187,11 @@ impl Jobs {
                 running: Mutex::default(),
             }),
         })
+    }
+
+    /// Whether a job holds `node` now (one job at a time per node).
+    pub fn holds(&self, node: NodeId) -> bool {
+        self.shared.busy(&manage::target(node))
     }
 
     /// Whether nodes can be adopted here: not without a dial.
@@ -355,6 +361,48 @@ impl Jobs {
         let keys = found.iter().map(|node| manage::target(node.id)).collect();
         self.spawn(keys, job, move |shared, progress| {
             restart::run(shared, found, progress)
+        })
+        .await
+    }
+
+    /// Starts restarting `nodes`, one at a time as an apply orders them (farthest from the
+    /// gateway first, the gateway last; D-137), and returns the job as it starts. Every node
+    /// must be managed; it holds each of them like any job on it.
+    pub async fn reboot(&self, nodes: &[NodeId], by: Option<UserId>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        if nodes.is_empty() {
+            return Err(Error::Failed("no node to restart".to_owned()));
+        }
+        let mut adopted = Vec::new();
+        for node in self.shared.store.nodes().await? {
+            let facts = self.shared.store.latest_facts(node.id).await?;
+            adopted.push((node, facts));
+        }
+        let mut chosen = Vec::with_capacity(nodes.len());
+        for &id in nodes {
+            let (node, _) = adopted
+                .iter()
+                .find(|(node, _)| node.id == id)
+                .ok_or(Error::NoNode(id))?;
+            if node.mode != uniwrt_model::node::NodeMode::Managed {
+                return Err(Error::Observed(id));
+            }
+            if !chosen.contains(&id) {
+                chosen.push(id);
+            }
+        }
+        let order = crate::rollout::order::sort(&adopted, &chosen, None).map_err(Error::Refused)?;
+        let found: Vec<_> = order
+            .iter()
+            .filter_map(|id| adopted.iter().find(|(node, _)| node.id == *id))
+            .map(|(node, _)| node.clone())
+            .collect();
+        let job = crate::reboot::job(&found, by);
+        let keys = found.iter().map(|node| manage::target(node.id)).collect();
+        self.spawn(keys, job, move |shared, progress| {
+            crate::reboot::run(shared, found, progress)
         })
         .await
     }

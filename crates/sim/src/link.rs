@@ -85,11 +85,12 @@ impl SimLink {
 
     /// The addresses the node answers at: its own and, on the gateway, every address of its
     /// `lan` (two while a renumbering bridges the old subnet and the new, D-081).
-    /// The bench device answers at its lease only, while it holds one.
+    /// The bench device answers at its lease only, while it holds one; a node that is down
+    /// (rebooting), at none.
     pub fn hosts(&self) -> Vec<String> {
         let world = self.shared.world();
         let node = &world.nodes[self.node];
-        if !world.on_lan(self.node) {
+        if !world.on_lan(self.node) || !node.up() {
             return Vec::new();
         }
         let mut hosts = vec![node.ip];
@@ -339,6 +340,12 @@ impl SimLink {
             });
         }
         let mut world = self.shared.world();
+        if request.argv == ["reboot"] {
+            let mut happenings = Vec::new();
+            world.restart(self.node, &mut happenings);
+            self.shared.dispatch(&world, &happenings);
+            return Ok(render::commands::ok(Vec::new()));
+        }
         if self.node == 0 {
             // The world, then the gateway's disk, then the device's, as everywhere.
             let bench = world.bench.as_ref().map(|bench| bench.node);

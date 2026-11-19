@@ -11,7 +11,7 @@ use uniwrt_model::site::{
     node::{ManagedPackage, NodeConfig},
     revision::{NewRevision, RevisionKind},
 };
-use uniwrt_store::{AuditRepo as _, RevisionRepo as _};
+use uniwrt_store::{AuditRepo as _, NodeRepo as _, RevisionRepo as _};
 
 use crate::testing::{Demo, json, post, request};
 
@@ -118,5 +118,49 @@ async fn kicks_and_blocks_reach_the_managed_gateway_and_are_audited() {
             Some(&demo.cookie),
         ))
         .await;
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_wake_installs_etherwake_on_a_managed_gateway_once() {
+    let demo = Demo::start().await;
+    let mac = gateway_client(&demo).await;
+    let wake = |mac: &str| {
+        post(
+            &format!("/v1/clients/{mac}/wake"),
+            &json!({}),
+            Some(&demo.cookie),
+        )
+    };
+
+    // In observe mode the gateway can't get etherwake.
+    let res = demo.send(wake(&mac)).await;
+    assert_eq!(res.status(), StatusCode::CONFLICT);
+    let problem = json(res).await;
+    assert!(
+        problem["detail"].as_str().unwrap().contains("observe mode"),
+        "{problem}"
+    );
+
+    demo.store
+        .set_node_mode(demo.ids[0], uniwrt_model::node::NodeMode::Managed)
+        .await
+        .unwrap();
+    let res = demo.send(wake(&mac)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let outcome = json(res).await;
+    assert_eq!(outcome["node"], demo.ids[0].get(), "{outcome}");
+    assert_eq!(outcome["installed"], true, "{outcome}");
+    let devices = outcome["devices"].as_array().unwrap();
+    assert_eq!(devices.len(), 1, "the client's network alone: {outcome}");
+    let audited = last_audit(&demo).await.unwrap();
+    assert!(audited.starts_with(&mac), "{audited}");
+    assert!(audited.ends_with(", etherwake installed"), "{audited}");
+
+    let again = json(demo.send(wake(&mac)).await).await;
+    assert_eq!(again["installed"], false, "{again}");
+    assert_eq!(again["devices"], outcome["devices"]);
+
+    let res = demo.send(wake("02:00:00:00:00:fe")).await;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }

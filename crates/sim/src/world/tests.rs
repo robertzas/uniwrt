@@ -130,7 +130,10 @@ fn a_reboot_moves_the_clients_and_comes_back() {
     let mut out = Vec::new();
     assert!(world.reboot(living, &mut out));
     assert!(!world.reboot(living, &mut out), "already down");
-    assert!(!world.reboot(0, &mut out), "the gateway does not reboot");
+    assert!(
+        !world.reboot(0, &mut out),
+        "the gateway does not reboot by itself"
+    );
     assert_eq!(out.len(), 1);
     let happenings = run(&mut world, 30);
     assert_eq!(world.stations(living).count(), 0);
@@ -148,6 +151,24 @@ fn a_reboot_moves_the_clients_and_comes_back() {
     assert!(world.nodes[living].up());
     assert!(world.now_ms() - world.nodes[living].booted_ms < 120_000);
     assert_eq!(world.nodes[living].logd.records[0].id, 1);
+}
+
+#[test]
+fn the_gateway_restarts_when_asked_to() {
+    let mut world = World::new(
+        &SimConfig {
+            reboot_every: None,
+            ..SimConfig::default()
+        },
+        START,
+    );
+    let mut out = Vec::new();
+    assert!(world.restart(0, &mut out));
+    assert!(!world.nodes[0].up());
+    assert!(!world.restart(0, &mut out), "already down");
+    let happenings = run(&mut world, 90);
+    assert!(happenings.iter().any(|h| h.node == 0 && h.what == What::Up));
+    assert!(world.nodes[0].up());
 }
 
 #[test]

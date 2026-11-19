@@ -94,6 +94,14 @@ impl Fleet for FakeFleet {
     fn identify(&self, _: uniwrt_core::NodeId, _: uniwrt_engine::Identity) -> bool {
         false
     }
+
+    fn exec(&self, _: uniwrt_core::NodeId, _: uniwrt_node::ExecRequest) -> uniwrt_engine::Exec<'_> {
+        Box::pin(async {
+            Err(uniwrt_node::Error::Disconnected {
+                what: "exec".to_owned(),
+            })
+        })
+    }
 }
 
 struct Harness {

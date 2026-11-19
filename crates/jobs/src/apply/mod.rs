@@ -102,6 +102,8 @@ pub struct ApplyTiming {
     pub cutover_lead: Duration,
     /// How patiently a firmware upgrade waits on its node (D-124).
     pub upgrade: crate::UpgradeTiming,
+    /// How patiently a restart waits on each node (D-137).
+    pub reboot: crate::RebootTiming,
 }
 
 impl Default for ApplyTiming {
@@ -115,6 +117,7 @@ impl Default for ApplyTiming {
             wan_wait: Duration::from_secs(60),
             cutover_lead: Duration::from_secs(15),
             upgrade: crate::UpgradeTiming::default(),
+            reboot: crate::RebootTiming::default(),
         }
     }
 }

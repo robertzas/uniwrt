@@ -19,7 +19,8 @@
 //!   a node's packages and services); [`archive`] (the `sysupgrade -b` tarball read and written
 //!   in memory, and its content digest, D-126); [`pkg`] (opkg's and apk's commands and the installed
 //!   packages' parser, D-100); [`wpad`] (the commands that swap a node's basic wpad for
-//!   the full one, D-089); [`decommission`] (the detached wipe that takes a node out of the
+//!   the full one, D-089); [`wol`] (Wake-on-LAN from the gateway: `etherwake` and the devices
+//!   to send on, D-137); [`decommission`] (the detached wipe that takes a node out of the
 //!   site: the mesh left, the footprint and the controller's key removed, `firstboot`
 //!   optionally, D-131); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
@@ -65,6 +66,7 @@ pub mod shell;
 mod ssh;
 mod supervisor;
 pub mod txn;
+pub mod wol;
 pub mod wpad;
 pub mod ztp;
 

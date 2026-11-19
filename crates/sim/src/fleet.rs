@@ -226,7 +226,7 @@ impl Shared {
         }
     }
 
-    fn dispatch(&self, world: &World, happenings: &[Happening]) {
+    pub(crate) fn dispatch(&self, world: &World, happenings: &[Happening]) {
         for happening in happenings {
             let node = happening.node;
             if happening.what == What::Down {

@@ -59,6 +59,9 @@ pub enum AuditAction {
     KickClient,
     /// A user blocked or unblocked a client (the detail names it and says which).
     BlockClient,
+    /// An admin woke a client with a Wake-on-LAN packet (the detail names it and where it was
+    /// sent; D-137).
+    WakeClient,
     /// A user created, edited, reset or deleted an alert rule (the detail says which and how).
     AlertRule,
     /// A user acknowledged an alert.
@@ -110,6 +113,8 @@ pub enum AuditAction {
     Replace,
     /// An admin acted on a network service: asked for DNS filtering's lists again (D-133).
     Services,
+    /// An admin restarted nodes (the detail names them and the job; D-137).
+    Reboot,
 }
 
 /// One audit log entry.

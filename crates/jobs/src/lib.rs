@@ -10,7 +10,8 @@
 //!   role (D-100); [`Jobs::plan`] plans
 //!   applying the site's latest revision and [`Jobs::apply`] applies it (D-070);
 //!   [`Jobs::restart_radios`] restarts the radios still catching up after a channel switch,
-//!   node by node (D-116);
+//!   node by node (D-116); [`Jobs::reboot`] restarts managed nodes one at a time, the gateway
+//!   last ([`RebootTiming`], D-137), and [`Jobs::holds`] says whether a job holds a node;
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
@@ -91,6 +92,10 @@
 //!   transaction tool, the baseline met again) → soak (3 min, no new error patterns in its log)
 //!   → record (its packages). A failure before the flash deletes the staged image; after it,
 //!   nothing rolls back and the error says so.
+//! - **Restart** (`reboot.rs`, D-137): the managed nodes in an apply's order (farthest first,
+//!   the gateway last), one at a time: log in → `reboot` → down within 1 min → a login with
+//!   the pinned host key within 10 min → if never seen down, an uptime shorter than the time
+//!   since the command. The first node that fails ends the job; nothing rolls back.
 //! - **Backups** (`backup/`, D-126): the backup job logs in to each node (observe mode too), 4
 //!   at a time, and keeps its `sysupgrade -b` tarball sealed (one of the same files as the
 //!   newest only marks that one seen; a node that fails doesn't stop the others). The apply's
@@ -139,6 +144,7 @@ mod manage;
 #[cfg(test)]
 mod manage_tests;
 mod progress;
+mod reboot;
 mod remote;
 mod restart;
 mod revise;
@@ -157,6 +163,7 @@ pub use adopt::{AdoptRequest, PortPath, Replace, ZtpClaim};
 pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
 pub use import::{ImportDraft, ImportScope};
+pub use reboot::RebootTiming;
 pub use remote::{BoxFuture, Dial, Remote, SshDial};
 pub use revise::Author;
 pub use rollout::{CanaryRequest, RolloutImages, RolloutRequest, RolloutTiming, Rollouts};

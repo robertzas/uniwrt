@@ -65,8 +65,9 @@
 //!   on it; see `floors`), the clients
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
-//!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]) and `PUT`/`DELETE
-//!   v1/clients/{mac}/block`), the metrics (`GET v1/metrics`, an
+//!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]), `PUT`/`DELETE
+//!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137)),
+//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
@@ -161,6 +162,7 @@ mod node_role;
 mod nodes;
 mod notifiers;
 pub mod problem;
+mod reboot;
 mod replace;
 mod rf;
 #[cfg(test)]
@@ -199,7 +201,7 @@ pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW
 pub use blocklists::BlocklistsView;
 pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
-pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode};
+pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode, WakeOutcome};
 pub use clients::{ClientDetail, ClientPatch};
 pub use decommission::DecommissionBody;
 pub use dns_stats::{DnsClientStats, DnsQueryPage, DnsRange, DnsStats};
@@ -224,6 +226,7 @@ pub use notifiers::{
     SecretsInput, SecretsView,
 };
 pub use problem::{ApiError, ApiResult, no_route};
+pub use reboot::RebootBody;
 pub use replace::ReplaceBody;
 pub use rf::{ScanRequest, ScansQueued};
 pub use site::{
@@ -259,6 +262,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
         .route("/v1/clients/{mac}/kick", post(client_actions::kick))
+        .route("/v1/clients/{mac}/wake", post(client_actions::wake))
         .route(
             "/v1/clients/{mac}/block",
             put(client_actions::block).delete(client_actions::unblock),
@@ -312,6 +316,7 @@ pub fn router(api: Api) -> Router {
         .merge(adoption_routes())
         .merge(ztp::routes())
         .merge(firmware::routes())
+        .merge(reboot::routes())
         .merge(controller_update::routes())
         .merge(controller_backups::routes())
         .merge(floors::routes())

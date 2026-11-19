@@ -84,7 +84,13 @@ impl World {
     /// Takes access point `node` down for a reboot; `false` for the gateway or a node that is
     /// already down.
     pub(crate) fn reboot(&mut self, node: usize, out: &mut Vec<Happening>) -> bool {
-        if node == 0 || node >= self.nodes.len() || !self.nodes[node].on_air() {
+        node != 0 && self.restart(node, out)
+    }
+
+    /// Takes `node` down for a reboot a user asked for (`reboot`, D-137), the gateway too;
+    /// `false` for a node that is already down.
+    pub(crate) fn restart(&mut self, node: usize, out: &mut Vec<Happening>) -> bool {
+        if node >= self.nodes.len() || !self.nodes[node].on_air() {
             return false;
         }
         self.nodes[node].down_until = Some(self.now_s + REBOOT_S);

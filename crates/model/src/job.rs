@@ -126,6 +126,9 @@ pub enum JobKind {
     /// Resetting a node to its image's defaults (`firstboot`), its record then awaiting the
     /// device's re-adoption (D-131).
     Reset,
+    /// Restarting nodes one at a time, the gateway last, each back before the next goes down
+    /// (features/network.md, Other services; D-137).
+    Reboot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -250,7 +253,7 @@ pub enum StepName {
     Restart,
     /// Run sysupgrade with the staged image, keeping the configuration (the upgrade's, D-124).
     Flash,
-    /// Wait for the node to go down and come back up with the new image.
+    /// Wait for the node to go down and come back up (with the new image, in an upgrade).
     Reboot,
     /// Watch the upgraded node for a while: still reachable and as healthy as before.
     Soak,

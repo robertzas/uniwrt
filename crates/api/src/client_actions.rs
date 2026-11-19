@@ -2,7 +2,9 @@
 //! /api/v1/clients/{mac}/kick` deauthenticates a client on every managed access point and keeps
 //! it off them for `ban_secs` ([`ClientKick`], answered with a [`KickOutcome`]); `PUT` and
 //! `DELETE /api/v1/clients/{mac}/block` block and unblock it (the client's view answers). Each is
-//! audited; the engine announces it as an event.
+//! audited; the engine announces it as an event. `POST /api/v1/clients/{mac}/wake` sends it a
+//! Wake-on-LAN packet from the gateway ([`WakeOutcome`]; D-137), installing `etherwake` there
+//! first when the gateway is managed and lacks it; audited.
 
 use std::{sync::Arc, time::Duration};
 
@@ -14,9 +16,12 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uniwrt_clients::Client as ClientView;
 use uniwrt_core::{MacAddr, NodeId};
-use uniwrt_engine::{Bans, BansError, Kicked};
-use uniwrt_model::user::{AuditAction, AuditEntry, Role};
-use uniwrt_store::{AuditRepo as _, ClientRepo as _};
+use uniwrt_engine::{Bans, BansError, Kicked, WakeError};
+use uniwrt_model::{
+    node::{NodeMode, NodeRole},
+    user::{AuditAction, AuditEntry, Role},
+};
+use uniwrt_store::{AuditRepo as _, ClientRepo as _, NodeRepo as _};
 
 use crate::{Api, ApiError, ApiResult, Client, CurrentUser, clients::parse_mac};
 
@@ -76,6 +81,18 @@ impl From<Kicked> for KickOutcome {
                 .collect(),
         }
     }
+}
+
+/// Where `POST /api/v1/clients/{mac}/wake` sent the packet.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct WakeOutcome {
+    /// The gateway.
+    pub node: NodeId,
+    /// Its devices the packet went out on, such as `br-lan`.
+    pub devices: Vec<String>,
+    /// Whether `etherwake` was installed on the gateway for it.
+    pub installed: bool,
 }
 
 fn admin(user: &CurrentUser, what: &str) -> ApiResult<()> {
@@ -141,6 +158,68 @@ pub(crate) async fn kick(
     let detail = format!("{mac}, kept off for {} s", body.ban_secs);
     audit(&api, &user, &client, AuditAction::KickClient, detail).await?;
     Ok(Json(kicked.into()))
+}
+
+pub(crate) async fn wake(
+    State(api): State<Api>,
+    user: CurrentUser,
+    client: Client,
+    mac: Path<String>,
+) -> ApiResult<Json<WakeOutcome>> {
+    admin(&user, "wake")?;
+    let mac = parse_mac(&mac)?;
+    let ips = api
+        .fleet()
+        .client(mac)
+        .ok_or_else(|| ApiError::NotFound(format!("There is no client {mac}")))?
+        .client
+        .ips
+        .clone();
+    let gateway = api
+        .store()
+        .nodes()
+        .await?
+        .into_iter()
+        .find(|node| node.role == NodeRole::Gateway)
+        .ok_or_else(|| ApiError::Conflict("No gateway is adopted".to_owned()))?;
+    if api.jobs().holds(gateway.id) {
+        return Err(ApiError::Conflict(format!(
+            "A job is running on {}: wake the client once it ends",
+            gateway.name
+        )));
+    }
+    let managed = gateway.mode == NodeMode::Managed;
+    let woken = uniwrt_engine::wake(api.fleet(), gateway.id, managed, mac, &ips)
+        .await
+        .map_err(|err| match err {
+            WakeError::Offline => ApiError::Conflict(format!("{} is offline", gateway.name)),
+            WakeError::NoNetwork => ApiError::Conflict(format!(
+                "{} serves no network to send the packet on",
+                gateway.name
+            )),
+            WakeError::NoSender => ApiError::Conflict(format!(
+                "{} lacks etherwake, and it is in observe mode: turn its management on and \
+                 the controller installs it",
+                gateway.name
+            )),
+            WakeError::Failed(why) => ApiError::BadGateway(why),
+        })?;
+    let detail = format!(
+        "{mac} from {} on {}{}",
+        gateway.name,
+        woken.devices.join(", "),
+        if woken.installed {
+            ", etherwake installed"
+        } else {
+            ""
+        }
+    );
+    audit(&api, &user, &client, AuditAction::WakeClient, detail).await?;
+    Ok(Json(WakeOutcome {
+        node: woken.node,
+        devices: woken.devices,
+        installed: woken.installed,
+    }))
 }
 
 pub(crate) async fn block(

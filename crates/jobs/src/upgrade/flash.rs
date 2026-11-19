@@ -169,7 +169,7 @@ pub(crate) async fn reboot(
     let target = Target::new(node.host.clone(), node.port);
     let mut went_down = false;
     while start.elapsed() < timing.down {
-        if !answers(shared, &target).await {
+        if !crate::reboot::answers(shared, &target).await {
             went_down = true;
             break;
         }
@@ -217,14 +217,6 @@ pub(crate) async fn reboot(
             Err(_) => tokio::time::sleep(timing.poll).await,
         }
     }
-}
-
-/// Whether the node's SSH server answers.
-async fn answers(shared: &Shared, target: &Target) -> bool {
-    let Some(dial) = &shared.dial else {
-        return false;
-    };
-    matches!(dial.banner(target).await, Ok(Some(_)))
 }
 
 /// Fails when the node never went down: it still runs `release` and has been up since before

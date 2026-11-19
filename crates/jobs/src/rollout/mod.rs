@@ -17,7 +17,7 @@
 
 mod canary;
 mod drive;
-mod order;
+pub(crate) mod order;
 #[cfg(test)]
 mod tests;
 

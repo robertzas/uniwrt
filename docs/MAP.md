@@ -78,6 +78,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
 - `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
+- `src/reboot.rs`: Restarting nodes (features/network.md, Other services; D-137).
+- `src/reboot/tests.rs`: `POST v1/reboots` on the demo: managed nodes only, a job started and audited.
 - `src/replace.rs`: Replacing a node's device and resetting a node, with an admin's session (features/ lifecycle.md, Replace / RMA / decommission; D-131), each a job answered 202 with it:
 - `src/replace_tests.rs`: (no header comment)
 - `src/rf.rs`: The RF insight routes, with a session (features/wifi.md, RF insight):
@@ -220,6 +222,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/testing.rs`: A scripted [`NodeLink`] for actor tests: the test sets its state, pushes its agent's events and sees each request; collects are answered from the hwsim lab's capture of its gateway.
 - `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed; each build updates the clients' book ([`Event::Clients`]).
 - `src/topology_tests.rs`: The topology of the hwsim lab's captures (TESTING.md, Wi-Fi lab): node a (the gateway, 25.12) and node b (an access point, 24.10) meshed over 802.11s and a wired backhaul (`bh0`) with batman-adv over both; client c on a's 2g AP (`…:04:00`) and b's 5g AP (`…:05:00`).
+- `src/wake.rs`: Wake-on-LAN from the gateway (features/network.md, Other services; D-137): the magic packet goes out on the gateway's devices that reach the client ([`uniwrt_node::wol::devices`]) through `etherwake`.
 - `src/wlans/mod.rs`: WLAN schedules (features/wifi.md, WLANs; D-083): the controller turns a WLAN's BSSes off outside its schedule and on again, through each node's agent (the `bss` op: hostapd takes netifd's config less the BSSes that are off, so no configuration changes and nothing runs on the nodes on its own).
 - `src/wlans/plan.rs`: Which of a node's BSSes the WLANs' schedules want on now: pure, over the saved site and the node's facts, so a schedule needs no apply (it changes no configuration on the node).
 - `src/wlans/task.rs`: The schedules' task: when to compare, what to send, and what to announce.
@@ -394,6 +397,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/manage.rs`: The manage and unmanage jobs (directive 8; D-069): management goes on only when the user asks, node by node.
 - `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
+- `src/reboot.rs`: Restarting nodes (features/network.md, Other services; M8.1b2a, D-137): one node at a time, as an apply orders them (farthest from the gateway first, the gateway last), each back before the next goes down, so its neighbors carry the clients.
+- `src/reboot/tests.rs`: Restarts over the scripted node of [`crate::testing`], adopted and managed: `reboot` takes it down for a few tries of reaching it, or not at all.
 - `src/remote.rs`: How jobs reach nodes: [`Dial`] reads banners, probes and logs in, and a [`Remote`] is one login.
 - `src/restart.rs`: Restarting the radios still catching up after a channel switch (features/wifi.md, RF planner: Apply, step 4; M6.1 b3b, D-113, D-116).
 - `src/restart/tests.rs`: The radio restart over the scripted node of [`crate::testing`], adopted and managed, with a 5 GHz radio moved by a channel switch from 36 to 44.
@@ -598,6 +603,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/txn.rs`: Transactions on a node (features/lifecycle.md, Render → diff → apply; D-012, D-069): the commands of the transaction tool, `node-agent/txn/txn`, which managed nodes keep as [`TOOL`], and the [`Footprint`] that enabling management installs (the tool and `/etc/init.d/uniwrt-guard`).
 - `src/txn/current.rs`: What a node holds now, read right before rendering and diffing (features/lifecycle.md, Render → diff → apply): its UCI packages ([`packages`]) and whether its services start at boot ([`services`]).
 - `src/txn/tests.rs`: (no header comment)
+- `src/wol.rs`: Wake-on-LAN from the gateway (features/network.md, Other services; D-137): `etherwake` sends the magic packet (`EtherType` `0x0842`) to the broadcast address, so a bridge's stale entry for the sleeping client can't send it elsewhere.
 - `src/wpad.rs`: The commands of the wpad swap (D-089): which package replaces which, the commands that download them without changing anything, the one that swaps them on the node by itself, and what it reports.
 - `src/ztp.rs`: The first-boot script of zero-touch images (features/adoption.md, Path B; D-022, D-102): `node-agent/ztp/first-boot.sh` with the controller's values written in.
 - `tests/agent.rs`: The node agent on real OpenWrt (TESTING.md, Agent): installing the bundle, the ops in both loop modes, collect sets parsed into facts, and the pushes of the event loop.
@@ -777,7 +783,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/commands.rs`: The commands the jobs run on a node, answered as OpenWrt would: adoption's (features/adoption.md, Path A: `/etc/openwrt_release`, the script that appends the controller's key to dropbear's `authorized_keys`, the package manager's database (opkg's status file, or apk's installed database and world file) and `sysupgrade -b -`), the transaction tool's and the reads of the current configuration ([`crate::txn`], D-069), and the gateway's DNS check (`nslookup`), and the DNS blocklist's push ([`super::tmp`]).
 - `src/render/config.rs`: A node's `/etc/config` before uniwrt manages it: OpenWrt 25.12's stock packages, configured by hand to run the simulated network (the gateway's LAN, WAN on VLAN 201 and DHCP; the access points as bridges taking their address over DHCP, dnsmasq, odhcpd and the firewall off; the sim's SSID on both bands and its batman-adv mesh on 5 GHz), so that the demo's review shows what managing such a fleet changes.
 - `src/render/devices.rs`: The `devices` set: each kernel device's sysfs attributes, and its counters in /proc/net/dev.
-- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH and DDNS need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
+- `src/render/feeds.rs`: The package feeds as an apply's install step meets them (D-076): `opkg update` / `apk update`, then installing what SQM, failover, UPnP, steering, the mesh, DoH, DDNS and Wake-on-LAN need, which brings their init scripts (enabled, as postinst scripts do) and their stock `/etc/config` files; and the init scripts' `start`, `stop`, `enable` and `disable`.
 - `src/render/l2.rs`: The sets `leases` (dnsmasq's lease file, odhcpd's ubus leases and, where the gateway runs miniupnpd, its lease file) and `neighbors` (the ARP and NDP caches and the bridge's forwarding database over rtnetlink).
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
@@ -998,7 +1004,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (473 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (475 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

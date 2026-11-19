@@ -1,13 +1,13 @@
 //! [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one
 //! `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use tokio::sync::broadcast;
 use uniwrt_clients::{Client, Detail};
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::client::ClientRecord;
-use uniwrt_node::NodeLink;
+use uniwrt_node::{ExecOutput, ExecRequest, NodeLink};
 use uniwrt_topo::Topology;
 
 use crate::{Engine, Event, Identity, Interest, NodeView};
@@ -36,7 +36,13 @@ pub trait Fleet: Send + Sync + 'static {
     -> Option<ClientRecord>;
     /// See [`Engine::identify`].
     fn identify(&self, node: NodeId, identity: Identity) -> bool;
+    /// Runs a command on `node` over its link ([`NodeLink::exec`]); a node the engine doesn't
+    /// watch is disconnected.
+    fn exec(&self, node: NodeId, request: ExecRequest) -> Exec<'_>;
 }
+
+/// What [`Fleet::exec`] answers.
+pub type Exec<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecOutput>> + Send + 'a>>;
 
 impl<L: NodeLink> Fleet for Engine<L> {
     fn all(&self) -> Vec<(NodeId, NodeView)> {
@@ -82,5 +88,17 @@ impl<L: NodeLink> Fleet for Engine<L> {
 
     fn identify(&self, node: NodeId, identity: Identity) -> bool {
         Self::identify(self, node, identity)
+    }
+
+    fn exec(&self, node: NodeId, request: ExecRequest) -> Exec<'_> {
+        let link = self.link(node);
+        Box::pin(async move {
+            match link {
+                Some(link) => link.exec(request).await,
+                None => Err(uniwrt_node::Error::Disconnected {
+                    what: request.argv.first().cloned().unwrap_or_default(),
+                }),
+            }
+        })
     }
 }
