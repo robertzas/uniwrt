@@ -38,6 +38,7 @@ type Group = (Ap, BTreeSet<Band>, BTreeSet<NodeId>);
 
 /// What one access point broadcasts, as a WLAN would hold it.
 #[derive(Clone, PartialEq, Eq)]
+#[expect(clippy::struct_excessive_bools, reason = "a WLAN's switches")]
 struct Ap {
     ssid: String,
     network: String,
@@ -46,6 +47,8 @@ struct Ap {
     key: Option<String>,
     hidden: bool,
     isolation: bool,
+    /// netifd's `multicast_to_unicast`, on unless `0`.
+    multicast_to_unicast: bool,
     max_clients: Option<u16>,
     enabled: bool,
     roam: Roam,
@@ -217,6 +220,7 @@ fn ap(iface: &Section, renames: &read::Renames, networks: &BTreeSet<String>) -> 
         key: key.filter(|_| security.needs_passphrase()),
         hidden: read::flag(iface, "hidden").unwrap_or(false),
         isolation: read::flag(iface, "isolate").unwrap_or(false),
+        multicast_to_unicast: read::flag(iface, "multicast_to_unicast").unwrap_or(true),
         max_clients: iface
             .option("maxassoc")
             .and_then(|max| max.parse().ok())
@@ -276,6 +280,7 @@ fn wlans(
             // Nodes keep no schedules (and an imported OWE pair stays two WLANs).
             schedule: None,
             roaming: roaming(SECURITIES[ap.security], ap.roam),
+            multicast_to_unicast: ap.multicast_to_unicast,
         });
     }
     found

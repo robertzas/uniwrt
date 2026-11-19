@@ -47,6 +47,8 @@ export interface WlanDraft {
   nodes: number[];
   hidden: boolean;
   isolation: boolean;
+  /** Group traffic as unicast frames to each client that joined it (D-136). */
+  multicastToUnicast: boolean;
   maxClients: string;
   scheduled: boolean;
   spans: SpanDraft[];
@@ -89,6 +91,7 @@ export function draftOf(wlan: Wlan): WlanDraft {
     nodes: wlan.nodes.scope === "all" ? [] : [...wlan.nodes.nodes],
     hidden: wlan.hidden,
     isolation: wlan.isolation,
+    multicastToUnicast: wlan.multicast_to_unicast,
     maxClients: wlan.max_clients === null ? "" : String(wlan.max_clients),
     scheduled: wlan.schedule !== null,
     spans: wlan.schedule
@@ -129,6 +132,7 @@ export function presetWlan(preset: Preset, config: SiteConfig): Wlan {
     max_clients: null,
     schedule: null,
     roaming: { fast: null, hints: true, steer: true },
+    multicast_to_unicast: true,
   };
   if (preset === "guest") {
     return { ...base, network: of("guest") ?? main, security: "owe_transition", isolation: true };
@@ -237,6 +241,7 @@ export function wlanOf(
       hints: draft.hints,
       steer: draft.steer,
     },
+    multicast_to_unicast: draft.multicastToUnicast,
   };
   const secrets =
     secret && draft.passphrase !== "" ? { [`wlans/${id}/passphrase`]: draft.passphrase } : {};

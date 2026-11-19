@@ -152,6 +152,7 @@ mod tests {
             max_clients: None,
             schedule: None,
             roaming: uniwrt_model::site::wireless::Roaming::default(),
+            multicast_to_unicast: true,
         };
         let mut guest = home.clone();
         guest.id = "guest".to_owned();

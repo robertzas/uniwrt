@@ -38,6 +38,7 @@ fn wlan(id: &str, security: WlanSecurity, fast: Option<bool>, passphrase: u8) ->
             hints: true,
             steer: true,
         },
+        multicast_to_unicast: true,
     }
 }
 

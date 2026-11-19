@@ -31,6 +31,7 @@ STAGE=$RUN/txn
 LOCK=$RUN/txn.lock
 GUARD=/etc/init.d/uniwrt-guard
 KEEP=/lib/upgrade/keep.d/uniwrt
+HOTPLUG=/etc/hotplug.d/iface/90-uniwrt
 MIN_S=30
 MAX_S=3600
 # A staged package's largest size, in 512-byte blocks (ulimit -f): 1 MiB.
@@ -536,23 +537,25 @@ cmd_boot() {
 	roll_back "$id" boot
 }
 
-# Installs the tool and the guard from a checked copy of the footprint in $1.
+# Installs the tool, the guard and the interface hook from a checked copy of the footprint in $1.
 cmd_install() {
 	for tool in flock uci reload_config; do
 		command -v $tool >/dev/null || fail unsupported "$tool is missing"
 	done
 	[ -f /etc/rc.common ] || fail unsupported "procd's rc.common is missing"
-	[ -n "${1:-}" ] && [ -f "$1/txn" ] && [ -f "$1/uniwrt-guard" ] || fail bad_request "no footprint in ${1:-}"
+	[ -n "${1:-}" ] && [ -f "$1/txn" ] && [ -f "$1/uniwrt-guard" ] && [ -f "$1/uniwrt-hotplug" ] ||
+		fail bad_request "no footprint in ${1:-}"
 	lock
 	open=$(open_id)
 	[ -z "$open" ] || fail busy "transaction $open is open"
-	mkdir -p "$JOURNAL" "${KEEP%/*}" || fail failed "cannot create $DIR"
+	mkdir -p "$JOURNAL" "${KEEP%/*}" "${HOTPLUG%/*}" || fail failed "cannot create $DIR"
 	chmod 700 "$DIR"
 	(umask 022 && cp "$1/txn" "$DIR/txn.new" && chmod 755 "$DIR/txn.new" &&
-		cp "$1/uniwrt-guard" "$GUARD.new" && chmod 755 "$GUARD.new") ||
+		cp "$1/uniwrt-guard" "$GUARD.new" && chmod 755 "$GUARD.new" &&
+		cp "$1/uniwrt-hotplug" "$HOTPLUG.new" && chmod 644 "$HOTPLUG.new") ||
 		fail failed "cannot copy the footprint"
-	if ! { mv "$DIR/txn.new" "$DIR/txn" && mv "$GUARD.new" "$GUARD" &&
-		(umask 022 && printf '%s\n' "$DIR/" "$GUARD" >"$KEEP") &&
+	if ! { mv "$DIR/txn.new" "$DIR/txn" && mv "$GUARD.new" "$GUARD" && mv "$HOTPLUG.new" "$HOTPLUG" &&
+		(umask 022 && printf '%s\n' "$DIR/" "$GUARD" "$HOTPLUG" >"$KEEP") &&
 		cp "$1/VERSION" "$DIR/VERSION"; }; then
 		fail failed "cannot install the footprint"
 	fi
@@ -569,7 +572,7 @@ cmd_uninstall() {
 		"$GUARD" disable
 		"$GUARD" stop >/dev/null 2>&1
 	fi
-	rm -f "$GUARD" "$KEEP"
+	rm -f "$GUARD" "$KEEP" "$HOTPLUG"
 	rm -rf "$DIR" "$STAGE"
 	sync
 	ok

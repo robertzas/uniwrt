@@ -396,7 +396,7 @@ macro_rules! file {
 }
 
 /// The footprint's files; a test keeps the list in step with the directory.
-const FILES: [(&str, &str); 2] = [file!("txn"), file!("uniwrt-guard")];
+const FILES: [(&str, &str); 3] = [file!("txn"), file!("uniwrt-guard"), file!("uniwrt-hotplug")];
 
 /// Extracts the footprint from stdin into `/tmp/uniwrt/footprint`, checks every file against
 /// SHA256SUMS, and has the new tool install itself and the guard. A constant: nothing is
@@ -408,8 +408,8 @@ const INSTALL: &str = "set -e; umask 077; mkdir -p /tmp/uniwrt; chown 0:0 /tmp/u
 
 static FOOTPRINT: LazyLock<Footprint> = LazyLock::new(Footprint::build);
 
-/// What a managed node keeps (ARCHITECTURE.md, Node footprint): the tool and the guard, by
-/// version, the SHA-256 of their SHA256SUMS.
+/// What a managed node keeps (ARCHITECTURE.md, Node footprint): the tool, the guard and the
+/// interface hook, by version, the SHA-256 of their SHA256SUMS.
 #[derive(Debug)]
 pub struct Footprint {
     version: String,

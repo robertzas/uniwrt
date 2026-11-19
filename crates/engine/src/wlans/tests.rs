@@ -75,6 +75,7 @@ fn site(node: NodeId, managed: bool) -> SiteConfig {
             }],
         }),
         roaming: uniwrt_model::site::wireless::Roaming::default(),
+        multicast_to_unicast: true,
     }];
     let mut node = NodeConfig::new(node);
     if managed {

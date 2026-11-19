@@ -41,4 +41,10 @@ schedule: Schedule | null,
 /**
  * Defaults when left out, as `max_clients` and `schedule` do.
  */
-roaming: Roaming, };
+roaming: Roaming, 
+/**
+ * Multicast reaches its clients as unicast frames, one per client that joined the group
+ * (netifd's `multicast_to_unicast`, OpenWrt's default; needs IGMP snooping): off for
+ * clients that miss such frames (D-136). On when left out.
+ */
+multicast_to_unicast: boolean, };

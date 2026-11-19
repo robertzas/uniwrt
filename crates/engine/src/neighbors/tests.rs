@@ -226,6 +226,7 @@ fn wlan(ssid: &str) -> Wlan {
         max_clients: None,
         schedule: None,
         roaming: Roaming::default(),
+        multicast_to_unicast: true,
     }
 }
 

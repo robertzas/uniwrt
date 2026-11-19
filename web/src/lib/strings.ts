@@ -1570,6 +1570,7 @@ export const strings = {
         upnpd: "UPnP and NAT-PMP port mapping (miniupnpd)",
         https_dns_proxy: "DNS over HTTPS (https-dns-proxy)",
         ddns: "Dynamic DNS names (ddns-scripts)",
+        mdns_repeater: "mDNS reflection between networks (mdns-repeater)",
         wireguard: "WireGuard VPN",
       },
       message: (name: string, added: readonly string[], removed: readonly string[]) =>
@@ -4084,6 +4085,9 @@ export const strings = {
       hiddenHint: "Clients must type the name to join. It hides nothing from an attacker.",
       isolation: "Isolate clients",
       isolationHint: "Its clients can't reach each other, only the gateway and the internet.",
+      multicastToUnicast: "Multicast to unicast",
+      multicastToUnicastHint:
+        "Sends group traffic (IPTV, casting) to each client that joined it, at that client's own rate, once IGMP snooping is on. Turn off for devices that miss it.",
       maxClients: "Clients per radio",
       maxClientsHint: "The most a radio takes; empty for no limit.",
       roaming: "Roaming",
@@ -4257,9 +4261,10 @@ export const strings = {
       isolationHint: "Wi-Fi clients on it can't reach each other.",
       mdns: "mDNS reflection",
       mdnsHint:
-        "Lets AirPlay, Chromecast and printers be found from the other networks that have it on.",
+        "Lets AirPlay, Chromecast and printers be found from the other networks that have it on (IPv4, up to 5 networks).",
       igmp: "IGMP snooping",
-      igmpHint: "Sends multicast (IPTV) only to the ports that asked for it.",
+      igmpHint:
+        "Sends multicast (IPTV, casting) only to the ports and Wi-Fi clients that joined it, as unicast to Wi-Fi clients. One network's on turns it on for all of them.",
       reservations: "Reservations",
       reservationsHint: "Fixed addresses for clients; a client page's Fix IP adds them too.",
       mac: "MAC address",

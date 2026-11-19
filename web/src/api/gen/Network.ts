@@ -34,6 +34,12 @@ ipv6_clients: Ipv6Clients,
  */
 isolation: boolean, 
 /**
- * mDNS is reflected between this network and the others that have it on.
+ * mDNS is reflected between this network and the others that have it on (the gateway's
+ * `mdns-repeater`, IPv4, at most [`MDNS_NETWORKS`]; D-136).
  */
-mdns: boolean, igmp_snooping: boolean, };
+mdns: boolean, 
+/**
+ * The bridge forwards multicast only to the ports whose hosts joined the group; one
+ * network's on turns it on for the bridge, which every network shares.
+ */
+igmp_snooping: boolean, };

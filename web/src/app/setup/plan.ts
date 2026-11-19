@@ -178,6 +178,7 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
           max_clients: null,
           schedule: null,
           roaming: known?.roaming ?? { fast: null, hints: true, steer: true },
+          multicast_to_unicast: known?.multicast_to_unicast ?? true,
         },
       ];
   const node = config.nodes.find((n) => n.node === choices.gateway);

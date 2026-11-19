@@ -112,7 +112,18 @@ fn home_behind_vlan_201() {
             rules.contains(r#"iifname "br-lan.50" jump input_securitycams"#),
             "{rules}"
         );
+        // IoT's clients may reach the mDNS repeater (D-136).
+        assert!(rules.contains("Allow-mDNS-iot"), "{rules}");
     }
+    // The repeater runs between the LAN and IoT and listens on 5353 (0x14E9).
+    let ps = gw.sh("ps w", &[]);
+    assert!(
+        ps.lines()
+            .any(|l| l.contains("mdns-repeater") && l.ends_with("br-lan.1 br-lan.30")),
+        "{ps}"
+    );
+    let udp = gw.sh("cat /proc/net/udp", &[]);
+    assert!(udp.contains(":14E9"), "{udp}");
 
     // dnsmasq's init script takes the LAN's options and network boot (the AP's lease below shows
     // it serves with them).
@@ -133,6 +144,30 @@ fn home_behind_vlan_201() {
         ap.wait_interface(network, UP, |s| s["up"] == true);
     }
     reaches_isp(&ap, "198.51.100.1");
+
+    // A network restart makes new devices, which the repeater's sockets lost: the footprint's
+    // interface hook starts it again, in the mDNS group on both (D-136).
+    gw.sh(
+        r#"printf '%s' "$1" >/etc/hotplug.d/iface/90-uniwrt && /etc/init.d/network restart"#,
+        &[include_str!("../../../node-agent/txn/uniwrt-hotplug")],
+    );
+    let deadline = std::time::Instant::now() + UP;
+    loop {
+        // The devices in 224.0.0.251's group (FB0000E0 in /proc/net/igmp).
+        let joined = gw.sh(
+            r"awk '/^[0-9]/ { dev = $2 } /FB0000E0/ { print dev }' /proc/net/igmp",
+            &[],
+        );
+        let joined: Vec<&str> = joined.lines().collect();
+        if joined.contains(&"br-lan.1") && joined.contains(&"br-lan.30") {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the repeater rejoined mDNS"
+        );
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
 }
 
 #[test]

@@ -291,6 +291,12 @@ export function WlanEditor(props: {
               hint={t.isolationHint}
             />
             <Checkbox
+              checked={draft().multicastToUnicast}
+              onChange={(multicastToUnicast) => change({ multicastToUnicast })}
+              label={t.multicastToUnicast}
+              hint={t.multicastToUnicastHint}
+            />
+            <Checkbox
               checked={draft().hidden}
               onChange={(hidden) => change({ hidden })}
               label={t.hidden}

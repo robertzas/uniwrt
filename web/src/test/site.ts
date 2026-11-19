@@ -62,6 +62,7 @@ export function siteConfig(): SiteConfig {
         max_clients: null,
         schedule: null,
         roaming: { fast: null, hints: true, steer: true },
+        multicast_to_unicast: true,
       },
     ],
     mesh: {

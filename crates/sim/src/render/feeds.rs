@@ -20,7 +20,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 15] = [
+pub(crate) const FEED: [FeedPackage; 16] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -103,6 +103,13 @@ pub(crate) const FEED: [FeedPackage; 15] = [
     ("ddns-scripts-services", "2.8.4-r9", None, None),
     ("ddns-scripts-cloudflare", "2.8.4-r9", None, None),
     ("ddns-scripts-noip", "2.8.4-r9", None, None),
+    // mDNS reflection (D-136), which ships no configuration.
+    (
+        "mdns-repeater",
+        "2023.12.16~f714ec4d-r1",
+        Some("mdns-repeater"),
+        None,
+    ),
     ("curl", "8.17.0-r1", None, None),
 ];
 

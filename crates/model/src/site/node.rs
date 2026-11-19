@@ -59,6 +59,7 @@ pub enum ManagedPackage {
     Upnpd,
     HttpsDnsProxy,
     Ddns,
+    MdnsRepeater,
     Wireguard,
 }
 
@@ -78,6 +79,7 @@ impl ManagedPackage {
             Self::Upnpd => "upnpd",
             Self::HttpsDnsProxy => "https-dns-proxy",
             Self::Ddns => "ddns",
+            Self::MdnsRepeater => "mdns_repeater",
             Self::Wireguard => "wireguard",
         }
     }

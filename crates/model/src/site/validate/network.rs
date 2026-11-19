@@ -257,3 +257,15 @@ pub(super) fn overlap(a: Ipv4Net, b: Ipv4Net) -> bool {
 fn host(subnet: Ipv4Net, n: u32) -> Ipv4Addr {
     Ipv4Addr::from(u32::from(subnet.network()).saturating_add(n))
 }
+
+/// mDNS reflection: the repeater serves at most [`MDNS_NETWORKS`] networks.
+pub(super) fn mdns(config: &SiteConfig, issues: &mut Issues) {
+    use crate::site::network::MDNS_NETWORKS;
+    let on = config.networks.iter().filter(|n| n.mdns).count();
+    if on > MDNS_NETWORKS {
+        issues.error(
+            "networks",
+            format!("mDNS reflection serves at most {MDNS_NETWORKS} networks ({on} have it on)"),
+        );
+    }
+}

@@ -25,11 +25,17 @@ describe("WLAN drafts", () => {
       nodes: { scope: "only", nodes: [2, 1] },
       schedule: { spans: [{ days: ["mon", "fri"], from: 420, to: 1320 }] },
       roaming: { fast: false, hints: false, steer: false },
+      multicast_to_unicast: false,
     };
     const out = wlanOf(draftOf(wlan), wlan, []);
     expect(out.errors).toEqual({});
     expect(out.wlan).toEqual({ ...wlan, nodes: { scope: "only", nodes: [1, 2] } });
     expect(out.secrets).toBeUndefined();
+  });
+
+  it("starts new WLANs with multicast to unicast on, as OpenWrt does", () => {
+    expect(presetWlan("main", siteConfig()).multicast_to_unicast).toBe(true);
+    expect(draftOf(home()).multicastToUnicast).toBe(true);
   });
 
   it("decides fast roaming as the controller does", () => {

@@ -10,6 +10,10 @@ use crate::wifi::{Band, ChannelWidth};
 /// One SSID, broadcast by every radio of its bands on the nodes in scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent settings, each a switch in the editor"
+)]
 pub struct Wlan {
     /// Its key, which names its UCI sections (`uw_<id>_<band>`): `[a-z][a-z0-9_]{0,11}`.
     pub id: String,
@@ -33,6 +37,11 @@ pub struct Wlan {
     /// Defaults when left out, as `max_clients` and `schedule` do.
     #[serde(default)]
     pub roaming: Roaming,
+    /// Multicast reaches its clients as unicast frames, one per client that joined the group
+    /// (netifd's `multicast_to_unicast`, OpenWrt's default; needs IGMP snooping): off for
+    /// clients that miss such frames (D-136). On when left out.
+    #[serde(default = "on")]
+    pub multicast_to_unicast: bool,
 }
 
 /// How clients move between the access points of a WLAN (features/wifi.md, Roaming; D-085).
@@ -45,11 +54,12 @@ pub struct Roaming {
     pub hints: bool,
     /// The site's steering ([`super::steering::Steering`]) applies to it: off keeps usteer's hands off its
     /// clients, such as smart-home devices that roam badly.
-    #[serde(default = "steered")]
+    #[serde(default = "on")]
     pub steer: bool,
 }
 
-const fn steered() -> bool {
+/// `true`, the default of the flags that are on unless turned off.
+const fn on() -> bool {
     true
 }
 

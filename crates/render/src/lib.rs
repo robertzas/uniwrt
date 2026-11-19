@@ -8,8 +8,8 @@
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
 //!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `usteer` (only with steering
 //!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd`,
-//!   `https-dns-proxy`, `ddns` (the last five only on the gateway, only with SQM, failover,
-//!   UPnP, DoH or DDNS names on or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   `https-dns-proxy`, `ddns`, `mdns_repeater` (the last six only on the gateway, only with SQM,
+//!   failover, UPnP, DoH, DDNS names or mDNS reflection on, or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
@@ -63,6 +63,7 @@ mod doh;
 mod ext;
 mod failover;
 mod firewall;
+mod mdns;
 mod mesh;
 mod network;
 mod plan;
@@ -206,7 +207,7 @@ pub use self::{
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 11] = [
+pub const RENDERABLE: [ManagedPackage; 12] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
@@ -218,6 +219,7 @@ pub const RENDERABLE: [ManagedPackage; 11] = [
     ManagedPackage::Upnpd,
     ManagedPackage::HttpsDnsProxy,
     ManagedPackage::Ddns,
+    ManagedPackage::MdnsRepeater,
 ];
 
 /// A package of what the feeds bring, on the gateway: the package, its init script, whether
@@ -229,7 +231,7 @@ struct FeedRendered {
     requires: Vec<Requirement>,
 }
 
-/// SQM's, mwan3's, miniupnpd's, https-dns-proxy's or ddns-scripts' package; `None` where there is nothing to own (not the
+/// SQM's, mwan3's, miniupnpd's, https-dns-proxy's, ddns-scripts' or mdns-repeater's package; `None` where there is nothing to own (not the
 /// gateway, or the feature off and the package not on the node).
 fn feed_package(
     package: ManagedPackage,
@@ -275,6 +277,15 @@ fn feed_package(
             let rendered = ddns::render(plan, held)?;
             let on = ddns::enabled(plan).next().is_some();
             (rendered, "ddns", on, ddns::requires(plan))
+        }
+        ManagedPackage::MdnsRepeater => {
+            let on = !mdns::networks(plan).is_empty();
+            (
+                mdns::render(plan, held)?,
+                "mdns-repeater",
+                on,
+                vec![mdns::REQUIRES],
+            )
         }
         _ => return None,
     };
@@ -349,7 +360,8 @@ pub fn render(
             | ManagedPackage::Mwan3
             | ManagedPackage::Upnpd
             | ManagedPackage::HttpsDnsProxy
-            | ManagedPackage::Ddns => {
+            | ManagedPackage::Ddns
+            | ManagedPackage::MdnsRepeater => {
                 let Some(rendered) = feed_package(*package, &mut plan, held) else {
                     continue;
                 };

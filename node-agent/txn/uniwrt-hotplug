@@ -1,0 +1,13 @@
+#!/bin/sh
+# uniwrt's interface hook (D-136), installed with the transaction tool as
+# /etc/hotplug.d/iface/90-uniwrt; hotplug-call sources it in a subshell on every interface event.
+#
+# mdns-repeater joins the mDNS group on its devices when it starts, and loses it when netifd
+# brings one up again as a new device (a network restart, a reload that rebuilds the bridge),
+# or one comes up after it started (at boot); its init script's triggers name devices where
+# netifd expects interfaces, so nothing restarts it. This does, once one of its devices is up.
+[ "${ACTION:-}" = ifup ] && [ -n "${DEVICE:-}" ] || exit 0
+[ -x /etc/init.d/mdns-repeater ] && /etc/init.d/mdns-repeater enabled || exit 0
+case " $(uci -q get mdns_repeater.main.interface) " in
+*" $DEVICE "*) /etc/init.d/mdns-repeater restart ;;
+esac

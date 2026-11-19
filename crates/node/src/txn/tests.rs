@@ -207,7 +207,7 @@ fn the_footprint_holds_every_file_and_verifies() {
     let version = fs::read_to_string(dir.path().join("VERSION")).unwrap();
     assert_eq!(version.trim(), footprint.version());
     // The scripts parse as POSIX sh.
-    for name in ["txn", "uniwrt-guard"] {
+    for name in ["txn", "uniwrt-guard", "uniwrt-hotplug"] {
         let syntax = Process::new("sh")
             .args(["-n", name])
             .current_dir(dir.path())

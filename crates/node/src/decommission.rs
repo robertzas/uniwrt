@@ -38,7 +38,8 @@ for s in "$hello" "$guard"; do
 		"$s" stop >/dev/null 2>&1
 	fi
 done
-rm -f "$hello" "$guard" /usr/sbin/uniwrt-hello /lib/upgrade/keep.d/uniwrt
+rm -f "$hello" "$guard" /usr/sbin/uniwrt-hello /lib/upgrade/keep.d/uniwrt \
+	/etc/hotplug.d/iface/90-uniwrt
 rm -rf /etc/uniwrt /tmp/uniwrt /tmp/uniwrt.sh /var/run/uniwrt-lend
 f=/etc/dropbear/authorized_keys
 if [ -f "$f" ]; then

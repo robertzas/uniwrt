@@ -81,6 +81,7 @@ fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Upnpd,
         ManagedPackage::HttpsDnsProxy,
         ManagedPackage::Ddns,
+        ManagedPackage::MdnsRepeater,
     ]
     .into();
     config
@@ -137,8 +138,8 @@ fn network(id: &str, purpose: Purpose, vlan: u8, ipv6: Ipv6Mode) -> Network {
     }
 }
 
-/// A home: the LAN untagged (the AP's management network), smart-home devices on VLAN 30,
-/// isolated guests on VLAN 40, and cameras on VLAN 50 under a 12-character id, the longest a
+/// A home: the LAN untagged (the AP's management network), smart-home devices on VLAN 30 (mDNS
+/// reflected between them and the LAN), isolated guests on VLAN 40, and cameras on VLAN 50 under a 12-character id, the longest a
 /// network may have (fw4 names the zone after it).
 pub fn home(uplink: Uplink) -> SiteConfig {
     let mut site = defaults(uplink);
@@ -147,6 +148,7 @@ pub fn home(uplink: Uplink) -> SiteConfig {
     let lan = &mut site.networks[0];
     lan.ipv6 = Ipv6Mode::Both;
     lan.igmp_snooping = true;
+    lan.mdns = true;
     lan.ipv6_clients = Ipv6Clients::SlaacStateful;
     if let Some(dhcp) = lan.ipv4.as_mut().and_then(|ipv4| ipv4.dhcp.as_mut()) {
         dhcp.reservations.push(Reservation {
@@ -169,6 +171,7 @@ pub fn home(uplink: Uplink) -> SiteConfig {
     }
     let mut iot = network("iot", Purpose::Iot, 30, Ipv6Mode::Delegated);
     iot.ipv6_clients = Ipv6Clients::Slaac;
+    iot.mdns = true;
     site.networks.push(iot);
     let mut guest = network("guest", Purpose::Guest, 40, Ipv6Mode::Off);
     guest.isolation = true;
@@ -221,6 +224,7 @@ pub fn lab(lan: Ipv4Net) -> SiteConfig {
             hints: true,
             steer: true,
         },
+        multicast_to_unicast: true,
     }];
     site.mesh.enabled = true;
     "uniwrt-lab-mesh".clone_into(&mut site.mesh.mesh_id);

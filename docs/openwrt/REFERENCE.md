@@ -108,6 +108,10 @@ Verified in the 24.10.8 and 25.12.6 rootfs containers (M1.3).
 
 ## procd, netifd and sysfs
 
+- ✅ mDNS (24.10 and 25.12; D-136): `mdns-repeater` (21 KiB, libc only) reads `mdns_repeater.main.interface` (a list of devices, passed as its arguments with `-f`), repeats IPv4 only, and serves at most 5 interfaces; the package ships no `/etc/config` file. Its init script's interface triggers name those devices, which netifd never matches. A network restart makes the bridge's VLAN devices anew (new ifindex) and the running repeater drops out of 224.0.0.251 on them without a word (`/proc/net/igmp`); a restart rejoins. `avahi-nodbus-daemon` reflects IPv4 and IPv6 without a cap but takes about 400 KiB with its libraries and reads `/etc/avahi/avahi-daemon.conf` (not UCI); `umdns` doesn't reflect.
+- ✅ Hotplug `iface` scripts are sourced in a subshell with `ACTION` (`ifup`, `ifdown`, …), `INTERFACE` and, on `ifup`, `DEVICE` (the L3 device, `br-lan.30`).
+- ✅ netifd's bridge-port options include `multicast_to_unicast`, `multicast_router` and `multicast_fast_leave`; `netifd-wireless.sh` treats a bridged AP's `multicast_to_unicast` as on unless `0` (and then sets the BSS's `isolate`, so its clients' traffic hairpins through the bridge, which converts it), and hostapd's own conversion is `multicast_to_unicast_all`. ⚠️ The AP port's `brport/multicast_to_unicast` is unchecked in the Wi-Fi lab.
+
 - ✅ batman-adv's mesh device has no DEVTYPE, and batman-adv has no sysfs or debugfs tables any more; its hard interfaces are its `lower_*` links, rtnetlink's link kind is `batadv`, and netifd names the device after its `proto batadv` interface.
 - ✅ A phy's `device` link resolves (`fs.realpath`) to `/sys/devices/<path>`, and OpenWrt's radio `path` is that `<path>` (`virtual/mac80211_hwsim/hwsim0`); ⚠️ later phys of one device get `+1`, `+2`.
 - ✅ `system info`: memory in bytes, `root` and `tmp` in KiB, and `load` scaled by 65536.

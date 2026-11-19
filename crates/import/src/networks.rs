@@ -1,6 +1,7 @@
 //! Networks, from the gateway (features/network.md): each LAN interface on the bridge (DSA,
 //! with its VLAN from `bridge-vlan`) or on a swconfig CPU port's VLAN device, with its address,
-//! IPv6, DHCP pool and reservations; the ULA; the local DNS records; and an address space
+//! IPv6, DHCP pool and reservations, and mDNS reflection (the networks whose device the
+//! gateway's `mdns_repeater` lists); the ULA; the local DNS records; and an address space
 //! that holds them all.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,6 +31,12 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
         return;
     };
     let vlans = Vlans::of(network, gateway);
+    // The devices the gateway's mDNS repeater serves (D-136).
+    let reflected = gateway
+        .packages
+        .get("mdns_repeater")
+        .and_then(|p| p.section("main"))
+        .map_or_default(|main| read::items(main, "interface"));
     let mut found: Vec<(String, Network)> = Vec::new();
     for section in network.sections_of("interface") {
         let Some(name) = section.name.as_deref() else {
@@ -38,7 +45,10 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
         if RESERVED.contains(&name) || !matches!(section.option("proto"), Some("static" | "none")) {
             continue;
         }
-        let Some(vlan) = section.option("device").and_then(|d| vlans.of_device(d)) else {
+        let Some(device) = section.option("device") else {
+            continue;
+        };
+        let Some(vlan) = vlans.of_device(device) else {
             continue;
         };
         let taken = |id: &str| found.iter().any(|(_, n)| n.id == id);
@@ -72,7 +82,7 @@ pub(crate) fn import(site: &mut SiteConfig, gateway: &Source<'_>, renames: &mut 
                     Ipv6Clients::default()
                 },
                 isolation: false,
-                mdns: true,
+                mdns: reflected.contains(&device),
                 igmp_snooping: false,
             },
         ));

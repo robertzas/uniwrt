@@ -5,7 +5,8 @@
 //! replies to allowed connections in every direction, so "block" and "established" both
 //! render as no forwarding. APs run no firewall: theirs has only its defaults, which accept
 //! input. Port forwards and the DMZ host are `redirect`s ([`redirect`](crate::redirect)), and
-//! the untrusted zones that UPnP serves may reach miniupnpd ([`upnp`](crate::upnp)). The wired
+//! the untrusted zones that UPnP serves may reach miniupnpd ([`upnp`](crate::upnp)), and those
+//! that reflect mDNS the gateway's repeater ([`mdns`](crate::mdns)). The wired
 //! backhaul's interfaces have a zone of their own ([`backhaul`](crate::backhaul)), and so has the
 //! adoption port ([`adoption`](crate::adoption)).
 
@@ -78,6 +79,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         }
         sections.extend(crate::redirect::sections(plan, WAN));
         sections.extend(crate::blocking::firewall(plan));
+        sections.extend(crate::mdns::firewall(plan));
         sections.extend(crate::backhaul::firewall(plan));
         sections.extend(crate::adoption::firewall(plan));
     }

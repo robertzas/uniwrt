@@ -135,13 +135,17 @@ async fn the_footprint_installs_by_version_and_uninstalls() {
     assert_eq!(installed.open, None);
     assert!(shell_ok(&session, "/etc/init.d/uniwrt-guard enabled").await);
     let keep = run(&session, &["cat", "/lib/upgrade/keep.d/uniwrt"]).await;
-    assert_eq!(keep, "/etc/uniwrt/\n/etc/init.d/uniwrt-guard\n");
+    assert_eq!(
+        keep,
+        "/etc/uniwrt/\n/etc/init.d/uniwrt-guard\n/etc/hotplug.d/iface/90-uniwrt\n"
+    );
+    assert!(shell_ok(&session, "[ -f /etc/hotplug.d/iface/90-uniwrt ]").await);
     // Installing again is harmless.
     exec(&session, &Footprint::get().install()).await.unwrap();
 
     exec(&session, &txn::uninstall()).await.unwrap();
     assert_eq!(exec(&session, &txn::status()).await.unwrap(), None);
-    assert!(!shell_ok(&session, "[ -e /etc/uniwrt ] || [ -e /etc/init.d/uniwrt-guard ] || [ -e /lib/upgrade/keep.d/uniwrt ]").await);
+    assert!(!shell_ok(&session, "[ -e /etc/uniwrt ] || [ -e /etc/init.d/uniwrt-guard ] || [ -e /lib/upgrade/keep.d/uniwrt ] || [ -e /etc/hotplug.d/iface/90-uniwrt ]").await);
 }
 
 #[tokio::test]

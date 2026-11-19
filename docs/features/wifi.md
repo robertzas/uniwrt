@@ -12,7 +12,8 @@ Fields (✅ in the model and the editor; D-083):
 - ✅ schedule: weekly on-times in the site's time zone, daylight saving included. The controller enforces the saved site's (no apply needed): outside its times a WLAN's BSSes on managed nodes go off through the agent's `bss` op (hostapd's `config_set` with netifd's config less those BSSes; no UCI change, the radio's other BSSes and its mesh point keep running), and on again at the start; a `wifi reload` or an apply brings them back on, and the controller turns them off again within half a minute. While the controller is down a WLAN stays as it is. Events: `wlan_scheduled` (site-wide), `wlan_schedule_failed`/`wlan_schedule_ok` per node and phy (D-083).
 - 802.11w (PMF) follows the security mode (transition 1, WPA3 and OWE 2)
 - ✅ roaming (schema v7, D-085): fast roaming (802.11r) Auto, On or Off, and roaming hints (802.11k/v) on or off; see Roaming
-- advanced, later: DTIM, multicast-to-unicast, `disassoc_low_ack`, minimum basic rate, airtime fairness
+- ✅ multicast to unicast (schema v15, D-136; on, OpenWrt's default; network.md, Other services)
+- advanced, later: DTIM, `disassoc_low_ack`, minimum basic rate, airtime fairness
 
 Security modes: WPA2-PSK, WPA2/WPA3 transition (`sae-mixed`), WPA3-SAE (required on 6 GHz), OWE for open guest networks, OWE in transition mode (an open companion for devices without OWE), plain open (warned about), and WPA2/3-Enterprise later. PPSK is open option O-8.
 

@@ -238,6 +238,7 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::Upnpd,
         ManagedPackage::HttpsDnsProxy,
         ManagedPackage::Ddns,
+        ManagedPackage::MdnsRepeater,
     ]
     .into();
     config
@@ -301,6 +302,7 @@ fn wlan(
         max_clients: None,
         schedule: None,
         roaming: uniwrt_model::site::wireless::Roaming::default(),
+        multicast_to_unicast: true,
     }
 }
 

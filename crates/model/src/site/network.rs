@@ -25,10 +25,16 @@ pub struct Network {
     pub ipv6_clients: Ipv6Clients,
     /// Clients on it cannot reach each other.
     pub isolation: bool,
-    /// mDNS is reflected between this network and the others that have it on.
+    /// mDNS is reflected between this network and the others that have it on (the gateway's
+    /// `mdns-repeater`, IPv4, at most [`MDNS_NETWORKS`]; D-136).
     pub mdns: bool,
+    /// The bridge forwards multicast only to the ports whose hosts joined the group; one
+    /// network's on turns it on for the bridge, which every network shares.
     pub igmp_snooping: bool,
 }
+
+/// The most networks the gateway's mDNS repeater serves (`mdns-repeater`'s limit, D-136).
+pub const MDNS_NETWORKS: usize = 5;
 
 /// What a network is for, which seeds its firewall policy (features/network.md, Firewall).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

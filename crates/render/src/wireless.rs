@@ -353,6 +353,10 @@ fn ap_ifaces(
         section
             .maybe("maxassoc", wlan.max_clients.map(|max| max.to_string()))
             .flag("isolate", wlan.isolation || network.isolation)
+            .maybe(
+                "multicast_to_unicast",
+                (!wlan.multicast_to_unicast).then_some("0"),
+            )
             .flag("disabled", !wlan.enabled)
     };
     // 6 GHz has no open BSS, so the encrypted one stands alone there.

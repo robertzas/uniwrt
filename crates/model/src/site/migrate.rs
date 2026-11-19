@@ -14,7 +14,7 @@ type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
     v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
-    v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14,
+    v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -312,6 +312,34 @@ fn v13_to_v14(value: &mut Value) -> Result<(), String> {
         .ok_or("the document has no DNS filtering")?
         .entry("stats")
         .or_insert(json!(true));
+    Ok(())
+}
+
+/// v15 (M8.1b1, D-136): WLANs gain multicast to unicast (on, OpenWrt's default); nodes that
+/// manage `dhcp` manage `mdns_repeater` too (render writes it only on the gateway, while two
+/// networks or more reflect mDNS, or the node holds it).
+fn v14_to_v15(value: &mut Value) -> Result<(), String> {
+    let wlans = value
+        .get_mut("wlans")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no WLANs")?;
+    for wlan in wlans {
+        wlan.as_object_mut()
+            .ok_or("a WLAN is not an object")?
+            .insert("multicast_to_unicast".to_owned(), json!(true));
+    }
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        let Some(managed) = node.get_mut("managed").and_then(Value::as_array_mut) else {
+            return Err("a node has no managed packages".to_owned());
+        };
+        if managed.iter().any(|p| p == "dhcp") && !managed.iter().any(|p| p == "mdns_repeater") {
+            managed.push(json!("mdns_repeater"));
+        }
+    }
     Ok(())
 }
 
