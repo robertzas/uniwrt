@@ -25,7 +25,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::{
     AgentEvent, AgentLaunch, Hello, NodeLink as _,
-    events::Push,
+    events::{self, Push},
     facts,
     proto::ops::{
         Ban, BanEntry, Bss, Btm, Collect, Exec, MboReason, Rrm, Scan, Set, Subscribe, Topic, Ubus,
@@ -452,17 +452,32 @@ async fn transition(var: &str, client: &str) {
 
     // Without candidates the client answers at once; with some it may first scan for them
     // (on channels its radio can't reach here) and answer late or not at all.
+    // The request is an action frame: one the client misses (busy scanning or settling after
+    // the previous test) gets no answer, so it is asked again, as steering would.
     let ask = Btm {
         neighbors: Vec::new(),
         ..request(false)
     };
-    let sent = link.request(&ask, LONG).await.unwrap();
-    assert_eq!((sent.ifname.as_str(), sent.timer), (iface.as_str(), 0));
-    let answer = next_push(&mut pushes, LONG, |push| match push {
-        Push::Event(NodeEvent::Steer(steer)) if steer.mac == Some(mac(client)) => Some(steer),
-        _ => None,
-    })
-    .await;
+    let mut answer = None;
+    for _ in 0..3 {
+        let sent = link.request(&ask, LONG).await.unwrap();
+        assert_eq!((sent.ifname.as_str(), sent.timer), (iface.as_str(), 0));
+        let wait = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let event = pushes.recv().await.unwrap();
+                if let Some(Push::Event(NodeEvent::Steer(steer))) = events::parse(&event).unwrap()
+                    && steer.mac == Some(mac(client))
+                {
+                    return steer;
+                }
+            }
+        });
+        if let Ok(steer) = wait.await {
+            answer = Some(steer);
+            break;
+        }
+    }
+    let answer = answer.unwrap_or_else(|| panic!("{client} answered none of 3 requests on {var}"));
     assert!(
         matches!(
             answer.action,
