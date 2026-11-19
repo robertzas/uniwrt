@@ -9,6 +9,7 @@ import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
 import { formatDateTime } from "../../../lib/format";
 import { detail, facts } from "../../../test/fixtures";
+import { NO_PACKAGES } from "../../../test/packages";
 import { openTestSocket, SignedInProviders } from "../../../test/providers";
 import { revisionMeta, siteView } from "../../../test/site";
 import { backupDetail, concerns, endedCount } from "./backups";
@@ -68,6 +69,7 @@ beforeEach(() => {
       calls.push({ method, url });
       if (url === "/api/v1/site") return Response.json(siteView(2));
       if (url === "/api/v1/firmware") return Response.json({ nodes: [], error: null });
+      if (url === "/api/v1/nodes/1/packages") return Response.json(NO_PACKAGES);
       if (url === "/api/v1/nodes/1/backups" && method === "GET") return Response.json(backups);
       if (url === "/api/v1/nodes/1/backups") {
         return Response.json(job("backup", "running"), { status: 202 });

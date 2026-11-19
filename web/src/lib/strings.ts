@@ -705,6 +705,11 @@ export const strings = {
         record: "Grade the line",
       },
       wpad: { verify: "Find 802.11v" },
+      packages: {
+        check: "Check the changes with a dry run",
+        install: "Make the changes",
+        inventory: "Read the packages again",
+      },
       restore: {
         check: "Check the device and the backup",
         backup: "Back up what it holds now",
@@ -1669,6 +1674,97 @@ export const strings = {
         ]
           .filter(Boolean)
           .join("; "),
+    },
+    software: {
+      title: "Installed packages",
+      description:
+        "The software on the device, from its own feeds. Changes run at once: they aren't part of the site's configuration, and a firmware upgrade carries over what you installed.",
+      loading: "Reading the packages",
+      summary: (n: number, manager: string | null | undefined) =>
+        `${n} ${n === 1 ? "package" : "packages"}${manager ? ` · ${manager}` : ""}`,
+      readAt: (when: string) => `Read ${when}`,
+      notRead:
+        "Not read yet: uniwrt reads a device's packages when it adopts it and after each change.",
+      observe: "Read-only in observe mode: turn management on to change the device's packages.",
+      adminOnly: "Only admins change the packages of devices.",
+      requiredUnknown: (why: string) =>
+        `Nothing can be removed until uniwrt can tell which packages the site needs here: ${why}`,
+      requiredUnknownShort: "uniwrt can't tell yet which packages the site needs here.",
+      search: "Search packages",
+      shown: {
+        label: "Packages shown",
+        explicit: (n: number) => `On purpose (${n})`,
+        dependency: (n: number) => `Dependencies (${n})`,
+        all: (n: number) => `All (${n})`,
+      },
+      columns: { name: "Package", version: "Version", kind: "Installed", remove: "Remove" },
+      kind: { explicit: "On purpose", dependency: "As a dependency" },
+      lock: { required: "Required", essential: "Essential" },
+      lockWhy: {
+        required: "The site's configuration needs it: an apply installs it.",
+        essential: "The device needs it to run and to stay reachable.",
+      },
+      firmware: "Firmware",
+      firmwareWhy: "Comes with the firmware: a firmware upgrade upgrades it.",
+      remove: (name: string) => `Remove ${name}`,
+      none: "No package matches.",
+      add: "Add or upgrade…",
+      pending: (changes: { install: unknown[]; upgrade: unknown[]; remove: unknown[] }) =>
+        [
+          changes.remove.length > 0 ? `${changes.remove.length} to remove` : "",
+          changes.upgrade.length > 0 ? `${changes.upgrade.length} to upgrade` : "",
+          changes.install.length > 0 ? `${changes.install.length} to install` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      clear: "Clear",
+      review: "Review changes…",
+      running: "Changing the packages: the list is read again once the device is done.",
+      done: (name: string) => `The packages of ${name} changed`,
+      failed: (name: string) => `The packages of ${name} didn't all change`,
+      catalog: {
+        title: (name: string) => `Add or upgrade packages on ${name}`,
+        description: "From the device's own feeds. Choose, then review the changes on the card.",
+        reading: "Reading the device's feeds…",
+        readingHint:
+          "The device refreshes its package index first, from the internet: this can take a minute.",
+        retry: "Try again",
+        readAt: (when: string) => `Feeds read ${when}`,
+        again: "Read again",
+        upgrades: "Upgrades on offer",
+        noUpgrades: "Every package is up to date.",
+        upgrade: (from: string, to: string) => `${from} → ${to}`,
+        available: "Available",
+        search: "Search the feeds",
+        searchHint: "By name or description.",
+        columns: {
+          pick: "Install",
+          name: "Package",
+          version: "Version",
+          size: "Size",
+          about: "Description",
+        },
+        install: (name: string) => `Install ${name}`,
+        none: "No package matches.",
+        chosen: (n: number) =>
+          n === 0 ? "Nothing chosen yet" : `${n} ${n === 1 ? "change" : "changes"} chosen`,
+        done: "Done",
+      },
+      confirm: {
+        title: (name: string) => `Change the packages of ${name}?`,
+        kinds: { remove: "Remove", upgrade: "Upgrade", install: "Install" },
+        upgradeFrom: (from: string, to: string) => `${from} → ${to}`,
+        space: (size: string) => `The new packages take about ${size} of flash.`,
+        check:
+          "A dry run checks every change first. If one would remove a package the device needs, leave a package another needs, or not fit in the flash, nothing changes.",
+        after:
+          "A new package's service starts at once, and nothing rolls back: to undo an install, remove the package.",
+        cancel: "Cancel",
+        start: (n: number) => `Make ${n} ${n === 1 ? "change" : "changes"}`,
+        starting: "Starting…",
+        close: "Close",
+        done: "Done: the list shows the device's packages as they are now.",
+      },
     },
     drift: {
       title: "Drift",

@@ -65,6 +65,7 @@ import type { Network } from "../api/gen/Network";
 import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
+import type { NodePackages } from "../api/gen/NodePackages";
 import type { NodeRole } from "../api/gen/NodeRole";
 import type { NodeSource } from "../api/gen/NodeSource";
 import type { NodeSummary } from "../api/gen/NodeSummary";
@@ -73,6 +74,8 @@ import type { NotifierInput } from "../api/gen/NotifierInput";
 import type { NotifierList } from "../api/gen/NotifierList";
 import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
+import type { PackageCatalog } from "../api/gen/PackageCatalog";
+import type { PackageChanges } from "../api/gen/PackageChanges";
 import type { PassphraseBody } from "../api/gen/PassphraseBody";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { Plan } from "../api/gen/Plan";
@@ -371,6 +374,18 @@ export const api = {
       request<RoleBody>(`/nodes/${id}/role`, { method: "PUT", body: { role } }),
     /** Starts the job that swaps a managed node's basic wpad for the full one (admins, D-089). */
     wpad: (id: NodeId) => request<Job>(`/nodes/${id}/wpad`, { method: "POST" }),
+    /** The node's installed packages as last read, each with its lock (D-139). */
+    packages: (id: NodeId, signal?: AbortSignal) =>
+      request<NodePackages>(`/nodes/${id}/packages`, { signal }),
+    /** What a managed node's feeds offer, its index refreshed first: can take a minute (admins). */
+    packageCatalog: (id: NodeId) =>
+      request<PackageCatalog>(`/nodes/${id}/packages/catalog`, { method: "POST" }),
+    /**
+     * Starts the job that removes, upgrades and installs packages on a managed node (admins); 409
+     * in observe mode, 422 for a locked or malformed name.
+     */
+    changePackages: (id: NodeId, body: PackageChanges) =>
+      request<Job>(`/nodes/${id}/packages`, { method: "POST", body }),
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
     rootPassword: (id: NodeId) =>
       request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),

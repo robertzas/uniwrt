@@ -9,6 +9,7 @@ import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
 import { drift } from "../../../test/drift";
 import { detail, facts } from "../../../test/fixtures";
+import { NO_PACKAGES } from "../../../test/packages";
 import { openTestSocket, SignedInProviders } from "../../../test/providers";
 import { revisionMeta, siteView } from "../../../test/site";
 
@@ -88,6 +89,7 @@ beforeEach(() => {
         return Response.json(manageJob("running", 0), { status: 202 });
       }
       if (url === "/api/v1/firmware") return Response.json({ nodes: [], error: null });
+      if (url === "/api/v1/nodes/1/packages") return Response.json(NO_PACKAGES);
       if (url === "/api/v1/nodes/1/role") return Response.json(body);
       if (url === "/api/v1/nodes/1/wpad")
         return Response.json(wpadJob("running", 2), { status: 202 });

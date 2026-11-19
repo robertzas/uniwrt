@@ -9,6 +9,7 @@ import type { SiteSave } from "../../../api/gen/SiteSave";
 import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
 import { detail, facts } from "../../../test/fixtures";
+import { NO_PACKAGES } from "../../../test/packages";
 import { openTestSocket, SignedInProviders } from "../../../test/providers";
 import { revisionMeta, siteConfig, siteView } from "../../../test/site";
 
@@ -58,6 +59,7 @@ beforeEach(() => {
       }
       if (url.startsWith("/api/v1/events?")) return Response.json({ events, next: null });
       if (url === "/api/v1/firmware") return Response.json({ nodes: [], error: null });
+      if (url === "/api/v1/nodes/1/packages") return Response.json(NO_PACKAGES);
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );

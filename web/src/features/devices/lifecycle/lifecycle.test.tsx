@@ -9,6 +9,7 @@ import type { ZtpApproval } from "../../../api/gen/ZtpApproval";
 import { createAppRouter } from "../../../app/routes";
 import { Shell } from "../../../app/Shell";
 import { detail, facts, summary } from "../../../test/fixtures";
+import { NO_PACKAGES } from "../../../test/packages";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../../test/providers";
 import { revisionMeta, siteConfig, siteView } from "../../../test/site";
 import { awaitingOf } from "./AwaitingCard";
@@ -111,6 +112,7 @@ beforeEach(() => {
       if (url === "/api/v1/nodes/1/replace")
         return Response.json(job("replace", "running"), { status: 202 });
       if (url === "/api/v1/firmware") return Response.json({ nodes: [], error: null });
+      if (url === "/api/v1/nodes/1/packages") return Response.json(NO_PACKAGES);
       if (url === "/api/v1/nodes/1/backups") return Response.json([]);
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
