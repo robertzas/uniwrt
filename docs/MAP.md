@@ -191,6 +191,7 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
+- `src/logs/dns.rs`: DNS query statistics (features/network.md, Query statistics; D-133): the lines of dnsmasq's query log never become log entries.
 - `src/logs/mod.rs`: Recording logs (features/observability.md, Logs; D-059): every watched node's log, followed by its agent or received by syslog ([`source`]), and other hosts' syslog, annotated (`uniwrt_syslog::Patterns`), stored in batches through [`LogRepo`] and announced as [`Event::Logged`] once stored; retention runs beside it.
 - `src/logs/source.rs`: Where one node's log comes from, and what to skip so that each entry is stored once (D-059): the agent follows the log until syslog arrives from the node, and again once its syslog stops (TCP closed, or quiet for a while over UDP).
 - `src/logs/tests.rs`: The recorder over a store, an engine with one node (its link never connects) and syslog fed by hand: the agent follows the log, resumes after what is stored, gives way to syslog and takes over again when syslog goes quiet or closes; other hosts are stored by name.
@@ -446,6 +447,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/controller.rs`: The controller's own update (lifecycle.md, Firmware; D-123): the newest release on offer ([`ControllerUpdate`]), an install's progress ([`InstallProgress`]), the last trial that failed ([`TrialFailure`]) and the automatic install's setting ([`ControllerUpdates`]).
 - `src/controller_backup.rs`: Controller backups (lifecycle.md, Backups; D-126, D-129): age-encrypted tarballs of the database and the master key, taken nightly once an admin has set the passphrase, the newest [`KEEP`] in each backup directory ([`ControllerBackup`]), each described by its [`BackupManifest`]; and a restore staged from one ([`RestoreState`]), applied at the next start.
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
+- `src/dns_queries.rs`: DNS query statistics (features/network.md, Query statistics; D-133): dnsmasq's query log as the gateway writes it while filtering's statistics are on, read line by line ([`parse`]), each query paired with how it was answered ([`Pairing`]), and the [`DnsQuery`] records the controller keeps.
+- `src/dns_queries_tests.rs`: (no header comment)
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074): a managed package that changed on its node after the controller confirmed it, and what the user made of it.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's, the DHCP servers' and usteer's ubus notifications.
 - `src/events.rs`: Events (features/observability.md, Events, alerts, notifications): what happened on the network, as the controller records it for its timeline.
@@ -829,6 +832,8 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 - `src/repo/backhaul.rs`: [`BackhaulRepo`] on SQLite: the `backhaul_failures` table.
 - `src/repo/backups.rs`: [`BackupRepo`] on SQLite: the `node_backups` table kept by count and content (features/ lifecycle.md, Backups; D-126).
 - `src/repo/clients.rs`: [`ClientRepo`] on SQLite: the `clients` and `client_sessions` tables.
+- `src/repo/dns.rs`: [`DnsQueryRepo`] on SQLite: the `dns_queries` and `dns_hours` tables.
+- `src/repo/dns_tests.rs`: DNS query statistics over a real database: stored, counted by the hour, read and pruned.
 - `src/repo/drift.rs`: [`DriftRepo`] on SQLite: the `node_config` table (what the controller confirmed, written by [`ApplyRepo::record_applied`](super::ApplyRepo::record_applied)), `config_drift` and `drift_mutes`.
 - `src/repo/drift_tests.rs`: (no header comment)
 - `src/repo/events.rs`: [`EventRepo`] on SQLite: the `events` table.
@@ -984,7 +989,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (464 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (467 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

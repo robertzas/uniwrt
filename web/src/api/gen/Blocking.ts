@@ -25,4 +25,9 @@ deny: Array<string>,
  * Clients whose DNS (port 53, IPv4 and IPv6) the gateway's firewall redirects to an
  * unfiltered dnsmasq instance ([`UNFILTERED_PORT`]).
  */
-bypass: Array<string>, };
+bypass: Array<string>, 
+/**
+ * Query statistics while filtering is on: dnsmasq logs every query, which the controller
+ * aggregates (schema v14; on by default).
+ */
+stats: boolean, };

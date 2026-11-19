@@ -14,7 +14,7 @@ type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
     v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
-    v10_to_v11, v11_to_v12, v12_to_v13,
+    v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -301,6 +301,17 @@ fn v12_to_v13(value: &mut Value) -> Result<(), String> {
         .and_then(Value::as_object_mut)
         .ok_or("the document has no services")?
         .insert("blocking".to_owned(), blocking);
+    Ok(())
+}
+
+/// v14 (M8.1a2a2, D-133): DNS filtering gains query statistics, on while filtering is.
+fn v13_to_v14(value: &mut Value) -> Result<(), String> {
+    value
+        .pointer_mut("/services/blocking")
+        .and_then(Value::as_object_mut)
+        .ok_or("the document has no DNS filtering")?
+        .entry("stats")
+        .or_insert(json!(true));
     Ok(())
 }
 

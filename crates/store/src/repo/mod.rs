@@ -8,6 +8,9 @@ mod audit;
 mod backhaul;
 mod backups;
 mod clients;
+mod dns;
+#[cfg(test)]
+mod dns_tests;
 mod drift;
 mod events;
 mod facts;
@@ -42,6 +45,7 @@ use uniwrt_model::{
     },
     apply::{Applied, AppliedRevision, BackhaulFailure, CableEnd},
     client::{ClientRecord, ClientSession},
+    dns_queries::{DnsHour, DnsQuery},
     drift::{Confirmed, DriftMute, DriftRecord},
     events::{EventFilter, EventRecord, EventWrite},
     facts::NodeFacts,
@@ -587,6 +591,37 @@ pub trait MetricsRepo: Send + Sync {
     /// Deletes what each resolution holds from before its time, and the series left empty.
     /// Returns how many points.
     fn prune_metrics(&self, before: MetricsPrune) -> impl Future<Output = Result<usize>> + Send;
+}
+
+/// Before when DNS queries and their hourly counts are deleted ([`DnsQueryRepo::prune_dns`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DnsPrune {
+    pub queries_before: Timestamp,
+    pub hours_before: Timestamp,
+}
+
+/// DNS query statistics (features/network.md, Query statistics; D-133): the gateway's queries
+/// and each client's hourly counts.
+pub trait DnsQueryRepo: Send + Sync {
+    /// Stores `queries` and adds `hours`' counts to those stored for the same hour and client.
+    fn record_dns(
+        &self,
+        queries: Vec<DnsQuery>,
+        hours: Vec<DnsHour>,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// The queries at or after `since`, newest first, at most `limit`.
+    fn dns_queries(
+        &self,
+        since: Timestamp,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<DnsQuery>>> + Send;
+
+    /// The hourly counts from the hour holding `since`, oldest first.
+    fn dns_hours(&self, since: Timestamp) -> impl Future<Output = Result<Vec<DnsHour>>> + Send;
+
+    /// Deletes a batch of what `prune` says is old; returns how many rows went (0 when done).
+    fn prune_dns(&self, prune: DnsPrune) -> impl Future<Output = Result<usize>> + Send;
 }
 
 /// Before when, and above what size, logs are deleted ([`LogRepo::prune_logs`]).

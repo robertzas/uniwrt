@@ -1,7 +1,7 @@
 //! DNS filtering on the gateway (features/network.md, DHCP & local DNS: Blocklists; D-132,
 //! D-133): the lists the controller compiles into one file of dnsmasq `server=/domain/` lines,
 //! the domains always allowed or blocked, and the clients whose DNS goes to an unfiltered
-//! resolver. Schema v13 adds it, off.
+//! resolver. Schema v13 adds it, off; v14 its query statistics, on while it is.
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::MacAddr;
@@ -23,6 +23,9 @@ pub struct Blocking {
     /// unfiltered dnsmasq instance ([`UNFILTERED_PORT`]).
     #[cfg_attr(feature = "ts", ts(as = "Vec<String>"))]
     pub bypass: Vec<MacAddr>,
+    /// Query statistics while filtering is on: dnsmasq logs every query, which the controller
+    /// aggregates (schema v14; on by default).
+    pub stats: bool,
 }
 
 impl Default for Blocking {
@@ -34,11 +37,17 @@ impl Default for Blocking {
             allow: Vec::new(),
             deny: Vec::new(),
             bypass: Vec::new(),
+            stats: true,
         }
     }
 }
 
 impl Blocking {
+    /// Whether the gateway's dnsmasq logs every query, for the controller's statistics.
+    pub fn logs_queries(&self) -> bool {
+        self.enabled && self.stats
+    }
+
     /// Whether the gateway renders the unfiltered instance and the redirects to it.
     pub fn bypasses(&self) -> bool {
         self.enabled && !self.bypass.is_empty()

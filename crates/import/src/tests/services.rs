@@ -243,7 +243,7 @@ fn dns_filtering_and_its_bypass_import_exactly() {
         gateway
             .residual
             .iter()
-            .all(|d| d.package != "dhcp" && d.package != "firewall"),
+            .all(|d| !matches!(d.package.as_str(), "dhcp" | "firewall" | "system")),
         "{:?}",
         gateway.residual
     );
@@ -257,8 +257,17 @@ fn dns_filtering_and_its_bypass_import_exactly() {
         "{:?}",
         gateway.sections
     );
-    // Without the bypass, filtering alone.
+    // Without the bypass, filtering alone; without statistics, no query log.
     site.services.blocking.bypass.clear();
     let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
     assert_eq!(import.site.services.blocking, site.services.blocking);
+    site.services.blocking.stats = false;
+    let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+    assert_eq!(import.site.services.blocking, site.services.blocking);
+    assert!(
+        import.nodes[0]
+            .residual
+            .iter()
+            .all(|d| d.package != "system")
+    );
 }

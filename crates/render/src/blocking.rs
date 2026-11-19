@@ -7,8 +7,13 @@
 //! the same upstream and asks the main instance for local names. The instances are then named
 //! ([`MAIN_INSTANCE`], [`UNFILTERED_INSTANCE`]) and the main one's DHCP sections name it: with
 //! `nonwildcard` dnsmasq shares port 67, so an instance taking the pools would answer DHCP too.
+//! While its statistics are on, both instances log every query (`logqueries`, which OpenWrt
+//! passes as `--log-queries=extra`) and the gateway's log buffer grows to 256 KiB.
 
-use uniwrt_model::site::blocking::{CONF_DIR, MAIN_INSTANCE, UNFILTERED_INSTANCE, UNFILTERED_PORT};
+use uniwrt_model::{
+    node::NodeRole,
+    site::blocking::{CONF_DIR, MAIN_INSTANCE, UNFILTERED_INSTANCE, UNFILTERED_PORT},
+};
 use uniwrt_uci::{Section, Value};
 
 use crate::{ext::SectionExt, plan::Plan};
@@ -16,12 +21,25 @@ use crate::{ext::SectionExt, plan::Plan};
 /// The firewall redirects' names: `<prefix><network>`.
 pub const BYPASS_PREFIX: &str = "uniwrt_dns_bypass_";
 
-/// The main dnsmasq, reading the controller's files while filtering is on.
+/// The main dnsmasq, reading the controller's files while filtering is on, and logging every
+/// query while its statistics are on.
 pub(crate) fn main(plan: &Plan<'_>, dnsmasq: Section) -> Section {
-    if !plan.site.services.blocking.enabled {
+    let blocking = &plan.site.services.blocking;
+    if !blocking.enabled {
         return dnsmasq;
     }
-    dnsmasq.with("confdir", format!("{CONF_DIR},*.conf"))
+    dnsmasq
+        .with("confdir", format!("{CONF_DIR},*.conf"))
+        .maybe("logqueries", blocking.logs_queries().then_some("1"))
+}
+
+/// The gateway's log buffer in KiB: dnsmasq's query log needs room between the agent's reads.
+pub(crate) fn log_size(plan: &Plan<'_>) -> &'static str {
+    if plan.role == NodeRole::Gateway && plan.site.services.blocking.logs_queries() {
+        "256"
+    } else {
+        "128"
+    }
 }
 
 /// The dnsmasq sections of the `dhcp` package (the main instance first), named and pinned to
@@ -62,7 +80,11 @@ fn unfiltered(plan: &Plan<'_>, main: &Section) -> Section {
         // Never rewrite the gateway's own resolv.conf: the main instance is its resolver.
         .with("localuse", "0")
         .with("cachesize", "1000")
-        .with("ednspacket_max", "1232");
+        .with("ednspacket_max", "1232")
+        .maybe(
+            "logqueries",
+            plan.site.services.blocking.logs_queries().then_some("1"),
+        );
     match (main.option("noresolv"), main.option("resolvfile")) {
         (Some("1"), _) => section.set("noresolv", "1"),
         (_, Some(file)) => section.set("resolvfile", file),

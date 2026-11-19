@@ -43,7 +43,10 @@ pub(crate) fn json_column<T: DeserializeOwned + Default>(
         .map_err(|err| invalid(index, err))
 }
 
-fn invalid(index: usize, err: impl std::error::Error + Send + Sync + 'static) -> rusqlite::Error {
+pub(crate) fn invalid(
+    index: usize,
+    err: impl std::error::Error + Send + Sync + 'static,
+) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(err))
 }
 

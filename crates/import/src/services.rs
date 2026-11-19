@@ -4,7 +4,7 @@
 //! as it is: an upstream with conditional or odd servers stays the ISP's (its options raw), and
 //! a DDNS section of another service, source or id stays a raw section. DNS filtering (D-133)
 //! is on where the main dnsmasq reads uniwrt's conf directory, its bypassed clients those of
-//! uniwrt's redirects; its lists live on the controller, so they are the defaults.
+//! uniwrt's redirects, its statistics where that dnsmasq logs queries; its lists live on the controller, so they are the defaults.
 
 use std::net::IpAddr;
 
@@ -42,8 +42,10 @@ pub(crate) fn import(
 fn blocking(gateway: &Source<'_>) -> Blocking {
     let packages = gateway.packages;
     let confdir = format!("{CONF_DIR},*.conf");
-    let enabled = read::first(packages, "dhcp", "dnsmasq")
-        .is_some_and(|dnsmasq| dnsmasq.option("confdir") == Some(confdir.as_str()));
+    let main = read::first(packages, "dhcp", "dnsmasq");
+    let enabled = main.is_some_and(|dnsmasq| dnsmasq.option("confdir") == Some(confdir.as_str()));
+    // Query statistics are on where filtering is and the main instance logs its queries.
+    let stats = !enabled || main.is_some_and(|dnsmasq| dnsmasq.option("logqueries") == Some("1"));
     let mut bypass: Vec<MacAddr> = Vec::new();
     if enabled {
         let redirects = read::sections(packages, "firewall", "redirect").filter(|s| {
@@ -61,6 +63,7 @@ fn blocking(gateway: &Source<'_>) -> Blocking {
     Blocking {
         enabled,
         bypass,
+        stats,
         ..Blocking::default()
     }
 }

@@ -15,7 +15,8 @@
 //!   without their secrets, and how their deliveries went), [`RfRepo`] (radios' neighbor scans,
 //!   with what they heard as JSON), [`RevisionRepo`] (the site's revisions: one linear history,
 //!   each committed with its diff and the configuration secrets it introduces) and
-//!   [`SettingsRepo`] (settings by key, as JSON), [`SpeedTestRepo`] (the gateway's speed
+//!   [`SettingsRepo`] (settings by key, as JSON), [`DnsQueryRepo`] (the gateway's DNS queries
+//!   of 24 h and each client's hourly counts of 30 days, D-133), [`SpeedTestRepo`] (the gateway's speed
 //!   tests, the newest 500), [`BackhaulRepo`] (cables that failed the wired backhaul's probe), [`ZtpRepo`]
 //!   (zero-touch provisioning's pending inbox and pre-approvals by MAC, D-102),
 //!   [`DriftRepo`] (the managed packages as applies
@@ -71,11 +72,12 @@ mod writer;
 
 pub use error::{Error, Result};
 pub use repo::{
-    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, BackupRepo, ClientRepo, DriftRepo,
-    EventRepo, EventsPrune, FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, Kept,
-    LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo,
-    NotifierRepo, Pin, RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo,
-    SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
+    Adoption, AlertRepo, ApplyRepo, AuditRepo, BackhaulRepo, BackupRepo, ClientRepo, DnsPrune,
+    DnsQueryRepo, DriftRepo, EventRepo, EventsPrune, FactsRepo, FloorRepo, HostKeyRepo,
+    InventoryRepo, JobRepo, Kept, LogRepo, LogsPrune, MetricsPrune, MetricsRepo, NewFloorImage,
+    NewSession, NodeRepo, NotifierRepo, Pin, RevisionRepo, RfRepo, RolloutRepo, Secret,
+    SessionRepo, SettingsRepo, SpeedTestRepo, TopologyFrame, TopologyRepo, UserRepo, VaultRepo,
+    ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};

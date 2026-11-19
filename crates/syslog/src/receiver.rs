@@ -1,6 +1,8 @@
 //! The receiver: syslog over UDP and TCP, each message parsed and handed on with its sender's
 //! address. It never makes a sender wait: a sender over its rate, or a full queue, loses the
-//! message, and the losses are counted.
+//! message, and the losses are counted. dnsmasq's query log (`uniwrt_model::dns_queries`) has a
+//! rate of its own and at most half the queue, so a busy network's queries can't crowd out the
+//! other messages.
 
 use std::{
     collections::HashMap,
@@ -22,6 +24,7 @@ use tokio::{
 };
 use tracing::{debug, warn};
 use uniwrt_core::{Clock, Timestamp};
+use uniwrt_model::dns_queries;
 
 use crate::{Framer, Message, parse};
 
@@ -36,6 +39,9 @@ pub struct ReceiverConfig {
     /// Messages per second a sender may send on average, and in a burst.
     pub rate: u32,
     pub burst: u32,
+    /// The same for the lines of dnsmasq's query log, counted apart.
+    pub query_rate: u32,
+    pub query_burst: u32,
     /// Messages waiting for the consumer; more are dropped.
     pub queue: usize,
 }
@@ -49,6 +55,8 @@ impl Default for ReceiverConfig {
             max_connections: 64,
             rate: 200,
             burst: 2_000,
+            query_rate: 1_000,
+            query_burst: 10_000,
             queue: 4_096,
         }
     }
@@ -84,6 +92,7 @@ struct Shared {
     tx: mpsc::Sender<Received>,
     clock: Arc<dyn Clock>,
     limiter: Mutex<Limiter>,
+    queries: Mutex<Limiter>,
     dropped: Arc<AtomicU64>,
     /// When the last warning about drops went out.
     warned: Mutex<Option<Instant>>,
@@ -104,6 +113,7 @@ impl Receiver {
             tx,
             clock,
             limiter: Mutex::new(Limiter::new(config.rate, config.burst)),
+            queries: Mutex::new(Limiter::new(config.query_rate, config.query_burst)),
             dropped: Arc::clone(&dropped),
             warned: Mutex::new(None),
         });
@@ -166,12 +176,17 @@ impl Shared {
         let Some(message) = parse(bytes, at) else {
             return;
         };
-        let allowed = self
-            .limiter
+        let entry = &message.entry;
+        let query = dns_queries::parse(entry.program.as_deref(), &entry.message).is_some();
+        let limiter = if query { &self.queries } else { &self.limiter };
+        let allowed = limiter
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .allow(peer, Instant::now());
+        // The query log leaves the other half of the queue to everything else.
+        let room = !query || self.tx.capacity() > self.tx.max_capacity() / 2;
         let sent = allowed
+            && room
             && self
                 .tx
                 .try_send(Received::Message {
@@ -307,7 +322,7 @@ impl Limiter {
 
 #[cfg(test)]
 mod tests {
-    use std::{net::IpAddr, sync::Arc, time::Duration};
+    use std::{fmt::Write as _, net::IpAddr, sync::Arc, time::Duration};
 
     use tokio::{
         io::AsyncWriteExt,
@@ -412,6 +427,54 @@ mod tests {
         .await
         .unwrap();
         assert!(matches!(next(&mut rx).await, Received::Message { .. }));
+        receiver.stop().await;
+    }
+
+    #[tokio::test]
+    async fn the_query_log_leaves_room_for_other_messages() {
+        let config = ReceiverConfig {
+            queue: 8,
+            query_burst: 100,
+            ..config()
+        };
+        let (receiver, mut rx) = Receiver::bind(
+            &config,
+            Arc::new(ManualClock::new(Timestamp::from_unix_ms(0))),
+        )
+        .await
+        .unwrap();
+        let mut stream = TcpStream::connect(receiver.tcp_addr().unwrap())
+            .await
+            .unwrap();
+        let mut flood = String::new();
+        for serial in 1..=20 {
+            writeln!(
+                flood,
+                "<30>dnsmasq[9]: {serial} 10.0.0.2/1 query[A] a.example from 10.0.0.2"
+            )
+            .unwrap();
+        }
+        flood.push_str("<30>netifd: Interface 'wan' is now up\n");
+        stream.write_all(flood.as_bytes()).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while receiver.dropped() < 16 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let mut programs = Vec::new();
+        for _ in 0..5 {
+            let Received::Message { message, .. } = next(&mut rx).await else {
+                panic!("a message")
+            };
+            programs.push(message.entry.program.unwrap_or_default());
+        }
+        assert_eq!(
+            programs,
+            ["dnsmasq", "dnsmasq", "dnsmasq", "dnsmasq", "netifd"]
+        );
+        assert!(rx.try_recv().is_err());
         receiver.stop().await;
     }
 

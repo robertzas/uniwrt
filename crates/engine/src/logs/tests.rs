@@ -7,13 +7,14 @@ use std::{net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, mpsc};
 use uniwrt_core::{ManualClock, NodeId, Timestamp};
 use uniwrt_model::{
+    dns_queries::Outcome,
     facts::NodeFacts,
     log::{LogEntry, LogFilter, LogRecord, LogVia, NewLog, Severity},
 };
-use uniwrt_store::{LogRepo as _, Store};
+use uniwrt_store::{DnsQueryRepo as _, LogRepo as _, Store};
 use uniwrt_syslog::{Message, Received};
 
-use super::{LogRecorder, LogsConfig};
+use super::{DnsStatsConfig, LogRecorder, LogsConfig};
 use crate::{
     Engine, EngineConfig, Event,
     testing::{SharedLink, identity, link},
@@ -88,6 +89,10 @@ impl Harness {
         let config = LogsConfig {
             flush_every: Duration::from_millis(5),
             syslog_quiet: Duration::from_millis(200),
+            dns: DnsStatsConfig {
+                flush_every: Duration::from_millis(10),
+                ..DnsStatsConfig::default()
+            },
             ..LogsConfig::default()
         };
         let recorder = LogRecorder::start(&engine, store.clone(), Some(rx), config).await;
@@ -254,4 +259,103 @@ fn an_address_two_nodes_claim_names_neither() {
     super::claim(&mut map, "openwrt", NodeId::new(2));
     super::claim(&mut map, "openwrt", NODE);
     assert_eq!(map["openwrt"], None);
+}
+
+fn dnsmasq(text: &str) -> LogEntry {
+    LogEntry {
+        program: Some("dnsmasq".into()),
+        pid: Some(9),
+        ..entry(text)
+    }
+}
+
+#[tokio::test]
+async fn dnsmasq_s_query_log_goes_to_the_statistics_not_the_logs() {
+    let mut h = Harness::start(&[]).await;
+    h.agent_follows(true).await;
+    let lines = [
+        "1 192.168.1.20/1 query[A] ads.example.com from 192.168.1.20",
+        "1 192.168.1.20/1 config ads.example.com is NXDOMAIN",
+        "2 127.0.0.1/1 query[A] printer.lan from 127.0.0.1",
+        "2 127.0.0.1/1 /tmp/hosts/dhcp.cfg01411c printer.lan is 192.168.1.30",
+    ];
+    let mut entries: Vec<LogEntry> = lines.iter().map(|text| dnsmasq(text)).collect();
+    entries.insert(2, entry("Interface 'wan' is now down"));
+    h.engine.context().publish(Event::Log {
+        node: NODE,
+        entries: entries.clone().into(),
+        dropped: 0,
+    });
+    assert_eq!(h.logged().await.len(), 1);
+    // The agent's backfill brings them again; syslog brings the next query.
+    h.engine.context().publish(Event::Log {
+        node: NODE,
+        entries: entries.into(),
+        dropped: 0,
+    });
+    h.logged().await;
+    for text in [
+        "3 fd00::20/1 query[AAAA] example.org from fd00::20",
+        "3 fd00::20/1 forwarded example.org to 1.1.1.1",
+        "3 fd00::20/1 reply example.org is 2001:db8::1",
+    ] {
+        let Received::Message {
+            peer,
+            at,
+            tcp,
+            message,
+        } = syslog(GATEWAY, None, false, text)
+        else {
+            unreachable!()
+        };
+        let message = Message {
+            entry: dnsmasq(text),
+            ..message
+        };
+        h.syslog
+            .send(Received::Message {
+                peer,
+                at,
+                tcp,
+                message,
+            })
+            .await
+            .unwrap();
+    }
+    let wait = async {
+        loop {
+            let queries = h.store.dns_queries(START, 10).await.unwrap();
+            if queries.len() == 2 {
+                return queries;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    let queries = tokio::time::timeout(Duration::from_secs(5), wait)
+        .await
+        .unwrap();
+    let seen: Vec<_> = queries
+        .iter()
+        .map(|q| (q.client.to_string(), q.domain.as_str(), q.outcome))
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            ("fd00::20".to_owned(), "example.org", Outcome::Forwarded),
+            (
+                "192.168.1.20".to_owned(),
+                "ads.example.com",
+                Outcome::Blocked
+            ),
+        ]
+    );
+    // The gateway's own lookup isn't counted, nor stored as a log entry.
+    assert_eq!(h.texts().await, ["Interface 'wan' is now down"; 2]);
+    let hours = h.store.dns_hours(START).await.unwrap();
+    let counts: Vec<_> = hours
+        .iter()
+        .map(|h| (h.client.as_str(), h.queries, h.blocked))
+        .collect();
+    assert_eq!(counts, [("192.168.1.20", 1, 1), ("fd00::20", 1, 0)]);
+    h.recorder.stop().await;
 }

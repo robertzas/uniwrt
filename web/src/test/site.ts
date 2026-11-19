@@ -132,6 +132,7 @@ export function siteConfig(): SiteConfig {
         allow: [],
         deny: [],
         bypass: [],
+        stats: true,
       },
     },
     adoption_port: null,

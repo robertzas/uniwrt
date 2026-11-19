@@ -4,8 +4,10 @@
 //! [`Event::Logged`] once stored; retention runs beside it.
 //!
 //! Intake never waits on the store: batches go to a writer task, so the bus is read
-//! as fast as it fills.
+//! as fast as it fills. The lines of dnsmasq's query log go to the DNS statistics instead
+//! ([`dns`]), with a queue of their own.
 
+mod dns;
 mod source;
 
 use std::{
@@ -27,10 +29,14 @@ use tracing::{debug, info, warn};
 use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::log::{LogEntry, LogVia, NewLog};
 use uniwrt_node::{NodeLink, proto::ops::Set};
-use uniwrt_store::{LogRepo, LogsPrune};
+use uniwrt_store::{DnsQueryRepo, LogRepo, LogsPrune, RevisionRepo};
 use uniwrt_syslog::{Patterns, Received};
 
-use self::source::{Key, NodeLog};
+pub use self::dns::DnsStatsConfig;
+use self::{
+    dns::Feed,
+    source::{Key, NodeLog},
+};
 use crate::{Engine, Event, engine::Context};
 
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +50,7 @@ pub struct LogsConfig {
     pub prune_every: Duration,
     /// How long a node's syslog over UDP may be quiet before its agent follows the log again.
     pub syslog_quiet: Duration,
+    pub dns: DnsStatsConfig,
 }
 
 impl Default for LogsConfig {
@@ -55,6 +62,7 @@ impl Default for LogsConfig {
             max_bytes: 1 << 30,
             prune_every: Duration::from_mins(15),
             syslog_quiet: Duration::from_mins(10),
+            dns: DnsStatsConfig::default(),
         }
     }
 }
@@ -70,20 +78,22 @@ const QUIET_CHECK: Duration = Duration::from_secs(30);
 #[derive(Debug)]
 pub struct LogRecorder {
     stop: oneshot::Sender<()>,
-    tasks: [JoinHandle<()>; 3],
+    tasks: [JoinHandle<()>; 4],
 }
 
 impl LogRecorder {
     /// Starts following every node the engine watches (and those it watches later), resuming
     /// after the entries already stored, and takes in `syslog` when given.
-    pub async fn start<L: NodeLink, S: LogRepo + Clone + 'static>(
+    pub async fn start<L: NodeLink, S: LogRepo + DnsQueryRepo + RevisionRepo + Clone + 'static>(
         engine: &Engine<L>,
         repo: S,
         syslog: Option<mpsc::Receiver<Received>>,
         config: LogsConfig,
     ) -> Self {
         let bus = engine.subscribe();
+        let (dns, dns_task) = dns::spawn(engine, repo.clone(), config.dns);
         let mut intake = Intake {
+            dns,
             engine: engine.clone(),
             config,
             nodes: BTreeMap::new(),
@@ -103,7 +113,7 @@ impl LogRecorder {
         let upkeep = tokio::spawn(upkeep(ctx, repo, config, upkeep_stopped));
         Self {
             stop,
-            tasks: [intake, writer, upkeep],
+            tasks: [intake, writer, upkeep, dns_task],
         }
     }
 
@@ -117,6 +127,7 @@ impl LogRecorder {
 }
 
 struct Intake<L: NodeLink> {
+    dns: Feed,
     engine: Engine<L>,
     config: LogsConfig,
     nodes: BTreeMap<NodeId, NodeLog>,
@@ -198,7 +209,19 @@ impl<L: NodeLink> Intake<L> {
                     return;
                 };
                 let (now, received) = (Instant::now(), self.engine.context().clock.now());
-                for entry in log.agent_batch(&entries, now) {
+                let others: Vec<LogEntry>;
+                let entries: &[LogEntry] = if entries.iter().any(dns::is_query) {
+                    let (queries, rest): (Vec<_>, Vec<_>) =
+                        entries.iter().cloned().partition(dns::is_query);
+                    for query in queries {
+                        self.dns.send(node, received, query);
+                    }
+                    others = rest;
+                    &others
+                } else {
+                    &entries
+                };
+                for entry in log.agent_batch(entries, now) {
                     self.pending
                         .push(annotated(Some(node), None, LogVia::Agent, received, entry));
                 }
@@ -255,6 +278,10 @@ impl<L: NodeLink> Intake<L> {
                 };
                 if log.syslog_arrived(now, tcp) {
                     info!(node_id = %node, %peer, "the node's log arrives by syslog: the agent stops following it");
+                }
+                if dns::is_query(&message.entry) {
+                    self.dns.send(node, at, message.entry);
+                    return;
                 }
                 if log.keep(&message.entry, LogVia::Syslog, now) {
                     self.pending

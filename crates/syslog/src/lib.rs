@@ -10,7 +10,8 @@
 //! - **Invariants:** the parser is lenient and never fails on input but an empty message: what
 //!   does not parse becomes text. Messages are cut at [`MAX_MESSAGE`] bytes. The receiver never
 //!   blocks a sender: each sender has a rate (token bucket), a full queue drops messages, and
-//!   both count what they drop. At most [`ReceiverConfig::max_connections`] TCP connections
+//!   both count what they drop. dnsmasq's query log has its own rate per sender and at most
+//!   half the queue (D-133). At most [`ReceiverConfig::max_connections`] TCP connections
 //!   at once. Timestamps come from the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (the entry and its severity), tokio (net),
 //!   `time` (RFC 3339), `regex` and `toml` (the patterns), tracing.

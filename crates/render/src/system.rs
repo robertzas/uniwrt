@@ -24,7 +24,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
         .with("timezone", timezone)
         .with("zonename", site.timezone.as_str())
         .with("ttylogin", "0")
-        .with("log_size", "128")
+        .with("log_size", crate::blocking::log_size(plan))
         .with("urandom_seed", "0")
         .maybe(
             "compat_version",

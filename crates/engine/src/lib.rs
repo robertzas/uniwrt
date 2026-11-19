@@ -18,6 +18,9 @@
 //!   [`LogRecorder`] ([`LogsConfig`]), which has every node's log followed by its agent until
 //!   syslog delivers it (D-059), takes in other hosts' syslog, annotates and stores the entries
 //!   through `LogRepo` (announced as [`Event::Logged`]), and prunes them (14 days, 1 GiB);
+//!   dnsmasq's query log goes to the DNS query statistics instead ([`DnsStatsConfig`]: queries
+//!   paired with their answers, stored through `DnsQueryRepo`, 24 h of queries and 30 days of
+//!   hourly counts per client; D-133);
 //!   [`EventRecorder`] ([`EventsConfig`]), which derives events (`uniwrt_events`) from the bus
 //!   and the job runner, folds repeats, stores them through `EventRepo` (announced as
 //!   [`Event::Recorded`]) and prunes them (60 days, 200,000 events); [`AlertEngine`]
@@ -72,7 +75,7 @@
 //!   clock and timestamps the injected `Clock`.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model`, `uniwrt-node` (the link, the ops and the
 //!   parsers), `uniwrt-store` (`FactsRepo`, `TopologyRepo`, `ClientRepo`, `MetricsRepo`,
-//!   `LogRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`,
+//!   `LogRepo`, `DnsQueryRepo`, `EventRepo`, `AlertRepo`, `NotifierRepo`, `RfRepo`, `SettingsRepo`, `VaultRepo`,
 //!   `DriftRepo`, `RevisionRepo`), `uniwrt-uci` (drift's semantic diff), `sha2` (the hash of a file read),
 //!   `uniwrt-notify` (the notifiers' policy, formats and transports), `uniwrt-rf` (the RF
 //!   report), `uniwrt-topo`, `uniwrt-clients`, `uniwrt-metrics`, `uniwrt-syslog` (what the
@@ -125,7 +128,7 @@ pub use fleet::Fleet;
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use live::NodeView;
-pub use logs::{LogRecorder, LogsConfig};
+pub use logs::{DnsStatsConfig, LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};
 pub use neighbors::{NeighborReports, NeighborsConfig, OwnReports};
 pub use notify::{Notifications, Notify, NotifyConfig, NotifyStopped};

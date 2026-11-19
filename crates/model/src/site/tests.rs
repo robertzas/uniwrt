@@ -31,6 +31,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v11.json"),
     include_str!("../../fixtures/site/v12.json"),
     include_str!("../../fixtures/site/v13.json"),
+    include_str!("../../fixtures/site/v14.json"),
 ];
 
 fn fixture(version: u32) -> Value {

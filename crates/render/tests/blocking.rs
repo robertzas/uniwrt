@@ -170,3 +170,42 @@ fn a_raw_merge_into_dnsmasq_reaches_the_named_main_instance() {
     );
     assert_eq!(unfiltered.option("noresolv"), None);
 }
+
+#[test]
+fn statistics_log_every_query_and_grow_the_gateway_s_log_buffer() {
+    let log_size = |rendered: &Rendered| {
+        let system = &rendered.packages[&ManagedPackage::System];
+        let section = system.sections_of("system").next().unwrap();
+        section.option("log_size").unwrap().to_owned()
+    };
+    let logs = |rendered: &Rendered| -> Vec<Option<String>> {
+        dnsmasqs(&rendered.packages[&ManagedPackage::Dhcp])
+            .iter()
+            .map(|s| s.option("logqueries").map(str::to_owned))
+            .collect()
+    };
+    // Off with filtering, whatever the toggle says.
+    let rendered = gateway(&home_site());
+    assert_eq!(
+        (logs(&rendered), log_size(&rendered)),
+        (vec![None], "128".into())
+    );
+    // On: both instances log, and the buffer holds 256 KiB.
+    let mut site = filtered(&["02:00:00:00:10:01"]);
+    let rendered = gateway(&site);
+    let on = Some("1".to_owned());
+    assert_eq!(
+        (logs(&rendered), log_size(&rendered)),
+        (vec![on.clone(), on], "256".into())
+    );
+    // An AP keeps its buffer.
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &gateway_facts()));
+    assert_eq!(log_size(&rendered), "128");
+    // Turned off: neither logs.
+    site.services.blocking.stats = false;
+    let rendered = gateway(&site);
+    assert_eq!(
+        (logs(&rendered), log_size(&rendered)),
+        (vec![None, None], "128".into())
+    );
+}
