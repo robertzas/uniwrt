@@ -638,6 +638,7 @@ export const strings = {
       replace: (target: string) => `Replacing ${target}'s device`,
       reset: (target: string) => `Resetting ${target} to its defaults`,
       reboot: (target: string) => `Restarting ${target}`,
+      packages: (target: string) => `Changing the packages of ${target}`,
     },
     step: {
       connect: "Log in",
@@ -2084,6 +2085,7 @@ export const strings = {
         replace: "replacing a device",
         reset: "resetting a device",
         reboot: "restarting devices",
+        packages: "changing a device's packages",
       },
       sqmRates: (download: string, upload: string, shapedDown: string, shapedUp: string) =>
         `Suggested ${download} down, ${upload} up (shaped at ${shapedDown}, ${shapedUp})`,

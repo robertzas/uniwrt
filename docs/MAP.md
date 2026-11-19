@@ -77,6 +77,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/nodes.rs`: The node routes, with a session: `GET /api/v1/nodes` summarizes every adopted node (the WS hub's `fleet` topic carries the same [`NodeSummary`]s), and `GET /api/v1/nodes/{id}` is one node with its status and facts ([`NodeDetail`], the `node:<id>` topic's snapshot).
 - `src/notifiers.rs`: The notifiers routes, with a session (features/observability.md, Notifications):
 - `src/notifiers_tests.rs`: The notifiers routes over the demo: notifiers created, listed without their secrets, edited with secrets kept, replaced or dropped as their kind needs, refused when invalid, deleted with their secrets (all in the vault); the settings; tests through a webhook on loopback.
+- `src/packages.rs`: The per-node package manager (features/network.md, Other services; D-139).
+- `src/packages/tests.rs`: The package manager's endpoints on the demo: the locks, and a change started as a job on a managed node, audited.
 - `src/problem.rs`: API errors as RFC 9457 problem details (`application/problem+json`): [`ApiError`], which handlers return, and the fallbacks for unknown routes and methods.
 - `src/reboot.rs`: Restarting nodes (features/network.md, Other services; D-137).
 - `src/reboot/tests.rs`: `POST v1/reboots` on the demo: managed nodes only, a job started and audited.
@@ -399,6 +401,10 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/lib.rs`: Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by step, each in its own task, recorded as history.
 - `src/manage.rs`: The manage and unmanage jobs (directive 8; D-069): management goes on only when the user asks, node by node.
 - `src/manage_tests.rs`: Management on and off over the scripted node of [`crate::testing`], once it is adopted.
+- `src/packages/check.rs`: The Check step (D-139): the changes asked for, against the node as it is.
+- `src/packages/locks.rs`: What keeps an installed package in place (D-139): what the node's configuration requires (render's requirements for the latest revision, D-076) and what is essential to it ([`uniwrt_model::packages::essential`]).
+- `src/packages/mod.rs`: The package manager's job (features/network.md, Other services; D-139): an admin's installs, removals and upgrades on one managed node.
+- `src/packages/tests.rs`: The package manager's job over the scripted node of [`crate::testing`] (24.10, opkg), adopted and managed, with opkg's words as 24.10 prints them.
 - `src/progress.rs`: [`Progress`]: a running job's record, saved and announced at each change of a step.
 - `src/reboot.rs`: Restarting nodes (features/network.md, Other services; M8.1b2a, D-137): one node at a time, as an apply orders them (farthest from the gateway first, the gateway last), each back before the next goes down, so its neighbors carry the clients.
 - `src/reboot/tests.rs`: Restarts over the scripted node of [`crate::testing`], adopted and managed: `reboot` takes it down for a few tries of reaching it, or not at all.
@@ -487,6 +493,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/metric.rs`: Metrics (features/observability.md, Metrics): series of numbers over time, each named by what it measures ([`Entity`]) and what it measures of it ([`Metric`]), stored as [`Sample`]s and read back as [`Point`]s at a [`Resolution`].
 - `src/node.rs`: The inventory record of an adopted node: identity, management address, role and mode, plus the host key pinned for it.
 - `src/notify.rs`: Notifiers (features/observability.md, Notifications): where alerts are sent, which of them, and how the last delivery went.
+- `src/packages.rs`: The per-node package manager (features/network.md, Other services; D-139): a node's installed packages with what keeps each one in place ([`NodePackages`], [`PackageLock`]), what its feeds offer ([`PackageCatalog`]) and the changes an admin asks for ([`PackageChanges`]). [`essential`] is the data of the packages never removed, [`with_firmware`] of those never upgraded on their own, and [`valid_name`] the names a package manager may be given.
 - `src/rf.rs`: RF insight (features/wifi.md, RF insight): what a radio's neighbor scan heard, the channel survey measured while it listened, and the scanning settings.
 - `src/rollout.rs`: Rolling firmware upgrades (features/lifecycle.md, Firmware; D-015, D-124, D-125): several nodes upgraded one at a time, leaves first and the gateway last, each by its own upgrade job; an optional canary soaked before the rest; an optional maintenance window outside which no node starts.
 - `src/site/adoption.rs`: The adoption port (features/adoption.md, Path C; D-105): a gateway port the admin picks becomes an isolated segment where a factory-default OpenWrt device, which answers at [`AdoptionPort::FACTORY`], can be adopted on the bench.
@@ -590,6 +597,8 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/lines.rs`: Splits a byte stream into lines, bounded in length so a broken peer cannot exhaust memory.
 - `src/link.rs`: [`NodeLink`]: how the engine talks to one node, whatever carries it: [`SshLink`](crate::SshLink) here, the simulated fleet in the `sim` crate (M1.5).
 - `src/pkg.rs`: The package managers (D-100): opkg on OpenWrt 24.10 and before, apk from 25.12.
+- `src/pkg/catalog.rs`: What a node's feeds offer, read once its index is refreshed ([`super::update`]): apk's `query` over the available packages, or opkg's lists (`/var/opkg-lists/*`, gzipped) through `grep`; and the installed packages with a newer version.
+- `src/pkg/dry_run.rs`: A change tried first ([`simulate`]: `apk … -s`, `opkg … --noaction`), and what the managers say it would do ([`DryRun`]): what comes, what goes (with the dependencies only it needed), and what a removal leaves because others need it (apk updates its world and keeps them; opkg refuses).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/btm.rs`: `btm`: a BSS transition request to one client, mirrored by `node-agent/btm.uc` (features/wifi.md, Steering & balancing: controller-sent transition requests; D-093).
@@ -795,6 +804,8 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/logs.rs`: `log` batches as the agent pushes them: logd's entries when polled, or `logread -f -t` lines when streamed (`<ctime> [<secs>.<ms>] <facility>.<severity> <msg>`).
 - `src/render/mod.rs`: Rendering the world as a node's agent reports it: every collect set in the raw shapes of `node-agent/collect/` ([`collect`]), the hello, hostapd's and dnsmasq's notifications, and log batches in both of `log_follow`'s modes, and the `scan` op's answer.
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
+- `src/render/packages.rs`: The package manager UI's commands as a simulated node answers them (D-139): what its feeds offer beyond [`super::feeds`] ([`EXTRA`]), the newer versions of image packages ([`NEWER`]), `/rom`'s packages (the image's), dry runs, removals (with the dependencies only they needed) and upgrades, for apk and opkg alike.
+- `src/render/packages_tests.rs`: The package manager UI's commands on a simulated node, for apk and opkg.
 - `src/render/queries.rs`: What the gateway's disk says of its dnsmasq query log (D-133): on while the main instance's section of `dhcp` sets `logqueries` and dnsmasq runs; the names it blocks are a sample of the blocklist the controller pushed to `/tmp` since the boot; the clients bypassing the filter are those of the firewall's redirects to the unfiltered instance.
 - `src/render/scan.rs`: The `scan` op's answer in the agent's raw shape (`node-agent/scan.uc`): the networks next door (a fixed set outside the house), the other nodes' access points and mesh points (an unadopted one too), each at the signal the path between them leaves, with their information elements; and the channel survey of the band, busier where networks crowd.
 - `src/render/services.rs`: The `services` set as the sim's gateway reports it (D-132): each enabled DDNS section of its `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address), updated a minute after boot, its updater running while the `ddns` service is on; and one https-dns-proxy instance per section of its package while that service is on; and the DNS blocklist's files the controller uploaded to its `/tmp` since it booted (D-133).
@@ -1013,7 +1024,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (480 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (487 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

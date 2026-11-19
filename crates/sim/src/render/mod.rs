@@ -11,6 +11,9 @@ mod feeds;
 mod l2;
 mod logs;
 mod net;
+mod packages;
+#[cfg(test)]
+mod packages_tests;
 mod queries;
 pub(crate) mod scan;
 mod services;

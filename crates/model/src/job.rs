@@ -129,6 +129,9 @@ pub enum JobKind {
     /// Restarting nodes one at a time, the gateway last, each back before the next goes down
     /// (features/network.md, Other services; D-137).
     Reboot,
+    /// Installing, removing and upgrading packages on a node (features/network.md, Other
+    /// services; D-139).
+    Packages,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

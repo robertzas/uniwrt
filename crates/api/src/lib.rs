@@ -67,7 +67,7 @@
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]), `PUT`/`DELETE
 //!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137)),
-//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), the metrics (`GET v1/metrics`, an
+//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
@@ -161,6 +161,7 @@ mod metrics;
 mod node_role;
 mod nodes;
 mod notifiers;
+mod packages;
 pub mod problem;
 mod reboot;
 mod replace;
@@ -311,6 +312,7 @@ pub fn router(api: Api) -> Router {
         .merge(ztp::routes())
         .merge(firmware::routes())
         .merge(reboot::routes())
+        .merge(packages::routes())
         .merge(client_actions::routes())
         .merge(controller_update::routes())
         .merge(controller_backups::routes())

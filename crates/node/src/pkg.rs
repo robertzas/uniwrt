@@ -3,8 +3,12 @@
 //! index ([`update`]), installing ([`install`]), and the installed packages read from the
 //! database without running the manager ([`inventory`], parsed by [`parse`]): opkg's status
 //! file, or apk's installed database plus its world file (the packages wanted on purpose). Only
-//! the fields needed are sent, through `grep`. Detection is the agent's (`capabilities.uc`:
+//! the fields needed are sent, through `grep`. The package manager UI (D-139) adds
+//! [`upgrade`], [`uninstall`], what the feeds offer ([`catalog`]) and dry runs ([`dry_run`]). Detection is the agent's (`capabilities.uc`:
 //! the facts' `package_manager`). The wpad swap's offline commands stay in [`crate::wpad`].
+
+pub mod catalog;
+pub mod dry_run;
 
 use std::collections::BTreeSet;
 
@@ -43,6 +47,25 @@ pub fn remove<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<Str
         PackageManager::Apk => "del",
     };
     [tool(manager), del]
+        .into_iter()
+        .chain(packages.iter().map(AsRef::as_ref))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Removes `packages` with the dependencies only they needed (apk's `del` does so by itself);
+/// either refuses one that another package depends on.
+pub fn uninstall<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<String> {
+    let mut argv = remove(manager, packages);
+    if manager == PackageManager::Opkg {
+        argv.insert(2, "--autoremove".to_owned());
+    }
+    argv
+}
+
+/// Upgrades `packages` to the feeds' versions (refreshed first by [`update`]).
+pub fn upgrade<S: AsRef<str>>(manager: PackageManager, packages: &[S]) -> Vec<String> {
+    [tool(manager), "upgrade"]
         .into_iter()
         .chain(packages.iter().map(AsRef::as_ref))
         .map(str::to_owned)
@@ -153,7 +176,7 @@ fn apk(installed: &str, world: &str) -> Vec<Package> {
 mod tests {
     use uniwrt_model::{facts::PackageManager, inventory::Package};
 
-    use super::{install, parse, update};
+    use super::{install, parse, uninstall, update, upgrade};
 
     fn package(name: &str, version: &str, explicit: bool) -> Package {
         Package {
@@ -174,6 +197,18 @@ mod tests {
         assert_eq!(
             install(PackageManager::Opkg, &["mwan3".to_owned()]),
             ["opkg", "install", "mwan3"]
+        );
+        assert_eq!(
+            uninstall(PackageManager::Apk, &["tcpdump"]),
+            ["apk", "del", "tcpdump"]
+        );
+        assert_eq!(
+            uninstall(PackageManager::Opkg, &["tcpdump"]),
+            ["opkg", "remove", "--autoremove", "tcpdump"]
+        );
+        assert_eq!(
+            upgrade(PackageManager::Opkg, &["dnsmasq"]),
+            ["opkg", "upgrade", "dnsmasq"]
         );
     }
 

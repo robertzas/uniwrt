@@ -12,6 +12,7 @@
 //!   [`Jobs::restart_radios`] restarts the radios still catching up after a channel switch,
 //!   node by node (D-116); [`Jobs::reboot`] restarts managed nodes one at a time, the gateway
 //!   last ([`RebootTiming`], D-137), and [`Jobs::holds`] says whether a job holds a node;
+//!   [`Jobs::packages`] installs, removes and upgrades a managed node's packages (D-139);
 //!   [`Jobs::test_wan`] tries a WAN on the gateway and rolls it back ([`WanTest`], D-075);
 //!   [`Jobs::speed_test`] measures the line from the gateway ([`SpeedTestRequest`], D-076);
 //!   [`Jobs::import`] drafts a brownfield import of the adopted nodes ([`ImportDraft`], D-072);
@@ -96,6 +97,11 @@
 //!   the gateway last), one at a time: log in → `reboot` → down within 1 min → a login with
 //!   the pinned host key within 10 min → if never seen down, an uptime shorter than the time
 //!   since the command. The first node that fails ends the job; nothing rolls back.
+//! - **Packages** (`packages/`, D-139): one managed node: connect → check (the names, the
+//!   locks, the index refreshed, a dry run of each change, the flash the new packages take;
+//!   nothing changes) → install (removals, upgrades, installs) → inventory (read again and
+//!   kept, also after a failed install). [`Jobs::installed_packages`] gives the inventory with
+//!   each package's lock, [`Jobs::package_catalog`] what the feeds offer.
 //! - **Backups** (`backup/`, D-126): the backup job logs in to each node (observe mode too), 4
 //!   at a time, and keeps its `sysupgrade -b` tarball sealed (one of the same files as the
 //!   newest only marks that one seen; a node that fails doesn't stop the others). The apply's
@@ -143,6 +149,7 @@ mod import;
 mod manage;
 #[cfg(test)]
 mod manage_tests;
+mod packages;
 mod progress;
 mod reboot;
 mod remote;

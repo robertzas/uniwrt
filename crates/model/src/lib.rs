@@ -37,7 +37,9 @@
 //!   ([`floor::Floor`], D-117); [`controller`] is the controller's own update: the release on
 //!   offer, the install's progress and the automatic nightly install (D-123); [`blocklists`] is
 //!   the DNS blocklists' download state and compiled file (D-133); [`dns_queries`] reads dnsmasq's
-//!   query log into the [`dns_queries::DnsQuery`] records of the query statistics (D-133).
+//!   query log into the [`dns_queries::DnsQuery`] records of the query statistics (D-133);
+//!   [`packages`] is the per-node package manager: installed packages with their locks, the
+//!   feeds' catalog and the changes asked for (D-139).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -72,6 +74,7 @@ pub mod log;
 pub mod metric;
 pub mod node;
 pub mod notify;
+pub mod packages;
 pub mod rf;
 pub mod rollout;
 pub mod site;

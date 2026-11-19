@@ -651,6 +651,141 @@ impl Jobs {
             .map_err(|err| Error::Failed(err.message))
     }
 
+    /// Starts changing a managed node's packages (D-139): `changes`' installs, removals and
+    /// upgrades, checked by a dry run first; returns the job as it starts. One job at a time
+    /// per node.
+    pub async fn packages(
+        &self,
+        node: NodeId,
+        changes: uniwrt_model::packages::PackageChanges,
+        by: Option<UserId>,
+    ) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        if changes.is_empty() {
+            return Err(Error::Refused("Name the packages to change".to_owned()));
+        }
+        if let Some(name) = changes
+            .names()
+            .find(|name| !uniwrt_model::packages::valid_name(name))
+        {
+            return Err(Error::Refused(format!("{name:?} isn't a package name")));
+        }
+        let node = self
+            .shared
+            .store
+            .node(node)
+            .await?
+            .ok_or(Error::NoNode(node))?;
+        if node.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(node.id));
+        }
+        let job = crate::packages::job(&node, by);
+        self.spawn(
+            vec![manage::target(node.id)],
+            job,
+            move |shared, progress| crate::packages::run(shared, node, changes, progress),
+        )
+        .await
+    }
+
+    /// A node's installed packages as last read, each with its lock (D-139): what the latest
+    /// revision requires on it, as render writes it from the stored facts, and what is
+    /// essential to it. Nothing is read from the node.
+    pub async fn installed_packages(
+        &self,
+        node: NodeId,
+    ) -> Result<uniwrt_model::packages::NodePackages> {
+        use uniwrt_store::{FactsRepo as _, InventoryRepo as _, RevisionRepo as _};
+        let store = &self.shared.store;
+        let node = store.node(node).await?.ok_or(Error::NoNode(node))?;
+        let inventory = store.inventory(node.id).await?;
+        let facts = store.latest_facts(node.id).await?;
+        let site = store.head_revision().await?.map(|revision| revision.config);
+        let required = match &facts {
+            Some(facts) => {
+                let current = std::collections::BTreeMap::new();
+                crate::packages::locks::required(
+                    &self.shared,
+                    &node,
+                    site.as_ref(),
+                    facts,
+                    &current,
+                )
+                .await
+            }
+            None => {
+                Err("Its facts aren't read yet, so which packages it needs is unknown".to_owned())
+            }
+        };
+        let facts = facts.unwrap_or_default();
+        let needs = crate::packages::locks::needs(&node, &facts, site.as_ref());
+        let (required, unknown) = match required {
+            Ok(required) => (required, None),
+            Err(why) => (std::collections::BTreeSet::new(), Some(why)),
+        };
+        let packages = inventory
+            .as_ref()
+            .map_or(&[][..], |inventory| inventory.packages.as_slice())
+            .iter()
+            .map(|package| uniwrt_model::packages::InstalledPackage {
+                lock: crate::packages::locks::lock(&package.name, needs, &required),
+                with_firmware: uniwrt_model::packages::with_firmware(&package.name),
+                name: package.name.clone(),
+                version: package.version.clone(),
+                explicit: package.explicit,
+            })
+            .collect();
+        Ok(uniwrt_model::packages::NodePackages {
+            taken_at: inventory.map(|inventory| inventory.taken_at),
+            packages,
+            required_unknown: unknown,
+        })
+    }
+
+    /// What a managed node's feeds offer (D-139): its index refreshed, then the packages and
+    /// the upgrades of those installed. Only the index changes on the node.
+    pub async fn package_catalog(
+        &self,
+        node: NodeId,
+    ) -> Result<uniwrt_model::packages::PackageCatalog> {
+        use uniwrt_store::{FactsRepo as _, InventoryRepo as _};
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let store = &self.shared.store;
+        let node = store.node(node).await?.ok_or(Error::NoNode(node))?;
+        if node.mode != uniwrt_model::node::NodeMode::Managed {
+            return Err(Error::Observed(node.id));
+        }
+        let manager = store
+            .latest_facts(node.id)
+            .await?
+            .and_then(|facts| facts.capabilities.package_manager)
+            .ok_or_else(|| {
+                Error::Refused(
+                    "The device has neither apk nor opkg to install packages with".to_owned(),
+                )
+            })?;
+        let installed = store
+            .inventory(node.id)
+            .await?
+            .map_or_else(Vec::new, |inventory| inventory.packages);
+        let remote = manage::login(&self.shared, &node)
+            .await
+            .map_err(|err| Error::Failed(err.message))?;
+        let read = crate::packages::catalog(
+            remote.as_ref(),
+            manager,
+            &installed,
+            self.shared.clock.now(),
+        )
+        .await;
+        remote.close().await;
+        read.map_err(|err| Error::Failed(err.message))
+    }
+
     /// The routers at `hosts` ([`bootstrap::candidates`](crate::bootstrap::candidates)) that
     /// could be the gateway to set up: dropbear answers, with whether root has no password and,
     /// if so, the model and release. Nothing changes on them.

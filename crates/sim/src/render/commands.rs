@@ -38,6 +38,10 @@ pub(crate) struct Disk {
     pub(crate) hand_edit: HandEdit,
     /// The packages installed from the feeds since the image ([`super::feeds`]).
     pub(crate) installed: BTreeSet<String>,
+    /// The image's packages removed since ([`super::packages`], D-139).
+    pub(crate) removed: BTreeSet<String>,
+    /// The image's packages upgraded since, with their version ([`super::packages`]).
+    pub(crate) upgraded: BTreeMap<&'static str, &'static str>,
     /// The wpad installed ([`super::wpad`]): the mesh one, with 802.11v, on a node set up by
     /// hand; the image's basic one on a factory gateway, until the wpad swap.
     pub(crate) wpad: &'static str,
@@ -72,6 +76,8 @@ impl Default for Disk {
             tool: Tool::stock(),
             hand_edit: HandEdit::default(),
             installed: BTreeSet::new(),
+            removed: BTreeSet::new(),
+            upgraded: BTreeMap::new(),
             wpad: super::wpad::MESH,
             batman_in_image: true,
             bss_off: None,
@@ -342,6 +348,7 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
 fn software(node: &Node, argv: &[&str], disk: &mut Disk) -> Option<ExecOutput> {
     let manager = node.release.package_manager;
     super::wpad::exec(argv, manager, &mut disk.wpad)
+        .or_else(|| super::packages::exec(argv, manager, disk))
         .or_else(|| super::feeds::exec(argv, manager, &mut disk.installed, &mut disk.tool))
         .or_else(|| {
             let services = &mut disk.tool.services;
@@ -454,16 +461,23 @@ fn opkg_status(disk: &Disk) -> String {
     out
 }
 
-/// The image's packages (with the node's wpad) and those installed since, `(name, version,
-/// installed on purpose)`.
-fn all(disk: &Disk) -> impl Iterator<Item = (&str, &str, bool)> {
+/// The image's packages as built, `(name, version, installed on purpose)`; what `/rom` holds.
+pub(crate) fn image_packages() -> impl Iterator<Item = (&'static str, &'static str, bool)> {
+    PACKAGES.into_iter()
+}
+
+/// The image's packages (with the node's wpad, less those removed, at their upgraded version)
+/// and those installed since, `(name, version, installed on purpose)`.
+pub(crate) fn all(disk: &Disk) -> impl Iterator<Item = (&str, &str, bool)> {
     let wpad = disk.wpad;
     PACKAGES
         .into_iter()
         .filter(|(name, ..)| {
             disk.batman_in_image || !matches!(*name, "kmod-batman-adv" | "batctl-full")
         })
+        .filter(|(name, ..)| !disk.removed.contains(*name))
         .map(move |(name, version, wanted)| {
+            let version = disk.upgraded.get(name).copied().unwrap_or(version);
             if name == super::wpad::MESH {
                 (wpad, version, wanted)
             } else {
@@ -471,7 +485,9 @@ fn all(disk: &Disk) -> impl Iterator<Item = (&str, &str, bool)> {
             }
         })
         .chain(disk.installed.iter().filter_map(|name| {
-            super::feeds::version(name).map(|version| (name.as_str(), version, true))
+            super::feeds::version(name)
+                .or_else(|| super::packages::version(name))
+                .map(|version| (name.as_str(), version, !super::packages::dependency(name)))
         }))
 }
 
