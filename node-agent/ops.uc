@@ -10,6 +10,7 @@ import { btm } from "./btm.uc";
 import { bss } from "./bss.uc";
 import { leds } from "./leds.uc";
 import { rrm } from "./rrm.uc";
+import { tailscale } from "./tailscale.uc";
 import * as mtu from "./mtu.uc";
 import * as exec from "./exec.uc";
 import * as logs from "./logs.uc";
@@ -161,6 +162,7 @@ function streaming(op) {
 const OPS = {
 	ping: ping, collect: collect, ubus: ubus, exec: run, read_file: read_file, scan: scan, bss: bss,
 	ban: ban, btm: btm, rrm: rrm, mtu: probe, leds: leds,
+	tailscale: tailscale,
 	subscribe: streaming(streams.subscribe), unsubscribe: streaming(streams.unsubscribe),
 	log_follow: streaming(logs.log_follow), set_interval: streaming(ticks.set_interval),
 };

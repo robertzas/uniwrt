@@ -206,6 +206,7 @@ impl SimLink {
                 node.leds_off_boot = off.then_some(node.booted_ms);
                 render::system::leds(node)
             }
+            "tailscale" => self.tailscale(&mut world, op, args, now_ms)?,
             "ban" => self.ban(&mut world, op, args)?,
             "rrm" => self.rrm(&world, op, args)?,
             "btm" => self.btm(&mut world, op, args)?,
@@ -221,6 +222,28 @@ impl SimLink {
             }
             _ => return Err(bad_request(op, "unknown op")),
         })
+    }
+
+    /// `tailscale`: the gateway's daemon ([`render::tailscale::op`]), installed once its
+    /// `firewall` file has the zone.
+    fn tailscale(
+        &self,
+        world: &mut crate::world::World,
+        op: &str,
+        args: &RawValue,
+        now_ms: i64,
+    ) -> Result<Value> {
+        let request: Value = serde_json::from_str(args.get())
+            .map_err(|err| bad_request(op, &format!("arguments: {err}")))?;
+        let installed = {
+            let disk = lock(&self.shared.nodes[self.node].disk);
+            let firewall = disk.tool.files.get("firewall");
+            let firewall = firewall.and_then(|text| uniwrt_uci::parse("firewall", text).ok());
+            render::tailscale::installed(firewall.as_ref())
+        };
+        let daemon = &mut world.nodes[self.node].tailscale;
+        render::tailscale::op(daemon, installed, now_ms, &request)
+            .map_err(|(code, msg)| remote(op, code, &msg))
     }
 
     /// `bss`: the BSSes of a phy to keep off, until `wireless` changes (a reload brings them

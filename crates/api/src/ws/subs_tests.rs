@@ -102,6 +102,18 @@ impl Fleet for FakeFleet {
             })
         })
     }
+
+    fn tailscale(
+        &self,
+        _: uniwrt_core::NodeId,
+        _: uniwrt_node::proto::ops::Tailscale,
+    ) -> uniwrt_engine::TailscaleCall<'_> {
+        Box::pin(async {
+            Err(uniwrt_node::Error::Disconnected {
+                what: "tailscale".to_owned(),
+            })
+        })
+    }
 }
 
 struct Harness {

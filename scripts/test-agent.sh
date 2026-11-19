@@ -58,7 +58,7 @@ for image in "${images[@]}"; do
     cargo nextest run --locked -p uniwrt-node -p uniwrt-engine -p uniwrt-jobs --test agent --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" \
-    cargo nextest run --locked -p uniwrt-node --test leds --run-ignored only \
+    cargo nextest run --locked -p uniwrt-node --test leds --test tailscale --run-ignored only \
     --status-level fail --hide-progress-bar
   for tests in 'not test(/at_boot/)' 'test(/at_boot/)'; do
     UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" UNIWRT_NODE_CONTAINER="$container" \

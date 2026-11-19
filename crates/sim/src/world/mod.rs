@@ -80,6 +80,8 @@ pub(crate) struct Node {
     /// The boot its LEDs were turned off in (the `leds` op): lit again after a reboot, as the
     /// agent's saved state in `/tmp` is lost.
     pub(crate) leds_off_boot: Option<i64>,
+    /// Its `tailscaled` (the gateway's; [`crate::render::tailscale`]).
+    pub(crate) tailscale: crate::render::tailscale::Daemon,
     /// While rebooting: the second it is up again.
     pub(crate) down_until: Option<u64>,
     /// When the gateway last acked the node's own lease.

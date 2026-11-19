@@ -170,6 +170,10 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       return withDetail(titles.ledScheduleFailed(node), what.error);
     case "led_schedule_ok":
       return { title: titles.ledScheduleOk(node) };
+    case "tailscale_failed":
+      return withDetail(titles.tailscaleFailed(node), what.error);
+    case "tailscale_ok":
+      return { title: titles.tailscaleOk(node) };
     case "flash_low":
       return withDetail(
         titles.flashLow(node),

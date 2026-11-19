@@ -242,6 +242,17 @@ describe("events in words", () => {
     );
   });
 
+  it("tells Tailscale not set up as configured, with the gateway's words (D-140)", () => {
+    const failed = { kind: "tailscale_failed", error: "backend error: invalid key" } as const;
+    expect(describeEvent(event(failed), names)).toEqual({
+      title: "Attic AP: Tailscale couldn't be set up as configured",
+      detail: "backend error: invalid key",
+    });
+    expect(describeEvent(event({ kind: "tailscale_ok" }), names).title).toBe(
+      "Attic AP: Tailscale set up as configured again",
+    );
+  });
+
   it("tells the nightly channel plan applied or skipped, with each band's gain", () => {
     const bands: BandGain[] = [
       { band: "5g", percent: 23 },

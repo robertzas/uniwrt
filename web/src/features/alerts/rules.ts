@@ -46,6 +46,8 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
       "scheduled_reboot_missed",
       "led_schedule_failed",
       "led_schedule_ok",
+      "tailscale_failed",
+      "tailscale_ok",
       "flash_low",
       "flash_ok",
       "node_adopted",

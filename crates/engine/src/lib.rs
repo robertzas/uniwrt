@@ -44,6 +44,8 @@
 //!   through the agent's `bss` op, and announces the turns and refusals as events (D-083);
 //!   [`LedSchedule`] ([`LedScheduleConfig`]) keeps the managed nodes' LEDs dark while the
 //!   site's LEDs schedule is on, through the agent's `leds` op (D-138);
+//! - [`TailscaleSync`] ([`TailscaleConfig`]) keeps the gateway's Tailscale daemon to the site
+//!   (prefs, up or down, a login with the auth key) through the agent's `tailscale` op (D-140);
 //!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
 //!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
@@ -116,6 +118,7 @@ mod schedule;
 mod snapshots;
 mod status;
 mod steering;
+mod tailscale;
 #[cfg(test)]
 mod testing;
 mod topology;
@@ -131,7 +134,7 @@ pub use config::EngineConfig;
 pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;
 pub use events::{EventRecorder, EventsConfig};
-pub use fleet::{Exec, Fleet};
+pub use fleet::{Exec, Fleet, TailscaleCall};
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use leds::{LedSchedule, LedScheduleConfig};
@@ -144,6 +147,7 @@ pub use rf::{Rf, RfConfig, RfError, RfScanner};
 pub use schedule::Intervals;
 pub use snapshots::Snapshots;
 pub use steering::{ClientSteering, SteeringConfig};
+pub use tailscale::{TAILSCALE_TIMEOUT, TailscaleConfig, TailscaleSync, step as tailscale_step};
 pub use topology::Identity;
 pub use wake::{WakeError, Woken, wake};
 pub use wlans::{SchedulesConfig, WlanSchedules};

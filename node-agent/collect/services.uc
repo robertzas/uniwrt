@@ -26,6 +26,9 @@ const TAILSCALE = "/usr/sbin/tailscale";
 const TS_SOCKET = "/var/run/tailscale/tailscaled.sock";
 // A constant command, answered by the local daemon without waiting on the network.
 const TS_STATUS = "/usr/sbin/tailscale status --json 2>/dev/null";
+// Its prefs, from its state file: the ones the controller sets (the `tailscale` op), and whether
+// it should run and is logged out. Read through a pipe like the status.
+const TS_PREFS = "/usr/sbin/tailscale debug prefs 2>/dev/null";
 // The most peers sent (model's TAILSCALE_MAX_PEERS), online ones first.
 const TS_PEERS = 200;
 
@@ -67,8 +70,32 @@ function wireguard() {
 	return tunnel;
 }
 
-// Tailscale: the daemon's state, the gateway's names, addresses and routes, its warnings and its
-// peers, with only the fields the controller reads; never the login URL (`AuthURL`), which the
+// The prefs the controller sets, and whether the daemon should run and is logged out; null where
+// it doesn't answer. Only these fields leave the agent.
+function tailscale_prefs() {
+	let p = fs.popen(TS_PREFS, "r");
+	if (!p)
+		return null;
+	let text = p.read("all");
+	p.close();
+	let s = null;
+	try {
+		s = json(text);
+	}
+	catch (e) {
+		return null;
+	}
+	if (type(s) != "object")
+		return null;
+	return {
+		want_running: s.WantRunning, logged_out: s.LoggedOut, routes: s.AdvertiseRoutes,
+		hostname: s.Hostname, accept_dns: s.CorpDNS, accept_routes: s.RouteAll,
+		netfilter: s.NetfilterMode,
+	};
+}
+
+// Tailscale: the daemon's state, the gateway's names, addresses and routes, its warnings, its
+// peers and its prefs, with only the fields the controller reads; never the login URL (`AuthURL`), which the
 // facts would show to every user. Null without the package; `state` null where the daemon
 // doesn't answer.
 function tailscale() {
@@ -118,6 +145,7 @@ function tailscale() {
 		health: s.Health,
 		peer_count: count,
 		peers: peers,
+		prefs: tailscale_prefs(),
 	};
 }
 

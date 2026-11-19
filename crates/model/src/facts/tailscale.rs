@@ -37,6 +37,33 @@ pub struct TailscaleFacts {
     /// [`MAX_PEERS`], online ones first.
     pub peer_count: u32,
     pub peers: Vec<TailscalePeerFacts>,
+    /// Its prefs (`tailscale debug prefs`); `None` where it doesn't answer.
+    pub prefs: Option<TailscalePrefs>,
+}
+
+/// The prefs `tailscaled` keeps in its state file, those the controller sets (the `tailscale`
+/// op; D-140) and whether it should run.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "tailscaled's own boolean prefs"
+)]
+pub struct TailscalePrefs {
+    /// It should run: a login or `tailscale up` sets it, `tailscale down` and a logout clear it.
+    pub want_running: bool,
+    pub logged_out: bool,
+    /// The routes it advertises: its subnet routes, with `0.0.0.0/0` and `::/0` while it offers
+    /// itself as an exit node.
+    pub advertise_routes: Vec<String>,
+    /// Its machine name; `None` for the gateway's hostname.
+    pub hostname: Option<String>,
+    /// It takes the tailnet's DNS settings (`--accept-dns`).
+    pub accept_dns: bool,
+    /// It takes the routes other machines advertise (`--accept-routes`).
+    pub accept_routes: bool,
+    /// It leaves the firewall to fw4 (`--netfilter-mode=off`).
+    pub netfilter_off: bool,
 }
 
 /// `tailscaled`'s backend state.
@@ -55,6 +82,21 @@ pub enum TailscaleState {
     Running,
     #[serde(other)]
     Unknown,
+}
+
+impl TailscaleState {
+    /// The state as `tailscale status --json` writes it (`BackendState`).
+    pub fn from_backend(text: &str) -> Self {
+        match text {
+            "NoState" => Self::NoState,
+            "NeedsLogin" => Self::NeedsLogin,
+            "NeedsMachineAuth" => Self::NeedsMachineAuth,
+            "Stopped" => Self::Stopped,
+            "Starting" => Self::Starting,
+            "Running" => Self::Running,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 /// Another machine of the tailnet.

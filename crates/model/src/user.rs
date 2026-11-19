@@ -118,6 +118,8 @@ pub enum AuditAction {
     /// An admin changed a node's packages (the detail names the node, the changes and the job;
     /// D-139).
     Packages,
+    /// An admin logged the gateway's Tailscale in or out (the detail says which; D-140).
+    Tailscale,
 }
 
 /// One audit log entry.

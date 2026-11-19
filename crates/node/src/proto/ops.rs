@@ -8,6 +8,7 @@ mod mtu;
 mod rrm;
 mod scan;
 mod streams;
+mod tailscale;
 mod usteer;
 
 use std::{collections::BTreeMap, fmt};
@@ -24,6 +25,7 @@ pub use self::streams::{
     LogFollow, LogFollowing, LogMode, Schedule, SetInterval, Subscribe, Subscribed, Topic,
     Unsubscribe,
 };
+pub use self::tailscale::{Tailscale, TailscaleAction, TailscaleAnswer};
 pub use self::usteer::{HeardAt, client_info as usteer_client_info, heard as usteer_heard};
 use super::RemoteError;
 

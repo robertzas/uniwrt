@@ -7,7 +7,10 @@ use tokio::sync::broadcast;
 use uniwrt_clients::{Client, Detail};
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::client::ClientRecord;
-use uniwrt_node::{ExecOutput, ExecRequest, NodeLink};
+use uniwrt_node::{
+    ExecOutput, ExecRequest, NodeLink,
+    proto::ops::{Tailscale, TailscaleAnswer},
+};
 use uniwrt_topo::Topology;
 
 use crate::{Engine, Event, Identity, Interest, NodeView};
@@ -39,7 +42,14 @@ pub trait Fleet: Send + Sync + 'static {
     /// Runs a command on `node` over its link ([`NodeLink::exec`]); a node the engine doesn't
     /// watch is disconnected.
     fn exec(&self, node: NodeId, request: ExecRequest) -> Exec<'_>;
+    /// Sends the `tailscale` op to `node` (D-140), waiting up to [`crate::TAILSCALE_TIMEOUT`];
+    /// a node the engine doesn't watch is disconnected.
+    fn tailscale(&self, node: NodeId, request: Tailscale) -> TailscaleCall<'_>;
 }
+
+/// What [`Fleet::tailscale`] answers.
+pub type TailscaleCall<'a> =
+    Pin<Box<dyn Future<Output = uniwrt_node::Result<TailscaleAnswer>> + Send + 'a>>;
 
 /// What [`Fleet::exec`] answers.
 pub type Exec<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecOutput>> + Send + 'a>>;
@@ -97,6 +107,18 @@ impl<L: NodeLink> Fleet for Engine<L> {
                 Some(link) => link.exec(request).await,
                 None => Err(uniwrt_node::Error::Disconnected {
                     what: request.argv.first().cloned().unwrap_or_default(),
+                }),
+            }
+        })
+    }
+
+    fn tailscale(&self, node: NodeId, request: Tailscale) -> TailscaleCall<'_> {
+        let link = self.link(node);
+        Box::pin(async move {
+            match link {
+                Some(link) => link.request(&request, crate::TAILSCALE_TIMEOUT).await,
+                None => Err(uniwrt_node::Error::Disconnected {
+                    what: "tailscale".to_owned(),
                 }),
             }
         })

@@ -11,11 +11,16 @@
 //!   reports them (handshake, endpoint, traffic; [`stats`]).
 //!
 //! The site's saves and imports make the keys the server and its peers lack ([`keys`]).
+//!
+//! Tailscale on the gateway: `GET v1/vpn/tailscale`, `POST …/login` and `POST …/logout`
+//! ([`tailscale`]).
 
 pub(crate) mod keys;
 pub(crate) mod stats;
+pub(crate) mod tailscale;
 
 pub use stats::{VpnPeerStatus, VpnStatus};
+pub use tailscale::{TailscaleLogin, TailscaleStatus};
 
 use axum::{
     Json,

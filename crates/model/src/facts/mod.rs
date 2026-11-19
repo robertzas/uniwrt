@@ -35,7 +35,8 @@ pub use self::{
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
     system::{BoardFacts, LedFacts, Memory, Release, Storage, SystemFacts},
     tailscale::{
-        MAX_PEERS as TAILSCALE_MAX_PEERS, TailscaleFacts, TailscalePeerFacts, TailscaleState,
+        MAX_PEERS as TAILSCALE_MAX_PEERS, TailscaleFacts, TailscalePeerFacts, TailscalePrefs,
+        TailscaleState,
     },
     upnp::PortMapping,
 };

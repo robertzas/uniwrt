@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 use serde::Deserialize;
 use uniwrt_core::Timestamp;
-use uniwrt_model::facts::{TailscaleFacts, TailscalePeerFacts, TailscaleState};
+use uniwrt_model::facts::{TailscaleFacts, TailscalePeerFacts, TailscalePrefs, TailscaleState};
 
 #[derive(Deserialize)]
 pub(super) struct Raw {
@@ -27,6 +27,28 @@ pub(super) struct Raw {
     peer_count: Option<u32>,
     #[serde(default)]
     peers: Option<Vec<Peer>>,
+    #[serde(default)]
+    prefs: Option<Prefs>,
+}
+
+/// `tailscale debug prefs`'s fields the agent passes on.
+#[derive(Deserialize)]
+struct Prefs {
+    #[serde(default)]
+    want_running: Option<bool>,
+    #[serde(default)]
+    logged_out: Option<bool>,
+    #[serde(default)]
+    routes: Option<Vec<String>>,
+    #[serde(default)]
+    hostname: Option<String>,
+    #[serde(default)]
+    accept_dns: Option<bool>,
+    #[serde(default)]
+    accept_routes: Option<bool>,
+    /// 0 off, 1 `nodivert`, 2 on.
+    #[serde(default)]
+    netfilter: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -108,7 +130,7 @@ pub(super) fn parse(raw: Raw) -> TailscaleFacts {
     peers.sort_by(|a, b| b.online.cmp(&a.online).then_with(|| a.name.cmp(&b.name)));
     peers.truncate(uniwrt_model::facts::TAILSCALE_MAX_PEERS);
     TailscaleFacts {
-        state: raw.state.as_deref().map(state),
+        state: raw.state.as_deref().map(TailscaleState::from_backend),
         version: text(raw.version),
         tailnet: text(raw.tailnet),
         dns_suffix: text(raw.dns_suffix),
@@ -122,6 +144,19 @@ pub(super) fn parse(raw: Raw) -> TailscaleFacts {
             .unwrap_or_default()
             .max(u32::try_from(peers.len()).unwrap_or(u32::MAX)),
         peers,
+        prefs: raw.prefs.map(prefs),
+    }
+}
+
+fn prefs(raw: Prefs) -> TailscalePrefs {
+    TailscalePrefs {
+        want_running: raw.want_running.unwrap_or_default(),
+        logged_out: raw.logged_out.unwrap_or_default(),
+        advertise_routes: raw.routes.unwrap_or_default(),
+        hostname: text(raw.hostname),
+        accept_dns: raw.accept_dns.unwrap_or_default(),
+        accept_routes: raw.accept_routes.unwrap_or_default(),
+        netfilter_off: raw.netfilter == Some(0),
     }
 }
 
@@ -144,18 +179,6 @@ fn peer(raw: Peer) -> TailscalePeerFacts {
             .filter(|at| at.as_unix_ms() > 0),
         rx_bytes: raw.rx.unwrap_or_default(),
         tx_bytes: raw.tx.unwrap_or_default(),
-    }
-}
-
-fn state(text: &str) -> TailscaleState {
-    match text {
-        "NoState" => TailscaleState::NoState,
-        "NeedsLogin" => TailscaleState::NeedsLogin,
-        "NeedsMachineAuth" => TailscaleState::NeedsMachineAuth,
-        "Stopped" => TailscaleState::Stopped,
-        "Starting" => TailscaleState::Starting,
-        "Running" => TailscaleState::Running,
-        _ => TailscaleState::Unknown,
     }
 }
 
@@ -248,6 +271,32 @@ mod tests {
             Timestamp::parse_utc("2026-11-19T15:00:00.5Z")
         );
         assert_eq!(facts.peer_count, 3);
+    }
+
+    #[test]
+    fn prefs_are_read_as_tailscale_debug_prefs_has_them() {
+        // As 25.12.6's daemon answers after `tailscale set` with an exit node (the agent's fields).
+        let raw = serde_json::json!({"state": "NeedsLogin", "prefs": {
+            "want_running": false, "logged_out": true, "hostname": "gw-test",
+            "routes": ["0.0.0.0/0", "::/0", "192.168.10.0/24"], "accept_dns": false,
+            "accept_routes": false, "netfilter": 0
+        }});
+        let prefs = parse(serde_json::from_value(raw).unwrap()).prefs.unwrap();
+        assert!(!prefs.want_running && prefs.logged_out);
+        assert_eq!(
+            prefs.advertise_routes,
+            ["0.0.0.0/0", "::/0", "192.168.10.0/24"]
+        );
+        assert_eq!(prefs.hostname.as_deref(), Some("gw-test"));
+        assert!(!prefs.accept_dns && !prefs.accept_routes && prefs.netfilter_off);
+        // A fresh install: tailscaled's defaults (DNS and routes taken, netfilter on), no name.
+        let raw = serde_json::json!({"state": "NeedsLogin", "prefs": {
+            "want_running": false, "logged_out": true, "hostname": "", "routes": null,
+            "accept_dns": true, "accept_routes": true, "netfilter": 2
+        }});
+        let prefs = parse(serde_json::from_value(raw).unwrap()).prefs.unwrap();
+        assert_eq!(prefs.hostname, None);
+        assert!(prefs.advertise_routes.is_empty() && !prefs.netfilter_off);
     }
 
     #[test]

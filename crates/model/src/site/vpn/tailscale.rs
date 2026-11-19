@@ -9,9 +9,14 @@
 //! - **Gateway only:** the package is ~24 MB installed on 24.10 and ~29 MB on 25.12, so APs never
 //!   run it.
 
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
-use crate::site::SecretRef;
+use crate::{
+    facts::TailscalePrefs,
+    site::{SecretRef, SiteConfig},
+};
 
 /// The firewall zone of `tailscale0`.
 pub const ZONE: &str = "tailscale";
@@ -53,6 +58,53 @@ impl Tailscale {
     }
 }
 
+/// The prefs the gateway's `tailscaled` should hold (the `tailscale` op's `prefs`; D-140). The
+/// agent adds what never changes: the tailnet's DNS and routes refused, the firewall left to fw4.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Prefs {
+    /// The advertised networks' IPv4 subnets, such as `10.0.30.0/24`, in the document's order.
+    pub routes: Vec<String>,
+    pub exit_node: bool,
+    /// The machine name; empty for the gateway's hostname.
+    pub hostname: String,
+}
+
+impl Tailscale {
+    /// Its prefs in `config`: each advertised network's subnet (a network without one, which
+    /// validation refuses, is left out).
+    pub fn prefs(&self, config: &SiteConfig) -> Prefs {
+        let routes = self
+            .routes
+            .iter()
+            .filter_map(|id| config.networks.iter().find(|n| n.id == *id))
+            .filter_map(|network| network.ipv4.as_ref())
+            .map(|ipv4| ipv4.address.trunc().to_string())
+            .collect();
+        Prefs {
+            routes,
+            exit_node: self.exit_node,
+            hostname: self.hostname.clone().unwrap_or_default(),
+        }
+    }
+}
+
+impl Prefs {
+    /// Whether the daemon holds these (`held`), with the tailnet's DNS and routes refused and the
+    /// firewall left to fw4. An exit node advertises `0.0.0.0/0` and `::/0` beside its routes.
+    pub fn held_by(&self, held: &TailscalePrefs) -> bool {
+        let mut want: BTreeSet<&str> = self.routes.iter().map(String::as_str).collect();
+        if self.exit_node {
+            want.extend(["0.0.0.0/0", "::/0"]);
+        }
+        let have: BTreeSet<&str> = held.advertise_routes.iter().map(String::as_str).collect();
+        want == have
+            && held.hostname.as_deref().unwrap_or_default() == self.hostname
+            && !held.accept_dns
+            && !held.accept_routes
+            && held.netfilter_off
+    }
+}
+
 /// Whether `key` looks like a Tailscale auth key: `tskey-` and up to 250 more letters, digits,
 /// `-` or `_`.
 pub fn is_auth_key(key: &str) -> bool {
@@ -67,7 +119,42 @@ pub fn is_auth_key(key: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_auth_key;
+    use super::{Prefs, is_auth_key};
+    use crate::facts::TailscalePrefs;
+
+    #[test]
+    fn prefs_are_held_whatever_the_order_with_the_exit_node_s_routes() {
+        let want = Prefs {
+            routes: vec!["10.0.30.0/24".into(), "10.0.0.0/24".into()],
+            exit_node: true,
+            hostname: "home".into(),
+        };
+        let mut held = TailscalePrefs {
+            want_running: true,
+            logged_out: false,
+            advertise_routes: ["0.0.0.0/0", "::/0", "10.0.0.0/24", "10.0.30.0/24"]
+                .map(String::from)
+                .to_vec(),
+            hostname: Some("home".into()),
+            accept_dns: false,
+            accept_routes: false,
+            netfilter_off: true,
+        };
+        assert!(want.held_by(&held));
+        let no_exit = Prefs {
+            exit_node: false,
+            ..want.clone()
+        };
+        assert!(!no_exit.held_by(&held));
+        held.hostname = None;
+        assert!(!want.held_by(&held));
+        held.hostname = Some("home".into());
+        held.netfilter_off = false;
+        assert!(!want.held_by(&held));
+        held.netfilter_off = true;
+        held.accept_dns = true;
+        assert!(!want.held_by(&held));
+    }
 
     #[test]
     fn auth_keys_start_with_tskey() {

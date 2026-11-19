@@ -62,7 +62,12 @@ pub(super) fn services(
     let conf = tmp.file(node.booted_ms, BLOCKLIST_CONF).is_some();
     let network = parse("network");
     let wireguard = super::wireguard::wireguard(network.as_ref(), now, uptime);
-    let tailscale = super::tailscale::tailscale(parse("firewall").as_ref());
+    let tailscale = super::tailscale::tailscale(
+        parse("firewall").as_ref(),
+        &node.tailscale,
+        &node.name,
+        world.now_ms(),
+    );
     json!({
         "now": now, "uptime": uptime, "ddns": ddns, "doh": doh,
         "blocklist": head, "blocklist_conf": conf, "wireguard": wireguard,

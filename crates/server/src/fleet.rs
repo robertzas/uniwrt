@@ -20,7 +20,7 @@ use uniwrt_engine::{
     EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LedSchedule, LedScheduleConfig,
     LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
     Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
-    Snapshots, SteeringConfig, TopologyHistory, WlanSchedules,
+    Snapshots, SteeringConfig, TailscaleConfig, TailscaleSync, TopologyHistory, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -60,6 +60,7 @@ pub(crate) struct Fleet {
     schedules: Option<WlanSchedules>,
     /// The LEDs schedule (D-138).
     leds: Option<LedSchedule>,
+    tailscale: Option<TailscaleSync>,
     bans: Option<ClientBans>,
     /// DNS filtering's lists and the gateway's copy (D-133).
     blocklist: Option<BlocklistSync>,
@@ -120,6 +121,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             leds: None,
+            tailscale: None,
             bans: None,
             blocklist: None,
             neighbors: None,
@@ -202,6 +204,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             leds: None,
+            tailscale: None,
             bans: None,
             blocklist: None,
             neighbors: None,
@@ -257,6 +260,9 @@ impl Fleet {
         }
         if let Some(leds) = self.leds {
             leds.stop().await;
+        }
+        if let Some(tailscale) = self.tailscale {
+            tailscale.stop().await;
         }
         if let Some(bans) = self.bans {
             bans.stop().await;
@@ -367,6 +373,13 @@ impl Fleet {
             store.clone(),
             Some(jobs.subscribe()),
             LedScheduleConfig::default(),
+        ));
+        self.tailscale = Some(TailscaleSync::start(
+            &self.engine,
+            store.clone(),
+            Some(vault.clone()),
+            Some(jobs.subscribe()),
+            TailscaleConfig::default(),
         ));
         self.bans = Some(ClientBans::start(
             &self.engine,

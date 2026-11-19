@@ -171,6 +171,13 @@ pub enum EventKind {
         error: String,
     },
     LedScheduleOk,
+    /// The controller could not bring the gateway's Tailscale to the site: its prefs, starting or
+    /// stopping it, or a login with the auth key (raises `tailscale`, cleared once it could;
+    /// D-140).
+    TailscaleFailed {
+        error: String,
+    },
+    TailscaleOk,
     /// A node's flash (its root file system) is nearly full (raises `flash`).
     FlashLow {
         available_bytes: u64,
@@ -380,6 +387,7 @@ impl EventKind {
             | Self::NodeRebooted { .. }
             | Self::ScheduledRebootMissed { .. }
             | Self::LedScheduleFailed { .. }
+            | Self::TailscaleFailed { .. }
             | Self::LogPattern { .. }
             | Self::JobFailed { .. }
             | Self::ConfigDrift { .. } => (C::System, L::Warning),
@@ -389,6 +397,7 @@ impl EventKind {
             | Self::NodeReplaced
             | Self::NodeReset
             | Self::LedScheduleOk
+            | Self::TailscaleOk
             | Self::NodeOnline { .. }
             | Self::NodeRecovered { .. }
             | Self::FlashOk { .. }
@@ -443,6 +452,8 @@ impl EventKind {
             Self::ScheduledRebootMissed { .. } => "scheduled_reboot_missed",
             Self::LedScheduleFailed { .. } => "led_schedule_failed",
             Self::LedScheduleOk => "led_schedule_ok",
+            Self::TailscaleFailed { .. } => "tailscale_failed",
+            Self::TailscaleOk => "tailscale_ok",
             Self::FlashLow { .. } => "flash_low",
             Self::FlashOk { .. } => "flash_ok",
             Self::MeshLinkDown { .. } => "mesh_link_down",
@@ -691,6 +702,10 @@ mod tests {
                 why: super::RebootMissed::Busy,
             },
             EventKind::LedScheduleOk,
+            EventKind::TailscaleOk,
+            EventKind::TailscaleFailed {
+                error: "invalid key".to_owned(),
+            },
             EventKind::NodeOnline { down_ms: None },
             EventKind::ClientLeft { connected_ms: None },
             EventKind::NewClient {
