@@ -40,6 +40,7 @@ mod nightly;
 mod recollect;
 mod restore;
 mod scheduled_backups;
+mod scheduled_reboots;
 mod serve;
 mod tls;
 mod ui;

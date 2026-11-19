@@ -185,6 +185,7 @@ fn node(rng: &mut Rng, index: usize, config: &SimConfig, epoch_ms: i64, wide: bo
             radio(Band::G5, 36, 23, -95.0),
         ],
         booted_ms,
+        leds_off_boot: None,
         down_until: None,
         lease_ms: epoch_ms - rng.range(0.0, DAY_MS / 4.0) as i64,
         load: if gateway { 0.25 } else { 0.1 },

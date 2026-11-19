@@ -284,6 +284,21 @@ impl Op for Bss {
     type Output = BssSet;
 }
 
+/// `leds`: every LED of the node dark (`off`), or back as it was (`node-agent/leds.uc`; D-138).
+/// `off` saves each LED's trigger, brightness and the trigger's settings on the node (in
+/// `/tmp`, so a reboot forgets them and brings the LEDs up as the board has them), unless it
+/// holds them already for a dark LED; `on` puts back what it holds. Answers the LEDs as the
+/// `system` set reports them; [`code::FAILED`] names the LEDs it couldn't set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Leds {
+    pub off: bool,
+}
+
+impl Op for Leds {
+    const NAME: &'static str = "leds";
+    type Output = uniwrt_model::facts::LedFacts;
+}
+
 /// What hostapd took, per config of the phy.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct BssSet {

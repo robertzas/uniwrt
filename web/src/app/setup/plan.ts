@@ -187,7 +187,16 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
     ? config.nodes.map((n) => (n === node ? { ...n, managed } : n))
     : [
         ...config.nodes,
-        { node: choices.gateway, hostname: null, managed, radios: [], ports: [], raw: [] },
+        {
+          node: choices.gateway,
+          hostname: null,
+          managed,
+          radios: [],
+          ports: [],
+          raw: [],
+          reboot: { kind: "site" as const },
+          led_schedule: true,
+        },
       ];
   return {
     ...config,

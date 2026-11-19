@@ -61,6 +61,20 @@ pub struct SystemFacts {
     pub tmp: Option<Storage>,
     /// The hottest thermal sensor, in °C.
     pub temperature_c: Option<f32>,
+    /// The LEDs, as the LEDs schedule sees them (D-138); unknown from agents before it.
+    #[serde(default)]
+    pub leds: Option<LedFacts>,
+}
+
+/// A node's LEDs (`/sys/class/leds`), as the agent's `leds` op leaves them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct LedFacts {
+    pub count: u32,
+    /// Those not dark: a trigger other than `none`, or a brightness above 0.
+    pub lit: u32,
+    /// Whether the agent holds their state from before it turned them off.
+    pub held: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

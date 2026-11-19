@@ -49,6 +49,7 @@ use crate::{
     master_key::{self, Source as KeySource},
     nightly::NightlyOptimizer,
     scheduled_backups::ScheduledBackups,
+    scheduled_reboots::ScheduledReboots,
     tls::{
         self,
         listener::{Peer, PlainListener, TlsListener},
@@ -162,6 +163,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
             NightlyOptimizer::start(&fleet, &store, &jobs, &api, &clock),
             AutoUpdate::start(updater, github, &store, &jobs, &clock),
             ScheduledBackups::start(&fleet, &store, &jobs, &clock),
+            ScheduledReboots::start(&fleet, &store, &jobs, &clock),
             NightlyBackups::start(&controller_backups, &store, &vault, &clock),
         );
         let renewal = tokio::spawn(renewer.run());
@@ -182,13 +184,17 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
         warn!(%err, "cannot delete the demo's directory");
     }
     served?;
-    let restart = restart.asked();
+    Ok(stopped(restart.asked()))
+}
+
+/// Logs the stop; answers whether the controller restarts.
+fn stopped(restart: bool) -> bool {
     if restart {
         info!("uniwrt stopped; restarting");
     } else {
         info!("uniwrt stopped");
     }
-    Ok(restart)
+    restart
 }
 
 /// GitHub's API, for firmware sources and the controller's own releases.
@@ -205,12 +211,19 @@ struct Schedules(
     NightlyOptimizer,
     AutoUpdate,
     ScheduledBackups,
+    ScheduledReboots,
     NightlyBackups,
 );
 
 impl Schedules {
     async fn stop(self) {
-        tokio::join!(self.0.stop(), self.1.stop(), self.2.stop(), self.3.stop());
+        tokio::join!(
+            self.0.stop(),
+            self.1.stop(),
+            self.2.stop(),
+            self.3.stop(),
+            self.4.stop()
+        );
     }
 }
 

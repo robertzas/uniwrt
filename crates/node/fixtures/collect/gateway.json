@@ -1768,7 +1768,12 @@
      "type": "broken",
      "temp": -274000
     }
-   ]
+   ],
+   "leds": {
+    "count": 5,
+    "lit": 5,
+    "held": false
+   }
   }
  },
  "errors": {}

@@ -13,6 +13,7 @@ mod names;
 mod network;
 mod nodes;
 mod ports;
+mod schedules;
 mod services;
 mod wireless;
 
@@ -104,6 +105,7 @@ pub fn validate(config: &SiteConfig, nodes: &BTreeSet<NodeId>) -> Vec<Issue> {
     blocking::blocking(config, &mut issues);
     gateway::adoption_port(config, &mut issues);
     nodes::nodes(config, nodes, &mut issues);
+    schedules::schedules(config, &mut issues);
     issues.0
 }
 

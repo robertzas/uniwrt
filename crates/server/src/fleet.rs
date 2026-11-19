@@ -17,10 +17,10 @@ use uniwrt_core::Clock;
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, Blocklist, BlocklistConfig, BlocklistSync,
     ClientBans, ClientRecorder, ClientSteering, DriftConfig, DriftWatch, Drifts, Engine,
-    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LogRecorder, LogsConfig,
-    MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig, Notifications, Notify,
-    NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig, Snapshots,
-    SteeringConfig, TopologyHistory, WlanSchedules,
+    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LedSchedule, LedScheduleConfig,
+    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
+    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
+    Snapshots, SteeringConfig, TopologyHistory, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -58,6 +58,8 @@ pub(crate) struct Fleet {
     /// Drift detection.
     drift: Option<DriftWatch>,
     schedules: Option<WlanSchedules>,
+    /// The LEDs schedule (D-138).
+    leds: Option<LedSchedule>,
     bans: Option<ClientBans>,
     /// DNS filtering's lists and the gateway's copy (D-133).
     blocklist: Option<BlocklistSync>,
@@ -117,6 +119,7 @@ impl Fleet {
             rf: None,
             drift: None,
             schedules: None,
+            leds: None,
             bans: None,
             blocklist: None,
             neighbors: None,
@@ -198,6 +201,7 @@ impl Fleet {
             rf: None,
             drift: None,
             schedules: None,
+            leds: None,
             bans: None,
             blocklist: None,
             neighbors: None,
@@ -250,6 +254,9 @@ impl Fleet {
         }
         if let Some(schedules) = self.schedules {
             schedules.stop().await;
+        }
+        if let Some(leds) = self.leds {
+            leds.stop().await;
         }
         if let Some(bans) = self.bans {
             bans.stop().await;
@@ -354,6 +361,12 @@ impl Fleet {
             store.clone(),
             Some(jobs.subscribe()),
             SchedulesConfig::default(),
+        ));
+        self.leds = Some(LedSchedule::start(
+            &self.engine,
+            store.clone(),
+            Some(jobs.subscribe()),
+            LedScheduleConfig::default(),
         ));
         self.bans = Some(ClientBans::start(
             &self.engine,

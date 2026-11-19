@@ -37,6 +37,8 @@ beforeEach(() => {
     radios: [],
     ports: [],
     raw: [],
+    reboot: { kind: "site" as const },
+    led_schedule: true,
   }));
   vi.stubGlobal(
     "fetch",

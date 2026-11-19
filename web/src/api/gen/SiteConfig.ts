@@ -6,6 +6,7 @@ import type { MeshConfig } from "./MeshConfig";
 import type { Network } from "./Network";
 import type { NodeConfig } from "./NodeConfig";
 import type { RadioPolicy } from "./RadioPolicy";
+import type { Schedules } from "./Schedules";
 import type { Services } from "./Services";
 import type { SiteSettings } from "./SiteSettings";
 import type { Steering } from "./Steering";
@@ -28,6 +29,10 @@ steering: Steering, wan: WanConfig, firewall: FirewallConfig, services: Services
  * The gateway's adoption port; none when left out (schema v10, D-105).
  */
 adoption_port: AdoptionPort | null, 
+/**
+ * Scheduled restarts and LEDs (schema v16, D-138); both off when left out.
+ */
+schedules: Schedules, 
 /**
  * Overrides per adopted node; a node without an entry takes the site's settings.
  */

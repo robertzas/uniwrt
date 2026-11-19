@@ -24,7 +24,18 @@ function config(): SiteConfig {
   return {
     ...base,
     networks: [...base.networks, { ...lan, id: "iot", name: "IoT", purpose: "iot", vlan: 30 }],
-    nodes: [{ node: 1, hostname: null, managed: ["network"], radios: [], ports: [], raw: [] }],
+    nodes: [
+      {
+        node: 1,
+        hostname: null,
+        managed: ["network"],
+        radios: [],
+        ports: [],
+        raw: [],
+        reboot: { kind: "site" as const },
+        led_schedule: true,
+      },
+    ],
   };
 }
 

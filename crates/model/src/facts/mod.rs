@@ -32,7 +32,7 @@ pub use self::{
     radio::{RadioFacts, WifiIfaceFacts, WifiIfaceMode},
     services::{BlocklistFacts, DdnsFacts, ServiceFacts},
     station::{PeerLinkState, Rate, StationCapability, StationFacts},
-    system::{BoardFacts, Memory, Release, Storage, SystemFacts},
+    system::{BoardFacts, LedFacts, Memory, Release, Storage, SystemFacts},
     upnp::PortMapping,
 };
 

@@ -1,9 +1,9 @@
 //! The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by
-//! 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
+//! 65536), the node's clock, the agent's CPU percentage, the thermal zones (m°C) and the LEDs.
 
 use serde::Deserialize;
 use uniwrt_core::Timestamp;
-use uniwrt_model::facts::{Memory, Storage, SystemFacts};
+use uniwrt_model::facts::{LedFacts, Memory, Storage, SystemFacts};
 
 use super::round;
 
@@ -20,6 +20,8 @@ pub(super) struct Raw {
     cpu_percent: Option<f64>,
     #[serde(default)]
     thermal: Vec<Zone>,
+    #[serde(default)]
+    leds: Option<LedFacts>,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +78,7 @@ pub(super) fn parse(raw: Raw) -> SystemFacts {
         clock,
         cpu_percent,
         thermal,
+        leds,
     } = raw;
     // Two decimals, as `uptime` prints them; the kernel keeps 11 fractional bits.
     let load = info.load.map(|load| round(load as f64 / 65536.0, 2));
@@ -101,5 +104,6 @@ pub(super) fn parse(raw: Raw) -> SystemFacts {
             .filter(|celsius| PLAUSIBLE_C.contains(celsius))
             .reduce(f64::max)
             .map(|celsius| round(celsius, 1)),
+        leds,
     }
 }

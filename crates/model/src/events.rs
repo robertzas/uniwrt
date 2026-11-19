@@ -161,6 +161,16 @@ pub enum EventKind {
     NodeRebooted {
         up_s: Option<u64>,
     },
+    /// A node's scheduled restart didn't happen within its window (D-138).
+    ScheduledRebootMissed {
+        why: RebootMissed,
+    },
+    /// The controller could not turn a node's LEDs off or on as the LEDs schedule wants (raises
+    /// `led-schedule`, cleared once it could; D-138).
+    LedScheduleFailed {
+        error: String,
+    },
+    LedScheduleOk,
     /// A node's flash (its root file system) is nearly full (raises `flash`).
     FlashLow {
         available_bytes: u64,
@@ -368,6 +378,8 @@ impl EventKind {
             Self::NodeDegraded { .. }
             | Self::FlashLow { .. }
             | Self::NodeRebooted { .. }
+            | Self::ScheduledRebootMissed { .. }
+            | Self::LedScheduleFailed { .. }
             | Self::LogPattern { .. }
             | Self::JobFailed { .. }
             | Self::ConfigDrift { .. } => (C::System, L::Warning),
@@ -376,6 +388,7 @@ impl EventKind {
             | Self::NodeRemoved { .. }
             | Self::NodeReplaced
             | Self::NodeReset
+            | Self::LedScheduleOk
             | Self::NodeOnline { .. }
             | Self::NodeRecovered { .. }
             | Self::FlashOk { .. }
@@ -427,6 +440,9 @@ impl EventKind {
             Self::NodeDegraded { .. } => "node_degraded",
             Self::NodeRecovered { .. } => "node_recovered",
             Self::NodeRebooted { .. } => "node_rebooted",
+            Self::ScheduledRebootMissed { .. } => "scheduled_reboot_missed",
+            Self::LedScheduleFailed { .. } => "led_schedule_failed",
+            Self::LedScheduleOk => "led_schedule_ok",
             Self::FlashLow { .. } => "flash_low",
             Self::FlashOk { .. } => "flash_ok",
             Self::MeshLinkDown { .. } => "mesh_link_down",
@@ -615,6 +631,19 @@ impl EventFilter {
     }
 }
 
+/// Why a scheduled restart didn't happen (D-138).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum RebootMissed {
+    /// The node was offline until its window closed.
+    Offline,
+    /// Another job held it until its window closed.
+    Busy,
+    /// The restart job ended at another node first, or could not start.
+    JobFailed,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -658,6 +687,10 @@ mod tests {
             },
             EventKind::NodeReplaced,
             EventKind::NodeReset,
+            EventKind::ScheduledRebootMissed {
+                why: super::RebootMissed::Busy,
+            },
+            EventKind::LedScheduleOk,
             EventKind::NodeOnline { down_ms: None },
             EventKind::ClientLeft { connected_ms: None },
             EventKind::NewClient {

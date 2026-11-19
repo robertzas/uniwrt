@@ -9,6 +9,7 @@ use uniwrt_core::NodeId;
 
 use super::{
     SecretRef,
+    schedules::NodeReboot,
     wireless::{Channel, TxPower},
 };
 use crate::wifi::ChannelWidth;
@@ -26,6 +27,16 @@ pub struct NodeConfig {
     /// The Ethernet ports that don't carry every network; the others are trunks.
     pub ports: Vec<PortConfig>,
     pub raw: Vec<RawSection>,
+    /// Which schedule restarts it (schema v16, D-138): the site's when left out.
+    #[serde(default)]
+    pub reboot: NodeReboot,
+    /// Whether the site's LEDs schedule turns its LEDs off (schema v16): on when left out.
+    #[serde(default = "on")]
+    pub led_schedule: bool,
+}
+
+const fn on() -> bool {
+    true
 }
 
 impl NodeConfig {
@@ -38,6 +49,8 @@ impl NodeConfig {
             radios: Vec::new(),
             ports: Vec::new(),
             raw: Vec::new(),
+            reboot: NodeReboot::Site,
+            led_schedule: true,
         }
     }
 }

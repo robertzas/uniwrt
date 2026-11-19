@@ -1,9 +1,11 @@
 // The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous
-// collection and the thermal sensors.
+// collection, the thermal sensors and the LEDs (`leds.uc`: how many, how many lit, whether a
+// state is saved).
 
 import * as fs from "fs";
 import * as bus from "../bus.uc";
 import { read } from "../util.uc";
+import { state as leds } from "../leds.uc";
 
 // Fewer jiffies than this since the previous sample (a collection right after another) keep
 // the previous percentage rather than reporting noise.
@@ -49,6 +51,7 @@ function collect() {
 		clock: clock(),
 		cpu_percent: percent,
 		thermal: thermal(),
+		leds: leds(),
 	};
 }
 

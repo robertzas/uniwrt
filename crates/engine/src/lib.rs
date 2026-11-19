@@ -42,6 +42,8 @@
 //!   handle on it (state, acknowledge, mute); [`WlanSchedules`] ([`SchedulesConfig`]) keeps
 //!   the WLANs to their schedules (the saved site's), turning managed nodes' BSSes off and on
 //!   through the agent's `bss` op, and announces the turns and refusals as events (D-083);
+//!   [`LedSchedule`] ([`LedScheduleConfig`]) keeps the managed nodes' LEDs dark while the
+//!   site's LEDs schedule is on, through the agent's `leds` op (D-138);
 //!   [`ClientBans`] ([`BansConfig`]) keeps blocked clients ([`Engine::block_client`]) and kicked
 //!   ones off the managed nodes' access points through the agent's `ban` op, renewing hostapd's
 //!   bans while it runs; [`Bans`] is the API's handle on it ([`Bans::kick`]; D-084);
@@ -102,6 +104,7 @@ mod events;
 mod fleet;
 mod history;
 mod interest;
+mod leds;
 mod live;
 mod logs;
 mod metrics;
@@ -131,6 +134,7 @@ pub use events::{EventRecorder, EventsConfig};
 pub use fleet::{Exec, Fleet};
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
+pub use leds::{LedSchedule, LedScheduleConfig};
 pub use live::NodeView;
 pub use logs::{DnsStatsConfig, LogRecorder, LogsConfig};
 pub use metrics::{MetricsConfig, MetricsRecorder};

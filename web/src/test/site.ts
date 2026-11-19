@@ -137,6 +137,7 @@ export function siteConfig(): SiteConfig {
       },
     },
     adoption_port: null,
+    schedules: { reboot: null, leds_off: null },
     nodes: [],
   };
 }

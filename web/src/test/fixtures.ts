@@ -72,6 +72,7 @@ export function facts(cpu: number): NodeFacts {
       root: null,
       tmp: null,
       temperature_c: 50,
+      leds: { count: 4, lit: 4, held: false },
     },
     capabilities: {} as NodeFacts["capabilities"],
     interfaces: [],

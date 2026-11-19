@@ -164,6 +164,12 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       const up = what.up_s === null ? null : formatDuration(what.up_s);
       return withDetail(titles.nodeRebooted(node), up && d.upBefore(up));
     }
+    case "scheduled_reboot_missed":
+      return withDetail(titles.scheduledRebootMissed(node), d.rebootMissed[what.why]);
+    case "led_schedule_failed":
+      return withDetail(titles.ledScheduleFailed(node), what.error);
+    case "led_schedule_ok":
+      return { title: titles.ledScheduleOk(node) };
     case "flash_low":
       return withDetail(
         titles.flashLow(node),

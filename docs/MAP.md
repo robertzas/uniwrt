@@ -193,6 +193,9 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/history.rs`: The topology's history, for the replay (features/observability.md, Topology): each build as [`Topology::for_history`] keeps it, recorded through [`TopologyRepo`] as a keyframe every hour and as deltas between, at most every 30 s, and pruned to the last 24 h.
 - `src/history_tests.rs`: The history's frames: the policy over hand-made topologies, then the recorder over a store.
 - `src/interest.rs`: Interest in a node: while someone holds an [`Interest`], its telemetry is fast ([`Engine::focus`](crate::Engine::focus)) or its log is followed ([`Engine::follow_logs`](crate::Engine::follow_logs)).
+- `src/leds/mod.rs`: The LEDs schedule (features/network.md, Other services; D-138): the controller turns the managed nodes' LEDs off while the site's `leds_off` schedule is on, and back on after it, through each node's agent (the `leds` op: the agent keeps each LED's trigger and settings in `/tmp` and puts them back), so no configuration changes and nothing runs on the nodes on its own.
+- `src/leds/task.rs`: The LEDs schedule's task: when to compare, what to send, and what to raise.
+- `src/leds/tests.rs`: The LEDs schedule over a store and an engine watching the lab gateway's capture, its `system` set given LEDs by hand and the `leds` op answered by hand: lit LEDs go dark inside the schedule and a held state comes back outside it, the same request waits `retry`, a node in observe mode, left out or held by a job is left alone, and a refusal raises a condition that clears once the node takes it.
 - `src/lib.rs`: The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 - `src/live.rs`: The live state: what the engine knows about each node now.
 - `src/logs/dns.rs`: DNS query statistics (features/network.md, Query statistics; D-133): the lines of dnsmasq's query log never become log entries.
@@ -511,6 +514,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/replace.rs`: A node's device replaced (features/lifecycle.md, Replace / RMA / decommission; D-131): the new device takes over the node's settings.
 - `src/site/replace_tests.rs`: (no header comment)
 - `src/site/revision.rs`: Revisions: every save of the [`SiteConfig`] is an immutable revision in one linear history (D-065), with who made it, when, why, and what changed from its parent.
+- `src/site/schedules.rs`: Controller-run schedules (features/network.md, Other services; D-138): restarts at a time of the week, and the LEDs off at night.
 - `src/site/services.rs`: The gateway's network services (features/network.md, DHCP & local DNS and Other services; D-132): where dnsmasq forwards the queries it can't answer, the DDNS names kept pointing at the WAN, and whether the gateway serves time.
 - `src/site/services_tests.rs`: The gateway's services (schema v12, D-132): migration, validation and the DDNS secrets.
 - `src/site/steering.rs`: Client steering (features/wifi.md, Steering & balancing; D-090): usteer on the access points, set by one profile for the site, each WLAN taking part unless it opts out ([`Roaming::steer`](super::wireless::Roaming::steer)).
@@ -525,6 +529,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/site/validate/network.rs`: The address plan and the networks: ids, VLANs, subnets, DHCP pools and reservations.
 - `src/site/validate/nodes.rs`: Per-node overrides: hostnames, radios, port profiles and raw UCI sections.
 - `src/site/validate/ports.rs`: Port profiles: which networks a node's Ethernet ports carry.
+- `src/site/validate/schedules.rs`: The schedules (D-138): restart times, the LEDs schedule, and each node's own restart time.
 - `src/site/validate/services.rs`: The gateway's network services (D-132): the upstream DNS and DDNS.
 - `src/site/validate/wireless.rs`: WLANs, the mesh and the radio policy.
 - `src/site/wireless.rs`: Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
@@ -573,7 +578,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/scan.rs`: Parsing the agent's `scan` answer ([`Scanned`]) into what the radio heard ([`Heard`]).
 - `src/facts/services.rs`: The `services` set: ddns-scripts' run files per section (the registered address, the last update in seconds of uptime, whether the updater runs) and https-dns-proxy's running instances, with the node's clock and uptime, which place the update in time; and the DNS blocklist's header line and conf file (D-133).
 - `src/facts/stations.rs`: The `stations` set: nl80211's station dump of every Wi-Fi interface, and for APs, what hostapd saw in each client's association (`get_clients`).
-- `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage and the thermal zones (m°C).
+- `src/facts/system.rs`: The `system` set: `system info` (memory in bytes, filesystems in KiB, loads scaled by 65536), the node's clock, the agent's CPU percentage, the thermal zones (m°C) and the LEDs.
 - `src/facts/tests.rs`: The parsers against captured and canonical agent output (`fixtures/collect/`), plus the edge cases that real nodes produce.
 - `src/facts/tests/hwsim.rs`: The parsers against captures from the hwsim lab (`scripts/wifi-lab.sh`, TESTING.md): real hostapd, `wpa_supplicant`, nl80211, netifd, dnsmasq, odhcpd and batman-adv output.
 - `src/facts/tests/scan.rs`: (no header comment)
@@ -610,6 +615,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `tests/backhaul.rs`: The `mtu` op on the hwsim lab's wired backhaul (features/mesh.md, Wired backhaul; D-094): `bh0`, a veth pair at batman-adv's MTU between node a (25.12, the gateway) and node b (24.10), in a `uw_bh` zone of each node's firewall, as render gives a gateway's.
 - `tests/cutover.rs`: The mesh's synchronized cutover on the hwsim lab (features/wifi.md, RF planner: Apply; M6.1 b2, D-114): node a (25.12) and node b (24.10) move their mesh from channel 36 to 149 in transactions scheduled for one instant ([`txn::apply_at`]).
 - `tests/dropbear.rs`: The transport against dropbear on real OpenWrt (TESTING.md, Transport).
+- `tests/leds.rs`: The `leds` op on real OpenWrt (D-138; TESTING.md, Agent): through the agent, the `system` set reports the LEDs and `on` without a saved state changes nothing (a container's `/sys/class/leds` is the host's, read-only, so `off` isn't sent there); and `leds.uc` itself, run by ucode over a tree of plain files standing for `/sys/class/leds`: `off` saves each LED's trigger, brightness and settings (a subdirectory's too) and darkens it, an LED lit again is saved anew, and `on` puts them back, the trigger first, and forgets them.
 - `tests/link.rs`: Supervised links against the in-process server: staying up, reconnecting, failing fast, quarantine, the agent's own restarts and jump links.
 - `tests/openwrt/mod.rs`: Shared by the tests against OpenWrt rootfs containers (`dropbear.rs`, `agent.rs`, `wifi.rs`): adopting a node (by default the one at `UNIWRT_NODE=<host:port>`, with the root password in `UNIWRT_NODE_PASSWORD`), linking to its agent, and waiting for its pushes.
 - `tests/session.rs`: Sessions against the in-process server: trust on first use, authentication, commands, uploads, jump hosts, disconnects and the agent over a real channel.
@@ -751,6 +757,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/restore.rs`: Restoring a controller backup (features/lifecycle.md, Backups; D-129): `uniwrt restore FILE` stages it as an upload in the UI does ([`run`]), and the next start puts it in place before the store opens ([`apply_staged`]).
 - `src/restore_tests.rs`: (no header comment)
 - `src/scheduled_backups.rs`: Weekly node backups (features/lifecycle.md, Backups; D-126): in the nightly window (03:00 site time for half an hour, before the RF optimizer's and the rollouts'), Sundays back up every online node, and the other nights the online nodes whose newest backup is over [`LATE_S`] old (offline or busy on Sunday), as one backup job a night.
+- `src/scheduled_reboots.rs`: Scheduled restarts (features/network.md, Other services; D-138): every minute, the managed nodes whose restart time (the site's, or their own) came within the last [`REBOOT_WINDOW_MIN`] are restarted as one reboot job (D-137's: farthest first, the gateway last), unless a scheduled restart still runs.
 - `src/serve.rs`: `uniwrt serve`: starts the runtime, opens the database and the vault, binds the HTTP and HTTPS listeners and serves until SIGTERM or SIGINT, or until an install of a new release asks for a restart (exit code [`launcher::RESTART`]; D-123).
 - `src/tls/issue.rs`: Issuing the controller's certificates with rcgen (D-039): the local CA ([`Ca`]: ECDSA P-256, 10 years, no intermediates, name-constrained) and the leaf it signs for the HTTPS listener ([`Leaf`]: 397 days, server authentication only).
 - `src/tls/issue/tests.rs`: Certificates checked as a client checks them: webpki, with the CA as the only root.
@@ -818,6 +825,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `tests/bss.rs`: The simulated agent's `bss` op (D-083): a BSS it turns off is down in the `radios` set (netifd still lists it) and its clients are gone from `stations`; turned on, both come back; a phy the node lacks is refused.
 - `tests/engine.rs`: The engine over the simulated fleet, on tokio's paused clock: the nodes come online with their facts, ticks and pushes keep them fresh, roams are inferred, logs follow, and a rebooted access point goes offline and comes back; the topology is the simulated house.
 - `tests/factory.rs`: A factory-default gateway (`SimConfig::factory`; features/adoption.md, Path E): root has no password until `passwd` gives it one, and the LAN follows the gateway's `network` when its ports bounce, as the apply's make-before-break renumbering needs (D-081).
+- `tests/leds.rs`: The simulated agent's `leds` op (D-138): turned off, the `system` set shows the LEDs dark with their state held; turned on, lit again with nothing held.
 - `tests/rrm.rs`: The simulated agent's `rrm` op: each access point's own neighbor report, and lists that are set once and left alone when sent again.
 - `tests/switch.rs`: The simulated agent's channel switch (D-113): hostapd's `switch_chan` over the `ubus` op moves the access point's radio, which the `radios` set then reports, with its restart pending (netifd holds the old channel) until `wifi reload` restarts it.
 
@@ -985,8 +993,9 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `collect/radios.uc`: The `radios` set: each radio's configuration and state from netifd (`network.wireless status`) with its channel and width as saved in UCI (netifd's differ until the radio restarts after a channel switch, D-113), the phys' interfaces from nl80211 (`GET_INTERFACE`), and the survey of each phy's channel with the share of time it was busy since the previous collection. netifd's reply holds the Wi-Fi keys, so only the options that facts use are kept.
 - `collect/services.uc`: The `services` set: the gateway's network services as they run (D-132): each DDNS name's registered address and last update from ddns-scripts' run directory (`<section>.ip`, and `.update` in seconds of uptime), whether its updater runs (`.pid`), and how many https-dns-proxy instances procd runs, with the clock and uptime that convert `.update`; and the DNS blocklist the controller pushed (D-133): the header line of its servers-file (only the first bytes are read: the list may hold a million lines) and whether its conf file is there.
 - `collect/stations.uc`: The `stations` set: the stations of every Wi-Fi interface (nl80211 `GET_STATION`): an AP's clients, mesh peers and a station interface's AP, with signal, rates, counters and airtime; and for APs, the capabilities hostapd saw in each client's association (`get_clients`).
-- `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection and the thermal sensors.
+- `collect/system.uc`: The `system` set: resource usage (`system info`), the node's clock, CPU load since the previous collection, the thermal sensors and the LEDs (`leds.uc`: how many, how many lit, whether a state is saved).
 - `exec.uc`: Commands as argv arrays, never shell strings, with a timeout and bounded output.
+- `leds.uc`: The `leds` op (features/network.md, Other services; D-138): every LED of the node dark, and back as it was.
 - `logs.uc`: Following the node's log (`log_follow`; event loop only), pushed as `{"ev":"log",…}` events in batches.
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `mtu.uc`: The `mtu` op (features/mesh.md, Wired backhaul; D-094): whether a cable carries packets of `size` bytes, batman-adv's 1532 on a backhaul's VLAN device (`<port>.<vid>`).
@@ -1004,7 +1013,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (475 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (480 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

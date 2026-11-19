@@ -129,7 +129,18 @@ describe("the site the wizard saves", () => {
       ip: "192.168.1.20",
       name: null,
     });
-    base.nodes = [{ node: 7, hostname: "gw", managed: ["sqm"], radios: [], ports: [], raw: [] }];
+    base.nodes = [
+      {
+        node: 7,
+        hostname: "gw",
+        managed: ["sqm"],
+        radios: [],
+        ports: [],
+        raw: [],
+        reboot: { kind: "site" as const },
+        led_schedule: true,
+      },
+    ];
     const site = withSetup(base, choices);
     expect(site.nodes).toHaveLength(1);
     expect(site.nodes[0]).toMatchObject({ hostname: "gw" });

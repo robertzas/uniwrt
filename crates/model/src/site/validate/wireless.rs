@@ -102,7 +102,12 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
         }
         roaming(wlan, &at, issues);
         if let Some(schedule) = &wlan.schedule {
-            self::schedule(schedule, &format!("{at}/schedule"), issues);
+            self::schedule(
+                schedule,
+                &format!("{at}/schedule"),
+                "A schedule without times is never on: add a time, or turn the WLAN off",
+                issues,
+            );
         }
         scope(&wlan.nodes, &format!("{at}/nodes"), nodes, issues);
     }
@@ -126,12 +131,10 @@ fn roaming(wlan: &Wlan, at: &str, issues: &mut Issues) {
 /// hostapd's `max_num_sta` ends at its association IDs.
 const MAX_CLIENTS: u16 = 2007;
 
-fn schedule(schedule: &Schedule, at: &str, issues: &mut Issues) {
+/// A weekly schedule's spans; `empty` says what a schedule without any means.
+pub(super) fn schedule(schedule: &Schedule, at: &str, empty: &str, issues: &mut Issues) {
     if schedule.spans.is_empty() {
-        issues.error(
-            at,
-            "A schedule without times is never on: add a time, or turn the WLAN off",
-        );
+        issues.error(at, empty);
     }
     for (nth, span) in schedule.spans.iter().enumerate() {
         let at = format!("{at}/spans/{nth}");

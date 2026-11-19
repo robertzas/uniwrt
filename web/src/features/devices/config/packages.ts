@@ -53,7 +53,19 @@ export function withManaged(
   const known = config.nodes.some((entry) => entry.node === node);
   const nodes = known
     ? config.nodes.map((entry) => (entry.node === node ? { ...entry, managed: chosen } : entry))
-    : [...config.nodes, { node, hostname: null, managed: chosen, radios: [], ports: [], raw: [] }];
+    : [
+        ...config.nodes,
+        {
+          node,
+          hostname: null,
+          managed: chosen,
+          radios: [],
+          ports: [],
+          raw: [],
+          reboot: { kind: "site" as const },
+          led_schedule: true,
+        },
+      ];
   return { ...config, nodes };
 }
 

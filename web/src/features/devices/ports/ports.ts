@@ -96,7 +96,16 @@ export function carriesOf(
 /** `config` with the node's port profiles replaced; a node without an entry gets one. */
 export function withPorts(config: SiteConfig, node: number, ports: PortConfig[]): SiteConfig {
   const known = config.nodes.some((entry) => entry.node === node);
-  const blank: NodeConfig = { node, hostname: null, managed: [], radios: [], ports: [], raw: [] };
+  const blank: NodeConfig = {
+    node,
+    hostname: null,
+    managed: [],
+    radios: [],
+    ports: [],
+    raw: [],
+    reboot: { kind: "site" },
+    led_schedule: true,
+  };
   const nodes = known ? config.nodes : [...config.nodes, blank];
   return {
     ...config,

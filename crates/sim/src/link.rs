@@ -200,6 +200,12 @@ impl SimLink {
                 json!({"mode": mode})
             }
             "bss" => self.bss(&world, op, args)?,
+            "leds" => {
+                let off: bool = field(op, args, "off")?;
+                let node = &mut world.nodes[self.node];
+                node.leds_off_boot = off.then_some(node.booted_ms);
+                render::system::leds(node)
+            }
             "ban" => self.ban(&mut world, op, args)?,
             "rrm" => self.rrm(&world, op, args)?,
             "btm" => self.btm(&mut world, op, args)?,

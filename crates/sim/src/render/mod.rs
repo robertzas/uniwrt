@@ -14,7 +14,7 @@ mod net;
 mod queries;
 pub(crate) mod scan;
 mod services;
-mod system;
+pub(crate) mod system;
 pub(crate) mod tmp;
 pub(crate) mod wifi;
 pub(crate) mod wpad;
@@ -36,9 +36,10 @@ use crate::world::{Happening, What, World};
 pub(crate) use self::logs::{log_entries, log_lines};
 
 /// The ops a simulated agent answers.
-const OPS: [&str; 9] = [
+const OPS: [&str; 10] = [
     "bss",
     "collect",
+    "leds",
     "log_follow",
     "ping",
     "read_file",

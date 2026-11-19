@@ -56,7 +56,12 @@
       "used_bytes": 1167360,
       "available_bytes": 514727936
     },
-    "temperature_c": 51.5
+    "temperature_c": 51.5,
+    "leds": {
+      "count": 5,
+      "lit": 5,
+      "held": false
+    }
   },
   "capabilities": {
     "package_manager": "apk",

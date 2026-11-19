@@ -225,6 +225,23 @@ describe("events in words", () => {
     );
   });
 
+  it("tells scheduled restarts missed and the LED schedule not followed (D-138)", () => {
+    expect(
+      describeEvent(event({ kind: "scheduled_reboot_missed", why: "offline" }), names),
+    ).toEqual({
+      title: "Attic AP missed its scheduled restart",
+      detail: "It was offline until the hour after its time ended",
+    });
+    const failed = { kind: "led_schedule_failed", error: "cannot turn off wan" } as const;
+    expect(describeEvent(event(failed), names)).toEqual({
+      title: "Attic AP: couldn't follow the LED schedule",
+      detail: "cannot turn off wan",
+    });
+    expect(describeEvent(event({ kind: "led_schedule_ok" }), names).title).toBe(
+      "Attic AP: follows the LED schedule again",
+    );
+  });
+
   it("tells the nightly channel plan applied or skipped, with each band's gain", () => {
     const bands: BandGain[] = [
       { band: "5g", percent: 23 },

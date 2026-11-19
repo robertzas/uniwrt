@@ -82,7 +82,18 @@ pub(super) fn system(world: &World, node: &Node) -> Value {
         "clock": [now_ms / 1000, (now_ms % 1000) * 1_000_000],
         "cpu_percent": (node.cpu * 10.0).round() / 10.0,
         "thermal": [{"type": "cpu-thermal", "temp": (node.temp * 1000.0) as i64}],
+        "leds": leds(node),
     })
+}
+
+/// How many LEDs the simulated boards have: power, WLAN, LAN and WAN.
+const LEDS: u32 = 4;
+
+/// The LEDs as `node-agent/leds.uc` reports them: all dark while the `leds` op's state from
+/// this boot is held, else all lit.
+pub(crate) fn leds(node: &Node) -> Value {
+    let dark = node.leds_off_boot == Some(node.booted_ms);
+    json!({"count": LEDS, "lit": if dark { 0 } else { LEDS }, "held": dark})
 }
 
 /// What the node's `wpad` was built with ([`super::wpad`]): the basic one lacks 802.11v, the

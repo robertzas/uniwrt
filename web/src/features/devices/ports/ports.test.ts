@@ -93,7 +93,16 @@ describe("port profiles", () => {
     };
     const added = withPorts(siteConfig(), 3, [profile]);
     expect(added.nodes).toEqual([
-      { node: 3, hostname: null, managed: [], radios: [], ports: [profile], raw: [] },
+      {
+        node: 3,
+        hostname: null,
+        managed: [],
+        radios: [],
+        ports: [profile],
+        raw: [],
+        reboot: { kind: "site" },
+        led_schedule: true,
+      },
     ]);
     expect(withPorts(added, 3, []).nodes[0]?.ports).toEqual([]);
   });

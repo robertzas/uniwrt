@@ -30,6 +30,7 @@ pub mod node;
 pub mod remove;
 pub mod replace;
 pub mod revision;
+pub mod schedules;
 pub mod services;
 pub mod steering;
 pub mod tz;
@@ -47,12 +48,13 @@ use self::{
     gateway::{Services, WanConfig, WanProto},
     network::{Dhcp, DhcpOptions, Ipv4Config, Ipv6Clients, Ipv6Mode, Network, Purpose},
     node::NodeConfig,
+    schedules::Schedules,
     steering::Steering,
     wireless::{MeshConfig, RadioPolicy, Wlan},
 };
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 15;
+pub const SCHEMA_VERSION: u32 = 16;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,6 +77,9 @@ pub struct SiteConfig {
     /// The gateway's adoption port; none when left out (schema v10, D-105).
     #[serde(default)]
     pub adoption_port: Option<AdoptionPort>,
+    /// Scheduled restarts and LEDs (schema v16, D-138); both off when left out.
+    #[serde(default)]
+    pub schedules: Schedules,
     /// Overrides per adopted node; a node without an entry takes the site's settings.
     pub nodes: Vec<NodeConfig>,
 }
@@ -212,6 +217,7 @@ impl SiteConfig {
             },
             services: Services::default(),
             adoption_port: None,
+            schedules: Schedules::default(),
             nodes: Vec::new(),
         }
     }

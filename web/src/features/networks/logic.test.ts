@@ -150,6 +150,8 @@ describe("the network editor's draft", () => {
           },
         ],
         raw: [],
+        reboot: { kind: "site" },
+        led_schedule: true,
       },
     ];
     expect(usesOf(config, "iot", (id) => `ap${id}`)).toEqual(["uniwrt-demo", "ap2"]);

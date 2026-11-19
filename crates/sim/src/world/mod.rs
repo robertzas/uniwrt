@@ -77,6 +77,9 @@ pub(crate) struct Node {
     pub(crate) wired: bool,
     pub(crate) radios: [Radio; 2],
     pub(crate) booted_ms: i64,
+    /// The boot its LEDs were turned off in (the `leds` op): lit again after a reboot, as the
+    /// agent's saved state in `/tmp` is lost.
+    pub(crate) leds_off_boot: Option<i64>,
     /// While rebooting: the second it is up again.
     pub(crate) down_until: Option<u64>,
     /// When the gateway last acked the node's own lease.
