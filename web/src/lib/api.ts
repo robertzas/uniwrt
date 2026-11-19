@@ -119,6 +119,8 @@ import type { SiteView } from "../api/gen/SiteView";
 import type { SourcesBody } from "../api/gen/SourcesBody";
 import type { SpeedTestBody } from "../api/gen/SpeedTestBody";
 import type { SpeedTests } from "../api/gen/SpeedTests";
+import type { TailscaleLogin } from "../api/gen/TailscaleLogin";
+import type { TailscaleStatus } from "../api/gen/TailscaleStatus";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
@@ -848,6 +850,14 @@ export const api = {
         request<VpnPeerConfig>(`/vpn/wireguard/peers/${encodeURIComponent(id)}/config`, {
           method: "POST",
         }),
+    },
+    tailscale: {
+      /** The daemon as the gateway reports it, against the site's settings (any user). */
+      status: (signal?: AbortSignal) => request<TailscaleStatus>("/vpn/tailscale", { signal }),
+      /** Starts a login and answers its URL (admins; audited): whoever opens it joins the tailnet. */
+      login: () => request<TailscaleLogin>("/vpn/tailscale/login", { method: "POST" }),
+      /** Logs the gateway out (admins; audited); its settings stay. */
+      logout: () => request<TailscaleLogin>("/vpn/tailscale/logout", { method: "POST" }),
     },
   },
   /** The gateway's services beyond the site document (network.md, DHCP & local DNS; D-133). */

@@ -12,14 +12,16 @@ import { RequestError } from "../../ui/JobOutcome";
 import { PeersCard } from "./PeersCard";
 import { ServerCard } from "./ServerCard";
 import { ServerEditor } from "./ServerEditor";
+import { TailscaleEditor } from "./TailscaleEditor";
+import { TailscaleSection } from "./TailscaleSection";
 
 const t = strings.vpn;
 
 /**
  * `/vpn` (network.md, VPN; D-140): the gateway's WireGuard server and its peers, with what the
- * tunnel reports for each (handshake, traffic). Admins set the server up, add and edit peers in
- * dialogs (each save the site's next revision) and reveal a peer's configuration as a QR code
- * and a `.conf`.
+ * tunnel reports for each (handshake, traffic), and its Tailscale. Admins set the server up, add
+ * and edit peers in dialogs (each save the site's next revision), reveal a peer's configuration
+ * as a QR code and a `.conf`, set Tailscale up and log the gateway in or out of the tailnet.
  */
 export function VpnPage() {
   const live = useContext(LiveContext);
@@ -33,6 +35,7 @@ export function VpnPage() {
   // Held here, not by the card: setting the server up swaps the card for one with its status,
   // and the editor stays open to show the saved revision.
   const [editing, setEditing] = createSignal<SiteView>();
+  const [tailscale, setTailscale] = createSignal<SiteView>();
 
   createEffect(
     () => t.title,
@@ -63,31 +66,37 @@ export function VpnPage() {
         }
       >
         {(view) => (
-          <Show
-            when={view().config.vpn.wireguard}
-            fallback={
-              <ServerCard
-                view={view()}
-                admin={admin()}
-                status={undefined}
-                onEdit={() => setEditing(view())}
-              />
-            }
-          >
-            {(server) => (
-              <WireGuardCards
-                view={view()}
-                server={server()}
-                admin={admin()}
-                onEdit={() => setEditing(view())}
-              />
-            )}
-          </Show>
+          <>
+            <Show
+              when={view().config.vpn.wireguard}
+              fallback={
+                <ServerCard
+                  view={view()}
+                  admin={admin()}
+                  status={undefined}
+                  onEdit={() => setEditing(view())}
+                />
+              }
+            >
+              {(server) => (
+                <WireGuardCards
+                  view={view()}
+                  server={server()}
+                  admin={admin()}
+                  onEdit={() => setEditing(view())}
+                />
+              )}
+            </Show>
+            <TailscaleSection view={view()} admin={admin()} onEdit={() => setTailscale(view())} />
+          </>
         )}
       </Show>
       <RequestError text={site.error?.message} />
       <Show when={editing()}>
         {(view) => <ServerEditor view={view()} onClose={() => setEditing(undefined)} />}
+      </Show>
+      <Show when={tailscale()}>
+        {(view) => <TailscaleEditor view={view()} onClose={() => setTailscale(undefined)} />}
       </Show>
     </div>
   );
