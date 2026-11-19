@@ -19,6 +19,7 @@ import { DnsCard } from "./DnsCard";
 import { NetworkEditor } from "./NetworkEditor";
 import { NetworkRow } from "./NetworkRow";
 import { NewNetworkDialog } from "./NewNetworkDialog";
+import { BlockingCard } from "./services/BlockingCard";
 import { DdnsCard } from "./services/DdnsCard";
 import { NtpCard } from "./services/NtpCard";
 import { UpstreamCard } from "./services/UpstreamCard";
@@ -34,8 +35,8 @@ type Editing = { network: Network; isNew: boolean; view: SiteView };
 
 /**
  * `/networks` (network.md, Networks; D-077): the site's networks with their subnet, VLAN,
- * purpose, pool use and clients, its local DNS records, upstream DNS, DDNS names and NTP server
- * (D-132). Admins edit each in a dialog and
+ * purpose, pool use and clients, its local DNS records, upstream DNS, DNS filtering (D-133), DDNS
+ * names and NTP server (D-132). Admins edit each in a dialog and
  * save it as the next revision, then review and apply.
  */
 export function NetworksPage() {
@@ -145,6 +146,7 @@ export function NetworksPage() {
           <>
             <DnsCard view={view()} admin={admin()} />
             <UpstreamCard view={view()} admin={admin()} services={services()} />
+            <BlockingCard view={view()} admin={admin()} clients={clients.clients} />
             <DdnsCard view={view()} admin={admin()} services={services()} />
             <NtpCard view={view()} admin={admin()} />
           </>

@@ -9,6 +9,7 @@ import type { Backup } from "../api/gen/Backup";
 import type { BackupId } from "../api/gen/BackupId";
 import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
+import type { BlocklistsView } from "../api/gen/BlocklistsView";
 import type { CableEnd } from "../api/gen/CableEnd";
 import type { Client } from "../api/gen/Client";
 import type { ClientDetail } from "../api/gen/ClientDetail";
@@ -778,6 +779,15 @@ export const api = {
       apply: () => request<void>("/controller/restore/apply", { method: "POST" }),
       discard: () => request<void>("/controller/restore", { method: "DELETE" }),
     },
+  },
+  /** The gateway's services beyond the site document (network.md, DHCP & local DNS; D-133). */
+  services: {
+    /** DNS filtering: the catalog, each list's download state, the compile and the gateway's copy. */
+    blocklists: (signal?: AbortSignal) =>
+      request<BlocklistsView>("/services/blocklists", { signal }),
+    /** Downloads the lists again now (admins); 409 while blocking is off, saved and applied. */
+    refreshBlocklists: () =>
+      request<BlocklistsView>("/services/blocklists/refresh", { method: "POST" }),
   },
   backhaul: {
     failures: (signal?: AbortSignal) =>

@@ -1019,7 +1019,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
-- `features/networks/services/`: DdnsCard.tsx, DdnsEditor.tsx, NtpCard.tsx, UpstreamCard.tsx, ddns.ts, upstream.ts
+- `features/networks/services/`: BlockingCard.tsx, BlockingEditor.tsx, DdnsCard.tsx, DdnsEditor.tsx, NtpCard.tsx, UpstreamCard.tsx, blocking.ts, ddns.ts, upstream.ts
 - `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Nightly.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx

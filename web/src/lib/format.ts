@@ -6,6 +6,11 @@ const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 /** A placeholder for a value that is unknown. */
 export const NONE = "—";
 
+/** A count in the browser's locale: `12,345`. */
+export function formatCount(value: number): string {
+  return integer.format(value);
+}
+
 export function formatPercent(value: number | null | undefined): string {
   return value == null ? NONE : `${integer.format(value)} %`;
 }

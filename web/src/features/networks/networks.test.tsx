@@ -7,6 +7,7 @@ import type { Network } from "../../api/gen/Network";
 import type { SiteSave } from "../../api/gen/SiteSave";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
+import { blocklistsView } from "../../test/blocklists";
 import { client } from "../../test/clients";
 import { detail, facts, summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
@@ -62,6 +63,7 @@ beforeEach(() => {
         head += 1;
         return Response.json(siteView(head, (body as SiteSave).config));
       }
+      if (url === "/api/v1/services/blocklists") return Response.json(blocklistsView());
       if (url === "/api/v1/nodes/1") {
         const gateway = detail(facts(1));
         if (gateway.facts) {
