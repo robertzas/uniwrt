@@ -261,12 +261,6 @@ pub fn router(api: Api) -> Router {
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
-        .route("/v1/clients/{mac}/kick", post(client_actions::kick))
-        .route("/v1/clients/{mac}/wake", post(client_actions::wake))
-        .route(
-            "/v1/clients/{mac}/block",
-            put(client_actions::block).delete(client_actions::unblock),
-        )
         .route("/v1/events", get(events::list))
         .route("/v1/alerts", get(alerts::list))
         .route("/v1/alerts/{id}/acknowledge", post(alerts::acknowledge))
@@ -317,6 +311,7 @@ pub fn router(api: Api) -> Router {
         .merge(ztp::routes())
         .merge(firmware::routes())
         .merge(reboot::routes())
+        .merge(client_actions::routes())
         .merge(controller_update::routes())
         .merge(controller_backups::routes())
         .merge(floors::routes())

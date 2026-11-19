@@ -95,6 +95,14 @@ pub struct WakeOutcome {
     pub installed: bool,
 }
 
+pub(crate) fn routes() -> axum::Router<Api> {
+    use axum::routing::{post, put};
+    axum::Router::new()
+        .route("/v1/clients/{mac}/kick", post(kick))
+        .route("/v1/clients/{mac}/wake", post(wake))
+        .route("/v1/clients/{mac}/block", put(block).delete(unblock))
+}
+
 fn admin(user: &CurrentUser, what: &str) -> ApiResult<()> {
     if user.user.role == Role::Admin {
         Ok(())
