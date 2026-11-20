@@ -504,3 +504,41 @@ async fn sockets_close_when_their_session_ends() {
         .expect("closed within two session checks");
     assert_eq!(frame.code, CloseCode::from(CLOSE_SESSION_ENDED));
 }
+
+#[tokio::test]
+async fn a_diag_topic_streams_its_run() {
+    let demo = Demo::start().await;
+    let body = json!({ "node": demo.ids[0].get(), "tool": { "tool": "ping", "target": "1.1.1.1", "count": 2 } });
+    let run = body_json(
+        demo.send(post("/v1/diag/runs", &body, Some(&demo.cookie)))
+            .await,
+    )
+    .await;
+    let mut ws = open(&demo).await;
+    let topic = format!("diag:{}", run["id"]);
+    sub(&mut ws, &[&topic, "diag:999"]).await;
+    let mut lines = Vec::new();
+    let mut end = Value::Null;
+    while end.is_null() {
+        let message = next(&mut ws).await;
+        match message["type"].as_str().unwrap() {
+            "diag_snapshot" => {
+                assert_eq!(message["run"]["id"], run["id"]);
+                lines.extend(message["run"]["lines"].as_array().unwrap().clone());
+            }
+            "diag_delta" => {
+                lines.extend(message["lines"].as_array().unwrap().clone());
+                end = message["end"].clone();
+            }
+            "error" => assert_eq!(message["topic"], "diag:999"),
+            other => panic!("unexpected {other}"),
+        }
+    }
+    assert_eq!(end["state"], "succeeded");
+    let texts: Vec<&str> = lines
+        .iter()
+        .map(|line| line["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(texts.len(), 7, "every line once: {texts:?}");
+    assert!(texts[0].starts_with("PING 1.1.1.1"));
+}

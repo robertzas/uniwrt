@@ -6,7 +6,9 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
-use uniwrt_engine::{Alerts, Bans, Blocklist, Drifts, Fleet, Notify, Rf};
+use uniwrt_engine::{
+    Alerts, Bans, Blocklist, DiagConfig, Diagnostics, Drifts, Fleet, Notify, Rf, Starter,
+};
 use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
 use uniwrt_jobs::{Jobs, RolloutTiming, Rollouts};
 use uniwrt_model::user::{Role, User};
@@ -129,6 +131,8 @@ struct Inner {
     drift: Option<Drifts>,
     bans: Option<Bans>,
     blocklist: Option<Blocklist>,
+    /// The diagnostics toolkit's runs (D-141).
+    diag: Diagnostics,
     asu: Option<Asu>,
     uploads: Option<Uploads>,
     github: Option<GitHub>,
@@ -163,6 +167,14 @@ impl Api {
         let passwords = Passwords::new(config.password_cost)?;
         passwords.warm_up().await?;
         let first_site = config.first_site;
+        let diag = {
+            let fleet = Arc::clone(&config.fleet);
+            let start: Starter = Arc::new(move |node, argv| {
+                let fleet = Arc::clone(&fleet);
+                Box::pin(async move { fleet.stream(node, argv).await })
+            });
+            Diagnostics::new(start, Arc::clone(&config.clock), DiagConfig::default())
+        };
         let api = Self {
             inner: Arc::new(Inner {
                 passwords,
@@ -186,6 +198,7 @@ impl Api {
                 drift: config.drift,
                 bans: config.bans,
                 blocklist: config.blocklist,
+                diag,
                 asu: config.asu,
                 uploads: config.uploads,
                 github: config.github,
@@ -269,6 +282,10 @@ impl Api {
 
     pub(crate) fn config_watch(&self) -> watch::Receiver<u64> {
         self.inner.config.subscribe()
+    }
+
+    pub(crate) fn diag(&self) -> &Diagnostics {
+        &self.inner.diag
     }
 
     pub(crate) fn now(&self) -> Timestamp {

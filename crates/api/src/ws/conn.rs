@@ -59,6 +59,7 @@ async fn serve(
     let mut jobs = api.jobs().subscribe();
     let mut config = api.config_watch();
     let mut changed_nodes = api.node_changes();
+    let mut diag = api.diag().subscribe();
     let mut closing = api.closing();
     // Set once and never unset, so a change means the server is stopping.
     if *closing.borrow_and_update() {
@@ -112,6 +113,11 @@ async fn serve(
             },
             node = changed_nodes.recv() => match node {
                 Ok(node) => subs.records_changed(api, &BTreeSet::from([node])).await,
+                Err(RecvError::Lagged(_)) => subs.resync(api).await,
+                Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
+            },
+            update = diag.recv() => match update {
+                Ok(update) => subs.diag(&update),
                 Err(RecvError::Lagged(_)) => subs.resync(api).await,
                 Err(RecvError::Closed) => return Some((CLOSE_GOING_AWAY, STOPPING)),
             },

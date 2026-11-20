@@ -27,6 +27,7 @@ use super::{
     subs_alerts::AlertsPending,
     subs_clients::{ClientPending, ClientsPending},
     subs_config,
+    subs_diag::DiagPending,
     subs_events::EventsPending,
     topic::{BadTopic, Topic},
 };
@@ -98,6 +99,7 @@ enum Pending {
     Rf(Option<Arc<RfView>>),
     /// Read fresh on each change ([`Subscriptions::config`]).
     Config,
+    Diag(Box<DiagPending>),
 }
 
 impl Subscriptions {
@@ -254,6 +256,17 @@ impl Subscriptions {
         out
     }
 
+    /// Notes what a diagnostics run added for its `diag` topics, sent with the next flush
+    /// (so nothing to send now).
+    pub(crate) fn diag(&mut self, update: &uniwrt_engine::DiagUpdate) -> Vec<ServerMessage> {
+        for sub in self.topics.values_mut() {
+            if let Pending::Diag(pending) = &mut sub.pending {
+                pending.apply(update);
+            }
+        }
+        Vec::new()
+    }
+
     /// One delta per topic with something to tell.
     pub(crate) fn flush(&mut self, api: &Api) -> Vec<ServerMessage> {
         self.topics
@@ -408,6 +421,19 @@ async fn subscribe(api: &Api, name: &str) -> Result<(Sub, ServerMessage), BadTop
             sub(Pending::Config, None),
             subs_config::read(api, topic).await?,
         ),
+        Topic::Diag(id) => {
+            let (run, watch) = api.diag().watch(id).ok_or_else(|| {
+                BadTopic(format!(
+                    "There is no run {id}: runs are kept for 15 minutes after they end, and not \
+                     across restarts"
+                ))
+            })?;
+            let pending = DiagPending::new(&run, watch);
+            (
+                sub(Pending::Diag(Box::new(pending)), None),
+                ServerMessage::DiagSnapshot { topic, run },
+            )
+        }
     })
 }
 
@@ -510,7 +536,7 @@ impl Pending {
                     *latest = Some(Arc::clone(view));
                 }
             }
-            Self::Jobs { .. } | Self::Config => {}
+            Self::Jobs { .. } | Self::Config | Self::Diag(_) => {}
         }
     }
 
@@ -598,6 +624,7 @@ impl Pending {
             Self::Alerts(pending) => pending.flush(topic),
             Self::Rf(latest) => latest.take().map(|view| ServerMessage::Rf { topic, view }),
             Self::Config => None,
+            Self::Diag(pending) => pending.flush(topic),
         }
     }
 }

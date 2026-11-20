@@ -67,7 +67,7 @@
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]), `PUT`/`DELETE
 //!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137)),
-//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
+//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), diagnostics runs (`GET v1/diag/runs`, an admin's `POST v1/diag/runs` with a [`DiagRunBody`] and `DELETE v1/diag/runs/{id}`, followed by the WS hub's `diag:<id>`; see `diag`, D-141), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
@@ -132,6 +132,7 @@ pub mod controller_update;
 #[cfg(test)]
 mod controller_update_tests;
 mod decommission;
+mod diag;
 mod discovered;
 mod dns_stats;
 mod drift;
@@ -209,6 +210,7 @@ pub use client::Client;
 pub use client_actions::{ClientKick, KickOutcome, KickRefusal, KickedNode, WakeOutcome};
 pub use clients::{ClientDetail, ClientPatch};
 pub use decommission::DecommissionBody;
+pub use diag::DiagRunBody;
 pub use dns_stats::{DnsClientStats, DnsQueryPage, DnsRange, DnsStats};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
@@ -319,6 +321,7 @@ pub fn router(api: Api) -> Router {
         .merge(ztp::routes())
         .merge(firmware::routes())
         .merge(reboot::routes())
+        .merge(diag::routes())
         .merge(packages::routes())
         .merge(client_actions::routes())
         .merge(controller_update::routes())

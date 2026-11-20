@@ -42,6 +42,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/controller_update.rs`: The controller's own update (features/lifecycle.md, Firmware; M7.1b2, D-123):
 - `src/controller_update_tests.rs`: The controller's own update through the router (D-123), against the fake releases on loopback and a scripted [`SelfUpdate`]: the offer, installs, refusals and the setting.
 - `src/decommission.rs`: A node leaving the site, with an admin's session (features/lifecycle.md, Replace / RMA / decommission; D-131), each a job answered 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it):
+- `src/diag.rs`: The diagnostics toolkit's runs (features/observability.md, Diagnostics toolkit; D-141), with a session: `GET v1/diag/runs` lists the runs kept, newest first, without their lines; `GET v1/diag/runs/{id}` is one with its lines, which the WS hub's `diag:<id>` topic follows.
+- `src/diag/tests.rs`: The diagnostics runs' routes on the demo, whose simulated nodes answer the tools: a ping run to its end and audited, a long one stopped, and what is refused.
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/dns_stats.rs`: DNS query statistics (features/network.md, Query statistics; D-133), with a session:
 - `src/dns_stats_tests.rs`: DNS query statistics' routes over the demo's store: totals, series and clients named as `/clients` names them, the top domains, and pages of queries filtered and followed.
@@ -117,10 +119,11 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ws/subs_clients.rs`: The clients' topics of a connection: `clients` keeps each changed client's latest view by MAC address between flushes, and `client:<mac>` one client's view, its new samples (up to a cap) and its changed sessions, with fast telemetry for the node it is at.
 - `src/ws/subs_clients_tests.rs`: The clients' topics over a real book fed with the canonical gateway's facts: snapshots, views merged by MAC address between flushes, a client's samples and sessions.
 - `src/ws/subs_config.rs`: The `config` topic of a connection (D-071): the site's latest revision, the revision each node holds and drift (D-074), whole, when subscribed and again whenever any of them changes (a save or a restore, [`Api::config_changed`]; an apply that ends; drift announced).
+- `src/ws/subs_diag.rs`: The `diag:<id>` topic of a connection (D-141): one diagnostics run, its lines kept by the controller as a snapshot, then the lines it adds and how it ends.
 - `src/ws/subs_events.rs`: The `events` topic of a connection: the newest events recorded, then each one recorded or folded since that passes its filter (one node's, at a least level), by id between flushes so that a fold sends the record as it is now.
 - `src/ws/subs_tests.rs`: [`Subscriptions`] over a scripted fleet: snapshots, how deltas merge between flushes, the caps, topics replaced, and resyncs.
 - `src/ws/tests.rs`: The WS hub over a loopback socket, against the simulated fleet: the upgrade's checks, snapshots then deltas, interest while topics are held, jobs as they change, nodes and the site's revisions after jobs and saves, the rate of deltas, and closing.
-- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
+- `src/ws/topic.rs`: WS topics as clients name them: `fleet`, `node:<id>`, `logs` or `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`, `jobs`, `topology`, `clients`, `client:<mac>`, `rf`, `config` and `diag:<run>`.
 - `src/ztp/hello.rs`: `POST /api/v1/ztp/hello`, without a session (features/adoption.md, Path B; D-102): a ZTP device's call home.
 - `src/ztp/image.rs`: Zero-touch images built by ASU (features/adoption.md, Path B; D-022, D-104), for admins:
 - `src/ztp/image_tests.rs`: Zero-touch images through the router, against the fake ASU on loopback: the catalog, a build with the role's first-boot script, its progress, audits, and who may ask.
@@ -188,6 +191,9 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/bus.rs`: The event bus: what the engine announces as it happens, to the WS hub, the metrics writer, the alert engine and anyone else subscribed ([`Engine::subscribe`](crate::Engine::subscribe)).
 - `src/clients.rs`: Keeping the clients' book (`uniwrt_clients`; features/observability.md, Clients): restored from the store before the nodes are watched, its records and sessions saved through [`ClientRepo`] as [`Event::Clients`] announces them, and clients long gone (and sessions older than [`RecorderConfig::keep`]) pruned every [`RecorderConfig::prune_every`].
 - `src/config.rs`: The engine's settings.
+- `src/diag/mod.rs`: The diagnostics toolkit's runs (features/observability.md, Diagnostics toolkit; D-141): a tool started on a node over an exec stream ([`uniwrt_node::diag`]), its output split into lines and kept in memory (the last [`DiagConfig::output_budget`] bytes), each batch announced as a [`DiagUpdate`] to the WS hub.
+- `src/diag/run.rs`: One run's task: starts the command, splits its output into lines and ends the run.
+- `src/diag/tests.rs`: The runs over a fake starter whose streams the tests feed, on tokio's paused clock.
 - `src/drift/mod.rs`: Drift detection (features/lifecycle.md, Drift; D-072, D-074): the agent's hashes of `/etc/config` (the `config` set) against what the controller confirmed on each managed node ([`DriftRepo::confirmed`], written as an apply records).
 - `src/drift/task.rs`: The drift watcher's task: what it knows of each node (confirmed packages, drifts, mutes, the agent's hashes, the jobs that hold it), its loop, and what it announces.
 - `src/drift/task/fetch.rs`: The watcher's reads, each in a task of its own that hands its result back as a command: the files whose hash is new, and the agent's hashes after a job.
@@ -473,6 +479,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/client.rs`: Clients (features/observability.md, Clients): what the controller keeps about each device that connects through the nodes, by MAC address ([`ClientRecord`]), and where it was connected and when ([`ClientSession`]).
 - `src/controller.rs`: The controller's own update (lifecycle.md, Firmware; D-123): the newest release on offer ([`ControllerUpdate`]), an install's progress ([`InstallProgress`]), the last trial that failed ([`TrialFailure`]) and the automatic install's setting ([`ControllerUpdates`]).
 - `src/controller_backup.rs`: Controller backups (lifecycle.md, Backups; D-126, D-129): age-encrypted tarballs of the database and the master key, taken nightly once an admin has set the passphrase, the newest [`KEEP`] in each backup directory ([`ControllerBackup`]), each described by its [`BackupManifest`]; and a restore staged from one ([`RestoreState`]), applied at the next start.
+- `src/diag.rs`: Diagnostics runs (features/observability.md, Diagnostics toolkit; D-141): a tool run on one node, its output kept by the controller as it comes and streamed to the browser.
+- `src/diag/tests.rs`: (no header comment)
 - `src/discovery.rs`: Discovery (features/adoption.md, Discovery): devices that the adopted nodes see, which look like OpenWrt nodes and are not adopted yet, for one-click or batch adoption.
 - `src/dns_queries.rs`: DNS query statistics (features/network.md, Query statistics; D-133): dnsmasq's query log as the gateway writes it while filtering's statistics are on, read line by line ([`parse`]), each query paired with how it was answered ([`Pairing`]), and the [`DnsQuery`] records the controller keeps.
 - `src/dns_queries_tests.rs`: (no header comment)
@@ -576,6 +584,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/bundle.rs`: The agent bundle: `node-agent/` embedded in the binary, and the bootstrap that installs it on a node by hash (ARCHITECTURE.md, Node protocol).
 - `src/bundle/tar.rs`: A minimal ustar writer: directories and regular files with a fixed owner, mode and time, so the same files always make the same bytes.
 - `src/decommission.rs`: The command that takes a node out of the site (features/lifecycle.md, Replace / RMA / decommission; D-131): it leaves the mesh, the uniwrt footprint and the controller's key go, and optionally `firstboot` resets the node to its image's defaults and restarts it.
+- `src/diag.rs`: The commands of the diagnostics toolkit's tools (features/observability.md, Diagnostics toolkit; D-141), as argv arrays for [`NodeLink::stream`](crate::NodeLink::stream): BusyBox's `ping`, `traceroute` and `nslookup` and `uclient-fetch`, which OpenWrt's images carry (checked on 24.10 and 25.12).
 - `src/error.rs`: Errors of the node transport.
 - `src/events.rs`: Parsing what the agent pushes ([`AgentEvent`]): ticks into [`Collected`] (applied with [`facts::apply`](crate::facts::apply)), the notifications of the subscribed [`Topic`](crate::proto::ops::Topic)s into [`NodeEvent`]s, and `log` batches into [`LogEntry`]s.
 - `src/events/dhcp.rs`: The DHCP servers' notifications, alike for dnsmasq and odhcpd: `dhcp.ack` with the client's `mac`, `ip`, `name` and the `interface` it was leased on, and `dhcp.release` without the name.
@@ -818,6 +827,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/line.rs`: The ISP's line as the speed test meets it (features/wan.md, SQM; D-076): a 500/100 Mbit/s fiber tier whose buffers bloat under load unless the gateway shapes below its rates.
 - `src/link.rs`: [`SimLink`]: one simulated node behind [`NodeLink`].
 - `src/link/backhaul.rs`: The wired backhaul's `mtu` op (features/mesh.md, Wired backhaul; D-096), as `node-agent/mtu.uc` answers it: the device's MTU and the link-local addresses that answered the probe's size, from the cables' ends as each node's `network` sets them ([`World::probe`]).
+- `src/link/diag.rs`: The diagnostics toolkit's commands on a simulated node (D-141): `ping`, `traceroute`, `nslookup` and `uclient-fetch` as [`uniwrt_node::diag::command`] runs them, answered with output shaped as BusyBox and uclient-fetch print it (captured on OpenWrt 24.10 and 25.12), paced as the real tools pace it.
 - `src/link/port.rs`: The adoption port's commands on the gateway (features/adoption.md, Path C; `world/bench.rs`): netifd's status of the segment's interface, the lend script (`node-agent/adoption/lend.sh`) and the ARP table, answered as `uniwrt_node::adoption_port` reads them; and where the bench device answers on the segment.
 - `src/link/steering.rs`: The ops steering sends (features/wifi.md, Steering & balancing; D-093): `btm`, as `node-agent/btm.uc` has hostapd send a transition request, and `ubus` for usteer's `get_client_info`, the one call the controller makes through it.
 - `src/render/batman.rs`: The `batman` set: batctl's JSON for bat0 (mesh info, hard interfaces, originators, neighbors, gateways, translation tables).
@@ -1053,7 +1063,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (505 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (513 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

@@ -1,7 +1,8 @@
 //! [`SimLink`]: one simulated node behind [`NodeLink`]. It answers the agent's ops as the
 //! event-loop agent does (`collect`, `subscribe`/`unsubscribe`, `set_interval`, `log_follow`,
 //! `ping`, `scan`), keeps what they asked for in the node's [`Session`], runs only the commands
-//! the jobs and services run (`render::commands`), and takes uploads to `/tmp` only.
+//! the jobs and services run (`render::commands`), streams only the diagnostics toolkit's
+//! (`diag`), and takes uploads to `/tmp` only.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -25,6 +26,7 @@ use crate::{
 };
 
 mod backhaul;
+mod diag;
 mod port;
 mod steering;
 
@@ -473,8 +475,15 @@ impl NodeLink for SimLink {
         std::future::ready(self.run(&request))
     }
 
-    fn stream(&self, _argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {
-        std::future::ready(Err(unsupported("stream")))
+    fn stream(&self, argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {
+        let stream = if self.running() {
+            diag::stream(&argv).ok_or_else(|| unsupported("stream"))
+        } else {
+            Err(Error::Disconnected {
+                what: argv.first().cloned().unwrap_or_default(),
+            })
+        };
+        std::future::ready(stream)
     }
 
     fn upload(

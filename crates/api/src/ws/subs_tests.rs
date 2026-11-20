@@ -103,6 +103,14 @@ impl Fleet for FakeFleet {
         })
     }
 
+    fn stream(&self, _: uniwrt_core::NodeId, _: Vec<String>) -> uniwrt_engine::Stream<'_> {
+        Box::pin(async {
+            Err(uniwrt_node::Error::Disconnected {
+                what: "stream".to_owned(),
+            })
+        })
+    }
+
     fn tailscale(
         &self,
         _: uniwrt_core::NodeId,

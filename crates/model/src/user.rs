@@ -120,6 +120,9 @@ pub enum AuditAction {
     Packages,
     /// An admin logged the gateway's Tailscale in or out (the detail says which; D-140).
     Tailscale,
+    /// An admin ran a diagnostics tool on a node (the detail names the tool, its target, the
+    /// node and the run; D-141).
+    Diagnostics,
 }
 
 /// One audit log entry.

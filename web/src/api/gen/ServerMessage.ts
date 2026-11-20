@@ -5,6 +5,9 @@ import type { Client } from "./Client";
 import type { ClientDetail } from "./ClientDetail";
 import type { ClientSample } from "./ClientSample";
 import type { ClientSession } from "./ClientSession";
+import type { DiagEnd } from "./DiagEnd";
+import type { DiagLine } from "./DiagLine";
+import type { DiagRun } from "./DiagRun";
 import type { DriftState } from "./DriftState";
 import type { EventRecord } from "./EventRecord";
 import type { FactsPatch } from "./FactsPatch";
@@ -34,4 +37,4 @@ removed: boolean, } | { "type": "log_snapshot", topic: string, entries: Array<Lo
 /**
  * The client was forgotten.
  */
-removed: boolean, } | { "type": "rf", topic: string, view: RfView, } | { "type": "config", topic: string, head: RevisionMeta | null, applied: Array<AppliedRevision>, drift?: DriftState, } | { "type": "error", topic: string | null, message: string, };
+removed: boolean, } | { "type": "rf", topic: string, view: RfView, } | { "type": "config", topic: string, head: RevisionMeta | null, applied: Array<AppliedRevision>, drift?: DriftState, } | { "type": "diag_snapshot", topic: string, run: DiagRun, } | { "type": "diag_delta", topic: string, lines: Array<DiagLine>, dropped: number, end: DiagEnd | null, } | { "type": "error", topic: string | null, message: string, };

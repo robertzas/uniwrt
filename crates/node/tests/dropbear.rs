@@ -293,3 +293,78 @@ async fn a_factory_node_lets_root_in_without_a_password_until_adoption_sets_one(
         .unwrap();
     assert_eq!(run(&session, &["id", "-un"]).await, "root\n");
 }
+
+/// Everything a stream prints, and how it ends.
+async fn drain(mut stream: uniwrt_node::ExecStream) -> (String, ExitStatus) {
+    let mut text = String::new();
+    loop {
+        match tokio::time::timeout(Duration::from_secs(60), stream.next()).await {
+            Ok(Some(Ok(Output::Stdout(data) | Output::Stderr(data)))) => {
+                text.push_str(&String::from_utf8_lossy(&data));
+            }
+            Ok(Some(Ok(Output::Exit(status)))) => return (text, status),
+            other => panic!("{other:?} after {text}"),
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
+async fn the_diagnostics_tools_stream_and_stop_with_their_stream() {
+    use uniwrt_model::diag::{DiagTool, IpFamily};
+    use uniwrt_node::diag::command;
+
+    let (session, _) = adopt().await;
+    let ping = |count| DiagTool::Ping {
+        target: "127.0.0.1".to_owned(),
+        family: Some(IpFamily::Ipv4),
+        count,
+    };
+    let (text, status) = drain(session.stream(&command(&ping(2))).await.unwrap()).await;
+    assert!(
+        text.contains("64 bytes from 127.0.0.1: seq=1 ttl=64"),
+        "{text}"
+    );
+    assert_eq!(status, ExitStatus::Code(0));
+    let trace = DiagTool::Traceroute {
+        target: "127.0.0.1".to_owned(),
+        family: None,
+    };
+    let (text, status) = drain(session.stream(&command(&trace)).await.unwrap()).await;
+    assert!(text.contains(" 1  127.0.0.1  "), "{text}");
+    assert_eq!(status, ExitStatus::Code(0));
+    let lookup = DiagTool::Dns {
+        name: "openwrt.org".to_owned(),
+        record: None,
+        server: Some("127.0.0.1".to_owned()),
+    };
+    let (_, status) = drain(session.stream(&command(&lookup)).await.unwrap()).await;
+    assert_ne!(status, ExitStatus::Code(127), "nslookup is there");
+    let fetch = DiagTool::Http {
+        url: "http://127.0.0.1:9/".to_owned(),
+    };
+    let (text, status) = drain(session.stream(&command(&fetch)).await.unwrap()).await;
+    assert!(
+        text.starts_with("Downloading 'http://127.0.0.1:9/'"),
+        "{text}"
+    );
+    assert_eq!(status, ExitStatus::Code(4), "{text}");
+
+    // A stream dropped mid-run ends the tool: a stopped run leaves nothing behind.
+    let mut stream = session.stream(&command(&ping(100))).await.unwrap();
+    assert!(matches!(stream.next().await, Some(Ok(Output::Stdout(_)))));
+    drop(stream);
+    let mut left = String::new();
+    for _ in 0..20 {
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        left = run(
+            &session,
+            &["sh", "-c", "ps w | grep '[p]ing -c 100' || true"],
+        )
+        .await;
+        if left.is_empty() {
+            return;
+        }
+    }
+    panic!("ping still runs: {left}");
+}

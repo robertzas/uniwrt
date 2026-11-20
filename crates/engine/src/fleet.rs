@@ -8,7 +8,7 @@ use uniwrt_clients::{Client, Detail};
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::client::ClientRecord;
 use uniwrt_node::{
-    ExecOutput, ExecRequest, NodeLink,
+    ExecOutput, ExecRequest, ExecStream, NodeLink,
     proto::ops::{Tailscale, TailscaleAnswer},
 };
 use uniwrt_topo::Topology;
@@ -42,6 +42,9 @@ pub trait Fleet: Send + Sync + 'static {
     /// Runs a command on `node` over its link ([`NodeLink::exec`]); a node the engine doesn't
     /// watch is disconnected.
     fn exec(&self, node: NodeId, request: ExecRequest) -> Exec<'_>;
+    /// Starts a long-running command on `node` over its link ([`NodeLink::stream`]); a node
+    /// the engine doesn't watch is disconnected.
+    fn stream(&self, node: NodeId, argv: Vec<String>) -> Stream<'_>;
     /// Sends the `tailscale` op to `node` (D-140), waiting up to [`crate::TAILSCALE_TIMEOUT`];
     /// a node the engine doesn't watch is disconnected.
     fn tailscale(&self, node: NodeId, request: Tailscale) -> TailscaleCall<'_>;
@@ -50,6 +53,9 @@ pub trait Fleet: Send + Sync + 'static {
 /// What [`Fleet::tailscale`] answers.
 pub type TailscaleCall<'a> =
     Pin<Box<dyn Future<Output = uniwrt_node::Result<TailscaleAnswer>> + Send + 'a>>;
+
+/// What [`Fleet::stream`] answers.
+pub type Stream<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecStream>> + Send + 'a>>;
 
 /// What [`Fleet::exec`] answers.
 pub type Exec<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecOutput>> + Send + 'a>>;
@@ -107,6 +113,18 @@ impl<L: NodeLink> Fleet for Engine<L> {
                 Some(link) => link.exec(request).await,
                 None => Err(uniwrt_node::Error::Disconnected {
                     what: request.argv.first().cloned().unwrap_or_default(),
+                }),
+            }
+        })
+    }
+
+    fn stream(&self, node: NodeId, argv: Vec<String>) -> Stream<'_> {
+        let link = self.link(node);
+        Box::pin(async move {
+            match link {
+                Some(link) => link.stream(argv).await,
+                None => Err(uniwrt_node::Error::Disconnected {
+                    what: argv.first().cloned().unwrap_or_default(),
                 }),
             }
         })

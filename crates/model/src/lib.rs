@@ -39,7 +39,8 @@
 //!   the DNS blocklists' download state and compiled file (D-133); [`dns_queries`] reads dnsmasq's
 //!   query log into the [`dns_queries::DnsQuery`] records of the query statistics (D-133);
 //!   [`packages`] is the per-node package manager: installed packages with their locks, the
-//!   feeds' catalog and the changes asked for (D-139).
+//!   feeds' catalog and the changes asked for (D-139); [`diag`] is the diagnostics toolkit's
+//!   tools and runs ([`diag::DiagTool`], [`diag::DiagRun`]; D-141).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -59,6 +60,7 @@ pub mod blocklists;
 pub mod client;
 pub mod controller;
 pub mod controller_backup;
+pub mod diag;
 pub mod discovery;
 pub mod dns_queries;
 pub mod drift;

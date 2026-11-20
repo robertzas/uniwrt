@@ -59,7 +59,10 @@
 //!   [`NeighborReports`] ([`NeighborsConfig`]) gives the managed nodes' 802.11k access points
 //!   their neighbor lists through the agent's `rrm` op, ranked by the RF report's matrix;
 //!   [`ClientSteering`] ([`SteeringConfig`]) decides band steering and roam suggestions on the
-//!   site's steering profile and sends them through the agent's `btm` op (D-093).
+//!   site's steering profile and sends them through the agent's `btm` op (D-093);
+//!   [`Diagnostics`] ([`DiagConfig`]) runs the diagnostics toolkit's tools on nodes over exec
+//!   streams ([`Fleet::stream`]), keeps each run's output in memory and announces it as
+//!   [`DiagUpdate`]s; [`Watch`] keeps a run from being stopped as unwatched (D-141).
 //! - **Actors** (ARCHITECTURE.md, Process structure): one task per node, restarted with backoff
 //!   if it panics. After each hello it subscribes to the agent's topics, collects every set,
 //!   and schedules ticks on the node's plan (15 s base, 2 s focused; D-037); an agent without an
@@ -100,6 +103,7 @@ mod blocklist;
 mod bus;
 mod clients;
 mod config;
+mod diag;
 mod drift;
 mod engine;
 mod events;
@@ -131,10 +135,11 @@ pub use blocklist::{Blocklist, BlocklistConfig, BlocklistError, BlocklistSync};
 pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;
+pub use diag::{DiagConfig, DiagError, DiagUpdate, Diagnostics, Starter, Watch, produced_by};
 pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;
 pub use events::{EventRecorder, EventsConfig};
-pub use fleet::{Exec, Fleet, TailscaleCall};
+pub use fleet::{Exec, Fleet, Stream, TailscaleCall};
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
 pub use leds::{LedSchedule, LedScheduleConfig};

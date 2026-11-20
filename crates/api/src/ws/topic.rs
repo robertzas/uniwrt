@@ -1,7 +1,7 @@
 //! WS topics as clients name them: `fleet`, `node:<id>`, `logs` or
 //! `logs?node=<id>|host=<name>&min=<severity>` (each parameter optional, in any order: every
 //! source and every entry by default), `events` or `events?node=<id>&min=<level>` (likewise), `alerts`,
-//! `jobs`, `topology`, `clients`, `client:<mac>`, `rf` and `config`.
+//! `jobs`, `topology`, `clients`, `client:<mac>`, `rf`, `config` and `diag:<run>`.
 
 use std::fmt;
 
@@ -43,6 +43,8 @@ pub(crate) enum Topic {
     /// The site's latest revision and the one each node holds, whole, then again whenever
     /// they change.
     Config,
+    /// One diagnostics run: its lines, then the lines it adds and how it ends (D-141).
+    Diag(u32),
 }
 
 /// Why a topic name is refused.
@@ -90,6 +92,14 @@ impl Topic {
         if let Some(id) = name.strip_prefix("node:") {
             return node_id(id).map(Self::Node);
         }
+        if let Some(id) = name.strip_prefix("diag:") {
+            return id
+                .parse::<u32>()
+                .ok()
+                .filter(|id| *id > 0)
+                .map(Self::Diag)
+                .ok_or_else(|| BadTopic(format!("{id:?} is not a run ID")));
+        }
         if name == "logs" {
             return logs("");
         }
@@ -108,7 +118,8 @@ impl Topic {
         }
         Err(BadTopic(format!(
             "Unknown topic {name:?}: use fleet, node:<id>, logs?node=<id>&min=<severity>, \
-             events?node=<id>&min=<level>, alerts, jobs, topology, clients, client:<mac>, rf or config"
+             events?node=<id>&min=<level>, alerts, jobs, topology, clients, client:<mac>, rf, config \
+             or diag:<run>"
         )))
     }
 }
@@ -201,6 +212,7 @@ mod tests {
             Ok(Topic::Client("f0:18:98:00:00:01".parse().unwrap()))
         );
         assert_eq!(Topic::parse("node:7"), Ok(Topic::Node(NodeId::new(7))));
+        assert_eq!(Topic::parse("diag:12"), Ok(Topic::Diag(12)));
         let logs = |node: Option<i64>, host: Option<&str>, min| Topic::Logs {
             node: node.map(NodeId::new),
             host: host.map(str::to_owned),
@@ -253,6 +265,10 @@ mod tests {
             "logs?node=3&level=info",
             "client:",
             "client:nope",
+            "diag:",
+            "diag:0",
+            "diag:-1",
+            "diag:x",
             "events?",
             "events?min=loud",
             "events?host=sw",

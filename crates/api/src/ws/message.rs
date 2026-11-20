@@ -11,6 +11,7 @@ use uniwrt_model::{
     alerts::AlertRecord,
     apply::AppliedRevision,
     client::ClientSession,
+    diag::{DiagEnd, DiagLine, DiagRun},
     drift::DriftState,
     event::{NodeEvent, Roam},
     events::EventRecord,
@@ -173,6 +174,20 @@ pub enum ServerMessage {
         #[serde(skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         drift: Option<Arc<DriftState>>,
+    },
+    /// A diagnostics run with the lines kept (D-141): when `diag:<id>` is subscribed and after
+    /// a resync.
+    DiagSnapshot {
+        topic: String,
+        run: DiagRun,
+    },
+    /// The lines a run added since (append them; drop lines from the start until `dropped`
+    /// have gone), and how it ended once it has.
+    DiagDelta {
+        topic: String,
+        lines: Vec<DiagLine>,
+        dropped: u32,
+        end: Option<DiagEnd>,
     },
     /// A topic was refused (and is not subscribed), or the message was not understood (no
     /// topic).

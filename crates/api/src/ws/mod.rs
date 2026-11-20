@@ -7,7 +7,8 @@
 //!   refuses. Every message names the topic as the client spelled it. A connection that falls
 //!   behind the bus gets every snapshot again.
 //! - **Interest:** while a `node:<id>` topic is held, the node's telemetry is fast
-//!   (`Fleet::focus`); a `logs` topic follows its log.
+//!   (`Fleet::focus`); a `logs` topic follows its log; a `diag:<id>` topic keeps its run from
+//!   being stopped as unwatched (D-141).
 //! - **Security:** the upgrade is a GET, which the CSRF layer lets through, so it checks that
 //!   an `Origin`, when sent, is ours. The session is checked again every minute; when it ends
 //!   the connection closes with code 4401. Client messages are at most 16 KiB.
@@ -18,6 +19,7 @@ mod subs;
 mod subs_alerts;
 mod subs_clients;
 mod subs_config;
+mod subs_diag;
 mod subs_events;
 #[cfg(test)]
 mod subs_tests;
