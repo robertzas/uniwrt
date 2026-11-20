@@ -106,6 +106,32 @@ async fn output_streams_as_lines_until_the_tool_exits() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_missing_tool_names_its_package() {
+    let (diag, mut starts) = diagnostics(DiagConfig::default());
+    let mut updates = diag.subscribe();
+    let cable = DiagTool::CableTest {
+        port: "lan1".to_owned(),
+    };
+    let run = diag.start(NODE, cable, None).unwrap();
+    let (_watched, _watch) = diag.watch(run.id).unwrap();
+    let (argv, source) = starts.recv().await.unwrap();
+    assert_eq!(
+        uniwrt_node::diag::tool_argv(&argv),
+        ["ethtool", "--cable-test", "lan1"]
+    );
+    source.output.push(Output::Stderr(Bytes::from_static(
+        b"sh: ethtool: not found\n",
+    )));
+    source.output.push(Output::Exit(ExitStatus::Code(127)));
+    let end = ended(&mut updates).await.end.clone().unwrap();
+    assert_eq!((end.state, end.exit_code), (RunState::Failed, Some(127)));
+    assert_eq!(
+        end.error.as_deref(),
+        Some("The device lacks the tool: install the ethtool-full package")
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn bad_tools_and_too_many_runs_are_refused() {
     let (diag, _starts) = diagnostics(DiagConfig {
         total: 3,

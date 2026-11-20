@@ -12,7 +12,7 @@ use super::commands::{Disk, failed, image_packages, ok};
 
 /// Packages of the feeds the image lacks, for the UI to offer: name, version, installed size,
 /// description.
-pub(crate) const EXTRA: [(&str, &str, u64, &str); 5] = [
+pub(crate) const EXTRA: [(&str, &str, u64, &str); 8] = [
     (
         "tcpdump",
         "4.99.6-r1",
@@ -25,6 +25,19 @@ pub(crate) const EXTRA: [(&str, &str, u64, &str); 5] = [
         301_204,
         "Low-level packet capture library",
     ),
+    (
+        "tcpdump-mini",
+        "4.99.6-r1",
+        412_590,
+        "Network monitoring and data acquisition tool (minimal version)",
+    ),
+    (
+        "ethtool-full",
+        "6.15-r1",
+        301_877,
+        "ethtool is a small utility for examining and tuning your ethernet-based network interface",
+    ),
+    ("libmnl0", "1.0.5-r1", 10_431, "Low-level netlink library"),
     ("htop", "3.4.1-r1", 214_302, "Interactive process viewer"),
     (
         "iperf3",
@@ -40,7 +53,11 @@ pub(crate) const EXTRA: [(&str, &str, u64, &str); 5] = [
     ),
 ];
 /// `(package, what it depends on)` among [`EXTRA`].
-const DEPENDS: [(&str, &str); 1] = [("tcpdump", "libpcap1")];
+const DEPENDS: [(&str, &str); 3] = [
+    ("tcpdump", "libpcap1"),
+    ("tcpdump-mini", "libpcap1"),
+    ("ethtool-full", "libmnl0"),
+];
 /// Image packages with a newer version in the feeds.
 pub(crate) const NEWER: [(&str, &str); 3] = [
     ("ca-bundle", "20250419-r2"),

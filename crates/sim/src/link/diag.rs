@@ -2,7 +2,8 @@
 //! `nslookup` and `uclient-fetch` as [`uniwrt_node::diag::command`] runs them, answered with
 //! output shaped as BusyBox and uclient-fetch print it (captured on OpenWrt 24.10 and 25.12),
 //! paced as the real tools pace it. Documentation addresses (RFC 5737) and `.invalid` names
-//! never answer.
+//! never answer. `ethtool --cable-test` runs once `ethtool-full` is installed ([`Kit`]): a
+//! port with a link has four good pairs, one without is open at a distance of its own.
 
 use std::{net::Ipv4Addr, time::Duration};
 
@@ -37,14 +38,24 @@ impl Script {
     }
 }
 
+/// What the node has for the optional tools.
+#[derive(Debug, Default)]
+pub(super) struct Kit {
+    /// `ethtool-full` is installed.
+    pub(super) ethtool: bool,
+    /// Its ports, and whether each has a link.
+    pub(super) ports: Vec<(&'static str, bool)>,
+}
+
 /// Starts `argv` if it is one of the toolkit's commands.
-pub(super) fn stream(argv: &[String]) -> Option<ExecStream> {
+pub(super) fn stream(argv: &[String], kit: &Kit) -> Option<ExecStream> {
     let argv = uniwrt_node::diag::tool_argv(argv);
     let script = match argv.first()?.as_str() {
         "ping" => ping(argv),
         "traceroute" => traceroute(argv),
         "nslookup" => nslookup(argv),
         "uclient-fetch" => fetch(argv),
+        "ethtool" => Some(cable_test(argv, kit)),
         _ => return None,
     }?;
     let (stream, source) = pipe(format!("`{}`", argv[0]), STREAM_BUDGET);
@@ -75,6 +86,40 @@ fn silent(target: &str) -> bool {
         return matches!((a, b, c), (192, 0, 2) | (198, 51, 100) | (203, 0, 113));
     }
     target.trim_end_matches('.').ends_with(".invalid")
+}
+
+/// `ethtool --cable-test <port>` as ethtool 6.x prints it.
+fn cable_test(argv: &[String], kit: &Kit) -> Script {
+    let mut script = Script::new();
+    if !kit.ethtool {
+        script.err(5, "sh: ethtool: not found");
+        script.code = 127;
+        return script;
+    }
+    let port = argv.last().map_or("", String::as_str);
+    let Some((_, link)) = kit.ports.iter().find(|(name, _)| *name == port) else {
+        script.err(10, "netlink error: no device matches name (offset 24)");
+        script.err(0, "netlink error: No such device");
+        script.code = 1;
+        return script;
+    };
+    script.out(30, format!("Cable test started for device {port}."));
+    script.out(1500, format!("Cable test completed for device {port}."));
+    let pairs = ["A", "B", "C", "D"];
+    if *link {
+        for pair in pairs {
+            script.out(0, format!("Pair {pair} code OK"));
+        }
+    } else {
+        let metres = f64::from(hash(port) % 3_000) / 100.0 + 0.8;
+        for pair in pairs {
+            script.out(0, format!("Pair {pair} code Open Circuit"));
+        }
+        for pair in pairs {
+            script.out(0, format!("Pair {pair}, fault length: {metres:.2}m"));
+        }
+    }
+    script
 }
 
 /// A stable number from `text`, for addresses and round trips.
@@ -240,12 +285,16 @@ fn fetch(argv: &[String]) -> Option<Script> {
 mod tests {
     use uniwrt_node::{ExitStatus, Output};
 
-    use super::stream;
+    use super::{Kit, stream};
 
     /// What `argv` prints, and how it exits.
     async fn run(argv: &[&str]) -> (String, ExitStatus) {
+        run_with(argv, &Kit::default()).await
+    }
+
+    async fn run_with(argv: &[&str], kit: &Kit) -> (String, ExitStatus) {
         let argv: Vec<String> = argv.iter().map(|arg| (*arg).to_owned()).collect();
-        let mut stream = stream(&argv).unwrap();
+        let mut stream = stream(&argv, kit).unwrap();
         let mut text = String::new();
         while let Some(output) = stream.next().await {
             match output.unwrap() {
@@ -292,6 +341,29 @@ mod tests {
         .await;
         assert!(text.contains("Connecting to 93.184."), "{text}");
         assert_eq!(status, ExitStatus::Code(0));
-        assert!(stream(&["sh".to_owned()]).is_none());
+        assert!(stream(&["sh".to_owned()], &Kit::default()).is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_cable_test_needs_ethtool_full_and_a_port() {
+        let cable = ["ethtool", "--cable-test", "lan1"];
+        let (text, status) = run(&cable).await;
+        assert_eq!(
+            (text.as_str(), status),
+            ("sh: ethtool: not found\n", ExitStatus::Code(127))
+        );
+        let kit = Kit {
+            ethtool: true,
+            ports: vec![("lan1", true), ("lan2", false)],
+        };
+        let (text, status) = run_with(&cable, &kit).await;
+        assert_eq!(status, ExitStatus::Code(0));
+        assert!(text.ends_with("Pair D code OK\n"), "{text}");
+        let (text, _) = run_with(&["ethtool", "--cable-test", "lan2"], &kit).await;
+        assert!(text.contains("Pair A code Open Circuit\nPair B"), "{text}");
+        assert!(text.contains("Pair D, fault length: "), "{text}");
+        let (text, status) = run_with(&["ethtool", "--cable-test", "lan9"], &kit).await;
+        assert!(text.ends_with("No such device\n"));
+        assert_eq!(status, ExitStatus::Code(1));
     }
 }

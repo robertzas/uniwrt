@@ -371,6 +371,13 @@ impl SimLink {
             });
         }
         let mut world = self.shared.world();
+        {
+            let disk = lock(&self.shared.nodes[self.node].disk);
+            let tables = render::tables::exec(&world, self.node, &disk.tool.files, &request.argv);
+            if let Some(output) = tables {
+                return Ok(output);
+            }
+        }
         if request.argv == ["reboot"] {
             let mut happenings = Vec::new();
             world.restart(self.node, &mut happenings);
@@ -413,6 +420,32 @@ impl SimLink {
         disk.tmp
             .write(booted_ms, path, data.to_vec())
             .map_err(|msg| remote("upload", "failed", &msg))
+    }
+
+    /// What the node has for the toolkit's optional tools: `ethtool-full`, and its ports with
+    /// whether each has a link (the WAN port of the gateway and of a wired access point, and
+    /// ports with a wired client).
+    fn kit(&self) -> diag::Kit {
+        let world = self.shared.world();
+        let node = &world.nodes[self.node];
+        let disk = lock(&self.shared.nodes[self.node].disk);
+        let wired = |port: &str| {
+            world
+                .clients
+                .iter()
+                .any(|client| client.port == Some((self.node, port)) && client.away_until.is_none())
+        };
+        let mut ports: Vec<(&'static str, bool)> = node
+            .model
+            .lan_ports
+            .iter()
+            .map(|port| (*port, wired(port)))
+            .collect();
+        ports.push((node.model.wan_port, node.gateway || node.wired));
+        diag::Kit {
+            ethtool: disk.installed.contains("ethtool-full"),
+            ports,
+        }
     }
 
     fn running(&self) -> bool {
@@ -477,7 +510,7 @@ impl NodeLink for SimLink {
 
     fn stream(&self, argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {
         let stream = if self.running() {
-            diag::stream(&argv).ok_or_else(|| unsupported("stream"))
+            diag::stream(&argv, &self.kit()).ok_or_else(|| unsupported("stream"))
         } else {
             Err(Error::Disconnected {
                 what: argv.first().cloned().unwrap_or_default(),

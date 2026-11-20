@@ -8,6 +8,10 @@
 //! [`WATCHDOG`], a fixed script that ends it when the channel's stdin closes (the controller
 //! stopped the run, or lost the node). The tool's argv reaches it as `"$@"`, never as script
 //! text.
+//!
+//! [`tables`] reads the neighbor, route and connection tables in one exec each (D-142).
+
+pub mod tables;
 
 use std::time::Duration;
 
@@ -21,6 +25,8 @@ const TRACE_PROBES: u32 = 2;
 const TRACE_MAX_HOPS: u32 = 30;
 /// How long the HTTP check waits to connect and for each read, in seconds.
 const HTTP_TIMEOUT_S: u32 = 10;
+/// How long a cable test may take: a PHY reports within seconds, slow ones within half a minute.
+const CABLE_TEST_S: u64 = 60;
 
 /// Runs `"$@"` with stdin from /dev/null, and ends it (SIGTERM) once the shell's own stdin
 /// reaches its end; exits as the tool did.
@@ -95,6 +101,10 @@ fn tool_command(tool: &DiagTool) -> Vec<String> {
             argv.push(HTTP_TIMEOUT_S.to_string());
             argv.push(url.clone());
         }
+        DiagTool::CableTest { port } => {
+            argv.extend(["ethtool", "--cable-test"].map(str::to_owned));
+            argv.push(port.clone());
+        }
     }
     argv
 }
@@ -106,6 +116,7 @@ pub fn limit(tool: &DiagTool) -> Duration {
         DiagTool::Traceroute { .. } => u64::from(TRACE_WAIT_S * TRACE_PROBES * TRACE_MAX_HOPS) + 30,
         DiagTool::Dns { .. } => 30,
         DiagTool::Http { .. } => 60,
+        DiagTool::CableTest { .. } => CABLE_TEST_S,
     };
     Duration::from_secs(secs)
 }
@@ -192,5 +203,10 @@ mod tests {
                 "https://openwrt.org/"
             ]
         );
+        let cable = DiagTool::CableTest {
+            port: "lan1".to_owned(),
+        };
+        assert_eq!(command_of(&cable), ["ethtool", "--cable-test", "lan1"]);
+        assert_eq!(limit(&cable), Duration::from_mins(1));
     }
 }

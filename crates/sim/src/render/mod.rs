@@ -18,6 +18,7 @@ mod queries;
 pub(crate) mod scan;
 mod services;
 pub(crate) mod system;
+pub(crate) mod tables;
 pub(crate) mod tailscale;
 pub(crate) mod tmp;
 pub(crate) mod wifi;

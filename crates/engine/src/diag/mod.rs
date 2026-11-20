@@ -186,6 +186,7 @@ impl Diagnostics {
         let config = &self.inner.config;
         let argv = uniwrt_node::diag::command(&tool);
         let limit = uniwrt_node::diag::limit(&tool);
+        let needs = tool.needs();
         let (stop, stopped) = oneshot::channel();
         let run = {
             let mut runs = self.inner.lock();
@@ -243,6 +244,7 @@ impl Diagnostics {
             node,
             argv,
             limit,
+            needs,
             stopped,
         ));
         Ok(run)

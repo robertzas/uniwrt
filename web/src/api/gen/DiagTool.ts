@@ -21,4 +21,8 @@ count: number, } | { "tool": "traceroute", target: string, family: IpFamily | nu
 /**
  * Both A and AAAA when absent, as `nslookup` does.
  */
-record: DnsRecordType | null, server: string | null, } | { "tool": "http", url: string, };
+record: DnsRecordType | null, server: string | null, } | { "tool": "http", url: string, } | { "tool": "cable_test", 
+/**
+ * The port's network device, such as `lan1`.
+ */
+port: string, };

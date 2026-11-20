@@ -7,7 +7,7 @@ use tokio::{
     time::{self, Instant, MissedTickBehavior},
 };
 use uniwrt_core::NodeId;
-use uniwrt_model::diag::RunState;
+use uniwrt_model::diag::{RunState, tools::OptionalTool};
 use uniwrt_node::{ExecStream, ExitStatus, Output};
 
 use super::Inner;
@@ -24,6 +24,7 @@ pub(super) async fn drive(
     node: NodeId,
     argv: Vec<String>,
     limit: Duration,
+    needs: Option<OptionalTool>,
     mut stop: oneshot::Receiver<()>,
 ) {
     let deadline = Instant::now() + limit;
@@ -32,7 +33,9 @@ pub(super) async fn drive(
         _ = &mut stop => stopped(None),
         () = time::sleep_until(deadline) => at_limit(limit),
         started = (inner.start)(node, argv) => match started {
-            Ok(stream) => pump(&inner, id, stream, deadline, limit, &mut stop).await,
+            Ok(stream) => pump(&inner, id, stream, deadline, limit, &mut stop)
+                .await
+                .missing(needs),
             Err(err) => (RunState::Failed, None, Some(worded(&err, "Cannot start it"))),
         },
     };
@@ -82,6 +85,27 @@ fn worded(err: &uniwrt_node::Error, what: &str) -> String {
             "The device isn't connected: check that it is online".to_owned()
         }
         other => format!("{what}: {other}"),
+    }
+}
+
+/// Words an exit of 127 (the shell found no such command) as the package to install.
+trait Missing {
+    fn missing(self, needs: Option<OptionalTool>) -> Self;
+}
+
+impl Missing for End {
+    fn missing(self, needs: Option<OptionalTool>) -> Self {
+        match (self, needs) {
+            ((RunState::Failed, Some(127), None), Some(tool)) => (
+                RunState::Failed,
+                Some(127),
+                Some(format!(
+                    "The device lacks the tool: install the {} package",
+                    tool.package()
+                )),
+            ),
+            (end, _) => end,
+        }
     }
 }
 

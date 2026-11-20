@@ -2,7 +2,12 @@
 //! node, its output kept by the controller as it comes and streamed to the browser.
 //!
 //! [`DiagTool`] is what an admin asks for, checked by [`DiagTool::validate`] before anything
-//! reaches a node; [`DiagRun`] is a run as the controller holds it.
+//! reaches a node; [`DiagRun`] is a run as the controller holds it. [`tables`] are the node's
+//! neighbor, route and connection tables as read on demand (D-142); [`tools`] the tools that
+//! OpenWrt's images lack, installed through the package job (D-139).
+
+pub mod tables;
+pub mod tools;
 
 use std::net::IpAddr;
 
@@ -56,6 +61,12 @@ pub enum DiagTool {
     /// Fetches a URL and discards the body (`uclient-fetch -O /dev/null`): whether it answers,
     /// and how long that took.
     Http { url: String },
+    /// The cable diagnostics of a port's PHY (`ethtool --cable-test`, from `ethtool-full`):
+    /// each pair's state and, at a fault, its distance. The port's link drops while it runs.
+    CableTest {
+        /// The port's network device, such as `lan1`.
+        port: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -106,6 +117,15 @@ impl DiagTool {
             Self::Ping { target, .. } | Self::Traceroute { target, .. } => target,
             Self::Dns { name, .. } => name,
             Self::Http { url } => url,
+            Self::CableTest { port } => port,
+        }
+    }
+
+    /// The optional tool it needs, which OpenWrt's images lack.
+    pub const fn needs(&self) -> Option<tools::OptionalTool> {
+        match self {
+            Self::CableTest { .. } => Some(tools::OptionalTool::Ethtool),
+            _ => None,
         }
     }
 
@@ -116,6 +136,7 @@ impl DiagTool {
             Self::Traceroute { .. } => "traceroute",
             Self::Dns { .. } => "dns",
             Self::Http { .. } => "http",
+            Self::CableTest { .. } => "cable_test",
         }
     }
 
@@ -144,8 +165,28 @@ impl DiagTool {
                 }
             }
             Self::Http { url } => http_url(url),
+            Self::CableTest { port } => {
+                if is_ifname(port) {
+                    Ok(())
+                } else {
+                    Err(format!("{port:?} is not a network device's name"))
+                }
+            }
         }
     }
+}
+
+/// A network device's name as Linux takes it (at most 15 bytes), of letters, digits, `.`, `_`
+/// and `-`, starting with a letter or digit.
+pub fn is_ifname(name: &str) -> bool {
+    name.len() <= 15
+        && name
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_alphanumeric())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
 /// A host name or an address.

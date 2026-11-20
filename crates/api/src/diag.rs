@@ -3,7 +3,10 @@
 //! `GET v1/diag/runs/{id}` is one with its lines, which the WS hub's `diag:<id>` topic
 //! follows. Admins: `POST v1/diag/runs` ([`DiagRunBody`]) starts a tool on an adopted node
 //! (202 with the run; audited; 409 while too many run), and `DELETE v1/diag/runs/{id}` stops
-//! one (the run as it is; it ends shortly).
+//! one (the run as it is; it ends shortly). A node's tables and optional tools are in
+//! [`tables`].
+
+mod tables;
 
 use axum::{
     Json,
@@ -37,6 +40,7 @@ pub(crate) fn routes() -> axum::Router<Api> {
     axum::Router::new()
         .route("/v1/diag/runs", get(list).post(start))
         .route("/v1/diag/runs/{id}", get(one).delete(stop))
+        .merge(tables::routes())
 }
 
 async fn list(State(api): State<Api>, _user: CurrentUser) -> Json<Vec<DiagRun>> {

@@ -310,6 +310,52 @@ async fn drain(mut stream: uniwrt_node::ExecStream) -> (String, ExitStatus) {
 
 #[tokio::test]
 #[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
+async fn the_tables_parse_as_openwrt_prints_them() {
+    use uniwrt_model::diag::{DiagTool, IpFamily};
+    use uniwrt_node::diag::{command, tables};
+
+    let (session, _) = adopt().await;
+    let v4 = run(&session, &tables::routes(IpFamily::Ipv4)).await;
+    let routes = tables::parse_routes(&v4, IpFamily::Ipv4);
+    assert_eq!(routes.len(), v4.lines().count(), "{v4}");
+    assert!(
+        routes.iter().any(|route| route.destination == "default"),
+        "{v4}"
+    );
+    assert!(routes.iter().any(|route| route.table == "local"), "{v4}");
+    let v6 = run(&session, &tables::routes(IpFamily::Ipv6)).await;
+    assert_eq!(
+        tables::parse_routes(&v6, IpFamily::Ipv6).len(),
+        v6.lines().count(),
+        "{v6}"
+    );
+    let neighbors = run(&session, &tables::NEIGHBORS).await;
+    assert_eq!(
+        tables::parse_neighbors(&neighbors).len(),
+        neighbors.lines().count(),
+        "{neighbors}"
+    );
+    let argv = tables::conntrack();
+    let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+    let connections = run(&session, &argv).await;
+    assert_eq!(
+        tables::parse_conntrack(&connections).len(),
+        connections.lines().count(),
+        "{connections}"
+    );
+    let (_, max) = tables::parse_count(&run(&session, &tables::CONNTRACK_COUNT).await);
+    assert!(max.is_some_and(|max| max > 0));
+
+    // The images lack ethtool: the shell says so with 127, which the run words.
+    let cable = DiagTool::CableTest {
+        port: "eth0".to_owned(),
+    };
+    let (text, status) = drain(session.stream(&command(&cable)).await.unwrap()).await;
+    assert_eq!(status, ExitStatus::Code(127), "{text}");
+}
+
+#[tokio::test]
+#[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
 async fn the_diagnostics_tools_stream_and_stop_with_their_stream() {
     use uniwrt_model::diag::{DiagTool, IpFamily};
     use uniwrt_node::diag::command;
