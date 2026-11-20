@@ -46,6 +46,7 @@ flowchart TB
 - **Job runner** (`jobs` crate): orchestrations on nodes (adopt, manage, unmanage and apply now, the apply moving RF plans' channels by a channel switch; upgrade, the nightly RF optimizer and backup later), each a task that saves the job at every step as history. Jobs do not resume: a restart marks the interrupted ones failed (D-042). One job at a time per target; an apply holds every managed node.
 - **Store:** SQLite in WAL mode, with one batched writer task and a read pool.
 - **Syslog receiver** (`syslog` crate): UDP and TCP listeners (5514; `--syslog-listen`) → parser → the engine's log recorder, which also stores what the agents follow (D-059), annotates, and announces stored entries for the WS topic `logs`.
+- **iperf3 server** (`node` crate's `iperf3`): a native implementation of iperf3's TCP protocol, bound on 5201 (`--iperf3-listen`) only while a node ↔ controller throughput test runs, for that node's address alone (D-142).
 - **Schedulers:** retention, backups, the RF optimizer, firmware checks and alert evaluation.
 
 ## Crates and layering

@@ -2,7 +2,8 @@
 //! a session: `GET v1/diag/runs` lists the runs kept, newest first, without their lines;
 //! `GET v1/diag/runs/{id}` is one with its lines, which the WS hub's `diag:<id>` topic
 //! follows. Admins: `POST v1/diag/runs` ([`DiagRunBody`]) starts a tool on an adopted node
-//! (202 with the run; audited; 409 while too many run), and `DELETE v1/diag/runs/{id}` stops
+//! (202 with the run; audited; 409 while too many run; an iperf3 test's peer node must be
+//! adopted too, D-142), and `DELETE v1/diag/runs/{id}` stops
 //! one (the run as it is; it ends shortly). A node's tables and optional tools are in
 //! [`tables`], a packet capture's download in [`capture`].
 
@@ -19,9 +20,9 @@ use axum::{
 use serde::Deserialize;
 use ts_rs::TS;
 use uniwrt_core::NodeId;
-use uniwrt_engine::DiagError;
+use uniwrt_engine::{DiagError, RunHosts};
 use uniwrt_model::{
-    diag::{DiagRun, DiagTool},
+    diag::{DiagRun, DiagTool, iperf3::Iperf3Peer},
     user::{AuditAction, AuditEntry, Role},
 };
 use uniwrt_store::{AuditRepo as _, NodeRepo as _};
@@ -70,15 +71,28 @@ async fn start(
         .node(body.node)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("There is no node {}", body.node)))?;
-    let detail = format!(
-        "{} {} on {}",
-        body.tool.name(),
-        body.tool.target(),
-        node.name
-    );
+    let mut hosts = RunHosts {
+        node: Some(node.host.clone()),
+        peer: None,
+    };
+    let target = match &body.tool {
+        DiagTool::Iperf3 {
+            peer: Iperf3Peer::Node(peer),
+            ..
+        } => {
+            let peer = api.store().node(*peer).await?.ok_or_else(|| {
+                ApiError::BadRequest(format!("There is no node {peer} to test against"))
+            })?;
+            hosts.peer = Some(peer.host);
+            format!("with {}", peer.name)
+        }
+        DiagTool::Iperf3 { .. } => "with the controller".to_owned(),
+        other => other.target().into_owned(),
+    };
+    let detail = format!("{} {target} on {}", body.tool.name(), node.name);
     let run = api
         .diag()
-        .start(node.id, body.tool, Some(user.username.clone()))
+        .start(node.id, body.tool, Some(user.username.clone()), hosts)
         .map_err(diag_error)?;
     api.store()
         .record(AuditEntry {

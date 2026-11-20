@@ -11,7 +11,7 @@
 //!
 //! [`tables`] reads the neighbor, route and connection tables in one exec each (D-142);
 //! [`capture`] runs tcpdump under the same watchdog, its filter extended to leave out the
-//! controller's own SSH session.
+//! controller's own SSH session; [`iperf3`] has a throughput test's client and far-end server.
 
 /// The watchdog's script with `$setup` run first, which may rearrange `"$@"`.
 macro_rules! guarded {
@@ -30,6 +30,7 @@ exit \"$status\""
 }
 
 pub mod capture;
+pub mod iperf3;
 pub mod tables;
 
 use std::time::Duration;
@@ -46,12 +47,15 @@ const TRACE_MAX_HOPS: u32 = 30;
 const HTTP_TIMEOUT_S: u32 = 10;
 /// How long a cable test may take: a PHY reports within seconds, slow ones within half a minute.
 const CABLE_TEST_S: u64 = 60;
+/// What an iperf3 test may take beyond its length.
+const IPERF3_MARGIN_S: u64 = 30;
 
 /// Runs `"$@"` with stdin from /dev/null, and ends it (SIGTERM) once the shell's own stdin
 /// reaches its end; exits as the tool did.
 pub const WATCHDOG: &str = guarded!("");
 
-/// The command that runs `tool` on a node, under [`WATCHDOG`].
+/// The command that runs `tool` on a node, under [`WATCHDOG`]. iperf3 needs its far end:
+/// [`iperf3::client`] (here without one, against [`iperf3::PORT`]).
 pub fn command(tool: &DiagTool) -> Vec<String> {
     let mut argv: Vec<String> = ["sh", "-c", WATCHDOG, "sh"].map(str::to_owned).into();
     argv.extend(tool_command(tool));
@@ -64,6 +68,11 @@ pub fn tool_argv(argv: &[String]) -> &[String] {
         [sh, c, script, _, tool @ ..] if sh == "sh" && c == "-c" && script == WATCHDOG => tool,
         [sh, c, script, _, _filter, tool @ ..]
             if sh == "sh" && c == "-c" && script == capture::CAPTURE =>
+        {
+            tool
+        }
+        [sh, c, script, _, tool @ ..]
+            if sh == "sh" && c == "-c" && script == iperf3::TO_CONTROLLER =>
         {
             tool
         }
@@ -123,6 +132,12 @@ fn tool_command(tool: &DiagTool) -> Vec<String> {
             argv.extend(["ethtool", "--cable-test"].map(str::to_owned));
             argv.push(port.clone());
         }
+        DiagTool::Iperf3 {
+            direction,
+            seconds,
+            streams,
+            ..
+        } => argv = iperf3::options(*direction, *seconds, *streams, iperf3::PORT),
     }
     argv
 }
@@ -135,6 +150,8 @@ pub fn limit(tool: &DiagTool) -> Duration {
         DiagTool::Dns { .. } => 30,
         DiagTool::Http { .. } => 60,
         DiagTool::CableTest { .. } => CABLE_TEST_S,
+        // Connecting, the far end's start and the results take seconds more.
+        DiagTool::Iperf3 { seconds, .. } => u64::from(*seconds) + IPERF3_MARGIN_S,
     };
     Duration::from_secs(secs)
 }

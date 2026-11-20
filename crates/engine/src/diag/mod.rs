@@ -7,9 +7,15 @@
 //! restart forgets every run.
 //!
 //! A packet capture ([`Diagnostics::capture`], D-142) is no run: its bytes go to one download
-//! as they come, and nothing of it is kept.
+//! as they come, and nothing of it is kept. A throughput test (`iperf3`, D-142) is a run whose
+//! far end starts first: `iperf3 -s -1` on the peer node, or the controller's own iperf3 server
+//! on [`DiagConfig::iperf3_listen`], taking only the run's node's addresses ([`RunHosts`]); a
+//! node, and the controller, take part in one test at a time.
 
 mod capture;
+mod iperf3;
+#[cfg(test)]
+mod iperf3_tests;
 mod run;
 #[cfg(test)]
 mod tests;
@@ -17,6 +23,7 @@ mod tests;
 use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
+    net::SocketAddr,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
     time::Duration,
@@ -27,7 +34,7 @@ use tokio::{
     time::Instant,
 };
 use uniwrt_core::{Clock, NodeId};
-use uniwrt_model::diag::{DiagEnd, DiagLine, DiagRun, DiagTool, RunState};
+use uniwrt_model::diag::{DiagEnd, DiagLine, DiagRun, DiagTool, RunState, iperf3::Iperf3Peer};
 use uniwrt_node::ExecStream;
 
 pub use self::capture::{Capture, CaptureEnd, CaptureError};
@@ -61,6 +68,18 @@ pub struct DiagConfig {
     pub kept: usize,
     /// The most packet captures at once, in all (one per node).
     pub captures: usize,
+    /// Where the controller's iperf3 server listens while a node ↔ controller test runs (port 0:
+    /// a port of the system's choosing); none refuses those tests.
+    pub iperf3_listen: Option<SocketAddr>,
+}
+
+/// Where the controller manages a run's nodes: a throughput test's far end needs them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RunHosts {
+    /// The run's node: the controller's iperf3 server takes its connections only.
+    pub node: Option<String>,
+    /// The peer node of an iperf3 test, which the client connects to.
+    pub peer: Option<String>,
 }
 
 impl Default for DiagConfig {
@@ -74,6 +93,7 @@ impl Default for DiagConfig {
             keep: Duration::from_mins(15),
             kept: 32,
             captures: 4,
+            iperf3_listen: None,
         }
     }
 }
@@ -187,16 +207,18 @@ impl Diagnostics {
         self.inner.updates.subscribe()
     }
 
-    /// Starts `tool` on `node` for `by`; answers the run as it starts.
+    /// Starts `tool` on `node` for `by`; answers the run as it starts. An iperf3 test needs
+    /// `hosts`.
     pub fn start(
         &self,
         node: NodeId,
         tool: DiagTool,
         by: Option<String>,
+        hosts: RunHosts,
     ) -> Result<DiagRun, DiagError> {
         tool.validate().map_err(DiagError::Invalid)?;
         let config = &self.inner.config;
-        let argv = uniwrt_node::diag::command(&tool);
+        let plan = self.plan(node, &tool, hosts)?;
         let limit = uniwrt_node::diag::limit(&tool);
         let needs = tool.needs();
         let (stop, stopped) = oneshot::channel();
@@ -220,6 +242,9 @@ impl Diagnostics {
                     "{} tools are running already: wait for one to end, or stop it",
                     config.total
                 )));
+            }
+            if let DiagTool::Iperf3 { peer, .. } = &tool {
+                runs.check_iperf3(node, *peer)?;
             }
             runs.next += 1;
             let id = runs.next;
@@ -254,12 +279,54 @@ impl Diagnostics {
             Arc::clone(&self.inner),
             run.id,
             node,
-            argv,
+            plan,
             limit,
             needs,
             stopped,
         ));
         Ok(run)
+    }
+
+    /// What starting `tool` on `node` runs.
+    fn plan(&self, node: NodeId, tool: &DiagTool, hosts: RunHosts) -> Result<run::Plan, DiagError> {
+        let DiagTool::Iperf3 {
+            peer,
+            direction,
+            seconds,
+            streams,
+        } = tool
+        else {
+            return Ok(run::Plan::Command(uniwrt_node::diag::command(tool)));
+        };
+        let far = match *peer {
+            Iperf3Peer::Node(other) if other == node => {
+                return Err(DiagError::Invalid(
+                    "A device can't test its throughput against itself".to_owned(),
+                ));
+            }
+            Iperf3Peer::Node(other) => iperf3::Peer::Node {
+                node: other,
+                host: hosts.peer.ok_or_else(|| {
+                    DiagError::Invalid("The other device has no address".to_owned())
+                })?,
+            },
+            Iperf3Peer::Controller => iperf3::Peer::Controller {
+                listen: self.inner.config.iperf3_listen.ok_or_else(|| {
+                    DiagError::Invalid(
+                        "The controller's iperf3 server is off (--iperf3-listen)".to_owned(),
+                    )
+                })?,
+                host: hosts
+                    .node
+                    .ok_or_else(|| DiagError::Invalid("The device has no address".to_owned()))?,
+            },
+        };
+        Ok(run::Plan::Iperf3(iperf3::Test {
+            direction: *direction,
+            seconds: *seconds,
+            streams: *streams,
+            far,
+        }))
     }
 
     /// The run `id` with its lines.
@@ -384,6 +451,13 @@ impl Inner {
     }
 }
 
+const fn node_of(peer: Iperf3Peer) -> Option<NodeId> {
+    match peer {
+        Iperf3Peer::Node(node) => Some(node),
+        Iperf3Peer::Controller => None,
+    }
+}
+
 /// How many lines the run produced, dropped ones included.
 fn produced(slot: &Slot) -> u64 {
     u64::from(slot.run.dropped) + slot.lines.len() as u64
@@ -395,6 +469,31 @@ pub fn produced_by(run: &DiagRun) -> u64 {
 }
 
 impl Runs {
+    /// Refuses a throughput test while `node`, or its peer, takes part in another.
+    fn check_iperf3(&self, node: NodeId, peer: Iperf3Peer) -> Result<(), DiagError> {
+        for slot in self.slots.values() {
+            let DiagTool::Iperf3 { peer: other, .. } = &slot.run.tool else {
+                continue;
+            };
+            if slot.run.state != RunState::Running {
+                continue;
+            }
+            let busy = [Some(slot.run.node), node_of(*other)];
+            let involved = |n: Option<NodeId>| n.is_some_and(|n| busy.contains(&Some(n)));
+            if involved(Some(node)) || involved(node_of(peer)) {
+                return Err(DiagError::Busy(
+                    "A device takes part in one throughput test at a time: wait for the other to end, or stop it".to_owned(),
+                ));
+            }
+            if peer == Iperf3Peer::Controller && *other == Iperf3Peer::Controller {
+                return Err(DiagError::Busy(
+                    "The controller takes part in one throughput test at a time: wait for the other to end, or stop it".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Forgets runs that ended more than [`DiagConfig::keep`] ago, and the oldest ended ones
     /// beyond [`DiagConfig::kept`].
     fn prune(&mut self, config: &DiagConfig) {

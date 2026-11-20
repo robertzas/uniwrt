@@ -4,9 +4,11 @@
 //! paced as the real tools pace it. Documentation addresses (RFC 5737) and `.invalid` names
 //! never answer. `ethtool --cable-test` runs once `ethtool-full` is installed ([`Kit`]): a
 //! port with a link has four good pairs, one without is open at a distance of its own. tcpdump
-//! captures once `tcpdump-mini` (or `tcpdump`) is installed ([`capture`]).
+//! captures once `tcpdump-mini` (or `tcpdump`) is installed ([`capture`]); iperf3 runs once
+//! its package is ([`iperf3`]).
 
 mod capture;
+mod iperf3;
 
 use std::{net::Ipv4Addr, time::Duration};
 
@@ -42,14 +44,33 @@ impl Script {
 }
 
 /// What the node has for the optional tools.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct Kit {
     /// `ethtool-full` is installed.
     pub(super) ethtool: bool,
     /// `tcpdump-mini` or `tcpdump` is installed.
     pub(super) tcpdump: bool,
+    /// `iperf3` (or `iperf3-ssl`) is installed.
+    pub(super) iperf3: bool,
+    /// The node's address.
+    pub(super) ip: Ipv4Addr,
+    /// Its uplink's throughput, in Mbit/s.
+    pub(super) uplink_mbps: u32,
     /// Its ports, and whether each has a link.
     pub(super) ports: Vec<(&'static str, bool)>,
+}
+
+impl Default for Kit {
+    fn default() -> Self {
+        Self {
+            ethtool: false,
+            tcpdump: false,
+            iperf3: false,
+            ports: Vec::new(),
+            ip: Ipv4Addr::new(192, 168, 1, 2),
+            uplink_mbps: 940,
+        }
+    }
 }
 
 /// Starts `argv` if it is one of the toolkit's commands.
@@ -61,6 +82,7 @@ pub(super) fn stream(argv: &[String], kit: &Kit) -> Option<ExecStream> {
         "nslookup" => nslookup(argv),
         "uclient-fetch" => fetch(argv),
         "ethtool" => Some(cable_test(argv, kit)),
+        "iperf3" => Some(iperf3::script(argv, kit)),
         "tcpdump" => return Some(capture::stream(argv, kit)),
         _ => return None,
     }?;
@@ -360,8 +382,8 @@ mod tests {
         );
         let kit = Kit {
             ethtool: true,
-            tcpdump: false,
             ports: vec![("lan1", true), ("lan2", false)],
+            ..Kit::default()
         };
         let (text, status) = run_with(&cable, &kit).await;
         assert_eq!(status, ExitStatus::Code(0));
@@ -372,5 +394,64 @@ mod tests {
         let (text, status) = run_with(&["ethtool", "--cable-test", "lan9"], &kit).await;
         assert!(text.ends_with("No such device\n"));
         assert_eq!(status, ExitStatus::Code(1));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn iperf3_measures_once_installed() {
+        let client = [
+            "iperf3",
+            "-p",
+            "5201",
+            "-t",
+            "2",
+            "-P",
+            "1",
+            "-R",
+            "-f",
+            "m",
+            "-c",
+            "192.168.1.3",
+        ];
+        let (text, status) = run(&client).await;
+        assert_eq!(
+            (text.as_str(), status),
+            ("sh: iperf3: not found\n", ExitStatus::Code(127))
+        );
+        let kit = Kit {
+            iperf3: true,
+            uplink_mbps: 500,
+            ..Kit::default()
+        };
+        let (text, status) = run_with(&client, &kit).await;
+        assert_eq!(status, ExitStatus::Code(0));
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines[0], "Connecting to host 192.168.1.3, port 5201");
+        assert_eq!(lines[1], "Reverse mode, remote host 192.168.1.3 is sending");
+        assert!(
+            lines[2].starts_with("[  4] local 192.168.1.2 port "),
+            "{text}"
+        );
+        assert_eq!(lines[3], "[ ID] Interval           Transfer     Bitrate");
+        assert!(lines[4].starts_with("[  4]   0.00-1.00   sec  "), "{text}");
+        assert!(lines[4].contains(" Mbits/sec"), "{text}");
+        assert!(text.contains("            sender\n"), "{text}");
+        assert!(text.ends_with("receiver\n\niperf Done.\n"), "{text}");
+        // Against the controller, at the address the sim's `env` names.
+        let both = [
+            "iperf3", "-p", "5201", "-t", "1", "-P", "2", "--bidir", "-f", "m",
+        ];
+        let (text, _) = run_with(&both, &kit).await;
+        assert!(
+            text.starts_with("Connecting to host 192.168.1.50, port 5201\n"),
+            "{text}"
+        );
+        assert!(text.contains("[  4][TX-C]   0.00-1.00   sec"), "{text}");
+        assert!(text.contains("[SUM][RX-C]   0.00-1.00   sec"), "{text}");
+        let (text, status) = run_with(&["iperf3", "-s", "-1", "-p", "5201"], &kit).await;
+        assert!(
+            text.contains("Server listening on 5201 (test #1)\n"),
+            "{text}"
+        );
+        assert_eq!(status, ExitStatus::Code(0));
     }
 }

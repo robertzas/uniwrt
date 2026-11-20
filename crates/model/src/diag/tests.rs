@@ -101,3 +101,35 @@ fn tools_read_as_the_api_spells_them() {
         serde_json::from_str::<DiagTool>(r#"{"tool":"http","url":"https://a","x":1}"#).is_err()
     );
 }
+
+#[test]
+fn a_throughput_test_takes_its_defaults_and_bounds() {
+    use super::iperf3::{Iperf3Direction, Iperf3Peer};
+    let tool: DiagTool = serde_json::from_str(r#"{"tool":"iperf3","peer":{"node":2}}"#).unwrap();
+    assert_eq!(
+        tool,
+        DiagTool::Iperf3 {
+            peer: Iperf3Peer::Node(uniwrt_core::NodeId::new(2)),
+            direction: Iperf3Direction::Send,
+            seconds: 10,
+            streams: 1,
+        }
+    );
+    assert_eq!(tool.validate(), Ok(()));
+    assert_eq!(tool.target(), "node 2");
+    let tool: DiagTool = serde_json::from_str(
+        r#"{"tool":"iperf3","peer":"controller","direction":"both","seconds":60,"streams":8}"#,
+    )
+    .unwrap();
+    assert_eq!(tool.validate(), Ok(()));
+    assert_eq!(tool.target(), "the controller");
+    for (seconds, streams) in [(0, 1), (61, 1), (10, 0), (10, 9)] {
+        let tool = DiagTool::Iperf3 {
+            peer: Iperf3Peer::Controller,
+            direction: Iperf3Direction::Receive,
+            seconds,
+            streams,
+        };
+        assert!(tool.validate().is_err(), "{seconds} s, {streams} streams");
+    }
+}

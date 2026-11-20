@@ -147,3 +147,26 @@ pub async fn drain(mut stream: uniwrt_node::ExecStream) -> (String, uniwrt_node:
         }
     }
 }
+
+/// Installs `package` from the release's feeds; false (with a note) when they can't be reached.
+pub async fn install(session: &Session, package: &str) -> bool {
+    let apk = run(session, &["sh", "-c", "command -v apk || true"]).await;
+    let script = if apk.trim().is_empty() {
+        "mkdir -p /var/lock && opkg update >/dev/null && opkg install \"$1\""
+    } else {
+        "mkdir -p /var/lock && apk update >/dev/null && apk add \"$1\""
+    };
+    let request =
+        ExecRequest::new(["sh", "-c", script, "sh", package]).timeout(Duration::from_secs(240));
+    match session.exec(&request).await {
+        Ok(output) if output.status.success() => true,
+        other => {
+            let why = other.map_or_else(
+                |err| err.to_string(),
+                |output| String::from_utf8_lossy(&output.stderr).into_owned(),
+            );
+            eprintln!("{package} didn't install, so it wasn't checked: {why}");
+            false
+        }
+    }
+}

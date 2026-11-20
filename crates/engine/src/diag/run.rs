@@ -10,7 +10,7 @@ use uniwrt_core::NodeId;
 use uniwrt_model::diag::{RunState, tools::OptionalTool};
 use uniwrt_node::{ExecStream, ExitStatus, Output};
 
-use super::Inner;
+use super::{Inner, iperf3};
 
 /// How often a run checks whether anybody still watches it.
 const IDLE_CHECK: Duration = Duration::from_secs(5);
@@ -18,25 +18,57 @@ const IDLE_CHECK: Duration = Duration::from_secs(5);
 /// How a run ended: its state, exit code and why.
 type End = (RunState, Option<u32>, Option<String>);
 
+/// What a run starts.
+pub(super) enum Plan {
+    /// A command on the run's node.
+    Command(Vec<String>),
+    /// A throughput test: its far end, then the client on the run's node.
+    Iperf3(iperf3::Test),
+}
+
 pub(super) async fn drive(
     inner: Arc<Inner>,
     id: u32,
     node: NodeId,
-    argv: Vec<String>,
+    plan: Plan,
     limit: Duration,
     needs: Option<OptionalTool>,
     mut stop: oneshot::Receiver<()>,
 ) {
     let deadline = Instant::now() + limit;
+    let start = async {
+        let (argv, far) = match plan {
+            Plan::Command(argv) => (argv, None),
+            Plan::Iperf3(test) => {
+                let (argv, far) = iperf3::prepare(&inner, id, &test)
+                    .await
+                    .map_err(|why| (RunState::Failed, None, Some(why)))?;
+                (argv, Some(far))
+            }
+        };
+        let stream = (inner.start)(node, argv).await.map_err(|err| {
+            (
+                RunState::Failed,
+                None,
+                Some(worded(&err, "Cannot start it")),
+            )
+        })?;
+        Ok::<_, End>((stream, far))
+    };
     let (state, code, error) = tokio::select! {
         biased;
         _ = &mut stop => stopped(None),
         () = time::sleep_until(deadline) => at_limit(limit),
-        started = (inner.start)(node, argv) => match started {
-            Ok(stream) => pump(&inner, id, stream, deadline, limit, &mut stop)
-                .await
-                .missing(needs),
-            Err(err) => (RunState::Failed, None, Some(worded(&err, "Cannot start it"))),
+        started = start => match started {
+            Ok((stream, far)) => {
+                let end = pump(&inner, id, stream, deadline, limit, &mut stop)
+                    .await
+                    .missing(needs);
+                // The far end goes once the client has ended.
+                drop(far);
+                end
+            }
+            Err(end) => end,
         },
     };
     inner.finish(id, state, code, error);
@@ -79,7 +111,7 @@ async fn pump(
 }
 
 /// `err` for people: a lost link says so, other errors follow `what`.
-fn worded(err: &uniwrt_node::Error, what: &str) -> String {
+pub(super) fn worded(err: &uniwrt_node::Error, what: &str) -> String {
     match err {
         uniwrt_node::Error::Disconnected { .. } => {
             "The device isn't connected: check that it is online".to_owned()

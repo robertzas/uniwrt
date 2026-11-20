@@ -11,12 +11,12 @@ use uniwrt_node::{
     exec::{StreamSource, pipe},
 };
 
-use super::{DiagConfig, DiagError, DiagUpdate, Diagnostics, Starter, run::Splitter};
+use super::{DiagConfig, DiagError, DiagUpdate, Diagnostics, RunHosts, Starter, run::Splitter};
 
 const NODE: NodeId = NodeId::new(1);
 
 /// The runs, and each started command's argv and producer's end.
-fn diagnostics(
+pub(super) fn diagnostics(
     config: DiagConfig,
 ) -> (
     Diagnostics,
@@ -48,11 +48,11 @@ fn ping(count: u32) -> DiagTool {
     }
 }
 
-fn out(text: &'static str) -> Output {
+pub(super) fn out(text: &'static str) -> Output {
     Output::Stdout(Bytes::from_static(text.as_bytes()))
 }
 
-async fn ended(updates: &mut broadcast::Receiver<Arc<DiagUpdate>>) -> Arc<DiagUpdate> {
+pub(super) async fn ended(updates: &mut broadcast::Receiver<Arc<DiagUpdate>>) -> Arc<DiagUpdate> {
     loop {
         let update = updates.recv().await.unwrap();
         if update.end.is_some() {
@@ -65,7 +65,9 @@ async fn ended(updates: &mut broadcast::Receiver<Arc<DiagUpdate>>) -> Arc<DiagUp
 async fn output_streams_as_lines_until_the_tool_exits() {
     let (diag, mut starts) = diagnostics(DiagConfig::default());
     let mut updates = diag.subscribe();
-    let run = diag.start(NODE, ping(2), Some("admin".to_owned())).unwrap();
+    let run = diag
+        .start(NODE, ping(2), Some("admin".to_owned()), RunHosts::default())
+        .unwrap();
     assert_eq!(run.state, RunState::Running);
     let (_watched, _watch) = diag.watch(run.id).unwrap();
     let (argv, source) = starts.recv().await.unwrap();
@@ -112,7 +114,7 @@ async fn a_missing_tool_names_its_package() {
     let cable = DiagTool::CableTest {
         port: "lan1".to_owned(),
     };
-    let run = diag.start(NODE, cable, None).unwrap();
+    let run = diag.start(NODE, cable, None, RunHosts::default()).unwrap();
     let (_watched, _watch) = diag.watch(run.id).unwrap();
     let (argv, source) = starts.recv().await.unwrap();
     assert_eq!(
@@ -143,18 +145,21 @@ async fn bad_tools_and_too_many_runs_are_refused() {
         count: 1,
     };
     assert!(matches!(
-        diag.start(NODE, bad, None),
+        diag.start(NODE, bad, None, RunHosts::default()),
         Err(DiagError::Invalid(_))
     ));
-    diag.start(NODE, ping(5), None).unwrap();
-    diag.start(NODE, ping(5), None).unwrap();
+    diag.start(NODE, ping(5), None, RunHosts::default())
+        .unwrap();
+    diag.start(NODE, ping(5), None, RunHosts::default())
+        .unwrap();
     assert!(matches!(
-        diag.start(NODE, ping(5), None),
+        diag.start(NODE, ping(5), None, RunHosts::default()),
         Err(DiagError::Busy(_))
     ));
-    diag.start(NodeId::new(2), ping(5), None).unwrap();
+    diag.start(NodeId::new(2), ping(5), None, RunHosts::default())
+        .unwrap();
     assert!(matches!(
-        diag.start(NodeId::new(3), ping(5), None),
+        diag.start(NodeId::new(3), ping(5), None, RunHosts::default()),
         Err(DiagError::Busy(_))
     ));
     assert_eq!(diag.stop(99), Err(DiagError::NotFound));
@@ -164,7 +169,9 @@ async fn bad_tools_and_too_many_runs_are_refused() {
 async fn an_admin_stops_a_run_and_the_tool_hears_of_it() {
     let (diag, mut starts) = diagnostics(DiagConfig::default());
     let mut updates = diag.subscribe();
-    let run = diag.start(NODE, ping(50), None).unwrap();
+    let run = diag
+        .start(NODE, ping(50), None, RunHosts::default())
+        .unwrap();
     let (_, source) = starts.recv().await.unwrap();
     diag.stop(run.id).unwrap();
     let end = ended(&mut updates).await.end.clone().unwrap();
@@ -172,7 +179,8 @@ async fn an_admin_stops_a_run_and_the_tool_hears_of_it() {
     assert!(!source.output.push(out("late\n")), "the stream is closed");
     // A stopped run frees its place.
     for _ in 0..2 {
-        diag.start(NODE, ping(5), None).unwrap();
+        diag.start(NODE, ping(5), None, RunHosts::default())
+            .unwrap();
     }
 }
 
@@ -180,7 +188,9 @@ async fn an_admin_stops_a_run_and_the_tool_hears_of_it() {
 async fn a_run_nobody_watches_stops_after_a_minute() {
     let (diag, mut starts) = diagnostics(DiagConfig::default());
     let mut updates = diag.subscribe();
-    let run = diag.start(NODE, ping(100), None).unwrap();
+    let run = diag
+        .start(NODE, ping(100), None, RunHosts::default())
+        .unwrap();
     let watch = diag.watch(run.id).unwrap().1;
     let _source = starts.recv().await.unwrap();
     tokio::time::sleep(Duration::from_secs(40)).await;
@@ -208,7 +218,9 @@ async fn a_run_nobody_watches_stops_after_a_minute() {
 async fn a_run_stops_at_its_limit() {
     let (diag, mut starts) = diagnostics(DiagConfig::default());
     let mut updates = diag.subscribe();
-    let run = diag.start(NODE, ping(1), None).unwrap();
+    let run = diag
+        .start(NODE, ping(1), None, RunHosts::default())
+        .unwrap();
     let _watch = diag.watch(run.id).unwrap().1;
     let _source = starts.recv().await.unwrap();
     let end = ended(&mut updates).await.end.clone().unwrap();
@@ -222,7 +234,9 @@ async fn output_beyond_the_budget_drops_the_oldest_lines() {
         ..DiagConfig::default()
     });
     let mut updates = diag.subscribe();
-    let run = diag.start(NODE, ping(5), None).unwrap();
+    let run = diag
+        .start(NODE, ping(5), None, RunHosts::default())
+        .unwrap();
     let (_, source) = starts.recv().await.unwrap();
     source.output.push(out("aaaa\nbbbb\ncccc\ndddd\n"));
     let update = updates.recv().await.unwrap();
@@ -236,7 +250,8 @@ async fn output_beyond_the_budget_drops_the_oldest_lines() {
 async fn a_node_that_cannot_be_reached_fails_the_run() {
     let (diag, _starts) = diagnostics(DiagConfig::default());
     let mut updates = diag.subscribe();
-    diag.start(NodeId::new(9), ping(1), None).unwrap();
+    diag.start(NodeId::new(9), ping(1), None, RunHosts::default())
+        .unwrap();
     let end = ended(&mut updates).await.end.clone().unwrap();
     assert_eq!(end.state, RunState::Failed);
     assert_eq!(
@@ -252,9 +267,13 @@ async fn ended_runs_are_forgotten_after_a_while() {
         ..DiagConfig::default()
     });
     let mut updates = diag.subscribe();
-    let first = diag.start(NodeId::new(9), ping(1), None).unwrap();
+    let first = diag
+        .start(NodeId::new(9), ping(1), None, RunHosts::default())
+        .unwrap();
     ended(&mut updates).await;
-    let second = diag.start(NodeId::new(9), ping(1), None).unwrap();
+    let second = diag
+        .start(NodeId::new(9), ping(1), None, RunHosts::default())
+        .unwrap();
     ended(&mut updates).await;
     assert!(diag.get(first.id).is_none(), "beyond the count kept");
     assert!(diag.get(second.id).is_some());

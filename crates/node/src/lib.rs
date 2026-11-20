@@ -23,7 +23,9 @@
 //!   to send on, D-137); [`decommission`] (the detached wipe that takes a node out of the
 //!   site: the mesh left, the footprint and the controller's key removed, `firstboot`
 //!   optionally, D-131); [`diag`] (the diagnostics toolkit's commands and their time limits,
-//!   D-141; the tables' parsers and a packet capture's command and size cut, D-142); [`root_password`] (a random root password for a node
+//!   D-141; the tables' parsers, a packet capture's command and size cut, and iperf3's commands,
+//!   D-142); [`iperf3`] (a native iperf3 server: the controller's end of a node ↔ controller
+//!   throughput test, D-142); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
 //!   zero-touch images, D-102); [`adoption_port`] (the gateway's segment and the device found
 //!   on it: the reads and their parsers, D-106); [`Error`]. A [`Credential::Password`] that is
@@ -42,7 +44,8 @@
 //!   framing, the envelope, the multiplexer over an in-memory pipe, the bundle's archive through
 //!   the host's `tar`, the parsers against `fixtures/collect/` and `fixtures/events/`); `tests/` runs sessions and links
 //!   against an in-process russh server on loopback. Ignored unless run by their scripts:
-//!   `tests/dropbear.rs` (`just test-dropbear`) against dropbear in OpenWrt rootfs containers, and
+//!   `tests/dropbear.rs`, `tests/capture.rs` and `tests/iperf3.rs` (`just test-dropbear`) against
+//!   dropbear and iperf3 in OpenWrt rootfs containers, and
 //!   `tests/agent.rs` (`just test-agent`) against the agent on OpenWrt booted with procd, and
 //!   `tests/wifi.rs` (`just test-wifi`) against the hwsim lab's radios and mesh.
 
@@ -58,6 +61,7 @@ pub mod events;
 pub mod exec;
 pub mod facts;
 mod host_key;
+pub mod iperf3;
 mod key;
 mod lines;
 mod link;

@@ -72,6 +72,18 @@ pub(crate) struct ServeArgs {
     /// `0.0.0.0:5514`, and off in demo mode.
     #[arg(long, env = "UNIWRT_SYSLOG_LISTEN", value_name = "ADDR:PORT|off", value_parser = parse_syslog_listen)]
     pub(crate) syslog_listen: Option<SyslogListen>,
+    /// Address and port of the controller's iperf3 server, or `off`: it listens there only while
+    /// a node ↔ controller throughput test runs, for that node alone (D-142); nodes must reach
+    /// it (open the port in the host's firewall, publish it from a container). Port 0 takes any
+    /// free port for each test.
+    #[arg(
+        long,
+        env = "UNIWRT_IPERF3_LISTEN",
+        value_name = "ADDR:PORT|off",
+        default_value = "[::]:5201",
+        value_parser = parse_iperf3_listen
+    )]
+    pub(crate) iperf3_listen: Iperf3Listen,
     /// The Attended Sysupgrade (ASU) service that builds zero-touch images, or `off`. Nothing
     /// secret is sent to it.
     #[arg(
@@ -156,6 +168,20 @@ fn parse_on_off(value: &str) -> Result<bool, String> {
         "off" | "false" | "0" => Ok(false),
         _ => Err("expected on or off".to_owned()),
     }
+}
+
+/// Where the controller's iperf3 server listens during a test, if at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Iperf3Listen(pub(crate) Option<SocketAddr>);
+
+fn parse_iperf3_listen(value: &str) -> Result<Iperf3Listen, String> {
+    if value.eq_ignore_ascii_case("off") {
+        return Ok(Iperf3Listen(None));
+    }
+    value
+        .parse()
+        .map(|addr| Iperf3Listen(Some(addr)))
+        .map_err(|_| format!("{value:?} is not ADDR:PORT or off"))
 }
 
 fn parse_syslog_listen(value: &str) -> Result<SyslogListen, String> {
@@ -262,6 +288,27 @@ mod tests {
         assert_eq!(serve(&["--demo"]), None);
         assert!(serve(&["--demo", "--syslog-listen", "[::1]:5514"]).is_some());
         assert!(Cli::try_parse_from(["uniwrt", "serve", "--syslog-listen", "5514"]).is_err());
+    }
+
+    #[test]
+    fn the_iperf3_server_listens_where_told_or_not_at_all() {
+        let iperf3 = |args: &[&str]| {
+            let Cli {
+                command: Some(Command::Serve(args)),
+                ..
+            } = Cli::try_parse_from([&["uniwrt", "serve"], args].concat()).unwrap()
+            else {
+                panic!("not serve");
+            };
+            args.iperf3_listen.0
+        };
+        assert_eq!(iperf3(&[]), Some("[::]:5201".parse().unwrap()));
+        assert_eq!(iperf3(&["--iperf3-listen", "off"]), None);
+        assert_eq!(
+            iperf3(&["--iperf3-listen", "192.168.1.2:0"]),
+            Some("192.168.1.2:0".parse().unwrap())
+        );
+        assert!(Cli::try_parse_from(["uniwrt", "serve", "--iperf3-listen", "5201"]).is_err());
     }
 
     #[test]

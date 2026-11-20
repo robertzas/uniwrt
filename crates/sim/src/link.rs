@@ -445,7 +445,11 @@ impl SimLink {
         diag::Kit {
             ethtool: disk.installed.contains("ethtool-full"),
             tcpdump: disk.installed.contains("tcpdump-mini") || disk.installed.contains("tcpdump"),
+            iperf3: disk.installed.contains("iperf3") || disk.installed.contains("iperf3-ssl"),
             ports,
+            ip: node.ip,
+            // A wired uplink runs at gigabit Ethernet's rate, a mesh one at about half its PHY's.
+            uplink_mbps: if node.gateway || node.wired { 940 } else { 430 },
         }
     }
 

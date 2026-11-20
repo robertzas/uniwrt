@@ -57,6 +57,8 @@ pub struct ApiConfig {
     pub controller_backups: Option<crate::controller_backups::BackupConfig>,
     /// The vault that keeps the site's secrets; without it, saves that set one fail with 503.
     pub vault: Option<Vault>,
+    /// The diagnostics runs' bounds, and where the controller's iperf3 server listens (D-142).
+    pub diag: DiagConfig,
     /// A new site's first revision instead of the defaults (demo mode's).
     pub first_site: Option<FirstSite>,
     pub password_cost: PasswordCost,
@@ -94,6 +96,7 @@ impl ApiConfig {
             self_update: None,
             controller_backups: None,
             vault: None,
+            diag: DiagConfig::default(),
             first_site: None,
             password_cost: PasswordCost::default(),
             setup_window: SETUP_WINDOW,
@@ -173,7 +176,7 @@ impl Api {
                 let fleet = Arc::clone(&fleet);
                 Box::pin(async move { fleet.stream(node, argv).await })
             });
-            Diagnostics::new(start, Arc::clone(&config.clock), DiagConfig::default())
+            Diagnostics::new(start, Arc::clone(&config.clock), config.diag)
         };
         let api = Self {
             inner: Arc::new(Inner {

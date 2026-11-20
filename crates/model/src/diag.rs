@@ -8,10 +8,11 @@
 //! capture's query (D-142).
 
 pub mod capture;
+pub mod iperf3;
 pub mod tables;
 pub mod tools;
 
-use std::net::IpAddr;
+use std::{borrow::Cow, net::IpAddr};
 
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{NodeId, Timestamp};
@@ -69,6 +70,18 @@ pub enum DiagTool {
         /// The port's network device, such as `lan1`.
         port: String,
     },
+    /// A throughput test (`iperf3`, from its package) between the node, as the client, and
+    /// `peer`: `seconds` long (1–[`iperf3::MAX_SECONDS`]) over `streams` TCP streams
+    /// (1–[`iperf3::MAX_STREAMS`]).
+    Iperf3 {
+        peer: iperf3::Iperf3Peer,
+        #[serde(default)]
+        direction: iperf3::Iperf3Direction,
+        #[serde(default = "iperf3::default_seconds")]
+        seconds: u32,
+        #[serde(default = "iperf3::default_streams")]
+        streams: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -114,12 +127,16 @@ impl DnsRecordType {
 
 impl DiagTool {
     /// What the tool is pointed at, as the audit names it.
-    pub fn target(&self) -> &str {
+    pub fn target(&self) -> Cow<'_, str> {
         match self {
-            Self::Ping { target, .. } | Self::Traceroute { target, .. } => target,
-            Self::Dns { name, .. } => name,
-            Self::Http { url } => url,
-            Self::CableTest { port } => port,
+            Self::Ping { target, .. } | Self::Traceroute { target, .. } => target.into(),
+            Self::Dns { name, .. } => name.into(),
+            Self::Http { url } => url.into(),
+            Self::CableTest { port } => port.into(),
+            Self::Iperf3 { peer, .. } => match peer {
+                iperf3::Iperf3Peer::Controller => "the controller".into(),
+                iperf3::Iperf3Peer::Node(node) => format!("node {node}").into(),
+            },
         }
     }
 
@@ -127,6 +144,7 @@ impl DiagTool {
     pub const fn needs(&self) -> Option<tools::OptionalTool> {
         match self {
             Self::CableTest { .. } => Some(tools::OptionalTool::Ethtool),
+            Self::Iperf3 { .. } => Some(tools::OptionalTool::Iperf3),
             _ => None,
         }
     }
@@ -139,6 +157,7 @@ impl DiagTool {
             Self::Dns { .. } => "dns",
             Self::Http { .. } => "http",
             Self::CableTest { .. } => "cable_test",
+            Self::Iperf3 { .. } => "iperf3",
         }
     }
 
@@ -174,6 +193,9 @@ impl DiagTool {
                     Err(format!("{port:?} is not a network device's name"))
                 }
             }
+            Self::Iperf3 {
+                seconds, streams, ..
+            } => iperf3::validate(*seconds, *streams),
         }
     }
 }

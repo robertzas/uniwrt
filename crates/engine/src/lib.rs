@@ -138,8 +138,8 @@ pub use bus::Event;
 pub use clients::{ClientRecorder, RecorderConfig};
 pub use config::EngineConfig;
 pub use diag::{
-    Capture, CaptureEnd, CaptureError, DiagConfig, DiagError, DiagUpdate, Diagnostics, Starter,
-    Watch, produced_by,
+    Capture, CaptureEnd, CaptureError, DiagConfig, DiagError, DiagUpdate, Diagnostics, RunHosts,
+    Starter, Watch, produced_by,
 };
 pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;

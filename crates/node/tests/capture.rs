@@ -9,13 +9,13 @@ use std::time::Duration;
 
 use uniwrt_model::diag::capture::CaptureQuery;
 use uniwrt_node::{
-    ExecRequest, ExitStatus, Output,
+    ExitStatus, Output,
     diag::capture::{CAPTURE, command},
 };
 
 mod openwrt;
 
-use openwrt::{adopt, drain, run};
+use openwrt::{adopt, drain, install, run};
 
 #[tokio::test]
 #[ignore = "needs dropbear in an OpenWrt container: just test-dropbear"]
@@ -44,24 +44,7 @@ async fn the_capture_script_leaves_the_controllers_session_out() {
 
 /// Installs tcpdump-mini; false when the feeds can't be reached.
 async fn install_tcpdump(session: &uniwrt_node::Session) -> bool {
-    let apk = run(session, &["sh", "-c", "command -v apk || true"]).await;
-    let script = if apk.trim().is_empty() {
-        "mkdir -p /var/lock && opkg update && opkg install tcpdump-mini"
-    } else {
-        "mkdir -p /var/lock && apk update && apk add tcpdump-mini"
-    };
-    let request = ExecRequest::new(["sh", "-c", script]).timeout(Duration::from_secs(240));
-    match session.exec(&request).await {
-        Ok(output) if output.status.success() => true,
-        other => {
-            let why = other.map_or_else(
-                |err| err.to_string(),
-                |output| String::from_utf8_lossy(&output.stderr).into_owned(),
-            );
-            eprintln!("tcpdump-mini didn't install, so no capture was checked: {why}");
-            false
-        }
-    }
+    install(session, "tcpdump-mini").await
 }
 
 /// The TCP ports of each packet of a Linux cooked v2 capture, and how many were ICMP.

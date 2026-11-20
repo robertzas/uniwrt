@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use axum::http::{Method, StatusCode, header};
 use serde_json::{Value, json};
-use uniwrt_store::AuditRepo as _;
+use uniwrt_store::{AuditRepo as _, NodeRepo as _};
 
 use crate::testing::{Demo, json, post, request};
 
@@ -126,5 +126,72 @@ async fn bad_requests_are_refused() {
         res.status(),
         StatusCode::CONFLICT,
         "two run on the node already"
+    );
+}
+
+/// Installs iperf3 on `node`, through whichever package manager it has.
+async fn install_iperf3(demo: &Demo, node: uniwrt_core::NodeId) {
+    use uniwrt_engine::Fleet as _;
+    for argv in [["opkg", "install"], ["apk", "add"]] {
+        let request = uniwrt_node::ExecRequest::new(argv.into_iter().chain(["iperf3"]));
+        if let Ok(output) = demo.engine.exec(node, request).await
+            && output.status.success()
+        {
+            return;
+        }
+    }
+    panic!("iperf3 didn't install");
+}
+
+#[tokio::test]
+async fn a_throughput_test_runs_between_nodes() {
+    let demo = Demo::start().await;
+    let (node, peer) = (demo.ids[0], demo.ids[1]);
+    install_iperf3(&demo, node).await;
+    install_iperf3(&demo, peer).await;
+    let peer_node = demo.store.node(peer).await.unwrap().unwrap();
+    let body = json!({ "node": node.get(), "tool": { "tool": "iperf3", "peer": { "node": peer.get() }, "seconds": 1 } });
+    let res = demo
+        .send(post("/v1/diag/runs", &body, Some(&demo.cookie)))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let location = res.headers()[header::LOCATION].to_str().unwrap().to_owned();
+    let run = ended(&demo, &location).await;
+    assert_eq!(run["state"], "succeeded", "{run}");
+    let lines: Vec<&str> = run["lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| line["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        lines[0],
+        format!("Connecting to host {}, port 5201", peer_node.host)
+    );
+    assert_eq!(lines.last(), Some(&"iperf Done."));
+    let audited = demo.store.audit_log(1).await.unwrap()[0]
+        .detail
+        .clone()
+        .unwrap();
+    assert!(
+        audited.starts_with(&format!("iperf3 with {} on ", peer_node.name)),
+        "{audited}"
+    );
+    let start = |body: Value| post("/v1/diag/runs", &body, Some(&demo.cookie));
+    let res = demo
+        .send(start(
+            json!({ "node": node.get(), "tool": { "tool": "iperf3", "peer": { "node": 999 } } }),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let res = demo
+        .send(start(
+            json!({ "node": node.get(), "tool": { "tool": "iperf3", "peer": "controller" } }),
+        ))
+        .await;
+    assert_eq!(
+        res.status(),
+        StatusCode::BAD_REQUEST,
+        "the server is off in tests"
     );
 }

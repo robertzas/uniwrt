@@ -357,6 +357,10 @@ async fn start_api(
         github: Some(github.clone()),
         self_update: Some(Arc::new(updater.clone())),
         controller_backups: Some(controller_backups),
+        diag: uniwrt_engine::DiagConfig {
+            iperf3_listen: args.iperf3_listen.0,
+            ..uniwrt_engine::DiagConfig::default()
+        },
         ..ApiConfig::new(
             store.clone(),
             Arc::new(fleet.engine.clone()),
