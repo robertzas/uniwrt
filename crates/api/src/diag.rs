@@ -4,8 +4,9 @@
 //! follows. Admins: `POST v1/diag/runs` ([`DiagRunBody`]) starts a tool on an adopted node
 //! (202 with the run; audited; 409 while too many run), and `DELETE v1/diag/runs/{id}` stops
 //! one (the run as it is; it ends shortly). A node's tables and optional tools are in
-//! [`tables`].
+//! [`tables`], a packet capture's download in [`capture`].
 
+mod capture;
 mod tables;
 
 use axum::{
@@ -41,6 +42,7 @@ pub(crate) fn routes() -> axum::Router<Api> {
         .route("/v1/diag/runs", get(list).post(start))
         .route("/v1/diag/runs/{id}", get(one).delete(stop))
         .merge(tables::routes())
+        .merge(capture::routes())
 }
 
 async fn list(State(api): State<Api>, _user: CurrentUser) -> Json<Vec<DiagRun>> {

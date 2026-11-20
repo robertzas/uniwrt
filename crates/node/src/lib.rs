@@ -23,7 +23,7 @@
 //!   to send on, D-137); [`decommission`] (the detached wipe that takes a node out of the
 //!   site: the mesh left, the footprint and the controller's key removed, `firstboot`
 //!   optionally, D-131); [`diag`] (the diagnostics toolkit's commands and their time limits,
-//!   D-141); [`root_password`] (a random root password for a node
+//!   D-141; the tables' parsers and a packet capture's command and size cut, D-142); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
 //!   zero-touch images, D-102); [`adoption_port`] (the gateway's segment and the device found
 //!   on it: the reads and their parsers, D-106); [`Error`]. A [`Credential::Password`] that is

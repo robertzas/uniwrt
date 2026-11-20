@@ -9,8 +9,27 @@
 //! stopped the run, or lost the node). The tool's argv reaches it as `"$@"`, never as script
 //! text.
 //!
-//! [`tables`] reads the neighbor, route and connection tables in one exec each (D-142).
+//! [`tables`] reads the neighbor, route and connection tables in one exec each (D-142);
+//! [`capture`] runs tcpdump under the same watchdog, its filter extended to leave out the
+//! controller's own SSH session.
 
+/// The watchdog's script with `$setup` run first, which may rearrange `"$@"`.
+macro_rules! guarded {
+    ($setup:literal) => {
+        concat!(
+            "exec 3<&0 0</dev/null\n",
+            $setup,
+            "\"$@\" & tool=$!
+{ while read -r _; do :; done <&3; kill \"$tool\" 2>/dev/null; } &
+watch=$!
+wait \"$tool\"; status=$?
+kill \"$watch\" 2>/dev/null
+exit \"$status\""
+        )
+    };
+}
+
+pub mod capture;
 pub mod tables;
 
 use std::time::Duration;
@@ -30,13 +49,7 @@ const CABLE_TEST_S: u64 = 60;
 
 /// Runs `"$@"` with stdin from /dev/null, and ends it (SIGTERM) once the shell's own stdin
 /// reaches its end; exits as the tool did.
-pub const WATCHDOG: &str = "exec 3<&0 0</dev/null
-\"$@\" & tool=$!
-{ while read -r _; do :; done <&3; kill \"$tool\" 2>/dev/null; } &
-watch=$!
-wait \"$tool\"; status=$?
-kill \"$watch\" 2>/dev/null
-exit \"$status\"";
+pub const WATCHDOG: &str = guarded!("");
 
 /// The command that runs `tool` on a node, under [`WATCHDOG`].
 pub fn command(tool: &DiagTool) -> Vec<String> {
@@ -45,10 +58,15 @@ pub fn command(tool: &DiagTool) -> Vec<String> {
     argv
 }
 
-/// The tool's own argv in [`command`]'s.
+/// The tool's own argv in [`command`]'s (or [`capture::command`]'s, without its filter).
 pub fn tool_argv(argv: &[String]) -> &[String] {
     match argv {
         [sh, c, script, _, tool @ ..] if sh == "sh" && c == "-c" && script == WATCHDOG => tool,
+        [sh, c, script, _, _filter, tool @ ..]
+            if sh == "sh" && c == "-c" && script == capture::CAPTURE =>
+        {
+            tool
+        }
         other => other,
     }
 }
@@ -138,6 +156,10 @@ mod tests {
         };
         let argv = command(&ping);
         assert_eq!(argv[..4], ["sh", "-c", WATCHDOG, "sh"]);
+        assert_eq!(
+            WATCHDOG,
+            "exec 3<&0 0</dev/null\n\"$@\" & tool=$!\n{ while read -r _; do :; done <&3; kill \"$tool\" 2>/dev/null; } &\nwatch=$!\nwait \"$tool\"; status=$?\nkill \"$watch\" 2>/dev/null\nexit \"$status\""
+        );
         assert_eq!(tool_argv(&argv), command_of(&ping));
         assert_eq!(tool_argv(&argv[4..]), command_of(&ping));
     }

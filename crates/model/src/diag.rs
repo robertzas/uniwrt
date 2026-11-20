@@ -4,8 +4,10 @@
 //! [`DiagTool`] is what an admin asks for, checked by [`DiagTool::validate`] before anything
 //! reaches a node; [`DiagRun`] is a run as the controller holds it. [`tables`] are the node's
 //! neighbor, route and connection tables as read on demand (D-142); [`tools`] the tools that
-//! OpenWrt's images lack, installed through the package job (D-139).
+//! OpenWrt's images lack, installed through the package job (D-139); [`capture`] a packet
+//! capture's query (D-142).
 
+pub mod capture;
 pub mod tables;
 pub mod tools;
 

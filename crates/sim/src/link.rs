@@ -422,7 +422,7 @@ impl SimLink {
             .map_err(|msg| remote("upload", "failed", &msg))
     }
 
-    /// What the node has for the toolkit's optional tools: `ethtool-full`, and its ports with
+    /// What the node has for the toolkit's optional tools: `ethtool-full`, tcpdump, and its ports with
     /// whether each has a link (the WAN port of the gateway and of a wired access point, and
     /// ports with a wired client).
     fn kit(&self) -> diag::Kit {
@@ -444,6 +444,7 @@ impl SimLink {
         ports.push((node.model.wan_port, node.gateway || node.wired));
         diag::Kit {
             ethtool: disk.installed.contains("ethtool-full"),
+            tcpdump: disk.installed.contains("tcpdump-mini") || disk.installed.contains("tcpdump"),
             ports,
         }
     }

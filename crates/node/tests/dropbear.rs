@@ -20,7 +20,7 @@ use zeroize::Zeroizing;
 
 mod openwrt;
 
-use openwrt::{adopt, run};
+use openwrt::{adopt, drain, run};
 
 const LONG: Duration = Duration::from_secs(10);
 
@@ -292,20 +292,6 @@ async fn a_factory_node_lets_root_in_without_a_password_until_adoption_sets_one(
         .await
         .unwrap();
     assert_eq!(run(&session, &["id", "-un"]).await, "root\n");
-}
-
-/// Everything a stream prints, and how it ends.
-async fn drain(mut stream: uniwrt_node::ExecStream) -> (String, ExitStatus) {
-    let mut text = String::new();
-    loop {
-        match tokio::time::timeout(Duration::from_secs(60), stream.next()).await {
-            Ok(Some(Ok(Output::Stdout(data) | Output::Stderr(data)))) => {
-                text.push_str(&String::from_utf8_lossy(&data));
-            }
-            Ok(Some(Ok(Output::Exit(status)))) => return (text, status),
-            other => panic!("{other:?} after {text}"),
-        }
-    }
 }
 
 #[tokio::test]

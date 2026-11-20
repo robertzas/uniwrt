@@ -3,7 +3,10 @@
 //! output shaped as BusyBox and uclient-fetch print it (captured on OpenWrt 24.10 and 25.12),
 //! paced as the real tools pace it. Documentation addresses (RFC 5737) and `.invalid` names
 //! never answer. `ethtool --cable-test` runs once `ethtool-full` is installed ([`Kit`]): a
-//! port with a link has four good pairs, one without is open at a distance of its own.
+//! port with a link has four good pairs, one without is open at a distance of its own. tcpdump
+//! captures once `tcpdump-mini` (or `tcpdump`) is installed ([`capture`]).
+
+mod capture;
 
 use std::{net::Ipv4Addr, time::Duration};
 
@@ -43,6 +46,8 @@ impl Script {
 pub(super) struct Kit {
     /// `ethtool-full` is installed.
     pub(super) ethtool: bool,
+    /// `tcpdump-mini` or `tcpdump` is installed.
+    pub(super) tcpdump: bool,
     /// Its ports, and whether each has a link.
     pub(super) ports: Vec<(&'static str, bool)>,
 }
@@ -56,6 +61,7 @@ pub(super) fn stream(argv: &[String], kit: &Kit) -> Option<ExecStream> {
         "nslookup" => nslookup(argv),
         "uclient-fetch" => fetch(argv),
         "ethtool" => Some(cable_test(argv, kit)),
+        "tcpdump" => return Some(capture::stream(argv, kit)),
         _ => return None,
     }?;
     let (stream, source) = pipe(format!("`{}`", argv[0]), STREAM_BUDGET);
@@ -354,6 +360,7 @@ mod tests {
         );
         let kit = Kit {
             ethtool: true,
+            tcpdump: false,
             ports: vec![("lan1", true), ("lan2", false)],
         };
         let (text, status) = run_with(&cable, &kit).await;

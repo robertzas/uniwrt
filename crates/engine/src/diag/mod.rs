@@ -5,7 +5,11 @@
 //! at its time limit, or once nobody has watched it ([`Diagnostics::watch`]) for
 //! [`DiagConfig::idle`]; ended runs stay for [`DiagConfig::keep`]. Nothing is stored: a
 //! restart forgets every run.
+//!
+//! A packet capture ([`Diagnostics::capture`], D-142) is no run: its bytes go to one download
+//! as they come, and nothing of it is kept.
 
+mod capture;
 mod run;
 #[cfg(test)]
 mod tests;
@@ -25,6 +29,8 @@ use tokio::{
 use uniwrt_core::{Clock, NodeId};
 use uniwrt_model::diag::{DiagEnd, DiagLine, DiagRun, DiagTool, RunState};
 use uniwrt_node::ExecStream;
+
+pub use self::capture::{Capture, CaptureEnd, CaptureError};
 
 /// Starts a command on a node: [`Fleet::stream`](crate::Fleet::stream), or a test's fake.
 pub type Starter = Arc<
@@ -53,6 +59,8 @@ pub struct DiagConfig {
     pub keep: Duration,
     /// The most ended runs kept; the oldest go first.
     pub kept: usize,
+    /// The most packet captures at once, in all (one per node).
+    pub captures: usize,
 }
 
 impl Default for DiagConfig {
@@ -65,6 +73,7 @@ impl Default for DiagConfig {
             idle: Duration::from_mins(1),
             keep: Duration::from_mins(15),
             kept: 32,
+            captures: 4,
         }
     }
 }
@@ -106,6 +115,8 @@ struct Inner {
     clock: Arc<dyn Clock>,
     config: DiagConfig,
     runs: Mutex<Runs>,
+    /// The nodes that capture.
+    captures: Mutex<Vec<NodeId>>,
     updates: broadcast::Sender<Arc<DiagUpdate>>,
 }
 
@@ -164,6 +175,7 @@ impl Diagnostics {
                 clock,
                 config,
                 runs: Mutex::default(),
+                captures: Mutex::default(),
                 updates: broadcast::Sender::new(256),
             }),
         }

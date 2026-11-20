@@ -52,7 +52,7 @@ for image in "${images[@]}"; do
   # and every test connects from the Docker gateway's address.
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" \
     UNIWRT_FACTORY_NODE="127.0.0.1:$factory_port" \
-    cargo nextest run --locked -p uniwrt-node --test dropbear --run-ignored only --test-threads 2 \
+    cargo nextest run --locked -p uniwrt-node --test dropbear --test capture --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
   docker rm -f "$container" "$factory" >/dev/null
   container='' factory=''

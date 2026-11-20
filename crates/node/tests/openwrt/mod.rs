@@ -131,3 +131,19 @@ pub async fn next_push<T>(
         )
     })
 }
+
+/// Everything a stream prints, and how it ends.
+pub async fn drain(mut stream: uniwrt_node::ExecStream) -> (String, uniwrt_node::ExitStatus) {
+    use uniwrt_node::Output;
+
+    let mut text = String::new();
+    loop {
+        match tokio::time::timeout(Duration::from_secs(60), stream.next()).await {
+            Ok(Some(Ok(Output::Stdout(data) | Output::Stderr(data)))) => {
+                text.push_str(&String::from_utf8_lossy(&data));
+            }
+            Ok(Some(Ok(Output::Exit(status)))) => return (text, status),
+            other => panic!("{other:?} after {text}"),
+        }
+    }
+}
