@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use uniwrt_model::diag::capture::CaptureQuery;
 
@@ -53,15 +53,23 @@ fn the_capture_runs_tcpdump_with_its_filter_first() {
     assert!(CAPTURE.ends_with("exit \"$status\""));
 }
 
-/// The arguments the script hands its tool (`printf`), with `env` set and `filter` given.
+/// The arguments the script hands its tool (`printf`), with `env` set and `filter` given. Its
+/// stdin stays open until it exits, as an SSH channel's does: at its end the watchdog would end
+/// the tool, perhaps before it printed.
 fn handed(env: &[(&str, &str)], filter: &str) -> Vec<String> {
-    let output = Command::new("sh")
+    let mut child = Command::new("sh")
         .args(["-c", CAPTURE, "sh", filter, "printf", "%s\\n"])
         .env_remove("SSH_CONNECTION")
         .env_remove("SSH_CLIENT")
         .envs(env.iter().copied())
-        .output()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
+    let stdin = child.stdin.take();
+    let output = child.wait_with_output().unwrap();
+    drop(stdin);
     assert!(output.status.success(), "{output:?}");
     String::from_utf8(output.stdout)
         .unwrap()
