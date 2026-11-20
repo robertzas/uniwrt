@@ -124,19 +124,34 @@ async fn conntrack(
                 count: 0,
                 max: None,
                 truncated: false,
+                listed: true,
             }));
         }
         Err(err) => return Err(worded(&node, what, err)),
     };
-    let text = read(&api, &node, &tables::conntrack(), what).await?;
-    let connections = tables::parse_conntrack(&text);
     let (count, max) = tables::parse_count(&count);
+    let text = match run(&api, &node, &tables::conntrack()).await {
+        Ok(text) => text,
+        // A kernel built without `NF_CONNTRACK_PROCFS` counts connections but lists none.
+        Err(uniwrt_node::Error::Failed { .. }) => {
+            return Ok(Json(ConntrackTable {
+                connections: Vec::new(),
+                count,
+                max,
+                truncated: false,
+                listed: false,
+            }));
+        }
+        Err(err) => return Err(worded(&node, what, err)),
+    };
+    let connections = tables::parse_conntrack(&text);
     let read_all = text.lines().count() < MAX_CONNECTIONS;
     Ok(Json(ConntrackTable {
         truncated: !read_all && count as usize > connections.len(),
         count: count.max(u32::try_from(connections.len()).unwrap_or(u32::MAX)),
         max,
         connections,
+        listed: true,
     }))
 }
 

@@ -41,6 +41,7 @@ async fn the_gateway_s_tables_are_read() {
     let connections = table["connections"].as_array().unwrap();
     assert_ne!(connections.len(), 0);
     assert_eq!(table["count"], connections.len());
+    assert_eq!(table["listed"], true);
     assert_eq!(
         (table["max"].clone(), table["truncated"].clone()),
         (json!(16_384), json!(false))

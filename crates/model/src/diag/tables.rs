@@ -113,4 +113,7 @@ pub struct ConntrackTable {
     pub max: Option<u32>,
     /// More were tracked than read.
     pub truncated: bool,
+    /// The kernel lists its connections: one built without `NF_CONNTRACK_PROCFS` only counts
+    /// them (OpenWrt's lists them).
+    pub listed: bool,
 }

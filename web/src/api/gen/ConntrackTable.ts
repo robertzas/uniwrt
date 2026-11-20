@@ -21,4 +21,9 @@ max: number | null,
 /**
  * More were tracked than read.
  */
-truncated: boolean, };
+truncated: boolean, 
+/**
+ * The kernel lists its connections: one built without `NF_CONNTRACK_PROCFS` only counts
+ * them (OpenWrt's lists them).
+ */
+listed: boolean, };

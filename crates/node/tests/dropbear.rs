@@ -335,8 +335,8 @@ async fn the_tables_parse_as_openwrt_prints_them() {
         neighbors.lines().count(),
         "{neighbors}"
     );
-    // The containers share the host's kernel: GitHub's runners load no conntrack module, so
-    // there the count's files are missing too, as on a node whose firewall never ran.
+    // The containers share the host's kernel: GitHub's runners count connections but don't
+    // list them (no `NF_CONNTRACK_PROCFS`), and a kernel without the module has neither.
     let count = session
         .exec(&ExecRequest::new(tables::CONNTRACK_COUNT))
         .await
@@ -345,8 +345,12 @@ async fn the_tables_parse_as_openwrt_prints_them() {
         let (_, max) = tables::parse_count(&String::from_utf8_lossy(&count.stdout));
         assert!(max.is_some_and(|max| max > 0));
         let argv = tables::conntrack();
-        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
-        let connections = run(&session, &argv).await;
+        let listed = session.exec(&ExecRequest::new(argv.clone())).await.unwrap();
+        let connections = String::from_utf8_lossy(&listed.stdout);
+        assert!(
+            listed.status.success() || connections.is_empty(),
+            "{connections}"
+        );
         assert_eq!(
             tables::parse_conntrack(&connections).len(),
             connections.lines().count(),
