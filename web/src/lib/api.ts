@@ -23,6 +23,8 @@ import type { ControllerUpdates } from "../api/gen/ControllerUpdates";
 import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DecommissionBody } from "../api/gen/DecommissionBody";
+import type { DiagRun } from "../api/gen/DiagRun";
+import type { DiagRunBody } from "../api/gen/DiagRunBody";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
 import type { DnsOutcome } from "../api/gen/DnsOutcome";
 import type { DnsQueryPage } from "../api/gen/DnsQueryPage";
@@ -74,6 +76,7 @@ import type { NotifierInput } from "../api/gen/NotifierInput";
 import type { NotifierList } from "../api/gen/NotifierList";
 import type { NotifierTest } from "../api/gen/NotifierTest";
 import type { NotifierView } from "../api/gen/NotifierView";
+import type { OptionalToolStatus } from "../api/gen/OptionalToolStatus";
 import type { PackageCatalog } from "../api/gen/PackageCatalog";
 import type { PackageChanges } from "../api/gen/PackageChanges";
 import type { PassphraseBody } from "../api/gen/PassphraseBody";
@@ -572,6 +575,18 @@ export const api = {
   /** Restarts managed nodes one at a time, the gateway last: a job on the `jobs` topic; admins. */
   reboots: {
     start: (body: RebootBody) => request<Job>("/reboots", { method: "POST", body }),
+  },
+  /** The diagnostics toolkit (observability.md, Diagnostics toolkit; D-141, D-142). */
+  diag: {
+    /** The runs the controller keeps, newest first, without their lines. */
+    runs: (signal?: AbortSignal) => request<DiagRun[]>("/diag/runs", { signal }),
+    /** Starts a tool on a node (admins; audited): 202 with the run, which `diag:<id>` follows. */
+    start: (body: DiagRunBody) => request<DiagRun>("/diag/runs", { method: "POST", body }),
+    /** Stops a run (admins): the run as it is; it ends shortly. */
+    stop: (id: number) => request<DiagRun>(`/diag/runs/${id}`, { method: "DELETE" }),
+    /** Whether the node has each optional tool, read live from its package database; 409 offline. */
+    tools: (node: NodeId, signal?: AbortSignal) =>
+      request<OptionalToolStatus[]>(`/nodes/${node}/diag/tools`, { signal }),
   },
   /** Stored time series (observability.md, Metrics). */
   metrics: {
