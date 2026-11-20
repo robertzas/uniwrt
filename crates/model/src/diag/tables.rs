@@ -108,7 +108,8 @@ pub struct ConntrackTable {
     pub connections: Vec<TrackedConnection>,
     /// How many the kernel tracks.
     pub count: u32,
-    /// How many it can track (`nf_conntrack_max`).
+    /// How many it can track (`nf_conntrack_max`); none when it tracks nothing, without the
+    /// conntrack module (a node whose firewall never ran).
     pub max: Option<u32>,
     /// More were tracked than read.
     pub truncated: bool,

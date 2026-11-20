@@ -14,7 +14,8 @@ connections: Array<TrackedConnection>,
  */
 count: number, 
 /**
- * How many it can track (`nf_conntrack_max`).
+ * How many it can track (`nf_conntrack_max`); none when it tracks nothing, without the
+ * conntrack module (a node whose firewall never ran).
  */
 max: number | null, 
 /**

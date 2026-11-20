@@ -52,6 +52,13 @@ async fn node(api: &Api, id: Result<Path<i64>, PathRejection>) -> ApiResult<Node
 
 /// The stdout of `argv` on `node`.
 async fn read<S: AsRef<str>>(api: &Api, node: &Node, argv: &[S], what: &str) -> ApiResult<String> {
+    run(api, node, argv)
+        .await
+        .map_err(|err| worded(node, what, err))
+}
+
+/// The stdout of `argv` on `node`, or why it has none.
+async fn run<S: AsRef<str>>(api: &Api, node: &Node, argv: &[S]) -> uniwrt_node::Result<String> {
     let request = ExecRequest::new(argv.iter().map(AsRef::as_ref))
         .timeout(TIMEOUT)
         .max_output(MAX_OUTPUT);
@@ -59,14 +66,17 @@ async fn read<S: AsRef<str>>(api: &Api, node: &Node, argv: &[S], what: &str) -> 
         .fleet()
         .exec(node.id, request)
         .await
-        .and_then(|output| output.check(argv[0].as_ref()))
-        .map_err(|err| match err {
-            uniwrt_node::Error::Disconnected { .. } => {
-                ApiError::Conflict(format!("{} is offline", node.name))
-            }
-            other => ApiError::BadGateway(format!("Cannot read {what}: {other}")),
-        })?;
+        .and_then(|output| output.check(argv[0].as_ref()))?;
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn worded(node: &Node, what: &str, err: uniwrt_node::Error) -> ApiError {
+    match err {
+        uniwrt_node::Error::Disconnected { .. } => {
+            ApiError::Conflict(format!("{} is offline", node.name))
+        }
+        other => ApiError::BadGateway(format!("Cannot read {what}: {other}")),
+    }
 }
 
 async fn neighbors(
@@ -105,11 +115,20 @@ async fn conntrack(
 ) -> ApiResult<Json<ConntrackTable>> {
     let node = node(&api, id).await?;
     let what = "the tracked connections";
-    let argv = tables::conntrack();
-    let (text, count) = tokio::try_join!(
-        read(&api, &node, &argv, what),
-        read(&api, &node, &tables::CONNTRACK_COUNT, what),
-    )?;
+    let count = match run(&api, &node, &tables::CONNTRACK_COUNT).await {
+        Ok(count) => count,
+        // Without the conntrack module (no firewall), the kernel tracks nothing.
+        Err(uniwrt_node::Error::Failed { .. }) => {
+            return Ok(Json(ConntrackTable {
+                connections: Vec::new(),
+                count: 0,
+                max: None,
+                truncated: false,
+            }));
+        }
+        Err(err) => return Err(worded(&node, what, err)),
+    };
+    let text = read(&api, &node, &tables::conntrack(), what).await?;
     let connections = tables::parse_conntrack(&text);
     let (count, max) = tables::parse_count(&count);
     let read_all = text.lines().count() < MAX_CONNECTIONS;
