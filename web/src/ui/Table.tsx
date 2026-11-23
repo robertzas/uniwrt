@@ -6,7 +6,9 @@ import {
   type VirtualItem,
   Virtualizer,
 } from "@tanstack/virtual-core";
-import { createEffect, createSignal, For, Show, untrack } from "solid-js";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide";
+import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
+import { Icon } from "./Icon";
 
 export interface Column<T> {
   id: string;
@@ -16,6 +18,14 @@ export interface Column<T> {
   align?: "start" | "end";
   /** Width and other classes for the column's cells, e.g. "w-40". */
   class?: string;
+  /** Makes the column sortable from its header: the rows' ascending order. */
+  sort?: (a: T, b: T) => number;
+}
+
+/** The column the rows are sorted by, and which way. */
+export interface SortOrder {
+  column: string;
+  desc?: boolean;
 }
 
 export interface TableProps<T> {
@@ -30,6 +40,8 @@ export interface TableProps<T> {
   empty?: JSX.Element;
   /** Virtualizes the body above this many rows (ui.md: 200). */
   virtualizeAbove?: number;
+  /** The order at first (a column with `sort`); the rows' own order without one. */
+  sortBy?: SortOrder;
   class?: string;
 }
 
@@ -38,6 +50,20 @@ const VIRTUALIZE_ABOVE = 200;
 /** A data table with a sticky header; long tables render only the rows in view. */
 export function Table<T>(props: TableProps<T>) {
   const virtual = () => props.rows.length > (props.virtualizeAbove ?? VIRTUALIZE_ABOVE);
+  const [order, setOrder] = createSignal<SortOrder | undefined>(untrack(() => props.sortBy));
+  const rows = createMemo(() => {
+    const by = order();
+    const compare = by && props.columns.find((column) => column.id === by.column)?.sort;
+    if (!by || !compare) return props.rows;
+    return [...props.rows].sort(by.desc ? (a, b) => compare(b, a) : compare);
+  });
+  const sorted = (column: Column<T>) => {
+    const by = order();
+    if (by?.column !== column.id) return "none";
+    return by.desc ? "descending" : "ascending";
+  };
+  const toggle = (column: Column<T>) =>
+    setOrder((by) => ({ column: column.id, desc: by?.column === column.id && !by.desc }));
   return (
     <div
       class={[
@@ -53,13 +79,35 @@ export function Table<T>(props: TableProps<T>) {
               {(column) => (
                 <th
                   scope="col"
+                  aria-sort={column.sort ? sorted(column) : undefined}
                   class={[
                     "sticky top-0 z-[1] h-8 whitespace-nowrap border-edge border-b bg-surface px-4 font-medium text-fg-subtle text-xs glass:backdrop-blur-panel",
                     column.align === "end" ? "text-right" : "text-left",
                     column.class,
                   ]}
                 >
-                  {column.header}
+                  <Show when={column.sort} fallback={column.header}>
+                    <button
+                      type="button"
+                      onClick={() => toggle(column)}
+                      class={[
+                        "inline-flex items-center gap-1 rounded-control hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
+                        { "flex-row-reverse": column.align === "end" },
+                      ]}
+                    >
+                      {column.header}
+                      <Icon
+                        icon={
+                          sorted(column) === "ascending"
+                            ? ArrowUp
+                            : sorted(column) === "descending"
+                              ? ArrowDown
+                              : ChevronsUpDown
+                        }
+                        class={["size-3", { "opacity-40": sorted(column) === "none" }]}
+                      />
+                    </button>
+                  </Show>
                 </th>
               )}
             </For>
@@ -77,8 +125,8 @@ export function Table<T>(props: TableProps<T>) {
             </tbody>
           }
         >
-          <Show when={virtual()} fallback={<PlainBody {...props} />}>
-            <VirtualBody {...props} />
+          <Show when={virtual()} fallback={<PlainBody table={props} rows={rows()} />}>
+            <VirtualBody table={props} rows={rows()} />
           </Show>
         </Show>
       </table>
@@ -86,17 +134,23 @@ export function Table<T>(props: TableProps<T>) {
   );
 }
 
-function PlainBody<T>(props: TableProps<T>) {
+/** A body's rows, in the order shown, and the table they belong to. */
+interface BodyProps<T> {
+  table: TableProps<T>;
+  rows: readonly T[];
+}
+
+function PlainBody<T>(props: BodyProps<T>) {
   return (
     <tbody>
-      <For each={props.rows} keyed={props.rowKey}>
-        {(row) => <Row table={props} row={row()} />}
+      <For each={props.rows} keyed={props.table.rowKey}>
+        {(row) => <Row table={props.table} row={row()} />}
       </For>
     </tbody>
   );
 }
 
-function VirtualBody<T>(props: TableProps<T>) {
+function VirtualBody<T>(props: BodyProps<T>) {
   const [body, setBody] = createSignal<HTMLTableSectionElement>();
   const [items, setItems] = createSignal<VirtualItem[]>([]);
   const [total, setTotal] = createSignal(0);
@@ -110,7 +164,7 @@ function VirtualBody<T>(props: TableProps<T>) {
     estimateSize: () => 36,
     getItemKey: (index) => {
       const row = props.rows[index];
-      return row === undefined ? index : props.rowKey(row);
+      return row === undefined ? index : props.table.rowKey(row);
     },
     overscan: 10,
     observeElementRect,
@@ -149,7 +203,7 @@ function VirtualBody<T>(props: TableProps<T>) {
           <Show when={props.rows[item().index]}>
             {(row) => (
               <Row
-                table={props}
+                table={props.table}
                 row={row()}
                 index={item().index}
                 ref={(el) => virtualizer.measureElement(el)}

@@ -68,6 +68,43 @@ describe("Table", () => {
     });
   });
 
+  it("sorts by a sortable column's header, each way", async () => {
+    const user = userEvent.setup();
+    const sortable: Column<Node>[] = [
+      { ...columns[0], sort: (a, b) => a.name.localeCompare(b.name) } as Column<Node>,
+      { ...columns[1], sort: (a, b) => a.clients - b.clients } as Column<Node>,
+    ];
+    const rows = [
+      { id: "a", name: "ap-b", clients: 1 },
+      { id: "b", name: "ap-a", clients: 3 },
+      { id: "c", name: "ap-c", clients: 2 },
+    ];
+    render(() => (
+      <Table
+        label="Devices"
+        columns={sortable}
+        rows={rows}
+        rowKey={(n) => n.id}
+        sortBy={{ column: "clients", desc: true }}
+      />
+    ));
+    const names = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.firstElementChild?.textContent);
+    const [name, clients] = screen.getAllByRole("columnheader");
+    expect(clients).toHaveAttribute("aria-sort", "descending");
+    expect(name).toHaveAttribute("aria-sort", "none");
+    expect(names()).toEqual(["ap-a", "ap-c", "ap-b"]);
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(name).toHaveAttribute("aria-sort", "ascending");
+    expect(names()).toEqual(["ap-a", "ap-b", "ap-c"]);
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(name).toHaveAttribute("aria-sort", "descending");
+    expect(names()).toEqual(["ap-c", "ap-b", "ap-a"]);
+  });
+
   describe("virtualized", () => {
     // jsdom has no layout: give the scroll container a 400 px viewport.
     beforeEach(() => {

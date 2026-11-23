@@ -6,11 +6,13 @@ import type { NodeFacts } from "../../../api/gen/NodeFacts";
 import { api } from "../../../lib/api";
 import { LiveContext } from "../../../lib/live";
 import { SessionContext } from "../../../lib/session";
+import { CaptureCard } from "./CaptureCard";
 import { OptionalToolsCard } from "./OptionalTools";
 import { RunForm } from "./RunForm";
 import { RunOutput } from "./RunOutput";
 import { RunsCard } from "./RunsCard";
 import { createRunView } from "./run";
+import { TablesCard } from "./TablesCard";
 
 /** How often the runs are read again: often while one runs, else now and then. */
 const RUNNING_POLL_MS = 3_000;
@@ -18,8 +20,9 @@ const IDLE_POLL_MS = 15_000;
 
 /**
  * A device's Tools tab (observability.md, Diagnostics toolkit; D-141, D-142): an admin starts a
- * run, everyone follows it live over `diag:<id>` and picks among the device's recent runs; the
- * optional tools show whether they are installed, with *Install* on a managed device.
+ * run, everyone follows it live over `diag:<id>` and picks among the device's recent runs; an admin
+ * captures packets; everyone reads the device's tables; the optional tools show whether they are
+ * installed, with *Install* on a managed device.
  */
 export function ToolsTab(props: { node: Node; facts: NodeFacts | null }) {
   const session = useContext(SessionContext);
@@ -76,6 +79,13 @@ export function ToolsTab(props: { node: Node; facts: NodeFacts | null }) {
           tools={tools.data}
           onStarted={started}
         />
+        <CaptureCard
+          node={props.node}
+          facts={props.facts}
+          admin={admin()}
+          online={online()}
+          tools={tools.data}
+        />
         <OptionalToolsCard node={props.node} admin={admin()} tools={tools} />
       </div>
       <div class="flex min-w-0 flex-col gap-4 lg:col-span-3">
@@ -87,6 +97,9 @@ export function ToolsTab(props: { node: Node; facts: NodeFacts | null }) {
           admin={admin()}
         />
         <RunsCard runs={mine()} selected={shown()} onSelect={setPicked} name={name} />
+      </div>
+      <div class="min-w-0 lg:col-span-5">
+        <TablesCard node={props.node.id} />
       </div>
     </div>
   );

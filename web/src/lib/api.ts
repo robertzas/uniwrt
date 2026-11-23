@@ -11,11 +11,13 @@ import type { BatchAdoptBody } from "../api/gen/BatchAdoptBody";
 import type { BatchAdoptResult } from "../api/gen/BatchAdoptResult";
 import type { BlocklistsView } from "../api/gen/BlocklistsView";
 import type { CableEnd } from "../api/gen/CableEnd";
+import type { CaptureQuery } from "../api/gen/CaptureQuery";
 import type { Client } from "../api/gen/Client";
 import type { ClientDetail } from "../api/gen/ClientDetail";
 import type { ClientKick } from "../api/gen/ClientKick";
 import type { ClientPatch } from "../api/gen/ClientPatch";
 import type { ClientSession } from "../api/gen/ClientSession";
+import type { ConntrackTable } from "../api/gen/ConntrackTable";
 import type { ControllerBackup } from "../api/gen/ControllerBackup";
 import type { ControllerBackupStatus } from "../api/gen/ControllerBackupStatus";
 import type { ControllerUpdate } from "../api/gen/ControllerUpdate";
@@ -63,6 +65,7 @@ import type { LogSourceList } from "../api/gen/LogSourceList";
 import type { MaintenanceWindow } from "../api/gen/MaintenanceWindow";
 import type { Metric } from "../api/gen/Metric";
 import type { MetricsResponse } from "../api/gen/MetricsResponse";
+import type { NeighborEntry } from "../api/gen/NeighborEntry";
 import type { Network } from "../api/gen/Network";
 import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
@@ -102,6 +105,7 @@ import type { RfView } from "../api/gen/RfView";
 import type { RoleBody } from "../api/gen/RoleBody";
 import type { Rollout } from "../api/gen/Rollout";
 import type { RolloutBody } from "../api/gen/RolloutBody";
+import type { Route } from "../api/gen/Route";
 import type { RuleList } from "../api/gen/RuleList";
 import type { RuleSpec } from "../api/gen/RuleSpec";
 import type { RuleView } from "../api/gen/RuleView";
@@ -587,6 +591,33 @@ export const api = {
     /** Whether the node has each optional tool, read live from its package database; 409 offline. */
     tools: (node: NodeId, signal?: AbortSignal) =>
       request<OptionalToolStatus[]>(`/nodes/${node}/diag/tools`, { signal }),
+    /** The node's neighbor cache (ARP and NDP), read live; 409 offline. */
+    neighbors: (node: NodeId, signal?: AbortSignal) =>
+      request<NeighborEntry[]>(`/nodes/${node}/diag/neighbors`, { signal }),
+    /** Every routing table of both families, read live; 409 offline. */
+    routes: (node: NodeId, signal?: AbortSignal) =>
+      request<Route[]>(`/nodes/${node}/diag/routes`, { signal }),
+    /** The first 4,096 tracked connections and the kernel's count, read live; 409 offline. */
+    conntrack: (node: NodeId, signal?: AbortSignal) =>
+      request<ConntrackTable>(`/nodes/${node}/diag/conntrack`, { signal }),
+    /**
+     * Starts a packet capture (admins; audited once tcpdump runs): the answer, once tcpdump has
+     * written the file's header, streams the `.pcap` as it is captured, until a cap, tcpdump's end
+     * or the body's cancel. 400 in tcpdump's words, 409 offline, without tcpdump or capturing.
+     */
+    capture: async (node: NodeId, query: CaptureQuery, signal?: AbortSignal) => {
+      const params = new URLSearchParams({
+        interface: query.interface,
+        seconds: String(query.seconds),
+        max_mib: String(query.max_mib),
+      });
+      if (query.filter?.trim()) params.set("filter", query.filter.trim());
+      if (query.snaplen !== null) params.set("snaplen", String(query.snaplen));
+      const response = await send(`/nodes/${node}/diag/capture?${params}`, { signal });
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `capture-${node}.pcap`;
+      return { response, name };
+    },
   },
   /** Stored time series (observability.md, Metrics). */
   metrics: {
