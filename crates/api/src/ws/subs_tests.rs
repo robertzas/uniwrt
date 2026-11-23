@@ -111,6 +111,18 @@ impl Fleet for FakeFleet {
         })
     }
 
+    fn terminal(
+        &self,
+        _: uniwrt_core::NodeId,
+        _: uniwrt_node::PtySize,
+    ) -> uniwrt_engine::TerminalStart<'_> {
+        Box::pin(async {
+            Err(uniwrt_node::Error::Disconnected {
+                what: "a terminal".to_owned(),
+            })
+        })
+    }
+
     fn tailscale(
         &self,
         _: uniwrt_core::NodeId,

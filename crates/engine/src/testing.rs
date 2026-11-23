@@ -13,7 +13,7 @@ use uniwrt_core::{MacAddr, Timestamp};
 use uniwrt_model::node::NodeRole;
 use uniwrt_node::{
     AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, ExitStatus, Hello,
-    LinkState, NodeLink, Result,
+    LinkState, NodeLink, PtySize, Result, Terminal,
     proto::{
         AgentCaps,
         ops::{Set, Topic},
@@ -264,6 +264,10 @@ impl NodeLink for SharedLink {
     }
 
     fn stream(&self, _argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send {
+        std::future::ready(Err(down()))
+    }
+
+    fn terminal(&self, _size: PtySize) -> impl Future<Output = Result<Terminal>> + Send {
         std::future::ready(Err(down()))
     }
 

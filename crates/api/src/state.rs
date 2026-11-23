@@ -136,6 +136,8 @@ struct Inner {
     blocklist: Option<Blocklist>,
     /// The diagnostics toolkit's runs (D-141).
     diag: Diagnostics,
+    /// The open terminals (D-141).
+    terminals: crate::terminal::Terminals,
     asu: Option<Asu>,
     uploads: Option<Uploads>,
     github: Option<GitHub>,
@@ -202,6 +204,7 @@ impl Api {
                 bans: config.bans,
                 blocklist: config.blocklist,
                 diag,
+                terminals: crate::terminal::Terminals::default(),
                 asu: config.asu,
                 uploads: config.uploads,
                 github: config.github,
@@ -289,6 +292,10 @@ impl Api {
 
     pub(crate) fn diag(&self) -> &Diagnostics {
         &self.inner.diag
+    }
+
+    pub(crate) fn terminals(&self) -> &crate::terminal::Terminals {
+        &self.inner.terminals
     }
 
     pub(crate) fn now(&self) -> Timestamp {

@@ -2,7 +2,7 @@
 //! event-loop agent does (`collect`, `subscribe`/`unsubscribe`, `set_interval`, `log_follow`,
 //! `ping`, `scan`), keeps what they asked for in the node's [`Session`], runs only the commands
 //! the jobs and services run (`render::commands`), streams only the diagnostics toolkit's
-//! (`diag`), and takes uploads to `/tmp` only.
+//! (`diag`), opens terminals on a pretend shell (`terminal`), and takes uploads to `/tmp` only.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,7 +16,7 @@ use serde_json::{Value, json, value::RawValue};
 use tokio::sync::{broadcast, watch};
 use uniwrt_node::{
     AgentEvent, AgentState, Error, ExecOutput, ExecRequest, ExecStream, LinkState, NodeLink,
-    Result,
+    PtySize, Result, Terminal,
     proto::ops::{LogFollow, LogMode, NeighborReport, Set, SetInterval, Topic},
 };
 
@@ -29,6 +29,7 @@ mod backhaul;
 mod diag;
 mod port;
 mod steering;
+mod terminal;
 
 /// A simulated node's link. Clones share it.
 #[derive(Clone)]
@@ -522,6 +523,28 @@ impl NodeLink for SimLink {
             })
         };
         std::future::ready(stream)
+    }
+
+    fn terminal(&self, size: PtySize) -> impl Future<Output = Result<Terminal>> + Send {
+        let terminal = if self.running() {
+            let world = self.shared.world();
+            let node = &world.nodes[self.node];
+            let host = terminal::Host {
+                name: node.name.clone(),
+                version: node.release.version,
+                revision: node.release.revision,
+                kernel: node.release.kernel,
+                arch: node.model.arch,
+                target: node.model.target,
+            };
+            drop(world);
+            Ok(terminal::open(host, size))
+        } else {
+            Err(Error::Disconnected {
+                what: "a terminal".to_owned(),
+            })
+        };
+        std::future::ready(terminal)
     }
 
     fn upload(

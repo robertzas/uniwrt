@@ -123,6 +123,9 @@ pub enum AuditAction {
     /// An admin ran a diagnostics tool on a node (the detail names the tool, its target, the
     /// node and the run; D-141).
     Diagnostics,
+    /// An admin opened a terminal on a node, or it closed (the detail names the node, and how
+    /// long it was open and why it closed; keystrokes aren't recorded; D-141).
+    Terminal,
 }
 
 /// One audit log entry.

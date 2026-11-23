@@ -7,7 +7,8 @@
 //!   confirm its fingerprint before it is pinned); [`banner`] (an SSH server's version line, read
 //!   without a handshake, for discovery, directly or through a jump session); [`Session`] (one authenticated connection,
 //!   direct or through a jump session over `direct-tcpip`) with [`Session::exec`],
-//!   [`Session::stream`] and [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
+//!   [`Session::stream`], [`Session::terminal`] (a login shell on a pseudo-terminal, D-141) and
+//!   [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
 //!   agent's stdio, see [`proto`]); [`proto::ops`] (the typed ops, sent with
 //!   [`NodeLink::request`]); [`Bundle`] (`node-agent/`, installed by hash into
 //!   `/tmp/uniwrt/agent`); [`facts`] (collect sets parsed into `model::facts`); [`events`] (the
@@ -79,7 +80,7 @@ pub mod ztp;
 pub use agent::{Agent, HELLO_TIMEOUT};
 pub use bundle::Bundle;
 pub use error::{Error, Result};
-pub use exec::{ExecOutput, ExecRequest, ExecStream, ExitStatus, Output};
+pub use exec::{ExecOutput, ExecRequest, ExecStream, ExitStatus, Output, PtySize, Terminal};
 pub use host_key::HostKey;
 pub use key::{AUTHORIZED_KEY_COMMENT, ControllerKey};
 pub use link::{AgentState, LinkState, NodeLink};

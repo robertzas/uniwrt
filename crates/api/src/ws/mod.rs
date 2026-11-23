@@ -13,7 +13,7 @@
 //!   an `Origin`, when sent, is ours. The session is checked again every minute; when it ends
 //!   the connection closes with code 4401. Client messages are at most 16 KiB.
 
-mod conn;
+pub(crate) mod conn;
 mod message;
 mod subs;
 mod subs_alerts;

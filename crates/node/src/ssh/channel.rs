@@ -5,14 +5,18 @@
 use std::sync::Arc;
 
 use russh::{
-    ChannelMsg, ChannelReadHalf, ChannelWriteHalf,
+    Channel, ChannelMsg, ChannelReadHalf, ChannelWriteHalf,
     client::{Handle, Msg},
 };
+use tokio::sync::watch;
 
 use super::client::Client;
 use crate::{
     Error, Result,
-    exec::{self, ExecStream, ExitStatus, Output, OutputSink, STREAM_BUDGET, StdinSource},
+    exec::{
+        self, ExecStream, ExitStatus, Output, OutputSink, PtySize, STREAM_BUDGET, StdinSource,
+        TERM, Terminal,
+    },
 };
 
 /// Starts `command` on a new channel. `what` names it in errors.
@@ -49,6 +53,75 @@ pub(super) async fn open(
     tokio::spawn(feed_stdin(source.stdin, Arc::clone(&write)));
     tokio::spawn(drain(read, first, source.output, write));
     Ok(stream)
+}
+
+/// Starts a login shell on a pseudo-terminal of `size` on a new channel. `what` names it in
+/// errors.
+pub(super) async fn shell(
+    handle: &Handle<Client>,
+    target: &str,
+    size: PtySize,
+    what: String,
+) -> Result<Terminal> {
+    let mut channel = handle
+        .channel_open_session()
+        .await
+        .map_err(|err| Error::ssh(target, err))?;
+    let (cols, rows) = (u32::from(size.cols), u32::from(size.rows));
+    channel
+        .request_pty(true, TERM, cols, rows, 0, 0, &[])
+        .await
+        .map_err(|err| Error::ssh(target, err))?;
+    granted(&mut channel, &what, "a terminal").await?;
+    channel
+        .request_shell(true)
+        .await
+        .map_err(|err| Error::ssh(target, err))?;
+    let first = granted(&mut channel, &what, "a shell").await?;
+    let (read, write) = channel.split();
+    let (terminal, source) = exec::terminal_pipe(what, STREAM_BUDGET, size);
+    let write = Arc::new(write);
+    tokio::spawn(feed_stdin(source.stdin, Arc::clone(&write)));
+    tokio::spawn(follow_size(source.size, Arc::clone(&write)));
+    tokio::spawn(drain(read, first, source.output, write));
+    Ok(terminal)
+}
+
+/// Waits for the node's answer to a request. A message other than an answer means it was
+/// granted (as an exec request's output may come first), and is handed back.
+async fn granted(
+    channel: &mut Channel<Msg>,
+    what: &str,
+    asked: &str,
+) -> Result<Option<ChannelMsg>> {
+    loop {
+        return match channel.wait().await {
+            Some(ChannelMsg::Success) => Ok(None),
+            Some(ChannelMsg::WindowAdjusted { .. }) => continue,
+            Some(ChannelMsg::Failure) => Err(Error::Failed {
+                what: what.to_owned(),
+                status: ExitStatus::Unknown,
+                stderr: format!("the node refused {asked}"),
+            }),
+            None => Err(Error::Disconnected {
+                what: what.to_owned(),
+            }),
+            other => Ok(other),
+        };
+    }
+}
+
+/// Tells the node each new window size. Once the [`Terminal`] is dropped, closes the channel:
+/// the node hangs its shell up.
+async fn follow_size(mut size: watch::Receiver<PtySize>, channel: Arc<ChannelWriteHalf<Msg>>) {
+    while size.changed().await.is_ok() {
+        let PtySize { cols, rows } = *size.borrow_and_update();
+        let change = channel.window_change(u32::from(cols), u32::from(rows), 0, 0);
+        if change.await.is_err() {
+            return;
+        }
+    }
+    let _ = channel.close().await;
 }
 
 async fn feed_stdin(mut stdin: StdinSource, channel: Arc<ChannelWriteHalf<Msg>>) {

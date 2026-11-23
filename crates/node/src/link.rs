@@ -10,7 +10,7 @@ use uniwrt_core::Timestamp;
 
 use crate::{
     Error, HostKey, Result,
-    exec::{ExecOutput, ExecRequest, ExecStream},
+    exec::{ExecOutput, ExecRequest, ExecStream, PtySize, Terminal},
     proto::{AgentEvent, Hello, ops::Op},
 };
 
@@ -46,6 +46,9 @@ pub trait NodeLink: Send + Sync + 'static {
 
     /// Starts a long-running command.
     fn stream(&self, argv: Vec<String>) -> impl Future<Output = Result<ExecStream>> + Send;
+
+    /// Starts a login shell on a pseudo-terminal ([`Session::terminal`](crate::Session::terminal)).
+    fn terminal(&self, size: PtySize) -> impl Future<Output = Result<Terminal>> + Send;
 
     /// Writes a file atomically.
     fn upload(&self, path: &str, data: Bytes, mode: u32)

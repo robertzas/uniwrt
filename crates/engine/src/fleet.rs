@@ -8,7 +8,7 @@ use uniwrt_clients::{Client, Detail};
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::client::ClientRecord;
 use uniwrt_node::{
-    ExecOutput, ExecRequest, ExecStream, NodeLink,
+    ExecOutput, ExecRequest, ExecStream, NodeLink, PtySize, Terminal,
     proto::ops::{Tailscale, TailscaleAnswer},
 };
 use uniwrt_topo::Topology;
@@ -45,6 +45,9 @@ pub trait Fleet: Send + Sync + 'static {
     /// Starts a long-running command on `node` over its link ([`NodeLink::stream`]); a node
     /// the engine doesn't watch is disconnected.
     fn stream(&self, node: NodeId, argv: Vec<String>) -> Stream<'_>;
+    /// Starts a login shell on a pseudo-terminal of `size` on `node` over its link
+    /// ([`NodeLink::terminal`], D-141); a node the engine doesn't watch is disconnected.
+    fn terminal(&self, node: NodeId, size: PtySize) -> TerminalStart<'_>;
     /// Sends the `tailscale` op to `node` (D-140), waiting up to [`crate::TAILSCALE_TIMEOUT`];
     /// a node the engine doesn't watch is disconnected.
     fn tailscale(&self, node: NodeId, request: Tailscale) -> TailscaleCall<'_>;
@@ -56,6 +59,10 @@ pub type TailscaleCall<'a> =
 
 /// What [`Fleet::stream`] answers.
 pub type Stream<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecStream>> + Send + 'a>>;
+
+/// What [`Fleet::terminal`] answers.
+pub type TerminalStart<'a> =
+    Pin<Box<dyn Future<Output = uniwrt_node::Result<Terminal>> + Send + 'a>>;
 
 /// What [`Fleet::exec`] answers.
 pub type Exec<'a> = Pin<Box<dyn Future<Output = uniwrt_node::Result<ExecOutput>> + Send + 'a>>;
@@ -125,6 +132,18 @@ impl<L: NodeLink> Fleet for Engine<L> {
                 Some(link) => link.stream(argv).await,
                 None => Err(uniwrt_node::Error::Disconnected {
                     what: argv.first().cloned().unwrap_or_default(),
+                }),
+            }
+        })
+    }
+
+    fn terminal(&self, node: NodeId, size: PtySize) -> TerminalStart<'_> {
+        let link = self.link(node);
+        Box::pin(async move {
+            match link {
+                Some(link) => link.terminal(size).await,
+                None => Err(uniwrt_node::Error::Disconnected {
+                    what: "a terminal".to_owned(),
                 }),
             }
         })

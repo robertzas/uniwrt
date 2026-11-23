@@ -1,6 +1,7 @@
 //! Running commands on a node: one-shot [`ExecRequest`]s and long-lived [`ExecStream`]s.
 
 mod stream;
+mod terminal;
 
 use std::{fmt, time::Duration};
 
@@ -9,6 +10,7 @@ use bytes::Bytes;
 pub use self::stream::{
     ExecStream, Output, OutputSink, Outputs, Stdin, StdinSource, StreamSource, pipe,
 };
+pub use self::terminal::{PtySize, TERM, Terminal, TerminalSource, terminal_pipe};
 use crate::{Error, Result};
 
 /// How long a one-shot command may run unless the request says otherwise.

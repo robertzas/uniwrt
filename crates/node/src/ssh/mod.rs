@@ -23,7 +23,7 @@ pub use self::banner::banner;
 use self::client::Client;
 use crate::{
     ControllerKey, Error, HostKey, Result,
-    exec::{self, ExecOutput, ExecRequest, ExecStream},
+    exec::{self, ExecOutput, ExecRequest, ExecStream, PtySize, Terminal},
     shell,
 };
 
@@ -228,6 +228,14 @@ impl Session {
             self.0.name
         );
         channel::open(&self.0.handle, &self.0.name, command, what).await
+    }
+
+    /// Starts root's login shell on a pseudo-terminal of `size` (`$TERM` is
+    /// [`TERM`](exec::TERM)), as `ssh` without a command does. Dropping the terminal closes the
+    /// channel, which hangs the shell up.
+    pub async fn terminal(&self, size: PtySize) -> Result<Terminal> {
+        let what = format!("a terminal on {}", self.0.name);
+        channel::shell(&self.0.handle, &self.0.name, size, what).await
     }
 
     /// Writes `data` to the absolute `path` with permission bits `mode`. It goes to a temporary

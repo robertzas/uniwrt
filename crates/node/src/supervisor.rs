@@ -22,7 +22,7 @@ use crate::{
     Agent, Bundle, Credential, Error, HostKey, Result, Session, SshConfig, Target,
     agent::HELLO_TIMEOUT,
     backoff::{Backoff, random_seed},
-    exec::{ExecOutput, ExecRequest, ExecStream},
+    exec::{ExecOutput, ExecRequest, ExecStream, PtySize, Terminal},
     link::{AgentState, LinkState, NodeLink},
     proto::AgentEvent,
 };
@@ -208,6 +208,10 @@ impl NodeLink for SshLink {
 
     async fn stream(&self, argv: Vec<String>) -> Result<ExecStream> {
         self.session_or_down()?.stream(&argv).await
+    }
+
+    async fn terminal(&self, size: PtySize) -> Result<Terminal> {
+        self.session_or_down()?.terminal(size).await
     }
 
     async fn upload(&self, path: &str, data: Bytes, mode: u32) -> Result<()> {

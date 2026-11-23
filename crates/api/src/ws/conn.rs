@@ -24,9 +24,9 @@ use crate::{Api, auth::session};
 /// How often pending changes go out: at most 10 deltas per second per topic.
 pub(crate) const FLUSH_EVERY: Duration = Duration::from_millis(100);
 /// How often the server pings; browsers answer on their own.
-const PING_EVERY: Duration = Duration::from_secs(30);
+pub(crate) const PING_EVERY: Duration = Duration::from_secs(30);
 /// A peer heard from for this long is gone.
-const SILENCE_LIMIT: Duration = Duration::from_secs(75);
+pub(crate) const SILENCE_LIMIT: Duration = Duration::from_secs(75);
 /// How often the session is checked: a logout or expiry closes the connection this soon.
 pub(crate) const SESSION_CHECK_EVERY: Duration = Duration::from_mins(1);
 /// A send that takes longer means a stalled peer.
@@ -34,7 +34,7 @@ const SEND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Close codes: the session ended (log in again), and the controller is going away.
 pub(crate) const CLOSE_SESSION_ENDED: u16 = 4401;
-const CLOSE_GOING_AWAY: u16 = 1001;
+pub(crate) const CLOSE_GOING_AWAY: u16 = 1001;
 const STOPPING: &str = "the controller is stopping";
 
 /// Serves the connection of the session whose token hashes to `session_sha256`.
@@ -153,7 +153,7 @@ async fn serve(
 }
 
 /// An interval whose first tick is one period away, and which skips ticks it missed.
-fn interval(period: Duration) -> time::Interval {
+pub(crate) fn interval(period: Duration) -> time::Interval {
     let mut interval = time::interval_at(Instant::now() + period, period);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
     interval
@@ -176,7 +176,7 @@ async fn send_all(socket: &mut WebSocket, messages: Vec<ServerMessage>) -> Resul
     Ok(())
 }
 
-async fn send(socket: &mut WebSocket, message: Message) -> Result<(), ()> {
+pub(crate) async fn send(socket: &mut WebSocket, message: Message) -> Result<(), ()> {
     match time::timeout(SEND_TIMEOUT, socket.send(message)).await {
         Ok(Ok(())) => Ok(()),
         Ok(Err(err)) => {

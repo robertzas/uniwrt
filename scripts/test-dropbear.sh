@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each
 # OpenWrt rootfs image, starts a container with a random root password and one without (factory
-# defaults) and runs crates/node/tests/{dropbear,capture,iperf3}.rs against them (iperf3's also
+# defaults) and runs crates/node/tests/{dropbear,capture,iperf3,pty}.rs against them (iperf3's also
 # runs the image's iperf3 on the host's network, against the controller's server on loopback). Usage: scripts/test-dropbear.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -53,7 +53,7 @@ for image in "${images[@]}"; do
   # and every test connects from the Docker gateway's address.
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" \
     UNIWRT_FACTORY_NODE="127.0.0.1:$factory_port" UNIWRT_IMAGE="$image" \
-    cargo nextest run --locked -p uniwrt-node --test dropbear --test capture --test iperf3 --run-ignored only --test-threads 2 \
+    cargo nextest run --locked -p uniwrt-node --test dropbear --test capture --test iperf3 --test pty --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
   docker rm -f "$container" "$factory" >/dev/null
   container='' factory=''

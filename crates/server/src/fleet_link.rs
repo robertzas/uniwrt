@@ -7,7 +7,8 @@ use bytes::Bytes;
 use serde_json::value::RawValue;
 use tokio::sync::{broadcast, watch};
 use uniwrt_node::{
-    AgentEvent, ExecOutput, ExecRequest, ExecStream, LinkState, NodeLink, Result, SshLink,
+    AgentEvent, ExecOutput, ExecRequest, ExecStream, LinkState, NodeLink, PtySize, Result, SshLink,
+    Terminal,
 };
 use uniwrt_sim::SimLink;
 
@@ -44,6 +45,13 @@ impl NodeLink for FleetLink {
         match self {
             Self::Ssh(link) => link.stream(argv).await,
             Self::Sim(link) => link.stream(argv).await,
+        }
+    }
+
+    async fn terminal(&self, size: PtySize) -> Result<Terminal> {
+        match self {
+            Self::Ssh(link) => link.terminal(size).await,
+            Self::Sim(link) => link.terminal(size).await,
         }
     }
 

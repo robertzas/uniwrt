@@ -44,6 +44,8 @@ struct Shared {
     sessions: Mutex<Vec<server::Handle>>,
     logins: AtomicUsize,
     refuse: AtomicBool,
+    /// Shells whose channel the client closed.
+    hangups: AtomicUsize,
 }
 
 impl TestServer {
@@ -100,6 +102,11 @@ impl TestServer {
                 .disconnect(Disconnect::ByApplication, "bye".to_owned(), "en".to_owned())
                 .await;
         }
+    }
+
+    /// Shells hung up so far (their channel closed by the client).
+    pub fn hangups(&self) -> usize {
+        self.shared.hangups.load(Ordering::SeqCst)
     }
 
     /// While set, connections are closed before the handshake.
@@ -197,7 +204,7 @@ impl server::Handler for Connection {
         _: &mut Session,
     ) -> Result<(), Self::Error> {
         reply.accept().await;
-        tokio::spawn(serve(channel));
+        tokio::spawn(serve(channel, Arc::clone(&self.shared)));
         Ok(())
     }
 
@@ -205,6 +212,29 @@ impl server::Handler for Connection {
         &mut self,
         channel: ChannelId,
         _: &[u8],
+        session: &mut Session,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
+        ready(session.channel_success(channel))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn pty_request(
+        &mut self,
+        channel: ChannelId,
+        _: &str,
+        _: u32,
+        _: u32,
+        _: u32,
+        _: u32,
+        _: &[(russh::Pty, u32)],
+        session: &mut Session,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
+        ready(session.channel_success(channel))
+    }
+
+    fn shell_request(
+        &mut self,
+        channel: ChannelId,
         session: &mut Session,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         ready(session.channel_success(channel))
@@ -235,11 +265,21 @@ impl server::Handler for Connection {
     }
 }
 
-async fn serve(mut channel: Channel<Msg>) {
+async fn serve(mut channel: Channel<Msg>, shared: Arc<Shared>) {
+    let mut pty = None;
     let command = loop {
         match channel.wait().await {
             Some(ChannelMsg::Exec { command, .. }) => {
                 break String::from_utf8_lossy(&command).into_owned();
+            }
+            Some(ChannelMsg::RequestPty {
+                term,
+                col_width,
+                row_height,
+                ..
+            }) => pty = Some((term, col_width, row_height)),
+            Some(ChannelMsg::RequestShell { .. }) => {
+                return fake_shell(channel, pty, &shared).await;
             }
             Some(_) => {}
             None => return,
@@ -295,6 +335,42 @@ async fn sh(channel: Channel<Msg>, command: &str) {
         }
         // The client closed the channel: the child is killed as it drops.
         () = feed => {}
+    }
+}
+
+/// A shell on a pretend terminal: says its terminal type and size, echoes what it is sent, says
+/// each new size, and exits with 5 on `exit\r`. A channel the client closes counts as a hangup.
+async fn fake_shell(channel: Channel<Msg>, pty: Option<(String, u32, u32)>, shared: &Shared) {
+    let (mut read, write) = channel.split();
+    let hello = match pty {
+        Some((term, cols, rows)) => format!("pty {term} {cols}x{rows}\r\n$ "),
+        None => "no pty\r\n$ ".to_owned(),
+    };
+    let _ = write.data_bytes(hello).await;
+    loop {
+        match read.wait().await {
+            Some(ChannelMsg::Data { data }) if &data[..] == b"exit\r" => {
+                finish(&write, 5).await;
+                return;
+            }
+            Some(ChannelMsg::Data { data }) => {
+                let _ = write.data_bytes(data).await;
+            }
+            Some(ChannelMsg::WindowChange {
+                col_width,
+                row_height,
+                ..
+            }) => {
+                let _ = write
+                    .data_bytes(format!("size {col_width}x{row_height}\r\n"))
+                    .await;
+            }
+            Some(ChannelMsg::Close) | None => {
+                shared.hangups.fetch_add(1, Ordering::SeqCst);
+                return;
+            }
+            Some(_) => {}
+        }
     }
 }
 
