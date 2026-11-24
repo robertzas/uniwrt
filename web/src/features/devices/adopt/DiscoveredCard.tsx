@@ -34,6 +34,8 @@ export interface DiscoveredCardProps {
   onAdopt: (host: string) => void;
   /** Opens batch adoption for the selected devices. */
   onAdoptMany: (nodes: Discovered[]) => void;
+  /** Only admins adopt (D-146): viewers see the devices without the controls. */
+  admin: boolean;
 }
 
 /** A device can join a batch once it has an address and a host key, and is not being adopted. */
@@ -134,6 +136,7 @@ export function DiscoveredCard(props: DiscoveredCardProps) {
                 selected={selected().includes(node().mac)}
                 onSelect={(on) => toggle(node().mac, on)}
                 onAdopt={props.onAdopt}
+                admin={props.admin}
               />
             )}
           </For>
@@ -150,19 +153,22 @@ function Row(props: {
   selected: boolean;
   onSelect: (on: boolean) => void;
   onAdopt: (host: string) => void;
+  admin: boolean;
 }) {
   const name = () => discoveredName(props.node);
   const adopting = () => (props.node.ip ? adoptionOf(props.jobs, props.node.ip) : undefined);
   const sources = () => props.node.sources.map((source) => d.source[source]).join(", ");
   return (
     <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
-      <Checkbox
-        label={d.select(name())}
-        hideLabel
-        checked={props.selected && selectable(props.node, props.jobs)}
-        onChange={props.onSelect}
-        disabled={!selectable(props.node, props.jobs)}
-      />
+      <Show when={props.admin}>
+        <Checkbox
+          label={d.select(name())}
+          hideLabel
+          checked={props.selected && selectable(props.node, props.jobs)}
+          onChange={props.onSelect}
+          disabled={!selectable(props.node, props.jobs)}
+        />
+      </Show>
       <div class="flex min-w-48 flex-1 items-center gap-2.5">
         <Icon icon={Radar} class="size-4 shrink-0 text-fg-subtle" />
         <div class="min-w-0">
@@ -218,7 +224,7 @@ function Row(props: {
             </Badge>
           }
         >
-          <Show when={props.node.ip}>
+          <Show when={props.admin ? props.node.ip : undefined}>
             {(ip) => (
               <Button size="sm" onClick={() => props.onAdopt(ip())}>
                 {d.adopt}

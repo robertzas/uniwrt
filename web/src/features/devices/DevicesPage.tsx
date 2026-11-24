@@ -88,6 +88,8 @@ export function DevicesPage() {
   const [jobs, addJobs] = createJobsView(live);
   const [batch, setBatch] = createSignal<Discovered[]>();
   const session = useContext(SessionContext);
+  /** Only admins adopt (D-146). */
+  const admin = () => session.user.role === "admin";
   /** Admins see the import banner while the site is still the defaults (D-073). */
   const stillDefaults = () =>
     session.user.role === "admin" &&
@@ -100,9 +102,11 @@ export function DevicesPage() {
     if (params.adopt) setParams({ adopt: undefined, host: undefined }, { replace: true });
   };
   const adoptButton = () => (
-    <Button size="sm" variant="primary" icon={Plus} onClick={() => openAdopt()}>
-      {strings.adopt.open}
-    </Button>
+    <Show when={admin()}>
+      <Button size="sm" variant="primary" icon={Plus} onClick={() => openAdopt()}>
+        {strings.adopt.open}
+      </Button>
+    </Show>
   );
   const [rebooting, setRebooting] = createSignal(false);
   createEffect(
@@ -171,14 +175,14 @@ export function DevicesPage() {
             />
           </Card>
           {/* Below the list, so that it appearing never moves the rows. */}
-          <DiscoveredCard jobs={jobs} onAdopt={openAdopt} onAdoptMany={setBatch} />
+          <DiscoveredCard jobs={jobs} onAdopt={openAdopt} onAdoptMany={setBatch} admin={admin()} />
           <Show when={session.user.role === "admin"}>
             <ZtpCard jobs={jobs} addJob={(job) => addJobs([job])} />
           </Show>
         </Show>
       </Show>
       <AdoptDialog
-        open={params.adopt === "1"}
+        open={params.adopt === "1" && admin()}
         onOpenChange={(open) => {
           if (!open) closeAdopt();
         }}

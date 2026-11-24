@@ -272,3 +272,19 @@ async fn adopted_nodes_are_not_discovered_and_nothing_is_probed_without_a_dial()
     .await;
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn only_admins_adopt() {
+    use uniwrt_model::user::Role;
+    use uniwrt_store::UserRepo as _;
+
+    let demo = Demo::start().await;
+    let (mut user, _) = demo.store.credentials("admin").await.unwrap().unwrap();
+    assert!(super::adopter(crate::CurrentUser { user: user.clone() }).is_ok());
+    user.role = Role::Viewer;
+    let refused = super::adopter(crate::CurrentUser { user }).unwrap_err();
+    assert!(
+        matches!(refused, crate::ApiError::Forbidden(_)),
+        "{refused:?}"
+    );
+}

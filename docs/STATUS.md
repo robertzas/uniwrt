@@ -6,8 +6,6 @@
 
 ## Open questions for the owner
 
-- Restrict adoption (`POST v1/adopt`, `v1/adopt/batch`) to admins? Found in M9.0a; recommended: admins only, the probe left open. Asked 2026-11-24, unanswered.
-
 - Router models and OpenWrt versions of the gateway and the 3 nodes, and the mesh/backhaul setup (batman? 802.11s? wired?). Captures from them would complement the hwsim fixtures. Also: open options O-4 and O-6 … O-9 in `docs/DECISIONS.md` (O-1 became D-077, O-2 D-090, O-3 D-095, O-5 D-046). Defaults apply until the owner decides.
 
 ## Environment notes (owner's machine)

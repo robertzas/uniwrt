@@ -69,12 +69,14 @@ describe("commands", () => {
     expect(navigate).toHaveBeenCalledWith("/devices/2");
   });
 
-  it("opens the adoption wizard", () => {
+  it("opens the adoption wizard, for admins only", () => {
     const navigate = vi.fn();
-    const [command] = filterCommands(appCommands({ navigate }), "adopt");
+    const [command] = filterCommands(appCommands({ navigate, admin: true }), "adopt");
     expect(command?.id).toBe("devices:adopt");
     command?.run();
     expect(navigate).toHaveBeenCalledWith("/devices?adopt=1");
+    const ids = appCommands({ navigate, admin: false }).map((c) => c.id);
+    expect(ids).not.toContain("devices:adopt");
   });
 
   it("offers admins the first-run wizard until a gateway is adopted", () => {

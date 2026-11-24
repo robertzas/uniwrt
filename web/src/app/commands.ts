@@ -55,14 +55,18 @@ export function appCommands(context: CommandContext): Command[] {
       keywords: item.description,
       run: () => navigate(item.path),
     })),
-    {
-      id: "devices:adopt",
-      group: p.groups.devices,
-      label: p.adopt,
-      icon: Plus,
-      keywords: "add new router access point openwrt ssh discovered",
-      run: () => navigate("/devices?adopt=1"),
-    },
+    ...(context.admin
+      ? [
+          {
+            id: "devices:adopt",
+            group: p.groups.devices,
+            label: p.adopt,
+            icon: Plus,
+            keywords: "add new router access point openwrt ssh discovered",
+            run: () => navigate("/devices?adopt=1"),
+          },
+        ]
+      : []),
     ...(context.admin && context.devices && !context.devices.some((n) => n.role === "gateway")
       ? [
           {

@@ -12,13 +12,13 @@ import { metricsAnswer } from "../../test/metrics";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { revisionMeta } from "../../test/site";
 
-function renderAt(path: string) {
+function renderAt(path: string, role: "admin" | "viewer" = "admin") {
   const { socket, ws } = openTestSocket();
   const history = memoryHistory(path);
   const Router = createAppRouter(history);
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
-      <SignedInProviders socket={socket}>
+      <SignedInProviders socket={socket} role={role}>
         <Router>{(props) => <Shell>{props.children}</Shell>}</Router>
       </SignedInProviders>
     </QueryClientProvider>
@@ -167,6 +167,15 @@ describe("Devices", () => {
     const { ws } = renderAt("/devices");
     sendFleet(ws, []);
     await screen.findByRole("heading", { name: "No devices yet" });
+    expect(screen.getByRole("button", { name: "Adopt device" })).toBeTruthy();
+  });
+
+  it("offers adoption to admins only (D-146)", async () => {
+    const { ws } = renderAt("/devices?adopt=1", "viewer");
+    sendFleet(ws, [summary(1, "gateway", { role: "gateway" })]);
+    await screen.findByText("gateway");
+    expect(screen.queryByRole("button", { name: "Adopt device" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows a device's stats, radios and clients, and follows its deltas", async () => {

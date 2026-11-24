@@ -2,7 +2,7 @@
 //! node's host key for the user to confirm, and `POST /api/v1/adopt` starts adopting the node
 //! with that key, answering 202 with the job, which `GET /api/v1/jobs/{id}` and the WS hub's
 //! `jobs` topic follow. `POST /api/v1/adopt/batch` adopts several with one password
-//! ([`batch`]).
+//! ([`batch`]). Adopting needs an admin ([`adopter`], D-146); probing is open to every role.
 
 use axum::{
     Json,
@@ -16,7 +16,7 @@ use uniwrt_jobs::AdoptRequest;
 use uniwrt_model::{
     job::Job,
     node::NodeRole,
-    user::{AuditAction, AuditEntry, User},
+    user::{AuditAction, AuditEntry, Role, User},
 };
 use uniwrt_node::{HostKey, Target};
 use uniwrt_store::AuditRepo as _;
@@ -118,6 +118,7 @@ pub(crate) async fn adopt(
     client: Client,
     body: Result<Json<AdoptBody>, JsonRejection>,
 ) -> ApiResult<Response> {
+    let user = adopter(user)?;
     let Json(body) = body?;
     let password = password(body.password)?;
     let remember_password = remember(body.remember_password, password.as_ref())?;
@@ -134,7 +135,6 @@ pub(crate) async fn adopt(
         port: None,
         replace: None,
     };
-    let user = user.user;
     let job = api
         .jobs()
         .adopt(request, Some(user.id))
@@ -148,6 +148,14 @@ pub(crate) async fn adopt(
         Json(job),
     )
         .into_response())
+}
+
+/// The user, if an admin: adopting changes the fleet, so viewers can't (D-146).
+pub(crate) fn adopter(user: CurrentUser) -> ApiResult<User> {
+    if user.user.role != Role::Admin {
+        return Err(ApiError::Forbidden("Only admins adopt devices".to_owned()));
+    }
+    Ok(user.user)
 }
 
 /// Records who started adopting a node, from where, and whether its release check was

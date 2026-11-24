@@ -15,7 +15,7 @@ use ts_rs::TS;
 use uniwrt_jobs::AdoptRequest;
 use uniwrt_model::{job::Job, node::NodeRole};
 
-use super::{SSH_PORT, audit, display_name, host_key, password, remember, target};
+use super::{SSH_PORT, adopter, audit, display_name, host_key, password, remember, target};
 use crate::{Api, ApiError, ApiResult, Client, CurrentUser, jobs::jobs_error};
 
 /// The most nodes in one batch.
@@ -85,6 +85,7 @@ pub(crate) async fn adopt(
     client: Client,
     body: Result<Json<BatchAdoptBody>, JsonRejection>,
 ) -> ApiResult<(StatusCode, Json<BatchAdoptResult>)> {
+    let user = adopter(user)?;
     let Json(body) = body?;
     if !(1..=MAX_NODES).contains(&body.nodes.len()) {
         return Err(ApiError::BadRequest(format!(
@@ -130,7 +131,6 @@ pub(crate) async fn adopt(
     if !api.jobs().can_adopt() {
         return Err(jobs_error(uniwrt_jobs::Error::Unavailable));
     }
-    let user = user.user;
     let mut result = BatchAdoptResult {
         jobs: Vec::with_capacity(requests.len()),
         refused: Vec::new(),
