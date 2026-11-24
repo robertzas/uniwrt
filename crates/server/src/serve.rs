@@ -353,6 +353,7 @@ async fn start_api(
         bans: fleet.bans(),
         blocklist: fleet.blocklist(),
         wan_monitor: fleet.wan_monitor(),
+        log_tail: crate::logging::tail(),
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
         asu: asu(&args.asu_url)?,

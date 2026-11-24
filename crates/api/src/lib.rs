@@ -31,6 +31,8 @@
 //!   DNS query statistics (`GET v1/services/dns/stats` ([`DnsStats`]), `GET
 //!   v1/services/dns/queries` ([`DnsQueryPage`]); see `dns_stats`),
 //!   the WAN quality monitor (`GET v1/wan/monitor` ([`WanMonitorView`]), admins: `PUT`; D-144),
+//!   the support bundle (admins: `GET v1/support/bundle`, a `.tar.gz`; [`LogTail`] keeps the
+//!   controller's own log lines for it; D-144),
 //!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
@@ -180,6 +182,7 @@ pub mod security;
 mod site;
 mod speed;
 mod state;
+mod support;
 mod terminal;
 #[cfg(test)]
 mod testing;
@@ -250,6 +253,7 @@ pub use site::{
 };
 pub use speed::SpeedTestBody;
 pub use state::{Api, ApiConfig};
+pub use support::LogTail;
 pub use terminal::{TerminalClientMessage, TerminalServerMessage};
 pub use tls::{Certificate, TlsInfo};
 pub use vpn::{
@@ -412,6 +416,7 @@ fn config_routes() -> Router<Api> {
             "/v1/wan/monitor",
             get(wan_monitor::get).put(wan_monitor::put),
         )
+        .route("/v1/support/bundle", get(support::bundle))
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))

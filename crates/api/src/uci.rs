@@ -11,7 +11,10 @@ use axum::{
     Json,
     extract::{Path, State, rejection::PathRejection},
 };
-use uniwrt_model::{explorer::NodeUci, node::NodeMode};
+use uniwrt_model::{
+    explorer::NodeUci,
+    node::{Node, NodeMode},
+};
 use uniwrt_node::txn::current;
 use uniwrt_store::RevisionRepo as _;
 
@@ -28,6 +31,11 @@ pub(crate) async fn get(
     id: Result<Path<i64>, PathRejection>,
 ) -> ApiResult<Json<NodeUci>> {
     let node = crate::diag::node(&api, id).await?;
+    read(&api, &node).await.map(Json)
+}
+
+/// The node's live UCI, masked: what the route answers, and the support bundle holds.
+pub(crate) async fn read(api: &Api, node: &Node) -> ApiResult<NodeUci> {
     let read = current::all();
     let request = read.request.clone().timeout(TIMEOUT).max_output(MAX_OUTPUT);
     let files = api
@@ -46,13 +54,13 @@ pub(crate) async fn get(
         .as_ref()
         .and_then(|head| head.config.nodes.iter().find(|n| n.node == node.id));
     let tree = uniwrt_render::explorer::tree(&files, config, node.mode == NodeMode::Managed);
-    Ok(Json(NodeUci {
+    Ok(NodeUci {
         node: node.id,
         read_at: api.now(),
         revision: head.map(|head| head.meta.id),
         packages: tree.packages,
         unmatched: tree.unmatched,
-    }))
+    })
 }
 
 #[cfg(test)]

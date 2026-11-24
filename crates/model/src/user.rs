@@ -74,6 +74,8 @@ pub enum AuditAction {
     Rf,
     /// A user changed the WAN quality monitor's targets (D-144).
     WanMonitor,
+    /// A user downloaded a support bundle (D-144).
+    SupportBundle,
     /// A user saved or restored the site's configuration (the detail names the revision).
     Site,
     /// A user viewed a configuration secret (the detail names it and the revision).

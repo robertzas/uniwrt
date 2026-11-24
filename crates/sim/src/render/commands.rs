@@ -263,6 +263,11 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
             stderr: Vec::new(),
         };
     }
+    if let ["sh", "-c", script] = argv.as_slice()
+        && *script == uniwrt_node::support::SCRIPT
+    {
+        return super::snapshot::snapshot(node);
+    }
     if node.gateway
         && let Some(output) = wan_probe(node, &argv, &disk.tool.files, now_ms)
     {

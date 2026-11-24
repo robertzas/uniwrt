@@ -42,7 +42,7 @@ pub struct WanMonitorView {
     pub round: Option<ProbeRound>,
 }
 
-fn view(api: &Api) -> ApiResult<WanMonitorView> {
+pub(crate) fn view(api: &Api) -> ApiResult<WanMonitorView> {
     let state = api.wan_monitor()?.state();
     Ok(WanMonitorView {
         settings: state.settings.clone(),

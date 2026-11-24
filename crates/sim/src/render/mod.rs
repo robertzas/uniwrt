@@ -18,6 +18,7 @@ pub(crate) mod probe;
 mod queries;
 pub(crate) mod scan;
 mod services;
+mod snapshot;
 pub(crate) mod system;
 pub(crate) mod tables;
 pub(crate) mod tailscale;

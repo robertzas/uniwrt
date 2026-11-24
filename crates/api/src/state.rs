@@ -45,6 +45,8 @@ pub struct ApiConfig {
     pub blocklist: Option<Blocklist>,
     /// The WAN quality monitor, when it runs; without it, `v1/wan/monitor` answers 503.
     pub wan_monitor: Option<WanMonitorHandle>,
+    /// The controller's own latest log lines, for the support bundle.
+    pub log_tail: Option<crate::LogTail>,
     /// ASU, which builds zero-touch images; without it, the catalog and builds answer 503.
     pub asu: Option<Asu>,
     /// The uploaded firmware images; without them, uploads answer 503.
@@ -93,6 +95,7 @@ impl ApiConfig {
             bans: None,
             blocklist: None,
             wan_monitor: None,
+            log_tail: None,
             asu: None,
             uploads: None,
             github: None,
@@ -139,6 +142,7 @@ struct Inner {
     bans: Option<Bans>,
     blocklist: Option<Blocklist>,
     wan_monitor: Option<WanMonitorHandle>,
+    log_tail: Option<crate::LogTail>,
     /// The diagnostics toolkit's runs (D-141).
     diag: Diagnostics,
     /// The open terminals (D-141).
@@ -209,6 +213,7 @@ impl Api {
                 bans: config.bans,
                 blocklist: config.blocklist,
                 wan_monitor: config.wan_monitor,
+                log_tail: config.log_tail,
                 diag,
                 terminals: crate::terminal::Terminals::default(),
                 asu: config.asu,
@@ -412,6 +417,10 @@ impl Api {
             .blocklist
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("DNS filtering is not running".to_owned()))
+    }
+
+    pub(crate) fn log_tail(&self) -> Option<&crate::LogTail> {
+        self.inner.log_tail.as_ref()
     }
 
     pub(crate) fn wan_monitor(&self) -> Result<&WanMonitorHandle, ApiError> {
