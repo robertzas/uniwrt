@@ -24,6 +24,11 @@ describe("entities", () => {
     });
     expect(parseEntity("node:x")).toBeUndefined();
     expect(parseEntity("link:node:1")).toBeUndefined();
+    expect(parseEntity("probe:isp-dns@192.0.2.53")).toEqual({
+      kind: "probe",
+      key: "isp-dns@192.0.2.53",
+    });
+    expect(parseEntity("probe:")).toBeUndefined();
   });
 
   it("are named as the user knows them and link to their pages", () => {

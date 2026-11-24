@@ -31,7 +31,13 @@ export interface EntityGroup {
   rows: EntityRow[];
 }
 
-const ORDER: readonly ("site" | "node" | "link" | "client")[] = ["site", "node", "link", "client"];
+const ORDER: readonly ("site" | "node" | "link" | "client" | "probe")[] = [
+  "site",
+  "node",
+  "link",
+  "probe",
+  "client",
+];
 
 /**
  * The listed series as the explorer's groups: the site, each node followed by its radios and

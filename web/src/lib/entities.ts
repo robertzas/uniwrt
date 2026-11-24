@@ -1,6 +1,6 @@
 /**
  * Entities in words: the text of what a series or an alert is about (`node:3/radio:radio1`,
- * `link:node:2~node:3~wifi`, `client:<mac>`) parsed, named and linked to its page. Shared by the
+ * `link:node:2~node:3~wifi`, `client:<mac>`, `probe:<key>`) parsed, named and linked to its page. Shared by the
  * Metrics explorer and the alerts.
  */
 import type { Medium } from "../api/gen/Medium";
@@ -13,7 +13,8 @@ export type Entity =
   | { kind: "device"; node: number; name: string }
   | { kind: "radio"; node: number; name: string }
   | { kind: "link"; a: string; b: string; medium: string }
-  | { kind: "client"; mac: string };
+  | { kind: "client"; mac: string }
+  | { kind: "probe"; key: string };
 
 export type EntityKind = Entity["kind"];
 
@@ -31,6 +32,7 @@ export function parseEntity(text: string): Entity | undefined {
     if (a && b && medium) return { kind: "link", a, b, medium };
   }
   if (text.startsWith("client:")) return { kind: "client", mac: text.slice(7) };
+  if (text.startsWith("probe:") && text.length > 6) return { kind: "probe", key: text.slice(6) };
   return undefined;
 }
 
@@ -65,6 +67,8 @@ export function entityLabel(entity: Entity, names: Names): string {
     }
     case "client":
       return names.client(entity.mac) ?? entity.mac;
+    case "probe":
+      return m.probe(entity.key);
   }
 }
 
@@ -77,6 +81,8 @@ export function entityPage(entity: Entity): string | undefined {
       return `/devices/${entity.node}`;
     case "client":
       return `/clients/${entity.mac}`;
+    case "probe":
+      return "/internet";
     default:
       return undefined;
   }

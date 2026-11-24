@@ -19,9 +19,17 @@ const t = strings.alerts;
 const e = t.editor.errors;
 
 export type KindName = EventKind["kind"];
-export type TargetKind = "site" | "node" | "device" | "radio" | "link" | "client";
+export type TargetKind = "site" | "node" | "device" | "radio" | "link" | "client" | "probe";
 
-export const TARGETS: readonly TargetKind[] = ["node", "radio", "device", "link", "client", "site"];
+export const TARGETS: readonly TargetKind[] = [
+  "node",
+  "radio",
+  "device",
+  "link",
+  "client",
+  "probe",
+  "site",
+];
 
 /** The series each kind of entity has, as `EntityPattern::measures` says. */
 export const MEASURES: Record<TargetKind, readonly Metric[]> = {
@@ -31,6 +39,7 @@ export const MEASURES: Record<TargetKind, readonly Metric[]> = {
   radio: ["busy", "noise", "stations"],
   link: ["signal", "tq", "quality", "capacity"],
   client: ["signal", "snr", "tx_rate", "rx_rate", "down_bps", "up_bps", "score"],
+  probe: ["loss", "rtt", "rtt_min", "rtt_max"],
 };
 
 /** The event kinds the editor offers, in groups. */
@@ -160,7 +169,7 @@ export interface Target {
   kind: TargetKind;
   /** null: any node. */
   node: number | null;
-  /** A device's or radio's name, a client's MAC or a link's id; "" for any. */
+  /** A device's or radio's name, a client's MAC, a link's id or a WAN probe's key; "" for any. */
   part: string;
 }
 
@@ -174,10 +183,10 @@ export function parseTarget(text: string): Target {
     if (below[2] === undefined) return { kind: "node", node, part: "" };
     return { kind: below[2] === "dev" ? "device" : "radio", node, part };
   }
-  const other = /^(link|client):(.+)$/.exec(text);
+  const other = /^(link|client|probe):(.+)$/.exec(text);
   if (other?.[2] !== undefined) {
     return {
-      kind: other[1] === "link" ? "link" : "client",
+      kind: other[1] as "link" | "client" | "probe",
       node: null,
       part: other[2] === "*" ? "" : other[2],
     };
@@ -202,6 +211,8 @@ export function targetText(target: Target): string {
       return `link:${part}`;
     case "client":
       return `client:${part.toLowerCase()}`;
+    case "probe":
+      return `probe:${part}`;
   }
 }
 
@@ -228,6 +239,8 @@ export function targetLabel(target: Target, names: Names): string {
       return part === "" ? w.link : part;
     case "client":
       return part === "" ? w.client : (names.client(part) ?? part);
+    case "probe":
+      return part === "" ? w.probe : part;
   }
 }
 

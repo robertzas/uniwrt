@@ -37,10 +37,34 @@ describe("rule targets", () => {
       "link:*",
       "client:*",
       "client:aa:bb:cc:dd:ee:ff",
+      "probe:*",
+      "probe:isp-dns@192.0.2.53",
     ]) {
       expect(targetText(parseTarget(text))).toBe(text);
     }
     expect(parseTarget("node:3/dev:*")).toEqual({ kind: "device", node: 3, part: "" });
+    expect(parseTarget("probe:cloudflare")).toEqual({
+      kind: "probe",
+      node: null,
+      part: "cloudflare",
+    });
+  });
+
+  it("watches a WAN probe's loss", () => {
+    const draft = {
+      ...draftOf(),
+      name: "Loss",
+      target: parseTarget("probe:*"),
+      metric: "loss" as const,
+      threshold: "20",
+    };
+    expect(checkDraft(draft)).toMatchObject({
+      spec: { when: { type: "metric", metric: "loss", entities: "probe:*", threshold: 20 } },
+    });
+    // A metric probes don't have falls back to their first.
+    expect(checkDraft({ ...draft, metric: "cpu" })).toMatchObject({
+      spec: { when: { metric: "loss" } },
+    });
   });
 
   it("keeps a value that isn't among the choices", () => {

@@ -141,6 +141,8 @@ import type { VpnPeerConfig } from "../api/gen/VpnPeerConfig";
 import type { VpnStatus } from "../api/gen/VpnStatus";
 import type { WakeOutcome } from "../api/gen/WakeOutcome";
 import type { Wall } from "../api/gen/Wall";
+import type { WanMonitorSettings } from "../api/gen/WanMonitorSettings";
+import type { WanMonitorView } from "../api/gen/WanMonitorView";
 import type { WanTestBody } from "../api/gen/WanTestBody";
 import type { WindowList } from "../api/gen/WindowList";
 import type { ZtpAdoptBody } from "../api/gen/ZtpAdoptBody";
@@ -501,6 +503,15 @@ export const api = {
     /** The speed tests, newest first, with what the newest test of the line suggests. */
     speedTests: (signal?: AbortSignal, limit = 20) =>
       request<SpeedTests>(`/wan/speed-tests?limit=${limit}`, { signal }),
+    /** The WAN quality monitor (D-144): its targets, the latest round and what it says. */
+    monitor: (signal?: AbortSignal) => request<WanMonitorView>("/wan/monitor", { signal }),
+    /** Saves the monitor's targets (admins; checked, 400 with why) and runs a round at once. */
+    saveMonitor: (settings: WanMonitorSettings) =>
+      request<WanMonitorView>("/wan/monitor", { method: "PUT", body: settings }),
+  },
+  /** The support bundle (D-144): a `.tar.gz` of what the controller and the nodes hold; admins. */
+  support: {
+    bundle: () => attachment("/support/bundle", {}, "uniwrt-support.tar.gz"),
   },
   /** Applying the site's latest revision (lifecycle.md, Render → diff → apply); admins only. */
   apply: {

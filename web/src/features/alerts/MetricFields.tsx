@@ -103,6 +103,24 @@ export function MetricFields(props: {
           />
         </FormField>
       </Show>
+      <Show when={target().kind === "probe"}>
+        <FormField
+          label={t.probe}
+          for={`${id}-probe`}
+          error={props.errors.part}
+          hint={strings.alerts.target.anyName}
+        >
+          <input
+            id={`${id}-probe`}
+            class={[INPUT, "font-mono", props.errors.part ? "border-crit" : "border-edge"]}
+            value={target().part}
+            placeholder={t.probePlaceholder}
+            autocapitalize="none"
+            spellcheck={false}
+            onInput={(event) => setTarget({ part: event.currentTarget.value })}
+          />
+        </FormField>
+      </Show>
       <FormField label={t.metric} for={`${id}-metric`} class="sm:col-start-1">
         <select
           id={`${id}-metric`}

@@ -12,6 +12,7 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { FailoverCard } from "./FailoverCard";
+import { MonitorCard } from "./monitor/MonitorCard";
 import { SpeedCard } from "./SpeedCard";
 import { SqmCard } from "./SqmCard";
 import { rowsOf } from "./summary";
@@ -165,6 +166,7 @@ export function InternetPage() {
               gateway={gateway()?.id}
               ipv4={current().proto.kind !== "none"}
             />
+            <MonitorCard admin={admin()} now={now} />
             <TimelineCard nodeName={nodeName} now={now} />
           </>
         )}

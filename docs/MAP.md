@@ -1154,6 +1154,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/floorplans/walls/`: WallsLayer.tsx, WallsToolbar.tsx, createWalls.ts, materials.ts, snap.ts
 - `features/floorplans/walls/trace/`: lines.ts, morph.ts, read.ts, tidy.ts, trace.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
+- `features/internet/monitor/`: MonitorCard.tsx, Outages.tsx, ProbeChart.tsx, TargetsDialog.tsx, monitor.ts, targets.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
 - `features/metrics/`: EntityList.tsx, MetricsPage.tsx, entities.ts
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
@@ -1166,6 +1167,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, ExportDialog.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/settings/site/`: SchedulesCard.tsx, SiteTab.tsx
+- `features/settings/support/`: SupportTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `features/updates/`: ControllerCard.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts

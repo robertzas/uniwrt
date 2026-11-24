@@ -12,7 +12,9 @@ export interface TextFieldProps {
   name?: string;
   autocomplete?: JSX.InputHTMLAttributes<HTMLInputElement>["autocomplete"];
   /** Guidance under the field, such as a length rule. */
-  hint?: string;
+  hint?: string | undefined;
+  /** Shown while the field is empty, such as what an empty field means. */
+  placeholder?: string;
   /** Marks the field invalid and replaces the hint. */
   error?: string | undefined;
   required?: boolean;
@@ -47,6 +49,7 @@ export function TextField(props: TextFieldProps) {
           disabled={props.disabled}
           autofocus={props.autofocus}
           minlength={props.minlength}
+          placeholder={props.placeholder}
           aria-invalid={props.error ? "true" : undefined}
           aria-describedby={note() ? `${id}-note` : undefined}
           class={[

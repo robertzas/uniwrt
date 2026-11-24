@@ -9,10 +9,13 @@ import type { SiteSave } from "../../api/gen/SiteSave";
 import type { SpeedTest } from "../../api/gen/SpeedTest";
 import type { StepName } from "../../api/gen/StepName";
 import type { Suggestion } from "../../api/gen/Suggestion";
+import type { WanMonitorSettings } from "../../api/gen/WanMonitorSettings";
+import type { WanMonitorView } from "../../api/gen/WanMonitorView";
 import type { WanTestBody } from "../../api/gen/WanTestBody";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
 import { summary } from "../../test/fixtures";
+import { metricsAnswer } from "../../test/metrics";
 import { LUMEN, PPPOE } from "../../test/presets";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 import { revisionMeta, siteView } from "../../test/site";
@@ -23,6 +26,40 @@ let speedTests: SpeedTest[] = [];
 let suggestion: Suggestion | null = null;
 let wanEvents: EventRecord[] = [];
 let head = 2;
+let monitor: WanMonitorView;
+
+function monitorView(extra: Partial<WanMonitorView> = {}): WanMonitorView {
+  return {
+    settings: {
+      enabled: true,
+      targets: [
+        { id: "first-hop", name: "ISP gateway", probe: { kind: "icmp", host: null } },
+        { id: "cloudflare", name: "Cloudflare", probe: { kind: "icmp", host: "1.1.1.1" } },
+        {
+          id: "isp-dns",
+          name: "ISP DNS",
+          probe: { kind: "dns", via: { via: "upstreams" }, name: "openwrt.org" },
+        },
+      ],
+    },
+    gateway: 1,
+    health: { state: "up" },
+    since: Date.now() - 3 * 3600_000,
+    last_hop: null,
+    error: null,
+    round: {
+      at: Date.now() - 10_000,
+      route: true,
+      first_hop: "100.64.0.1",
+      results: [
+        { key: "first-hop", sent: 10, rtt_ms: [1, 2, 3, 2, 2, 2, 2, 2, 2, 2], error: null },
+        { key: "cloudflare", sent: 10, rtt_ms: [9, 11, 10, 10, 10, 10, 10, 10], error: null },
+        { key: "isp-dns@192.0.2.53", sent: 1, rtt_ms: [], error: "timed out" },
+      ],
+    },
+    ...extra,
+  };
+}
 
 const STEPS: StepName[] = [
   "connect",
@@ -86,6 +123,7 @@ beforeEach(() => {
   suggestion = null;
   wanEvents = [];
   head = 2;
+  monitor = monitorView();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -98,6 +136,12 @@ beforeEach(() => {
         return Response.json(siteView(head, (body as SiteSave).config));
       }
       if (url === "/api/v1/isp/presets") return Response.json([PPPOE, LUMEN]);
+      if (url === "/api/v1/wan/monitor" && method === "GET") return Response.json(monitor);
+      if (url === "/api/v1/wan/monitor" && method === "PUT") {
+        monitor = { ...monitor, settings: body as WanMonitorSettings };
+        return Response.json(monitor);
+      }
+      if (url.startsWith("/api/v1/metrics?")) return Response.json(metricsAnswer(url));
       if (url.startsWith("/api/v1/wan/speed-tests")) {
         return Response.json({ tests: speedTests, suggestion });
       }
@@ -315,5 +359,97 @@ describe("SQM, speed tests, failover and the timeline", () => {
     expect(await within(card).findByText("Internet down on gw (eth1)")).toBeInTheDocument();
     expect(within(card).getByText("Internet back on gw (eth1)")).toBeInTheDocument();
     expect(within(card).getByRole("img", { name: /^Up 5\dm/ })).toBeInTheDocument();
+  });
+});
+
+describe("the WAN monitor", () => {
+  const event = (id: number, when: number, what: EventRecord["what"]): EventRecord => ({
+    id,
+    at: when,
+    last_at: when,
+    count: 1,
+    level: "critical",
+    category: "wan",
+    node: 1,
+    client: null,
+    condition: null,
+    what,
+  });
+
+  it("shows the health, the latest round, a target's chart and the outages", async () => {
+    const user = userEvent.setup();
+    monitor = monitorView({
+      health: { state: "down", fault: "line" },
+      since: Date.now() - 5 * 60_000,
+      last_hop: "192.168.100.1",
+    });
+    const start = Date.now() - 86_400_000;
+    wanEvents = [
+      event(4, Date.now() - 5 * 60_000, { kind: "wan_outage", fault: "line", last_hop: null }),
+      event(3, start + 180_000, { kind: "wan_restored", fault: "isp", down_ms: 180_000 }),
+      event(2, start, { kind: "wan_outage", fault: "isp", last_hop: "100.64.0.1" }),
+    ];
+    await renderInternet();
+    const card = await screen.findByLabelText("Connection quality");
+    expect(await within(card).findByText("Internet down")).toBeInTheDocument();
+    expect(within(card).getByText(/The fault is on the line/)).toBeInTheDocument();
+    expect(within(card).getByText("A traceroute still reaches 192.168.100.1.")).toBeInTheDocument();
+    expect(within(card).getByText(/ISP's first hop 100\.64\.0\.1/)).toBeInTheDocument();
+
+    const table = within(card).getByRole("table", { name: "Latest round" });
+    const cloudflare = within(table).getByText("Cloudflare").closest("tr") as HTMLElement;
+    expect(within(cloudflare).getByText("1.1.1.1")).toBeInTheDocument();
+    expect(within(cloudflare).getByText(/^20\s?%$/)).toBeInTheDocument();
+    const dns = within(table).getByText("ISP DNS · 192.0.2.53").closest("tr") as HTMLElement;
+    expect(within(dns).getByText("No answer")).toHaveAttribute("title", "timed out");
+
+    // Picking a row charts it: the stored series of `probe:<key>`.
+    await user.click(cloudflare);
+    expect(within(card).getByLabelText("Target")).toHaveValue("cloudflare");
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("entity=probe%3Acloudflare"))).toBe(true),
+    );
+
+    const outages = within(card).getByLabelText("Outages");
+    expect(await within(outages).findByText("Ongoing")).toBeInTheDocument();
+    expect(within(outages).getByText("Line, ONT or modem")).toBeInTheDocument();
+    expect(within(outages).getByText(/reached 100\.64\.0\.1/)).toBeInTheDocument();
+    expect(within(outages).getByText("Lasted 3m")).toBeInTheDocument();
+  });
+
+  it("lets an admin add a target, checked before it is saved", async () => {
+    const user = userEvent.setup();
+    await renderInternet();
+    const card = await screen.findByLabelText("Connection quality");
+    await user.click(await within(card).findByRole("button", { name: "Targets" }));
+    const dialog = await screen.findByRole("dialog", { name: "Probe targets" });
+    expect(within(dialog).getByText("probe:cloudflare")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Add a target" }));
+    await user.type(within(dialog).getAllByLabelText("Name").at(-1) as HTMLElement, "Home NAS");
+    await user.selectOptions(
+      within(dialog).getAllByLabelText("Probe").at(-1) as HTMLElement,
+      "http",
+    );
+    await user.type(within(dialog).getByLabelText("URL"), "nas.lan");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(within(dialog).getByText("An http:// or https:// URL with a host")).toBeInTheDocument();
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+
+    await user.clear(within(dialog).getByLabelText("URL"));
+    await user.type(within(dialog).getByLabelText("URL"), "http://nas.lan:5000/");
+    await user.click(within(dialog).getByRole("button", { name: "Remove ISP DNS" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const put = calls.find((c) => c.method === "PUT" && c.url === "/api/v1/wan/monitor");
+    const sent = put?.body as WanMonitorSettings;
+    expect(sent.targets.map((target) => target.id)).toEqual([
+      "first-hop",
+      "cloudflare",
+      "home-nas",
+    ]);
+    expect(sent.targets[2]?.probe).toEqual({
+      kind: "http",
+      url: "http://nas.lan:5000/",
+    });
   });
 });
