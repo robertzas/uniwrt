@@ -10,6 +10,9 @@
 //!   [`Book::detail`] read it. A client now is a [`Client`] (identity, [`Connection`],
 //!   [`Experience`]); its recent history is [`ClientSample`]s. [`vendor`] names the
 //!   organization a MAC address is assigned to; [`classify`] guesses a [`ClientKind`].
+//!   [`doctor::diagnose`] is the Connection Doctor (D-144): one client's timeline over a span
+//!   (its events, the DHCP and Wi-Fi log lines naming it, its failed DNS queries) and the
+//!   issues found in it, with fixes to try.
 //! - **How:** a client is a `client:<mac>` vertex of the topology; its edge gives its place
 //!   (an access point's interface, or a node's port, or the port an inferred switch hangs
 //!   from) and the node's facts its station and radio. A client is online while its link is up
@@ -32,6 +35,7 @@
 //!   made in code (`cargo nextest run -p uniwrt-clients`).
 
 mod book;
+pub mod doctor;
 mod entry;
 mod kind;
 mod oui;

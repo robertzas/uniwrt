@@ -51,6 +51,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/discovered.rs`: Discovery, with a session: `GET /api/v1/discovered` reports the unadopted OpenWrt devices that the adopted nodes see (features/adoption.md, Discovery), after waiting up to 3 seconds for the probes of new ones.
 - `src/dns_stats.rs`: DNS query statistics (features/network.md, Query statistics; D-133), with a session:
 - `src/dns_stats_tests.rs`: DNS query statistics' routes over the demo's store: totals, series and clients named as `/clients` names them, the top domains, and pages of queries filtered and followed.
+- `src/doctor.rs`: The Connection Doctor's route (features/observability.md, Troubleshooting assistants; D-144): `GET v1/clients/{mac}/doctor?hours=<1–168>` gathers one client's events, the log lines that name it, its DNS counts and failed queries and the WLANs it may use over the last `hours` (24 by default), and answers what [`uniwrt_clients::doctor::diagnose`] makes of them ([`Diagnosis`]).
+- `src/doctor_tests.rs`: The Connection Doctor's route over the demo: a client's DHCP trouble found through the log lines that name it (the full-text search on its address), and the query's bounds.
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
@@ -147,6 +149,10 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 Clients (features/observability.md, Clients): the inventory of every device that connects through the adopted nodes, who each one is, where it was connected and how well.
 
 - `src/book.rs`: [`Book`]: every client the controller knows, online or not: updated from each topology build, restored from the store at start, renamed by users, and pruned once long gone.
+- `src/doctor/lines.rs`: The log lines that name a client, read for the doctor: dnsmasq's DHCP exchanges and hostapd's account of an association.
+- `src/doctor/mod.rs`: The Connection Doctor (features/observability.md, Troubleshooting assistants; D-144): what went on with one client over a span, as one timeline ([`TimelineEntry`]), and the issues found in it ([`Issue`]), each with what points to it and the fixes to try ([`Fix`]).
+- `src/doctor/rules.rs`: The doctor's rules: each looks at the inputs and the timeline and may add an issue.
+- `src/doctor/tests.rs`: (no header comment)
 - `src/entry.rs`: One client in the [`Book`](crate::Book): its record, where it is (its open session and the one before), its counters, recent samples and roams, and the view made of them.
 - `src/kind.rs`: What kind of device a client is, for its icon: rules over its DHCP hostname, then its vendor (`rules.rs`, one line per rule).
 - `src/lib.rs`: Clients (features/observability.md, Clients): the inventory of every device that connects through the adopted nodes, who each one is, where it was connected and how well.
@@ -1104,7 +1110,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (531 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (540 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

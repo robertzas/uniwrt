@@ -66,7 +66,9 @@
 //!   (`GET v1/clients`, `GET` and `PATCH v1/clients/{mac}` ([`ClientDetail`], a rename by an
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]), `PUT`/`DELETE
-//!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137)),
+//!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137); `GET
+//!   v1/clients/{mac}/doctor?hours=` is its Connection Doctor (`uniwrt_clients::doctor::Diagnosis`,
+//!   D-144)),
 //!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), diagnostics runs (`GET v1/diag/runs`, an admin's `POST v1/diag/runs` with a [`DiagRunBody`] and `DELETE v1/diag/runs/{id}`, followed by the WS hub's `diag:<id>`; see `diag`, D-141; a node's tables and an admin's packet capture, `GET v1/nodes/{id}/diag/capture` with a [`CaptureQuery`](uniwrt_model::diag::capture::CaptureQuery), a streamed `.pcap`, D-142; an admin's terminal, `GET v1/nodes/{id}/terminal` as a WebSocket of [`TerminalClientMessage`]s and [`TerminalServerMessage`]s, see `terminal`, D-141; a node's live UCI for the explorer, `GET v1/nodes/{id}/uci`, a [`NodeUci`](uniwrt_model::explorer::NodeUci) with secrets masked, see `uci`, D-143), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
@@ -135,6 +137,7 @@ mod decommission;
 mod diag;
 mod discovered;
 mod dns_stats;
+mod doctor;
 mod drift;
 mod events;
 mod firmware;
@@ -273,6 +276,7 @@ pub fn router(api: Api) -> Router {
         .route("/v1/jobs/{id}", get(jobs::get))
         .route("/v1/clients", get(clients::list))
         .route("/v1/clients/{mac}", get(clients::get).patch(clients::patch))
+        .route("/v1/clients/{mac}/doctor", get(doctor::get))
         .route("/v1/clients/{mac}/sessions", get(clients::sessions))
         .route("/v1/events", get(events::list))
         .route("/v1/alerts", get(alerts::list))
