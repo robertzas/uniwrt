@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Client } from "../../api/gen/Client";
+import type { Diagnosis } from "../../api/gen/Diagnosis";
 import type { ServerMessage } from "../../api/gen/ServerMessage";
 import { createAppRouter } from "../../app/routes";
 import { client, detail, NOW, session, steered } from "../../test/clients";
@@ -16,12 +17,27 @@ import { kickToast } from "./ClientActions";
 
 const MAC = "f0:18:98:00:00:01";
 let calls: { key: string; body?: unknown }[] = [];
+/** What `GET …/doctor` answers: by default, nothing wrong. */
+let diagnosis: Diagnosis;
+
+function healthy(): Diagnosis {
+  return {
+    from: NOW - 86_400_000,
+    to: NOW,
+    issues: [],
+    timeline: [],
+    truncated: false,
+    dns_logged: true,
+  };
+}
+
 /** How `POST …/wake` answers: sent, or refused as the gateway in observe mode is. */
 let wakeRefused = false;
 
 function stubApi() {
   calls = [];
   wakeRefused = false;
+  diagnosis = healthy();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -46,6 +62,8 @@ function stubApi() {
         return Response.json(client(MAC, { blocked: NOW }));
       if (key === `DELETE /api/v1/clients/${encodeURIComponent(MAC)}/block`)
         return Response.json(client(MAC));
+      if (key.startsWith(`GET /api/v1/clients/${encodeURIComponent(MAC)}/doctor?`))
+        return Response.json(diagnosis);
       if (key.startsWith(`GET /api/v1/clients/${encodeURIComponent(MAC)}/sessions`))
         return Response.json([
           session(NOW - 5 * 86_400_000, { end: NOW - 4 * 86_400_000, ended_by: "left" }),
@@ -370,5 +388,123 @@ describe("a kick's toast", () => {
       description: undefined,
       tone: "ok",
     });
+  });
+});
+
+describe("a client's doctor", () => {
+  beforeEach(() => {
+    stubApi();
+    toaster.clear();
+  });
+
+  it("shows a chip on the Overview, then the issues with their fixes and the timeline", async () => {
+    const user = userEvent.setup();
+    diagnosis = {
+      ...healthy(),
+      issues: [
+        {
+          severity: "warning",
+          problem: { kind: "weak_signal", signal_dbm: -78, node: 2, band: "5g" },
+          at: NOW - 60_000,
+          fixes: [
+            { fix: "move_closer", node: 2 },
+            { fix: "turn_on_steering", ssid: "Home" },
+            { fix: "reconnect" },
+          ],
+        },
+        {
+          severity: "info",
+          problem: { kind: "dns_blocked", blocked: 30, queries: 100 },
+          at: NOW - 120_000,
+          fixes: [{ fix: "bypass_filtering" }],
+        },
+      ],
+      timeline: [
+        { kind: "dns", at: NOW - 60_000, failed: 4, domains: ["a.example", "b.example"] },
+        {
+          kind: "wifi",
+          at: NOW - 120_000,
+          node: 2,
+          step: "auth_failed",
+          interface: "phy1-ap0",
+          detail: "4-way handshake timed out",
+        },
+        {
+          kind: "dhcp",
+          at: NOW - 180_000,
+          node: 1,
+          step: "ack",
+          interface: "br-lan",
+          ip: "192.168.1.20",
+          detail: null,
+        },
+        { kind: "event", at: NOW - 240_000, event: steered(NOW - 240_000) },
+      ],
+      dns_logged: false,
+    };
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: detail(),
+    });
+    const chip = await screen.findByRole("button", { name: /Weak signal and 1 more/ });
+    await user.click(chip);
+    expect(screen.getByRole("tab", { name: "Doctor" })).toHaveAttribute("aria-selected", "true");
+
+    const issues = await screen.findByRole("region", { name: "Issues" });
+    const [weak, blocked] = within(issues)
+      .getAllByRole("listitem")
+      .filter((li) => li.querySelector("h3"));
+    expect(weak).toHaveTextContent("Warning");
+    expect(weak).toHaveTextContent(
+      "-78 dBm by the median of the last 15 minutes, at Living room · 5 GHz",
+    );
+    expect(weak).toHaveTextContent("Move it closer to Living room");
+    expect(within(weak as HTMLElement).getByRole("link", { name: "Wi-Fi" })).toHaveAttribute(
+      "href",
+      "/wifi",
+    );
+    await user.click(
+      within(weak as HTMLElement).getByRole("button", { name: "Kick it to reconnect" }),
+    );
+    expect(await screen.findByRole("dialog", { name: "Kick this client" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(blocked).toHaveTextContent("30 of 100 lookups were blocked by DNS filtering (30 %)");
+    expect(within(blocked as HTMLElement).getByRole("link", { name: "Networks" })).toHaveAttribute(
+      "href",
+      "/networks",
+    );
+    expect(issues).toHaveTextContent("DNS isn't checked");
+
+    const timeline = screen.getByRole("region", { name: "Timeline" });
+    const rows = within(timeline).getAllByRole("listitem");
+    expect(rows.map((row) => row.querySelector("p")?.textContent)).toEqual([
+      "4 failed DNS lookups",
+      "Handshake failed",
+      "Got an address",
+      "Annas-iPhone agreed to move from Living room to Gateway",
+    ]);
+    expect(rows[1]).toHaveTextContent("phy1-ap0 · 4-way handshake timed out · Living room");
+    expect(rows[2]).toHaveTextContent("192.168.1.20 · br-lan · Gateway");
+
+    await user.click(screen.getByRole("button", { name: "7 days" }));
+    await waitFor(() =>
+      expect(calls.some(({ key }) => key.endsWith("/doctor?hours=168"))).toBe(true),
+    );
+  });
+
+  it("says when nothing is wrong, and shows no chip", async () => {
+    const user = userEvent.setup();
+    await renderAt(`/clients/${MAC}`, `client:${MAC}`, {
+      type: "client_snapshot",
+      client: detail(),
+    });
+    expect(await screen.findByRole("heading", { name: "Annas-iPhone" })).toBeVisible();
+    await waitFor(() =>
+      expect(calls.some(({ key }) => key.includes("/doctor?hours=24"))).toBe(true),
+    );
+    expect(screen.queryByRole("button", { name: /Weak signal/ })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Doctor" }));
+    expect(await screen.findByText("No issues found")).toBeVisible();
+    expect(screen.getByText("Nothing happened in this range.")).toBeVisible();
   });
 });

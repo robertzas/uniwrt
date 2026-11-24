@@ -1134,6 +1134,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/auth/`: SignIn.tsx
 - `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
+- `features/clients/doctor/`: DoctorChip.tsx, DoctorTab.tsx, describe.ts, query.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, health.ts
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, HostKey.tsx, address.ts

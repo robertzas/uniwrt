@@ -15,6 +15,8 @@ import { Tab, TabList, TabPanel, Tabs } from "../../ui/Tabs";
 import { BlockDialog, KickDialog, unblock, WakeDialog } from "./ClientActions";
 import { ClientOverview } from "./ClientOverview";
 import { ClientTimeline } from "./ClientTimeline";
+import { DoctorChip } from "./doctor/DoctorChip";
+import { DoctorTab } from "./doctor/DoctorTab";
 import { FixIpDialog, ipv4Of } from "./FixIpDialog";
 import { RenameDialog } from "./RenameDialog";
 import { SignalTab } from "./SignalTab";
@@ -23,7 +25,10 @@ import { TrafficTab } from "./TrafficTab";
 
 const d = strings.client;
 
-/** `/clients/:mac`: one client, live: Overview · Timeline · Signal · Traffic (ui.md, client page tabs). */
+/**
+ * `/clients/:mac`: one client, live: Overview · Timeline · Signal · Traffic · Doctor (ui.md, client
+ * page tabs).
+ */
 export function ClientPage() {
   const params = useParams<{ mac: string }>();
   const mac = () => decodeURIComponent(params.mac).toLowerCase();
@@ -78,6 +83,7 @@ function Client(props: { detail: ClientDetail }) {
   const [kicking, setKicking] = createSignal(false);
   const [blocking, setBlocking] = createSignal(false);
   const [waking, setWaking] = createSignal(false);
+  const [tab, setTab] = createSignal("overview");
   const client = () => props.detail.client;
   const onWifi = () => client().online && client().connection?.medium === "wifi";
   const subtitle = () =>
@@ -166,15 +172,19 @@ function Client(props: { detail: ClientDetail }) {
           </Show>
         </div>
       </header>
-      <Tabs defaultValue="overview" aria-label={d.tabs.label}>
+      <Tabs value={tab()} onChange={setTab} aria-label={d.tabs.label}>
         <TabList>
           <Tab value="overview">{d.tabs.overview}</Tab>
           <Tab value="timeline">{d.tabs.timeline}</Tab>
           <Tab value="signal">{d.tabs.signal}</Tab>
           <Tab value="traffic">{d.tabs.traffic}</Tab>
+          <Tab value="doctor">{d.tabs.doctor}</Tab>
         </TabList>
         <TabPanel value="overview">
-          <ClientOverview detail={props.detail} />
+          <div class="flex flex-col gap-4">
+            <DoctorChip mac={client().mac} onOpen={() => setTab("doctor")} />
+            <ClientOverview detail={props.detail} />
+          </div>
         </TabPanel>
         <TabPanel value="timeline">
           <ClientTimeline detail={props.detail} />
@@ -184,6 +194,14 @@ function Client(props: { detail: ClientDetail }) {
         </TabPanel>
         <TabPanel value="traffic">
           <TrafficTab mac={client().mac} samples={props.detail.samples} />
+        </TabPanel>
+        <TabPanel value="doctor">
+          <DoctorTab
+            detail={props.detail}
+            onReconnect={
+              session.user.role === "admin" && onWifi() ? () => setKicking(true) : undefined
+            }
+          />
         </TabPanel>
       </Tabs>
       <Show when={fixing()}>

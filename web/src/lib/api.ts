@@ -25,6 +25,7 @@ import type { ControllerUpdates } from "../api/gen/ControllerUpdates";
 import type { Coverage } from "../api/gen/Coverage";
 import type { Credentials } from "../api/gen/Credentials";
 import type { DecommissionBody } from "../api/gen/DecommissionBody";
+import type { Diagnosis } from "../api/gen/Diagnosis";
 import type { DiagRun } from "../api/gen/DiagRun";
 import type { DiagRunBody } from "../api/gen/DiagRunBody";
 import type { DiscoveryReport } from "../api/gen/DiscoveryReport";
@@ -564,6 +565,9 @@ export const api = {
     get: (mac: string, signal?: AbortSignal) =>
       request<ClientDetail>(`/clients/${encodeURIComponent(mac)}`, { signal }),
     /** The client's sessions that went on at or after `since` (ms), oldest first. */
+    /** What the Connection Doctor finds over the last `hours` (1–168). */
+    doctor: (mac: string, hours: number, signal?: AbortSignal) =>
+      request<Diagnosis>(`/clients/${encodeURIComponent(mac)}/doctor?hours=${hours}`, { signal }),
     sessions: (mac: string, since: number, signal?: AbortSignal) =>
       request<ClientSession[]>(
         `/clients/${encodeURIComponent(mac)}/sessions?since=${Math.round(since)}`,
