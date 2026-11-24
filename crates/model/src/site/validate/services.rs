@@ -1,4 +1,4 @@
-//! The gateway's network services (D-132): the upstream DNS and DDNS.
+//! The gateway's network services (D-132): the upstream DNS's layers (D-146) and DDNS.
 
 use std::{collections::BTreeSet, net::IpAddr};
 
@@ -9,7 +9,7 @@ use super::{
 use crate::site::{
     SiteConfig,
     gateway::WanIpv6,
-    services::{Ddns, DdnsProvider, MAX_SERVERS, Upstream},
+    services::{Ddns, DdnsProvider, DohResolver, EncryptedResolver, MAX_SERVERS},
 };
 
 /// The most DDNS entries.
@@ -17,59 +17,135 @@ const MAX_DDNS: usize = 16;
 
 pub(super) fn upstream(config: &SiteConfig, issues: &mut Issues) {
     let at = "services/upstream";
-    match &config.services.upstream {
-        Upstream::Isp => {}
-        Upstream::Custom { servers } => {
-            if servers.is_empty() || servers.len() > MAX_SERVERS {
-                issues.error(
-                    format!("{at}/servers"),
-                    format!("Name 1 to {MAX_SERVERS} DNS servers"),
-                );
-            }
-            servers_ok(servers, &format!("{at}/servers"), issues);
-        }
-        Upstream::Doh { resolvers } => {
-            if resolvers.is_empty() || resolvers.len() > MAX_SERVERS {
-                issues.error(
-                    format!("{at}/resolvers"),
-                    format!("Name 1 to {MAX_SERVERS} DoH resolvers"),
-                );
-            }
-            let mut urls = BTreeSet::new();
-            for (i, resolver) in resolvers.iter().enumerate() {
-                let at = format!("{at}/resolvers/{i}");
-                match doh_host(&resolver.url) {
-                    None => issues.error(
-                        format!("{at}/url"),
-                        "A DoH resolver is an https:// URL, such as https://dns.quad9.net/dns-query",
-                    ),
-                    Some(host) => {
-                        if !urls.insert(resolver.url.as_str()) {
-                            issues.error(format!("{at}/url"), "This resolver is named twice");
-                        }
-                        // https-dns-proxy stops with one bootstrap server (c-ares wants a
-                        // socket more than it has servers; seen on 25.12's 2026.05.06).
-                        let named = host.parse::<IpAddr>().is_err();
-                        if resolver.bootstrap.len() == 1
-                            || (named && resolver.bootstrap.is_empty())
-                        {
-                            issues.error(
-                                format!("{at}/bootstrap"),
-                                "Name at least two plain DNS servers that resolve the resolver's host",
-                            );
-                        }
-                    }
+    let upstream = &config.services.upstream;
+    if upstream.encrypted.len() > MAX_SERVERS {
+        issues.error(
+            format!("{at}/encrypted"),
+            format!("At most {MAX_SERVERS} encrypted resolvers"),
+        );
+    }
+    if upstream.servers.len() > MAX_SERVERS {
+        issues.error(
+            format!("{at}/servers"),
+            format!("At most {MAX_SERVERS} DNS servers"),
+        );
+    }
+    servers_ok(&upstream.servers, &format!("{at}/servers"), issues);
+    if upstream.strict && upstream.encrypted.is_empty() {
+        issues.error(
+            format!("{at}/strict"),
+            "Encrypted-only needs an encrypted resolver",
+        );
+    } else if upstream.layers() == 0 {
+        issues.error(
+            at,
+            "Choose where queries go: encrypted resolvers, DNS servers or the ISP's",
+        );
+    }
+    let mut urls = BTreeSet::new();
+    let mut dots = BTreeSet::new();
+    // stubby asks every DoT resolver in turn, in the first one's place among the encrypted.
+    let mut dot_run = None;
+    for (i, resolver) in upstream.encrypted.iter().enumerate() {
+        let at = format!("{at}/encrypted/{i}");
+        match resolver {
+            EncryptedResolver::Doh(doh) => {
+                doh_ok(doh, &at, &mut urls, issues);
+                if dot_run == Some(true) {
+                    dot_run = Some(false);
                 }
-                if resolver.bootstrap.len() > MAX_SERVERS {
+            }
+            EncryptedResolver::Dot(dot) => {
+                if dot_run == Some(false) {
                     issues.error(
-                        format!("{at}/bootstrap"),
-                        format!("At most {MAX_SERVERS} bootstrap servers"),
+                        at.clone(),
+                        "Keep the DoT resolvers next to each other: they are asked in turn, in the first one's place",
                     );
                 }
-                servers_ok(&resolver.bootstrap, &format!("{at}/bootstrap"), issues);
+                dot_run.get_or_insert(true);
+                if !(is_dns_name(&dot.name) && dot.name.contains('.')) {
+                    issues.error(
+                        format!("{at}/name"),
+                        "A DoT resolver names the host its certificate is for, such as dns.quad9.net",
+                    );
+                } else if !dots.insert((dot.name.as_str(), dot.port)) {
+                    issues.error(format!("{at}/name"), "This resolver is named twice");
+                }
+                if dot.addresses.is_empty() || dot.addresses.len() > MAX_SERVERS {
+                    issues.error(
+                        format!("{at}/addresses"),
+                        format!("Name 1 to {MAX_SERVERS} addresses"),
+                    );
+                }
+                servers_ok(&dot.addresses, &format!("{at}/addresses"), issues);
+                if dot.port == 0 {
+                    issues.error(format!("{at}/port"), "Name a port from 1 to 65535");
+                }
+                if dot.spki.len() > MAX_SERVERS {
+                    issues.error(
+                        format!("{at}/spki"),
+                        format!("At most {MAX_SERVERS} key pins"),
+                    );
+                }
+                for (j, pin) in dot.spki.iter().enumerate() {
+                    if !is_spki_pin(pin) {
+                        issues.error(
+                            format!("{at}/spki/{j}"),
+                            "A key pin is a SHA-256 in base64: 43 characters and =",
+                        );
+                    }
+                }
             }
         }
     }
+}
+
+/// A DoH resolver: an https:// URL named once, with the bootstrap servers its host needs.
+fn doh_ok<'a>(
+    resolver: &'a DohResolver,
+    at: &str,
+    urls: &mut BTreeSet<&'a str>,
+    issues: &mut Issues,
+) {
+    match doh_host(&resolver.url) {
+        None => issues.error(
+            format!("{at}/url"),
+            "A DoH resolver is an https:// URL, such as https://dns.quad9.net/dns-query",
+        ),
+        Some(host) => {
+            if !urls.insert(resolver.url.as_str()) {
+                issues.error(format!("{at}/url"), "This resolver is named twice");
+            }
+            // https-dns-proxy stops with one bootstrap server (c-ares wants a socket more than
+            // it has servers; seen on 25.12's 2026.05.06).
+            let named = host.parse::<IpAddr>().is_err();
+            if resolver.bootstrap.len() == 1 || (named && resolver.bootstrap.is_empty()) {
+                issues.error(
+                    format!("{at}/bootstrap"),
+                    "Name at least two plain DNS servers that resolve the resolver's host",
+                );
+            }
+        }
+    }
+    if resolver.bootstrap.len() > MAX_SERVERS {
+        issues.error(
+            format!("{at}/bootstrap"),
+            format!("At most {MAX_SERVERS} bootstrap servers"),
+        );
+    }
+    servers_ok(&resolver.bootstrap, &format!("{at}/bootstrap"), issues);
+}
+
+/// A key pin as stubby takes it after `sha256/`: 32 bytes in padded base64.
+pub fn is_spki_pin(pin: &str) -> bool {
+    let bytes = pin.as_bytes();
+    bytes.len() == 44
+        && bytes[43] == b'='
+        && bytes[..43]
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || *b == b'+' || *b == b'/')
+        // The last digit holds 2 bits of padding: only A, E, I, … (the multiples of 4).
+        && b"AEIMQUYcgkosw048".contains(&bytes[42])
 }
 
 /// Each server is a unicast address, named once.
@@ -260,7 +336,21 @@ fn secret_label(provider: &DdnsProvider) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::doh_host;
+    use super::{doh_host, is_spki_pin};
+
+    #[test]
+    fn a_key_pin_is_a_sha_256_in_padded_base64() {
+        assert!(is_spki_pin("yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc="));
+        for bad in [
+            "",
+            "sha256/yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc=",
+            "yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbd=",
+            "yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc",
+            "yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW-lJsbc=",
+        ] {
+            assert!(!is_spki_pin(bad), "{bad}");
+        }
+    }
 
     #[test]
     fn doh_urls_name_a_host() {

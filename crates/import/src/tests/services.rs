@@ -7,7 +7,9 @@ use uniwrt_model::{
     node::NodeRole,
     site::{
         SiteConfig,
-        services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
+        services::{
+            Ddns, DdnsProvider, DdnsSource, DohResolver, DotResolver, EncryptedResolver, Upstream,
+        },
     },
 };
 
@@ -113,18 +115,16 @@ fn services(site: &SiteConfig) -> (Upstream, Vec<Ddns>, bool) {
 
 #[test]
 fn doh_and_ddns_import_exactly() {
-    let site = served(Upstream::Doh {
-        resolvers: vec![
-            DohResolver {
-                url: "https://cloudflare-dns.com/dns-query".to_owned(),
-                bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
-            },
-            DohResolver {
-                url: "https://9.9.9.9/dns-query".to_owned(),
-                bootstrap: Vec::new(),
-            },
-        ],
-    });
+    let site = served(Upstream::strict(vec![
+        EncryptedResolver::Doh(DohResolver {
+            url: "https://cloudflare-dns.com/dns-query".to_owned(),
+            bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
+        }),
+        EncryptedResolver::Doh(DohResolver {
+            url: "https://9.9.9.9/dns-query".to_owned(),
+            bootstrap: Vec::new(),
+        }),
+    ]));
     let import = round_trip(
         &site,
         &[
@@ -140,11 +140,130 @@ fn doh_and_ddns_import_exactly() {
 
 #[test]
 fn custom_servers_import_exactly() {
-    let site = served(Upstream::Custom {
-        servers: vec!["9.9.9.9".parse().unwrap(), "2620:fe::fe".parse().unwrap()],
-    });
+    let site = served(Upstream::custom(vec![
+        "9.9.9.9".parse().unwrap(),
+        "2620:fe::fe".parse().unwrap(),
+    ]));
     let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
     assert_eq!(services(&import.site), services(&site));
+}
+
+#[test]
+fn the_layers_and_dot_import_exactly() {
+    let dot = |name: &str, addresses: &[&str], port: u16, spki: &[&str]| {
+        EncryptedResolver::Dot(DotResolver {
+            name: name.to_owned(),
+            addresses: addresses.iter().map(|ip| ip.parse().unwrap()).collect(),
+            port,
+            spki: spki.iter().map(|pin| (*pin).to_owned()).collect(),
+        })
+    };
+    let layered = Upstream {
+        encrypted: vec![
+            dot("dns.quad9.net", &["9.9.9.9", "2620:fe::fe"], 853, &[]),
+            dot(
+                "dot.example.net",
+                &["192.0.2.80"],
+                8853,
+                &["yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc="],
+            ),
+            EncryptedResolver::Doh(DohResolver {
+                url: "https://cloudflare-dns.com/dns-query".to_owned(),
+                bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
+            }),
+        ],
+        servers: vec!["192.0.2.53".parse().unwrap()],
+        isp: true,
+        strict: false,
+    };
+    for upstream in [
+        layered.clone(),
+        Upstream {
+            strict: true,
+            servers: Vec::new(),
+            isp: false,
+            ..layered
+        },
+        Upstream {
+            isp: true,
+            ..Upstream::custom(vec!["192.0.2.53".parse().unwrap()])
+        },
+    ] {
+        let site = served(upstream);
+        let import = round_trip(&site, &[(GATEWAY, NodeRole::Gateway, gateway_facts())]);
+        assert_eq!(services(&import.site), services(&site));
+    }
+}
+
+#[test]
+fn stock_stubby_and_unordered_isp_servers_map_as_far_as_the_model_holds() {
+    let stock = (
+        "stubby",
+        "config stubby 'global'\n\toption round_robin_upstreams '1'\n\
+         \tlist listen_address '127.0.0.1@5453'\n\tlist listen_address '0::1@5453'\n\n\
+         config resolver\n\toption address '1.1.1.1'\n\toption tls_auth_name 'cloudflare-dns.com'\n\n\
+         config resolver\n\toption address '1.0.0.1'\n\toption tls_auth_name 'cloudflare-dns.com'\n",
+    );
+    let import_with = |servers: &[&str], noresolv: bool, ordered: bool| {
+        let mut packages = crate::release!("25.12");
+        upstream(&mut packages, servers);
+        let dnsmasq = packages
+            .get_mut("dhcp")
+            .unwrap()
+            .sections
+            .iter_mut()
+            .find(|s| s.kind == "dnsmasq")
+            .unwrap();
+        if !noresolv {
+            dnsmasq.remove("noresolv");
+        }
+        if ordered {
+            dnsmasq.set("strictorder", "1");
+        }
+        packages.extend(parse(&[stock]));
+        let found = [Found {
+            node: GATEWAY,
+            role: NodeRole::Gateway,
+            facts: x86_facts(),
+            packages,
+        }];
+        run(&SiteConfig::defaults(None), &found)
+            .site
+            .services
+            .upstream
+    };
+    let cloudflare = EncryptedResolver::Dot(DotResolver {
+        name: "cloudflare-dns.com".to_owned(),
+        addresses: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
+        port: 853,
+        spki: Vec::new(),
+    });
+    assert_eq!(
+        import_with(&["127.0.0.1#5453"], true, false),
+        Upstream::strict(vec![cloudflare.clone()])
+    );
+    assert_eq!(
+        import_with(&["127.0.0.1#5453", "9.9.9.9"], false, true),
+        Upstream {
+            encrypted: vec![cloudflare],
+            servers: vec!["9.9.9.9".parse().unwrap()],
+            isp: true,
+            strict: false,
+        }
+    );
+    // Without strictorder dnsmasq asks the WAN's servers as it likes; a proxy after a plain
+    // server, or a port nothing listens on, isn't an order the model holds.
+    for (servers, noresolv, ordered) in [
+        (&["127.0.0.1#5453"][..], false, false),
+        (&["9.9.9.9", "127.0.0.1#5453"][..], true, false),
+        (&["127.0.0.1#5999"][..], true, false),
+    ] {
+        assert_eq!(
+            import_with(servers, noresolv, ordered),
+            Upstream::default(),
+            "{servers:?}"
+        );
+    }
 }
 
 #[test]
@@ -184,18 +303,16 @@ fn a_hand_made_gateway_maps_what_the_model_holds() {
     let import = run(&SiteConfig::defaults(None), &found);
     assert_eq!(
         import.site.services.upstream,
-        Upstream::Doh {
-            resolvers: vec![
-                DohResolver {
-                    url: "https://dns.google/dns-query".to_owned(),
-                    bootstrap: vec!["8.8.8.8".parse().unwrap(), "8.8.4.4".parse().unwrap()],
-                },
-                DohResolver {
-                    url: "https://cloudflare-dns.com/dns-query".to_owned(),
-                    bootstrap: vec!["1.1.1.1".parse().unwrap()],
-                },
-            ],
-        }
+        Upstream::strict(vec![
+            EncryptedResolver::Doh(DohResolver {
+                url: "https://dns.google/dns-query".to_owned(),
+                bootstrap: vec!["8.8.8.8".parse().unwrap(), "8.8.4.4".parse().unwrap()],
+            }),
+            EncryptedResolver::Doh(DohResolver {
+                url: "https://cloudflare-dns.com/dns-query".to_owned(),
+                bootstrap: vec!["1.1.1.1".parse().unwrap()],
+            }),
+        ])
     );
     // Another service, a Global API key and a script source stay raw.
     let ddns = &import.site.services.ddns;
@@ -225,12 +342,12 @@ fn a_conditional_server_keeps_the_isp_s_upstream() {
         packages,
     }];
     let import = run(&SiteConfig::defaults(None), &found);
-    assert_eq!(import.site.services.upstream, Upstream::Isp);
+    assert_eq!(import.site.services.upstream, Upstream::default());
 }
 
 #[test]
 fn dns_filtering_and_its_bypass_import_exactly() {
-    let mut site = served(Upstream::Isp);
+    let mut site = served(Upstream::default());
     site.services.blocking.enabled = true;
     site.services.blocking.bypass = vec![
         "02:00:00:00:10:01".parse().unwrap(),

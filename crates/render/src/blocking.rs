@@ -64,7 +64,8 @@ pub(crate) fn instances(plan: &Plan<'_>, mut sections: Vec<Section>) -> Vec<Sect
 }
 
 /// The unfiltered instance: DNS only on [`UNFILTERED_PORT`], the main instance's upstream (its
-/// resolv file or servers), local names and the controller's from the main instance.
+/// resolv file or servers, in the same order), local names and the controller's from the main
+/// instance.
 fn unfiltered(plan: &Plan<'_>, main: &Section) -> Section {
     let domain = plan.site.site.domain.as_str();
     let mut section = Section::named("dnsmasq", UNFILTERED_INSTANCE)
@@ -85,6 +86,9 @@ fn unfiltered(plan: &Plan<'_>, main: &Section) -> Section {
             "logqueries",
             plan.site.services.blocking.logs_queries().then_some("1"),
         );
+    if main.option("strictorder") == Some("1") {
+        section.set("strictorder", "1");
+    }
     match (main.option("noresolv"), main.option("resolvfile")) {
         (Some("1"), _) => section.set("noresolv", "1"),
         (_, Some(file)) => section.set("resolvfile", file),

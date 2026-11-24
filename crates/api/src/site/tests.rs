@@ -216,8 +216,10 @@ async fn a_ddns_token_is_sealed_with_its_name_and_the_upstream_checked() {
         "ipv6": false, "source": "wan", "secret": null,
     }]);
     config["services"]["upstream"] = json!({
-        "kind": "doh",
-        "resolvers": [{ "url": "https://dns.quad9.net/dns-query", "bootstrap": ["9.9.9.9"] }],
+        "encrypted": [{
+            "protocol": "doh", "url": "https://dns.quad9.net/dns-query", "bootstrap": ["9.9.9.9"],
+        }],
+        "servers": [], "isp": false, "strict": true,
     });
     let save =
         |config: &Value, secrets: Value| json!({ "base": 1, "config": config, "secrets": secrets });
@@ -227,9 +229,9 @@ async fn a_ddns_token_is_sealed_with_its_name_and_the_upstream_checked() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     assert_eq!(
         body["issues"][0]["path"],
-        "services/upstream/resolvers/0/bootstrap"
+        "services/upstream/encrypted/0/bootstrap"
     );
-    config["services"]["upstream"]["resolvers"][0]["bootstrap"] =
+    config["services"]["upstream"]["encrypted"][0]["bootstrap"] =
         json!(["9.9.9.9", "149.112.112.112"]);
     let (status, saved) = put(&demo, &save(&config, token)).await;
     assert_eq!(status, StatusCode::OK, "{saved}");

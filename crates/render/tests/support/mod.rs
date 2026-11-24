@@ -252,6 +252,7 @@ pub(crate) fn managed(node: NodeId) -> NodeConfig {
         ManagedPackage::HttpsDnsProxy,
         ManagedPackage::Ddns,
         ManagedPackage::MdnsRepeater,
+        ManagedPackage::Stubby,
     ]
     .into();
     config

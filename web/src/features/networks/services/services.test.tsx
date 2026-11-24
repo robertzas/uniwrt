@@ -21,6 +21,7 @@ const NO_BLOCKLIST = { sha256: null, domains: null, conf: false };
 let services: ServiceFacts = {
   ddns: [],
   doh_instances: null,
+  dot_instances: null,
   blocklist: NO_BLOCKLIST,
   wireguard: null,
   tailscale: null,
@@ -46,6 +47,7 @@ beforeEach(() => {
   services = {
     ddns: [],
     doh_instances: null,
+    dot_instances: null,
     blocklist: NO_BLOCKLIST,
     wireguard: null,
     tailscale: null,
@@ -106,15 +108,22 @@ const put = () =>
 describe("Network services", () => {
   it("shows the saved services to viewers, with what the gateway reports", async () => {
     config.services.upstream = {
-      kind: "doh",
-      resolvers: [
-        { url: "https://dns.quad9.net/dns-query", bootstrap: ["9.9.9.9", "149.112.112.112"] },
+      encrypted: [
+        {
+          protocol: "doh",
+          url: "https://dns.quad9.net/dns-query",
+          bootstrap: ["9.9.9.9", "149.112.112.112"],
+        },
       ],
+      servers: [],
+      isp: false,
+      strict: true,
     };
     config.services.ddns = [CF, { ...CF, id: "v6", ipv6: true, source: "web" }];
     services = {
       ddns: [{ id: "home", address: "203.0.113.7", updated_at: 0, running: true }],
       doh_instances: 1,
+      dot_instances: null,
       wireguard: null,
       tailscale: null,
       blocklist: NO_BLOCKLIST,
@@ -173,10 +182,16 @@ describe("Network services", () => {
     await waitFor(() => expect(put()).toBeDefined());
     expect(put().message).toBe("Upstream DNS: DNS over HTTPS");
     expect(put().config.services.upstream).toEqual({
-      kind: "doh",
-      resolvers: [
-        { url: "https://dns.nextdns.io/abc123", bootstrap: ["45.90.28.0", "45.90.30.0"] },
+      encrypted: [
+        {
+          protocol: "doh",
+          url: "https://dns.nextdns.io/abc123",
+          bootstrap: ["45.90.28.0", "45.90.30.0"],
+        },
       ],
+      servers: [],
+      isp: false,
+      strict: true,
     });
     expect(await within(card).findByText(/Saved as revision 3/)).toBeInTheDocument();
   });

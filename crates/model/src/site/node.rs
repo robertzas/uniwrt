@@ -73,6 +73,7 @@ pub enum ManagedPackage {
     HttpsDnsProxy,
     Ddns,
     MdnsRepeater,
+    Stubby,
 }
 
 impl ManagedPackage {
@@ -92,6 +93,7 @@ impl ManagedPackage {
             Self::HttpsDnsProxy => "https-dns-proxy",
             Self::Ddns => "ddns",
             Self::MdnsRepeater => "mdns_repeater",
+            Self::Stubby => "stubby",
         }
     }
 }

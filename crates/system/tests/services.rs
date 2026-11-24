@@ -1,6 +1,7 @@
 //! The gateway's network services on OpenWrt (D-132), on scripts/test-system.sh's topology:
 //! DoH through https-dns-proxy behind dnsmasq, and the DDNS updater, beside the `dhcp` and
-//! `firewall` packages render owns; DNS filtering (D-133) with a client that bypasses it.
+//! `firewall` packages render owns; DoT through stubby before a plain server that answers once
+//! it fails (D-146); DNS filtering (D-133) with a client that bypasses it.
 
 use std::time::{Duration, Instant};
 
@@ -9,7 +10,9 @@ use uniwrt_model::{
     site::{
         blocking::{BLOCKLIST_CONF, BLOCKLIST_FILE, CONF_DIR},
         node::ManagedPackage,
-        services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
+        services::{
+            Ddns, DdnsProvider, DdnsSource, DohResolver, DotResolver, EncryptedResolver, Upstream,
+        },
     },
 };
 use uniwrt_system::{
@@ -32,18 +35,16 @@ fn eventually(within: Duration, what: &str, mut check: impl FnMut() -> bool) {
 #[ignore = "needs scripts/test-system.sh's topology"]
 fn doh_and_ddns_run_beside_what_render_owns() {
     let mut site = site::defaults(Uplink::Static);
-    site.services.upstream = Upstream::Doh {
-        resolvers: vec![
-            DohResolver {
-                url: "https://cloudflare-dns.com/dns-query".to_owned(),
-                bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
-            },
-            DohResolver {
-                url: "https://9.9.9.9/dns-query".to_owned(),
-                bootstrap: Vec::new(),
-            },
-        ],
-    };
+    site.services.upstream = Upstream::strict(vec![
+        EncryptedResolver::Doh(DohResolver {
+            url: "https://cloudflare-dns.com/dns-query".to_owned(),
+            bootstrap: vec!["1.1.1.1".parse().unwrap(), "1.0.0.1".parse().unwrap()],
+        }),
+        EncryptedResolver::Doh(DohResolver {
+            url: "https://9.9.9.9/dns-query".to_owned(),
+            bootstrap: Vec::new(),
+        }),
+    ]);
     site.services.ddns = vec![Ddns {
         id: "lab".to_owned(),
         enabled: true,
@@ -100,6 +101,95 @@ fn doh_and_ddns_run_beside_what_render_owns() {
             .iter()
             .any(|d| d.id == "lab" && d.running)
     });
+}
+
+#[test]
+#[ignore = "needs scripts/test-system.sh's topology"]
+fn dot_comes_first_and_a_plain_server_answers_when_it_fails() {
+    // The ISP's dnsmasq answers a name of its own (not under a special-use domain such as
+    // `.test`, which dnsmasq answers locally), at an address rebind protection lets through
+    // (not a private or documentation range): the lab has no internet, so stubby's TLS
+    // to Quad9 fails, it answers SERVFAIL, and dnsmasq moves on to the plain layer.
+    let isp = Node::new("uniwrt-system-isp");
+    isp.sh(
+        r#"uci -q del_list dhcp.@dnsmasq[0].address="$1"; uci add_list dhcp.@dnsmasq[0].address="$1" &&
+           uci commit dhcp && /etc/init.d/dnsmasq restart"#,
+        &["/failover.uniwrt-lab.net/93.184.215.99"],
+    );
+    let mut site = site::defaults(Uplink::Static);
+    site.services.upstream = Upstream {
+        encrypted: vec![EncryptedResolver::Dot(DotResolver {
+            name: "dns.quad9.net".to_owned(),
+            addresses: vec![
+                "9.9.9.9".parse().unwrap(),
+                "149.112.112.112".parse().unwrap(),
+            ],
+            port: 853,
+            spki: Vec::new(),
+        })],
+        servers: vec!["192.0.2.1".parse().unwrap()],
+        isp: true,
+        strict: false,
+    };
+    let gw = Node::new("uniwrt-system-gw");
+    let rendered = render_for(&site, &gw, GATEWAY, NodeRole::Gateway);
+    assert_eq!(rendered.services.get("stubby"), Some(&true));
+    gw.apply(&rendered);
+    gw.wait_interface("wan", UP, |s| ipv4(s) == ["192.0.2.2/24"]);
+    let ap = Node::new("uniwrt-system-ap");
+    ap.apply(&render_for(&site, &ap, AP, NodeRole::Ap));
+    ap.wait_interface("lan", UP, |s| {
+        ipv4(s).iter().any(|a| a.starts_with("10.0.0."))
+    });
+
+    // procd runs stubby on 127.0.0.1:5453 (0x154D), from the YAML its init made of render's.
+    eventually(UP, "stubby runs", || {
+        gw.facts().services.dot_instances == Some(1)
+    });
+    eventually(UP, "stubby listens", || {
+        gw.sh("cat /proc/net/udp", &[]).contains("0100007F:154D")
+    });
+    let yaml = gw.sh("cat /var/etc/stubby/stubby.yml", &[]);
+    for line in [
+        "round_robin_upstreams: 0",
+        "timeout: 2000",
+        "tls_authentication: GETDNS_AUTHENTICATION_REQUIRED",
+        "  - 127.0.0.1@5453",
+    ] {
+        assert!(yaml.lines().any(|l| l == line), "{line} in:\n{yaml}");
+    }
+    assert!(
+        yaml.contains("dns.quad9.net") && yaml.contains("149.112.112.112"),
+        "{yaml}"
+    );
+    // dnsmasq asks the layers in order: stubby, the plain server, then the WAN's.
+    // The main instance's (the filtering test may leave the unfiltered one's file behind).
+    let conf = gw.sh(
+        "cat $(ls /var/etc/dnsmasq.conf.* | grep -v unfiltered)",
+        &[],
+    );
+    let servers: Vec<&str> = conf.lines().filter(|l| l.starts_with("server=")).collect();
+    // Not strict and no DoH: no NTP pin (a TLS failure moves those names on too).
+    assert_eq!(
+        servers,
+        ["server=127.0.0.1#5453", "server=192.0.2.1"],
+        "{conf}"
+    );
+    assert!(conf.lines().any(|l| l == "strict-order"), "{conf}");
+    assert!(!conf.lines().any(|l| l == "no-resolv"), "{conf}");
+    let deadline = Instant::now() + UP;
+    loop {
+        let answer = lookup(&ap, "failover.uniwrt-lab.net");
+        if answer.contains("93.184.215.99") {
+            break;
+        }
+        if Instant::now() > deadline {
+            let isp = gw.sh("nslookup failover.uniwrt-lab.net 192.0.2.1 2>&1; true", &[]);
+            let log = gw.sh("logread | grep -iE 'stubby|dnsmasq' | tail -20; true", &[]);
+            panic!("the plain layer didn't answer: {answer}\nthe ISP: {isp}\n{log}");
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    }
 }
 
 /// What `nslookup name` through the gateway answers on `node`, with its errors.

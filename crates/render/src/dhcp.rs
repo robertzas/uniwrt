@@ -2,8 +2,8 @@
 //! each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6
 //! as each network's clients mode says; on APs every network is ignored, as their DHCP services
 //! are off. The gateway's dnsmasq resolves `uniwrt.<domain>` to the controller when it sits on
-//! one of the networks. Its upstream is the WAN's servers, the site's, or DoH's local
-//! instances ([`doh`](crate::doh)); pools without NTP servers hand out the gateway while it
+//! one of the networks. Its upstream is the site's layers ([`upstream`](crate::upstream));
+//! pools without NTP servers hand out the gateway while it
 //! serves time.
 
 use std::net::IpAddr;
@@ -13,7 +13,6 @@ use uniwrt_model::{
     site::{
         gateway::{CONTROLLER_HOST, DnsRecord},
         network::{DhcpOptions, Ipv6Clients},
-        services::Upstream,
     },
 };
 use uniwrt_uci::{Package, Section};
@@ -28,7 +27,7 @@ pub(crate) fn render(plan: &Plan<'_>) -> Package {
     let gateway = plan.role == NodeRole::Gateway;
     let mut dns = dnsmasq(domain);
     if gateway {
-        dns = crate::blocking::main(plan, upstream(plan, dns));
+        dns = crate::blocking::main(plan, crate::upstream::apply(plan, dns));
     }
     let mut sections = vec![dns];
     let serves_time = gateway && plan.site.services.ntp_server;
@@ -115,33 +114,6 @@ fn dnsmasq(domain: &str) -> Section {
         .with("nonwildcard", "1")
         .with("localservice", "1")
         .with("ednspacket_max", "1232")
-}
-
-/// Where dnsmasq forwards what it can't answer: the WAN's servers (its resolv file), the
-/// site's own servers, or DoH's local instances, with the NTP servers' names resolved through
-/// a plain bootstrap server as DoH's TLS needs the right time first.
-fn upstream(plan: &Plan<'_>, dnsmasq: Section) -> Section {
-    match &plan.site.services.upstream {
-        Upstream::Isp => dnsmasq,
-        Upstream::Custom { servers } => dnsmasq
-            .with("noresolv", "1")
-            .list("server", servers.iter().map(ToString::to_string)),
-        Upstream::Doh { resolvers } => {
-            let bootstrap = crate::doh::bootstrap(resolvers);
-            let ntp = plan
-                .site
-                .site
-                .ntp_servers
-                .iter()
-                .filter(|name| name.parse::<IpAddr>().is_err());
-            let pinned = bootstrap
-                .into_iter()
-                .flat_map(|ip| ntp.clone().map(move |name| format!("/{name}/{ip}")));
-            dnsmasq
-                .with("noresolv", "1")
-                .list("server", pinned.chain(crate::doh::servers(resolvers)))
-        }
-    }
 }
 
 fn ignored(interface: &str) -> Section {

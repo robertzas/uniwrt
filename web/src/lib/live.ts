@@ -144,6 +144,7 @@ function factsFrom(patch: FactsPatch): NodeFacts | undefined {
     services: patch.services ?? {
       ddns: [],
       doh_instances: null,
+      dot_instances: null,
       wireguard: null,
       tailscale: null,
       blocklist: { sha256: null, domains: null, conf: false },

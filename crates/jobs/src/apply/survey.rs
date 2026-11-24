@@ -51,7 +51,7 @@ pub(crate) const RENDER_SETS: [Set; 6] = [
 ];
 
 /// The services render may switch, which the planner reads.
-const SERVICES: [&str; 10] = [
+const SERVICES: [&str; 11] = [
     "dnsmasq",
     "odhcpd",
     "firewall",
@@ -62,6 +62,7 @@ const SERVICES: [&str; 10] = [
     "https-dns-proxy",
     "ddns",
     "mdns-repeater",
+    "stubby",
 ];
 
 /// A login on a node.

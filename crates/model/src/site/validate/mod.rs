@@ -29,7 +29,7 @@ use super::{SCHEMA_VERSION, SiteConfig};
 pub use blocking::{MAX_BYPASS, MAX_CUSTOM, MAX_DOMAINS, is_list_url};
 pub use dhcp::is_dhcp_option;
 pub use names::{is_hostname, is_id};
-pub use services::{doh_host, needs_secret};
+pub use services::{doh_host, is_spki_pin, needs_secret};
 pub use uniwrt_uci::{
     is_name as is_uci_name, is_package as is_uci_package, is_type as is_uci_type,
 };

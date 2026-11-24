@@ -1,5 +1,5 @@
 //! The gateway's network services (features/network.md; D-132): the upstream DNS in dnsmasq,
-//! https-dns-proxy for DoH, ddns-scripts for DDNS, the NTP server, and what is left when they
+//! its layers (D-146), https-dns-proxy for DoH, stubby for DoT, ddns-scripts for DDNS, the NTP server, and what is left when they
 //! go off.
 
 // Tests and their fixtures may panic on what they set up.
@@ -15,7 +15,9 @@ use uniwrt_model::{
     site::{
         SiteConfig,
         node::ManagedPackage,
-        services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
+        services::{
+            Ddns, DdnsProvider, DdnsSource, DohResolver, DotResolver, EncryptedResolver, Upstream,
+        },
     },
 };
 use uniwrt_render::Rendered;
@@ -27,28 +29,35 @@ fn ok(result: Result<Rendered, Vec<uniwrt_render::Issue>>) -> Rendered {
     result.unwrap_or_else(|issues| panic!("{issues:?}"))
 }
 
-fn doh(url: &str, bootstrap: &[&str]) -> DohResolver {
-    DohResolver {
+fn doh(url: &str, bootstrap: &[&str]) -> EncryptedResolver {
+    EncryptedResolver::Doh(DohResolver {
         url: url.to_owned(),
         bootstrap: bootstrap.iter().map(|ip| ip.parse().unwrap()).collect(),
-    }
+    })
+}
+
+fn dot(name: &str, addresses: &[&str], port: u16, spki: &[&str]) -> EncryptedResolver {
+    EncryptedResolver::Dot(DotResolver {
+        name: name.to_owned(),
+        addresses: addresses.iter().map(|ip| ip.parse().unwrap()).collect(),
+        port,
+        spki: spki.iter().map(|pin| (*pin).to_owned()).collect(),
+    })
 }
 
 /// The home site with DoH through two resolvers and two DDNS names, one of them off.
 fn served() -> SiteConfig {
     let mut site = home_site();
-    site.services.upstream = Upstream::Doh {
-        resolvers: vec![
-            doh(
-                "https://cloudflare-dns.com/dns-query",
-                &["2606:4700:4700::1111", "1.1.1.1"],
-            ),
-            doh(
-                "https://dns.quad9.net/dns-query",
-                &["9.9.9.9", "149.112.112.112"],
-            ),
-        ],
-    };
+    site.services.upstream = Upstream::strict(vec![
+        doh(
+            "https://cloudflare-dns.com/dns-query",
+            &["2606:4700:4700::1111", "1.1.1.1"],
+        ),
+        doh(
+            "https://dns.quad9.net/dns-query",
+            &["9.9.9.9", "149.112.112.112"],
+        ),
+    ]);
     site.services.ddns = vec![
         Ddns {
             id: "home".to_owned(),
@@ -103,9 +112,10 @@ fn gateway_doh_and_ddns() {
 #[test]
 fn custom_servers_replace_the_isp_s() {
     let mut site = home_site();
-    site.services.upstream = Upstream::Custom {
-        servers: vec!["9.9.9.9".parse().unwrap(), "2620:fe::fe".parse().unwrap()],
-    };
+    site.services.upstream = Upstream::custom(vec![
+        "9.9.9.9".parse().unwrap(),
+        "2620:fe::fe".parse().unwrap(),
+    ]);
     let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
     let dhcp = &rendered.packages[&ManagedPackage::Dhcp];
     let dnsmasq = dhcp.sections_of("dnsmasq").next().unwrap();
@@ -127,6 +137,98 @@ fn custom_servers_replace_the_isp_s() {
         .next()
         .unwrap();
     assert_eq!(dnsmasq.option("noresolv"), None);
+}
+
+#[test]
+fn the_layers_go_encrypted_first_then_plain_then_the_isp_s_in_order() {
+    let mut site = home_site();
+    site.site.ntp_servers = vec![
+        "0.openwrt.pool.ntp.org".to_owned(),
+        "192.0.2.123".to_owned(),
+    ];
+    site.services.upstream = Upstream {
+        encrypted: vec![
+            dot("dns.quad9.net", &["9.9.9.9", "2620:fe::fe"], 853, &[]),
+            dot(
+                "dot.example.net",
+                &["192.0.2.80"],
+                8853,
+                &["yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc="],
+            ),
+            doh(
+                "https://cloudflare-dns.com/dns-query",
+                &["1.1.1.1", "1.0.0.1"],
+            ),
+        ],
+        servers: vec!["192.0.2.53".parse().unwrap()],
+        isp: true,
+        strict: false,
+    };
+    let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
+    let dnsmasq = rendered.packages[&ManagedPackage::Dhcp]
+        .sections_of("dnsmasq")
+        .next()
+        .unwrap()
+        .clone();
+    // stubby stands where the DoT resolvers do; the WAN's resolv file comes last.
+    assert_eq!(
+        dnsmasq.get("server").unwrap().items(),
+        [
+            "/0.openwrt.pool.ntp.org/1.1.1.1",
+            "127.0.0.1#5453",
+            "127.0.0.1#5053",
+            "192.0.2.53"
+        ]
+    );
+    assert_eq!(
+        (dnsmasq.option("noresolv"), dnsmasq.option("strictorder")),
+        (None, Some("1"))
+    );
+    assert_eq!(rendered.services.get("stubby"), Some(&true));
+    assert_eq!(rendered.services.get("https-dns-proxy"), Some(&true));
+    assert!(requires(&rendered).contains(&"stubby"));
+    assert_snapshot!(
+        "gateway_dot",
+        rendered.packages[&ManagedPackage::Stubby].to_file()
+    );
+
+    // Strict: the encrypted layer alone, which dnsmasq spreads over as it likes; without DoH
+    // the NTP names go to the first DoT address.
+    site.services.upstream.strict = true;
+    site.services.upstream.encrypted.remove(2);
+    let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
+    let dnsmasq = rendered.packages[&ManagedPackage::Dhcp]
+        .sections_of("dnsmasq")
+        .next()
+        .unwrap()
+        .clone();
+    assert_eq!(
+        dnsmasq.get("server").unwrap().items(),
+        ["/0.openwrt.pool.ntp.org/9.9.9.9", "127.0.0.1#5453"]
+    );
+    assert_eq!(
+        (dnsmasq.option("noresolv"), dnsmasq.option("strictorder")),
+        (Some("1"), None)
+    );
+    assert_eq!(rendered.services.get("https-dns-proxy"), None);
+
+    // Plain servers before the ISP's: ordered too, and no NTP pin.
+    site.services.upstream = Upstream {
+        isp: true,
+        ..Upstream::custom(vec!["192.0.2.53".parse().unwrap()])
+    };
+    let rendered = ok(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts()));
+    let dnsmasq = rendered.packages[&ManagedPackage::Dhcp]
+        .sections_of("dnsmasq")
+        .next()
+        .unwrap()
+        .clone();
+    assert_eq!(dnsmasq.get("server").unwrap().items(), ["192.0.2.53"]);
+    assert_eq!(
+        (dnsmasq.option("noresolv"), dnsmasq.option("strictorder")),
+        (None, Some("1"))
+    );
+    assert!(!rendered.packages.contains_key(&ManagedPackage::Stubby));
 }
 
 #[test]

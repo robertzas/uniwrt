@@ -31,6 +31,7 @@ pub fn key(package: &str, kind: &str) -> Option<&'static [&'static str]> {
         ("firewall", "include") => &["path"],
         ("upnpd", "perm_rule") => &["comment"],
         ("https-dns-proxy", "https-dns-proxy") => &["listen_port"],
+        ("stubby", "resolver") => &["address"],
         _ => return None,
     })
 }

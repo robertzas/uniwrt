@@ -8,8 +8,9 @@
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
 //!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `usteer` (only with steering
 //!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd`,
-//!   `https-dns-proxy`, `ddns`, `mdns_repeater` (the last six only on the gateway, only with SQM,
-//!   failover, UPnP, DoH, DDNS names or mDNS reflection on, or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
+//!   `https-dns-proxy`, `ddns`, `mdns_repeater`, `stubby` (the last seven only on the gateway,
+//!   only with SQM, failover, UPnP, DoH, DDNS names, mDNS reflection or DoT on, or the node
+//!   holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found. A package render doesn't write that a raw section
 //!   names is patched: the node's own file in [`Target::current`] with its raw sections
 //!   ([`Rendered::patched`], D-143). [`explorer::tree`] is the UCI explorer's view of a node's
@@ -23,7 +24,8 @@
 //!   join the bridge as access ports, and its user ports per their profiles. The gateway
 //!   routes: a static interface per network, the WAN, dnsmasq (pools with their options and
 //!   network boot, the gateway as NTP server where a pool names none and it serves time, the
-//!   upstream DNS: the ISP's, custom servers or DoH's local instances, DNS filtering's conf
+//!   upstream DNS's layers (encrypted resolvers through DoH's and DoT's local proxies, plain
+//!   servers, the ISP's; [`upstream`](mod@upstream), D-146), DNS filtering's conf
 //!   directory and, for clients that bypass it, an unfiltered instance the firewall redirects
 //!   their DNS to ([`blocking`](mod@blocking), D-133), and `uniwrt.<domain>`
 //!   for the controller when [`Target::controller`] sits in a network) and odhcpd (each network's IPv6 clients mode), and a firewall zone per network
@@ -65,6 +67,7 @@ mod blocking;
 mod ddns;
 mod dhcp;
 mod doh;
+mod dot;
 pub mod explorer;
 mod ext;
 mod failover;
@@ -86,6 +89,7 @@ mod switch;
 mod system;
 mod tailscale;
 mod upnp;
+mod upstream;
 mod usteer;
 mod wan;
 mod wireguard;
@@ -238,7 +242,7 @@ pub use self::{
 };
 
 /// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 12] = [
+pub const RENDERABLE: [ManagedPackage; 13] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
@@ -251,6 +255,7 @@ pub const RENDERABLE: [ManagedPackage; 12] = [
     ManagedPackage::HttpsDnsProxy,
     ManagedPackage::Ddns,
     ManagedPackage::MdnsRepeater,
+    ManagedPackage::Stubby,
 ];
 
 /// A package of what the feeds bring, on the gateway: the package, its init script, whether
@@ -296,13 +301,17 @@ fn feed_package(
             )
         }
         ManagedPackage::HttpsDnsProxy => {
-            let on = doh::resolvers(plan).is_some();
+            let on = !doh::resolvers(plan).is_empty();
             (
                 doh::render(plan, held)?,
                 "https-dns-proxy",
                 on,
                 vec![doh::REQUIRES],
             )
+        }
+        ManagedPackage::Stubby => {
+            let on = !dot::resolvers(plan).is_empty();
+            (dot::render(plan, held)?, "stubby", on, vec![dot::REQUIRES])
         }
         ManagedPackage::Ddns => {
             let rendered = ddns::render(plan, held)?;
@@ -391,6 +400,7 @@ pub fn render(
             | ManagedPackage::Mwan3
             | ManagedPackage::Upnpd
             | ManagedPackage::HttpsDnsProxy
+            | ManagedPackage::Stubby
             | ManagedPackage::Ddns
             | ManagedPackage::MdnsRepeater => {
                 let Some(rendered) = feed_package(*package, &mut plan, held) else {

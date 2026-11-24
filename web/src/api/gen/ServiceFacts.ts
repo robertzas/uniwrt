@@ -17,6 +17,11 @@ ddns: Array<DdnsFacts>,
  */
 doh_instances: number | null, 
 /**
+ * How many stubby instances run (one at most; D-146); `None` where procd has no such
+ * service.
+ */
+dot_instances: number | null, 
+/**
  * The DNS blocklist the controller pushed (D-133), as the gateway's files say.
  */
 blocklist: BlocklistFacts, 

@@ -1,5 +1,6 @@
-//! The gateway's network services (D-132): the upstream DNS from dnsmasq's `noresolv` and
-//! `server`s (the WAN's, plain servers, or https-dns-proxy's local instances), whether the
+//! The gateway's network services (D-132): the upstream DNS's layers (D-146) from dnsmasq's
+//! `noresolv`, `strictorder` and `server`s (https-dns-proxy's local instances and stubby's,
+//! plain servers, the WAN's), whether the
 //! gateway serves NTP, and the DDNS names ddns-scripts keeps. What the model can't hold stays
 //! as it is: an upstream with conditional or odd servers stays the ISP's (its options raw), and
 //! a DDNS section of another service, source or id stays a raw section. DNS filtering (D-133)
@@ -12,7 +13,10 @@ use uniwrt_core::MacAddr;
 use uniwrt_model::site::{
     SecretRef, SiteConfig,
     blocking::{Blocking, CONF_DIR},
-    services::{Ddns, DdnsProvider, DdnsSource, DohResolver, MAX_SERVERS, Upstream},
+    services::{
+        DOT_PORT, Ddns, DdnsProvider, DdnsSource, DohResolver, DotResolver, EncryptedResolver,
+        MAX_SERVERS, Upstream,
+    },
     validate::is_id,
 };
 use uniwrt_uci::Section;
@@ -68,33 +72,56 @@ fn blocking(gateway: &Source<'_>) -> Blocking {
     }
 }
 
-/// Where dnsmasq forwards: the WAN's servers unless `noresolv` names others the model holds.
+/// Where dnsmasq forwards (D-146): the layers, where its `server`s are the model's in the
+/// model's order (DoH's and stubby's local servers, then plain servers) and, with the WAN's
+/// servers asked too, `strictorder` keeps that order; anything else stays the ISP's.
 fn upstream(dnsmasq: &Section, gateway: &Source<'_>, ntp: &[String]) -> Upstream {
-    if read::flag(dnsmasq, "noresolv") != Some(true) {
-        return Upstream::Isp;
+    let isp = read::flag(dnsmasq, "noresolv") != Some(true);
+    let ordered = read::flag(dnsmasq, "strictorder") == Some(true);
+    let servers: Vec<&str> = read::items(dnsmasq, "server")
+        .into_iter()
+        .filter(|server| !pinned(server, ntp))
+        .collect();
+    if servers.is_empty() || (isp && !ordered) {
+        return Upstream::default();
     }
-    let servers = read::items(dnsmasq, "server");
-    let plain: Option<Vec<IpAddr>> = servers.iter().map(|s| s.parse().ok()).collect();
-    if let Some(servers) = plain.filter(|s| (1..=MAX_SERVERS).contains(&s.len())) {
-        return Upstream::Custom { servers };
-    }
-    doh(&servers, gateway, ntp).unwrap_or_default()
+    layers(&servers, gateway, isp).unwrap_or_default()
 }
 
-/// DoH: every server is a local https-dns-proxy instance, in port order, besides the NTP names
-/// render pins to a bootstrap server.
-fn doh(servers: &[&str], gateway: &Source<'_>, ntp: &[String]) -> Option<Upstream> {
-    let pinned = |server: &str| {
-        let Some((name, ip)) = server.strip_prefix('/').and_then(|s| s.split_once('/')) else {
-            return false;
-        };
-        ntp.iter().any(|n| n == name) && ip.parse::<IpAddr>().is_ok()
+/// A server render pins an NTP server's name to: `/<name>/<ip>`.
+fn pinned(server: &str, ntp: &[String]) -> bool {
+    let Some((name, ip)) = server.strip_prefix('/').and_then(|s| s.split_once('/')) else {
+        return false;
     };
+    ntp.iter().any(|n| n == name) && ip.parse::<IpAddr>().is_ok()
+}
+
+/// The layers of `servers`: local proxies first (each DoH instance by its port, stubby by its
+/// own), then plain servers.
+fn layers(servers: &[&str], gateway: &Source<'_>, isp: bool) -> Option<Upstream> {
     let instances: Vec<&Section> =
         read::sections(gateway.packages, "https-dns-proxy", "https-dns-proxy").collect();
-    let mut resolvers = Vec::new();
-    for server in servers.iter().filter(|s| !pinned(s)) {
+    let mut encrypted = Vec::new();
+    let mut plain = Vec::new();
+    let mut dot = false;
+    for server in servers {
+        if let Ok(ip) = server.parse::<IpAddr>() {
+            plain.push(ip);
+            continue;
+        }
+        // A proxy after a plain server is an order the model can't hold.
+        if !plain.is_empty() {
+            return None;
+        }
         let port = server.strip_prefix("127.0.0.1#")?;
+        if let Some(resolvers) = stubby(gateway, port) {
+            if dot {
+                return None;
+            }
+            dot = true;
+            encrypted.extend(resolvers.into_iter().map(EncryptedResolver::Dot));
+            continue;
+        }
         let instance = instances.iter().enumerate().find_map(|(i, s)| {
             // The init script numbers instances without a port from 5053.
             let default = (5053 + i).to_string();
@@ -107,14 +134,63 @@ fn doh(servers: &[&str], gateway: &Source<'_>, ntp: &[String]) -> Option<Upstrea
             .filter(|ip| !ip.trim().is_empty())
             .map(|ip| ip.trim().parse().ok())
             .collect();
-        resolvers.push(DohResolver {
+        encrypted.push(EncryptedResolver::Doh(DohResolver {
             url: instance.option("resolver_url")?.to_owned(),
             bootstrap: bootstrap?,
-        });
+        }));
     }
-    (1..=MAX_SERVERS)
-        .contains(&resolvers.len())
-        .then_some(Upstream::Doh { resolvers })
+    if encrypted.len() > MAX_SERVERS || plain.len() > MAX_SERVERS {
+        return None;
+    }
+    Some(Upstream {
+        strict: !encrypted.is_empty() && plain.is_empty() && !isp,
+        encrypted,
+        servers: plain,
+        isp,
+    })
+}
+
+/// stubby's resolvers, where it listens on `127.0.0.1@<port>` (its default 5453): resolver
+/// sections in a row with the same name, port and pins are one resolver with their addresses.
+fn stubby(gateway: &Source<'_>, port: &str) -> Option<Vec<DotResolver>> {
+    let global = read::first(gateway.packages, "stubby", "stubby")?;
+    let listens = match global.get("listen_address") {
+        Some(listen) => listen
+            .items()
+            .iter()
+            .any(|a| *a == format!("127.0.0.1@{port}")),
+        None => port == "5453",
+    };
+    if !listens {
+        return None;
+    }
+    let mut resolvers: Vec<DotResolver> = Vec::new();
+    for section in read::sections(gateway.packages, "stubby", "resolver") {
+        let address: IpAddr = section.option("address")?.parse().ok()?;
+        let name = section.option("tls_auth_name")?.to_ascii_lowercase();
+        let port = section
+            .option("tls_port")
+            .map_or(Some(DOT_PORT), |p| p.parse().ok())?;
+        let spki: Option<Vec<String>> = section
+            .get("spki")
+            .map_or(&[][..], |v| v.items())
+            .iter()
+            .map(|pin| pin.strip_prefix("sha256/").map(str::to_owned))
+            .collect();
+        let spki = spki?;
+        match resolvers.last_mut() {
+            Some(last) if last.name == name && last.port == port && last.spki == spki => {
+                last.addresses.push(address);
+            }
+            _ => resolvers.push(DotResolver {
+                name,
+                addresses: vec![address],
+                port,
+                spki,
+            }),
+        }
+    }
+    (!resolvers.is_empty()).then_some(resolvers)
 }
 
 /// A ddns-scripts `service` the model holds: a curated provider or an update URL, read from the

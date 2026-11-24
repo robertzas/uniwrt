@@ -1,6 +1,7 @@
-//! The gateway's services (schema v12, D-132): migration, validation and the DDNS secrets.
+//! The gateway's services (schema v12, D-132; v20, D-146): migration, validation and the DDNS
+//! secrets.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, net::IpAddr};
 
 use serde_json::Value;
 use uniwrt_core::NodeId;
@@ -9,7 +10,10 @@ use super::{
     SecretRef, SiteConfig, check_secret,
     migrate::upgrade,
     node::ManagedPackage,
-    services::{Ddns, DdnsProvider, DdnsSource, DohResolver, Upstream},
+    services::{
+        DOT_PORT, Ddns, DdnsProvider, DdnsSource, DohResolver, DotResolver, EncryptedResolver,
+        Upstream,
+    },
     validate::{Severity, validate},
 };
 
@@ -55,7 +59,7 @@ fn ddns(id: &str, hostname: &str, provider: DdnsProvider) -> Ddns {
 #[test]
 fn v12_keeps_the_isp_s_dns_and_the_ntp_server_and_manages_the_new_packages() {
     let config = upgrade(fixture(11)).unwrap();
-    assert_eq!(config.services.upstream, Upstream::Isp);
+    assert_eq!(config.services.upstream, Upstream::default());
     assert_eq!(config.services.ddns, []);
     assert!(config.services.ntp_server);
     let gateway = config
@@ -77,16 +81,87 @@ fn the_fixture_s_services_validate() {
 }
 
 #[test]
-fn custom_servers_are_one_to_four_distinct_unicast_addresses() {
-    let custom = |servers: &[&str]| {
-        issues_after(|c| {
-            c.services.upstream = Upstream::Custom {
-                servers: servers.iter().map(|s| s.parse().unwrap()).collect(),
-            };
-        })
+fn v20_makes_the_upstream_layers_and_keeps_what_each_kind_asked() {
+    let mut v19: Value =
+        serde_json::from_str(include_str!("../../fixtures/site/v19.json")).unwrap();
+    let upstream = |value: &Value| upgrade(value.clone()).unwrap().services.upstream;
+    let doh = upstream(&v19);
+    assert!(doh.is_strict());
+    assert_eq!(doh.layers(), 1);
+    assert_eq!(doh.doh().count(), doh.encrypted.len());
+    v19["services"]["upstream"] = serde_json::json!({ "kind": "custom", "servers": ["9.9.9.9"] });
+    assert_eq!(
+        upstream(&v19),
+        Upstream::custom(vec!["9.9.9.9".parse().unwrap()])
+    );
+    v19["services"]["upstream"] = serde_json::json!({ "kind": "isp" });
+    assert_eq!(upstream(&v19), Upstream::default());
+    let config = upgrade(v19).unwrap();
+    for node in &config.nodes {
+        let dhcp = node.managed.contains(&ManagedPackage::Dhcp);
+        assert_eq!(node.managed.contains(&ManagedPackage::Stubby), dhcp);
+    }
+}
+
+fn ips(list: &[&str]) -> Vec<IpAddr> {
+    list.iter().map(|s| s.parse().unwrap()).collect()
+}
+
+fn doh(url: &str, bootstrap: &[&str]) -> EncryptedResolver {
+    EncryptedResolver::Doh(DohResolver {
+        url: url.to_owned(),
+        bootstrap: ips(bootstrap),
+    })
+}
+
+fn dot(name: &str, addresses: &[&str]) -> EncryptedResolver {
+    EncryptedResolver::Dot(DotResolver {
+        name: name.to_owned(),
+        addresses: ips(addresses),
+        port: DOT_PORT,
+        spki: Vec::new(),
+    })
+}
+
+#[test]
+fn the_layers_need_one_in_effect_and_strict_needs_an_encrypted_resolver() {
+    let with = |upstream: Upstream| issues_after(|c| c.services.upstream = upstream);
+    let none = Upstream {
+        isp: false,
+        ..Upstream::default()
     };
+    assert_eq!(with(none.clone()), [error("services/upstream")]);
+    let strict = Upstream {
+        strict: true,
+        ..Upstream::default()
+    };
+    assert_eq!(with(strict), [error("services/upstream/strict")]);
+    let layered = Upstream {
+        encrypted: vec![dot("dns.quad9.net", &["9.9.9.9"])],
+        servers: ips(&["192.0.2.53"]),
+        isp: true,
+        strict: false,
+    };
+    assert_eq!(layered.layers(), 3);
+    assert_eq!(with(layered.clone()), []);
+    let strict = Upstream {
+        strict: true,
+        ..layered
+    };
+    // The plain layers are kept but left out.
+    assert_eq!(
+        (strict.layers(), strict.plain(), strict.uses_isp()),
+        (1, &[][..], false)
+    );
+    assert_eq!(with(strict), []);
+}
+
+#[test]
+fn custom_servers_are_up_to_four_distinct_unicast_addresses() {
+    let custom =
+        |servers: &[&str]| issues_after(|c| c.services.upstream = Upstream::custom(ips(servers)));
     assert_eq!(custom(&["9.9.9.9", "2620:fe::fe"]), []);
-    assert_eq!(custom(&[]), [error("services/upstream/servers")]);
+    assert_eq!(custom(&[]), [error("services/upstream")]);
     assert_eq!(
         custom(&["9.9.9.9", "9.9.9.9", "127.0.0.1"]),
         [
@@ -102,35 +177,85 @@ fn custom_servers_are_one_to_four_distinct_unicast_addresses() {
 
 #[test]
 fn a_doh_resolver_needs_an_https_url_and_a_bootstrap_for_a_named_host() {
-    let doh = |resolvers: Vec<DohResolver>| {
-        issues_after(|c| c.services.upstream = Upstream::Doh { resolvers })
-    };
-    let resolver = |url: &str, bootstrap: &[&str]| DohResolver {
-        url: url.to_owned(),
-        bootstrap: bootstrap.iter().map(|s| s.parse().unwrap()).collect(),
-    };
-    assert_eq!(doh(vec![resolver("https://1.1.1.1/dns-query", &[])]), []);
-    assert_eq!(doh(vec![]), [error("services/upstream/resolvers")]);
+    let strict = |resolvers| issues_after(|c| c.services.upstream = Upstream::strict(resolvers));
+    assert_eq!(strict(vec![doh("https://1.1.1.1/dns-query", &[])]), []);
     assert_eq!(
-        doh(vec![
-            resolver("https://dns.google/dns-query", &[]),
-            resolver("http://dns.google/dns-query", &["8.8.8.8"]),
-            resolver("https://1.1.1.1/dns-query", &["0.0.0.0", "1.0.0.1"]),
-            resolver("https://1.1.1.1/x", &["1.0.0.1"]),
+        strict(vec![
+            doh("https://dns.google/dns-query", &[]),
+            doh("http://dns.google/dns-query", &["8.8.8.8"]),
+            doh("https://1.1.1.1/dns-query", &["0.0.0.0", "1.0.0.1"]),
+            doh("https://1.1.1.1/x", &["1.0.0.1"]),
         ]),
         [
-            error("services/upstream/resolvers/0/bootstrap"),
-            error("services/upstream/resolvers/1/url"),
-            error("services/upstream/resolvers/2/bootstrap/0"),
-            error("services/upstream/resolvers/3/bootstrap"),
+            error("services/upstream/encrypted/0/bootstrap"),
+            error("services/upstream/encrypted/1/url"),
+            error("services/upstream/encrypted/2/bootstrap/0"),
+            error("services/upstream/encrypted/3/bootstrap"),
         ]
     );
     assert_eq!(
-        doh(vec![
-            resolver("https://1.1.1.1/dns-query", &[]),
-            resolver("https://1.1.1.1/dns-query", &[]),
+        strict(vec![
+            doh("https://1.1.1.1/dns-query", &[]),
+            doh("https://1.1.1.1/dns-query", &[]),
         ]),
-        [error("services/upstream/resolvers/1/url")]
+        [error("services/upstream/encrypted/1/url")]
+    );
+    let five = vec![doh("https://1.1.1.1/dns-query", &[]); 5];
+    assert!(strict(five).contains(&error("services/upstream/encrypted")));
+}
+
+#[test]
+fn a_dot_resolver_needs_a_host_name_addresses_a_port_and_well_formed_pins() {
+    let strict = |resolvers| issues_after(|c| c.services.upstream = Upstream::strict(resolvers));
+    let pinned = |pins: &[&str], port: u16| {
+        let EncryptedResolver::Dot(mut resolver) = dot("one.one.one.one", &["1.1.1.1"]) else {
+            unreachable!()
+        };
+        resolver.spki = pins.iter().map(|p| (*p).to_owned()).collect();
+        resolver.port = port;
+        EncryptedResolver::Dot(resolver)
+    };
+    let pin = "yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc=";
+    assert_eq!(
+        strict(vec![
+            dot("dns.quad9.net", &["9.9.9.9", "2620:fe::fe"]),
+            pinned(&[pin], 853)
+        ]),
+        []
+    );
+    assert_eq!(
+        strict(vec![
+            dot("quad9", &["9.9.9.9"]),
+            dot("dns.google", &[]),
+            dot("dns.google", &["8.8.8.8", "8.8.8.8"]),
+            pinned(&["sha256/abc", &pin.replace('c', "d")], 0),
+        ]),
+        [
+            error("services/upstream/encrypted/0/name"),
+            error("services/upstream/encrypted/1/addresses"),
+            error("services/upstream/encrypted/2/name"),
+            error("services/upstream/encrypted/2/addresses/1"),
+            error("services/upstream/encrypted/3/port"),
+            error("services/upstream/encrypted/3/spki/0"),
+            error("services/upstream/encrypted/3/spki/1"),
+        ]
+    );
+    let doh = doh("https://1.1.1.1/dns-query", &[]);
+    assert_eq!(
+        strict(vec![
+            dot("dns.quad9.net", &["9.9.9.9"]),
+            doh.clone(),
+            dot("dns.google", &["8.8.8.8"])
+        ]),
+        [error("services/upstream/encrypted/2")]
+    );
+    assert_eq!(
+        strict(vec![
+            doh,
+            dot("dns.quad9.net", &["9.9.9.9"]),
+            dot("dns.google", &["8.8.8.8"])
+        ]),
+        []
     );
 }
 

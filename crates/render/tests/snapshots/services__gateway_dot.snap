@@ -1,0 +1,31 @@
+---
+source: crates/render/tests/services.rs
+expression: "rendered.packages[&ManagedPackage::Stubby].to_file()"
+---
+
+config stubby 'global'
+	option manual '0'
+	option trigger 'wan'
+	list dns_transport 'GETDNS_TRANSPORT_TLS'
+	option tls_authentication '1'
+	option tls_query_padding_blocksize '128'
+	option appdata_dir '/var/lib/stubby'
+	option edns_client_subnet_private '1'
+	option idle_timeout '10000'
+	option round_robin_upstreams '0'
+	option timeout '2000'
+	list listen_address '127.0.0.1@5453'
+
+config resolver
+	option address '9.9.9.9'
+	option tls_auth_name 'dns.quad9.net'
+
+config resolver
+	option address '2620:fe::fe'
+	option tls_auth_name 'dns.quad9.net'
+
+config resolver
+	option address '192.0.2.80'
+	option tls_auth_name 'dot.example.net'
+	option tls_port '8853'
+	list spki 'sha256/yioEpqeR4WtDwE9YxNVnCEkTxIjx6EEIwFSQW+lJsbc='

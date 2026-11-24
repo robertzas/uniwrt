@@ -13,6 +13,10 @@ pub struct ServiceFacts {
     pub ddns: Vec<DdnsFacts>,
     /// How many https-dns-proxy instances run; `None` where procd has no such service.
     pub doh_instances: Option<u32>,
+    /// How many stubby instances run (one at most; D-146); `None` where procd has no such
+    /// service.
+    #[serde(default)]
+    pub dot_instances: Option<u32>,
     /// The DNS blocklist the controller pushed (D-133), as the gateway's files say.
     #[serde(default)]
     pub blocklist: BlocklistFacts,

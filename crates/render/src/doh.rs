@@ -1,13 +1,14 @@
 //! The `https-dns-proxy` package (features/network.md, DHCP & local DNS; D-132): DNS over
 //! HTTPS on the gateway, one local instance per resolver on `127.0.0.1`, from port
-//! [`FIRST_PORT`] up, which the gateway's dnsmasq forwards to ([`servers`]). The proxy leaves
+//! [`FIRST_PORT`] up, which the gateway's dnsmasq forwards to ([`server`]) in the resolvers'
+//! place among the encrypted ones (D-146). The proxy leaves
 //! dnsmasq and the firewall alone (`dnsmasq_config_update '-'`, `force_dns '0'`): render owns
 //! both. With DoH off on a gateway that holds the package, it renders its settings without
 //! instances, the service off.
 
 use std::net::IpAddr;
 
-use uniwrt_model::site::services::{DohResolver, Upstream};
+use uniwrt_model::site::services::DohResolver;
 use uniwrt_uci::{Package, Section};
 
 use crate::{Requirement, plan::Plan};
@@ -21,30 +22,21 @@ pub(crate) const REQUIRES: Requirement = Requirement {
 /// The first instance's port; the next ones follow.
 pub(crate) const FIRST_PORT: u16 = 5053;
 
-/// The resolvers, when the site's upstream is DoH.
-pub(crate) fn resolvers<'a>(plan: &Plan<'a>) -> Option<&'a [DohResolver]> {
-    match &plan.site.services.upstream {
-        Upstream::Doh { resolvers } => Some(resolvers),
-        _ => None,
-    }
+/// The site's DoH resolvers, in order.
+pub(crate) fn resolvers<'a>(plan: &Plan<'a>) -> Vec<&'a DohResolver> {
+    plan.site.services.upstream.doh().collect()
 }
 
-/// The local servers dnsmasq forwards to: `127.0.0.1#<port>` for each resolver.
-pub(crate) fn servers(resolvers: &[DohResolver]) -> impl Iterator<Item = String> {
-    (FIRST_PORT..)
-        .take(resolvers.len())
-        .map(|port| format!("127.0.0.1#{port}"))
+/// The local server dnsmasq forwards to for the DoH resolver at `index` (of at most
+/// [`MAX_SERVERS`](uniwrt_model::site::services::MAX_SERVERS)): `127.0.0.1#<port>`.
+pub(crate) fn server(index: u16) -> String {
+    format!("127.0.0.1#{}", FIRST_PORT + index)
 }
 
 /// The plain server the gateway resolves its NTP servers' names through, since DoH's TLS needs
 /// the right time first: the first IPv4 bootstrap server, else the first.
-pub(crate) fn bootstrap(resolvers: &[DohResolver]) -> Option<IpAddr> {
-    let first = resolvers.iter().flat_map(|r| &r.bootstrap);
-    first
-        .clone()
-        .find(|ip| ip.is_ipv4())
-        .or_else(|| first.clone().next())
-        .copied()
+pub(crate) fn bootstrap(resolvers: &[&DohResolver]) -> Option<IpAddr> {
+    crate::upstream::first_ipv4(resolvers.iter().flat_map(|r| &r.bootstrap))
 }
 
 /// The package, or `None` where there is nothing to own: not the gateway, or DoH off and no
@@ -52,7 +44,7 @@ pub(crate) fn bootstrap(resolvers: &[DohResolver]) -> Option<IpAddr> {
 pub(crate) fn render(plan: &Plan<'_>, held: bool) -> Option<Package> {
     plan.wan.as_ref()?;
     let resolvers = resolvers(plan);
-    if resolvers.is_none() && !held {
+    if resolvers.is_empty() && !held {
         return None;
     }
     let mut sections = vec![
@@ -67,7 +59,7 @@ pub(crate) fn render(plan: &Plan<'_>, held: bool) -> Option<Package> {
             .with("group", "nogroup")
             .with("listen_addr", "127.0.0.1"),
     ];
-    for (resolver, port) in resolvers.unwrap_or_default().iter().zip(FIRST_PORT..) {
+    for (resolver, port) in resolvers.iter().zip(FIRST_PORT..) {
         let bootstrap: Vec<String> = resolver.bootstrap.iter().map(ToString::to_string).collect();
         let mut instance = Section::anonymous("https-dns-proxy");
         if !bootstrap.is_empty() {

@@ -13,7 +13,7 @@ use uniwrt_model::{
     site::{
         SiteConfig,
         node::{ManagedPackage, RawSection, RawValue},
-        services::{DohResolver, Upstream},
+        services::{DohResolver, EncryptedResolver, Upstream},
     },
 };
 use uniwrt_render::{DNS_BYPASS_PREFIX, Rendered};
@@ -107,15 +107,13 @@ fn on_the_main_dnsmasq_reads_the_controller_s_conf_files() {
 #[test]
 fn a_bypass_names_the_instances_and_redirects_its_clients_in_every_network() {
     let mut site = filtered(&["02:00:00:00:10:01", "02:00:00:00:10:02"]);
-    site.services.upstream = Upstream::Doh {
-        resolvers: vec![DohResolver {
-            url: "https://dns.quad9.net/dns-query".to_owned(),
-            bootstrap: vec![
-                "9.9.9.9".parse().unwrap(),
-                "149.112.112.112".parse().unwrap(),
-            ],
-        }],
-    };
+    site.services.upstream = Upstream::strict(vec![EncryptedResolver::Doh(DohResolver {
+        url: "https://dns.quad9.net/dns-query".to_owned(),
+        bootstrap: vec![
+            "9.9.9.9".parse().unwrap(),
+            "149.112.112.112".parse().unwrap(),
+        ],
+    })]);
     let rendered = gateway(&site);
     let dhcp = &rendered.packages[&ManagedPackage::Dhcp];
     let firewall = &rendered.packages[&ManagedPackage::Firewall];

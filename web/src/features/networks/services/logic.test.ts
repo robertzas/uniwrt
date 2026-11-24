@@ -4,6 +4,8 @@ import { siteConfig } from "../../../test/site";
 import { ddnsDraft, ddnsErrorsOfIssues, ddnsOf, ddnsStatus, newId, withDdns } from "./ddns";
 import {
   dohHost,
+  ISP_UPSTREAM,
+  modeOf,
   presetResolver,
   resolverDraft,
   resolverName,
@@ -42,13 +44,32 @@ describe("upstream DNS", () => {
     expect(resolverName("https://doh.example/dns-query")).toBe("doh.example");
     expect(resolverName("https://cloudflare-dns.com/dns-query")).toBe("Cloudflare");
     // A fresh draft starts DoH from one resolver, so a switch saves as it stands.
-    expect(upstreamDraft({ kind: "isp" }).resolvers.map((r) => r.preset)).toEqual(["quad9"]);
+    expect(upstreamDraft(ISP_UPSTREAM).resolvers.map((r) => r.preset)).toEqual(["quad9"]);
+  });
+
+  it("reads the modes the card edits, and leaves layers and DoT to the API (until M9.0b2)", () => {
+    const doh = { protocol: "doh" as const, url: "https://1.1.1.1/dns-query", bootstrap: [] };
+    const dot = {
+      protocol: "dot" as const,
+      name: "dns.quad9.net",
+      addresses: ["9.9.9.9"],
+      port: 853,
+      spki: [],
+    };
+    expect(modeOf(ISP_UPSTREAM)).toBe("isp");
+    expect(modeOf({ ...ISP_UPSTREAM, isp: false, servers: ["9.9.9.9"] })).toBe("custom");
+    expect(modeOf({ ...ISP_UPSTREAM, isp: false, strict: true, encrypted: [doh] })).toBe("doh");
+    expect(modeOf({ ...ISP_UPSTREAM, servers: ["9.9.9.9"] })).toBeUndefined();
+    expect(modeOf({ ...ISP_UPSTREAM, encrypted: [doh] })).toBeUndefined();
+    expect(modeOf({ ...ISP_UPSTREAM, isp: false, strict: true, encrypted: [dot] })).toBeUndefined();
   });
 
   it("checks custom servers", () => {
     expect(
       upstreamOf({ mode: "custom", servers: [" 9.9.9.9", "2620:fe::fe"], resolvers: [] }),
-    ).toMatchObject({ upstream: { kind: "custom", servers: ["9.9.9.9", "2620:fe::fe"] } });
+    ).toMatchObject({
+      upstream: { encrypted: [], servers: ["9.9.9.9", "2620:fe::fe"], isp: false, strict: false },
+    });
     const bad = upstreamOf({
       mode: "custom",
       servers: ["9.9.9.9", "nope", "9.9.9.9"],
@@ -69,11 +90,21 @@ describe("upstream DNS", () => {
       resolvers: [presetResolver("quad9"), nextdns],
     });
     expect(ok.upstream).toEqual({
-      kind: "doh",
-      resolvers: [
-        { url: "https://dns.quad9.net/dns-query", bootstrap: ["9.9.9.9", "149.112.112.112"] },
-        { url: "https://dns.nextdns.io/abc123", bootstrap: ["45.90.28.0", "45.90.30.0"] },
+      encrypted: [
+        {
+          protocol: "doh",
+          url: "https://dns.quad9.net/dns-query",
+          bootstrap: ["9.9.9.9", "149.112.112.112"],
+        },
+        {
+          protocol: "doh",
+          url: "https://dns.nextdns.io/abc123",
+          bootstrap: ["45.90.28.0", "45.90.30.0"],
+        },
       ],
+      servers: [],
+      isp: false,
+      strict: true,
     });
     const bad = upstreamOf({
       mode: "doh",
@@ -98,8 +129,8 @@ describe("upstream DNS", () => {
 
   it("maps the server's issues onto rows", () => {
     const { errors, other } = upstreamErrorsOfIssues([
-      { path: "services/upstream/resolvers", message: "list" },
-      { path: "services/upstream/resolvers/1/bootstrap/0", message: "loopback" },
+      { path: "services/upstream/encrypted", message: "list" },
+      { path: "services/upstream/encrypted/1/bootstrap/0", message: "loopback" },
       { path: "services/upstream/servers/2", message: "twice" },
       { path: "wan/proto", message: "elsewhere" },
     ]);

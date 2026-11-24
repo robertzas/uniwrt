@@ -1,7 +1,8 @@
 // The `services` set: the gateway's network services as they run (D-132): each DDNS name's
 // registered address and last update from ddns-scripts' run directory (`<section>.ip`, and
 // `.update` in seconds of uptime), whether its updater runs (`.pid`), and how many
-// https-dns-proxy instances procd runs, with the clock and uptime that convert `.update`; and
+// https-dns-proxy and stubby instances procd runs (D-146), with the clock and uptime that
+// convert `.update`; and
 // the DNS blocklist the controller pushed (D-133): the header line of its servers-file (only the
 // first bytes are read: the list may hold a million lines) and whether its conf file is there;
 // and the WireGuard tunnel `vpn` (D-140) as `wg show vpn dump` reports it, without its keys;
@@ -170,6 +171,7 @@ function collect() {
 		uptime: uptime ? int(uptime) : null,
 		ddns: ddns,
 		doh: instances("https-dns-proxy"),
+		dot: instances("stubby"),
 		blocklist: head == null ? null : split(head, "\n")[0],
 		blocklist_conf: fs.access(BLOCKLIST_CONF) == true,
 		wireguard: wireguard(),

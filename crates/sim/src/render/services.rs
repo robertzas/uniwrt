@@ -1,7 +1,8 @@
 //! The `services` set as the sim's gateway reports it (D-132): each enabled DDNS section of its
 //! `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address),
 //! updated a minute after boot, its updater running while the `ddns` service is on; and one
-//! https-dns-proxy instance per section of its package while that service is on; and the DNS
+//! https-dns-proxy instance per section of its package while that service is on, and a stubby
+//! instance while that one is (D-146); and the DNS
 //! blocklist's files the controller uploaded to its `/tmp` since it booted (D-133); and the
 //! WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140), and Tailscale
 //! where its `firewall` file has the zone ([`super::tailscale`]).
@@ -55,6 +56,7 @@ pub(super) fn services(
             0
         }
     });
+    let dot = parse("stubby").map(|_| u32::from(on("stubby")));
     let head = tmp.file(node.booted_ms, BLOCKLIST_FILE).map(|text| {
         let line = text.split(|&b| b == b'\n').next().unwrap_or_default();
         String::from_utf8_lossy(line).into_owned()
@@ -69,7 +71,7 @@ pub(super) fn services(
         world.now_ms(),
     );
     json!({
-        "now": now, "uptime": uptime, "ddns": ddns, "doh": doh,
+        "now": now, "uptime": uptime, "ddns": ddns, "doh": doh, "dot": dot,
         "blocklist": head, "blocklist_conf": conf, "wireguard": wireguard,
         "tailscale": tailscale,
     })

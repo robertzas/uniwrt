@@ -14,8 +14,10 @@ import { SavedRevision } from "../../../ui/SavedRevision";
 import { Segmented } from "../../../ui/Segmented";
 import { TextField } from "../../../ui/TextField";
 import {
+  dohResolvers,
   MAX,
   MODES,
+  modeOf,
   PRESET_IDS,
   presetResolver,
   type ResolverDraft,
@@ -80,7 +82,7 @@ export function UpstreamCard(props: {
     try {
       const view = await saveSite(
         (config) => ({ ...config, services: { ...config.services, upstream: next } }),
-        t.message(t.modes[next.kind] ?? next.kind),
+        t.message(t.modes[now.mode] ?? now.mode),
       );
       setSaved(view.revision.id);
       setDraft(undefined);
@@ -103,7 +105,12 @@ export function UpstreamCard(props: {
         description={t.description}
         actions={
           <Show when={props.admin && !draft()}>
-            <Button size="sm" onClick={edit}>
+            <Button
+              size="sm"
+              disabled={modeOf(upstream()) === undefined}
+              title={modeOf(upstream()) === undefined ? t.layered : undefined}
+              onClick={edit}
+            >
               {t.edit}
             </Button>
           </Show>
@@ -297,7 +304,10 @@ function UrlText(props: { url: string; error: string | undefined }) {
 function Summary(props: { upstream: Upstream; services: ServiceFacts | undefined }) {
   return (
     <Switch>
-      <Match when={props.upstream.kind === "isp"}>
+      <Match when={modeOf(props.upstream) === undefined}>
+        <p class="text-fg-muted text-sm">{t.layered}</p>
+      </Match>
+      <Match when={modeOf(props.upstream) === "isp"}>
         <p class="text-fg-muted text-sm">{t.isp}</p>
       </Match>
       <Match when={servers(props.upstream)}>
@@ -335,9 +345,10 @@ function Summary(props: { upstream: Upstream; services: ServiceFacts | undefined
   );
 }
 
-const servers = (upstream: Upstream) => (upstream.kind === "custom" ? upstream.servers : undefined);
+const servers = (upstream: Upstream) =>
+  modeOf(upstream) === "custom" ? upstream.servers : undefined;
 const resolvers = (upstream: Upstream) =>
-  upstream.kind === "doh" ? upstream.resolvers : undefined;
+  modeOf(upstream) === "doh" ? dohResolvers(upstream) : undefined;
 
 function Proxies(props: { running: number | null; wanted: number }) {
   const running = () => props.running ?? 0;

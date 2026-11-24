@@ -1,12 +1,12 @@
 # An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus
 # `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and
-# sqm-scripts, mwan3, miniupnpd, https-dns-proxy, ddns-scripts and mdns-repeater (off, as an
+# sqm-scripts, mwan3, miniupnpd, https-dns-proxy, stubby, ddns-scripts and mdns-repeater (off, as an
 # install leaves them before a transaction turns them on), to check what render writes for SQM,
-# failover (D-076), UPnP (D-079), DoH and DDNS (D-132), mDNS reflection (D-136), and
+# failover (D-076), UPnP (D-079), DoH and DDNS (D-132), mDNS reflection (D-136), DoT (D-146), and
 # batman-adv's user space, for the apply's wired backhaul (D-097; the kernel side is the host's).
 ARG IMAGE
 FROM ${IMAGE}
-ARG PACKAGES="ip-bridge rp-pppoe-server ppp-mod-pppoe sqm-scripts kmod-sched-cake mwan3 miniupnpd-nftables https-dns-proxy ddns-scripts ddns-scripts-services mdns-repeater"
+ARG PACKAGES="ip-bridge rp-pppoe-server ppp-mod-pppoe sqm-scripts kmod-sched-cake mwan3 miniupnpd-nftables https-dns-proxy stubby ddns-scripts ddns-scripts-services mdns-repeater"
 # Kernel modules can't load in a build container, so batman-adv's install script fails: the
 # check after it makes sure the user space arrived anyway. /tmp/resolv.conf is a mount while
 # building. procd jails dnsmasq with ujail, which can't make namespaces in a container; without
@@ -17,11 +17,11 @@ RUN mkdir -p /var/lock /var/run && \
     else \
       opkg update && opkg install $PACKAGES; \
     fi && \
-    for f in /usr/sbin/bridge /usr/sbin/pppoe-server /usr/sbin/pppd /etc/init.d/sqm /usr/sbin/mwan3 /usr/sbin/miniupnpd /usr/sbin/https-dns-proxy /usr/lib/ddns/dynamic_dns_updater.sh /usr/sbin/mdns-repeater; do \
+    for f in /usr/sbin/bridge /usr/sbin/pppoe-server /usr/sbin/pppd /etc/init.d/sqm /usr/sbin/mwan3 /usr/sbin/miniupnpd /usr/sbin/https-dns-proxy /usr/sbin/stubby /usr/lib/ddns/dynamic_dns_updater.sh /usr/sbin/mdns-repeater; do \
       [ -e "$f" ] || { echo "missing $f" >&2; exit 1; }; \
     done && \
     /etc/init.d/sqm disable && /etc/init.d/mwan3 disable && /etc/init.d/miniupnpd disable && \
-    /etc/init.d/https-dns-proxy disable && /etc/init.d/ddns disable && \
+    /etc/init.d/https-dns-proxy disable && /etc/init.d/stubby disable && /etc/init.d/ddns disable && \
     /etc/init.d/mdns-repeater disable && \
     BATMAN="kmod-batman-adv batctl-default" && \
     if [ -x /usr/bin/apk ]; then apk add $BATMAN || true; else opkg install $BATMAN || true; fi && \

@@ -21,7 +21,7 @@ type FeedPackage = (
 );
 
 /// The packages the feeds have beyond the image's.
-pub(crate) const FEED: [FeedPackage; 19] = [
+pub(crate) const FEED: [FeedPackage; 20] = [
     (
         "sqm-scripts",
         "1.6.0-r1",
@@ -87,6 +87,20 @@ pub(crate) const FEED: [FeedPackage; 19] = [
              \toption listen_addr '127.0.0.1'\n\nconfig https-dns-proxy\n\
              \toption bootstrap_dns '1.1.1.1,1.0.0.1'\n\
              \toption resolver_url 'https://cloudflare-dns.com/dns-query'\n\toption listen_port '5053'\n",
+        )),
+    ),
+    // DoT (D-146), its stock configuration trimmed.
+    (
+        "stubby",
+        "0.4.3-r3",
+        Some("stubby"),
+        Some((
+            "stubby",
+            "config stubby 'global'\n\toption manual '0'\n\toption trigger 'wan'\n\
+             \tlist dns_transport 'GETDNS_TRANSPORT_TLS'\n\toption tls_authentication '1'\n\
+             \toption round_robin_upstreams '1'\n\tlist listen_address '127.0.0.1@5453'\n\
+             \tlist listen_address '0::1@5453'\n\nconfig resolver\n\toption address '1.1.1.1'\n\
+             \toption tls_auth_name 'cloudflare-dns.com'\n",
         )),
     ),
     (

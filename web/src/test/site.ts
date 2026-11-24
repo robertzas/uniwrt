@@ -123,7 +123,7 @@ export function siteConfig(): SiteConfig {
     },
     services: {
       dns_records: [],
-      upstream: { kind: "isp" },
+      upstream: { encrypted: [], servers: [], isp: true, strict: false },
       ddns: [],
       ntp_server: true,
       blocking: {

@@ -1789,6 +1789,7 @@ export const strings = {
         https_dns_proxy: "DNS over HTTPS (https-dns-proxy)",
         ddns: "Dynamic DNS names (ddns-scripts)",
         mdns_repeater: "mDNS reflection between networks (mdns-repeater)",
+        stubby: "DNS over TLS (stubby)",
       },
       message: (name: string, added: readonly string[], removed: readonly string[]) =>
         [
@@ -5170,6 +5171,8 @@ export const strings = {
         doh: "Up to 4 resolvers, each an encrypted proxy on the gateway. Queries leave the network unreadable to the ISP.",
       } as Record<string, string>,
       isp: "The ISP's servers, from the WAN connection",
+      layered:
+        "Layered upstream with DNS over TLS or fallbacks, set through the API. Editing it here comes in a later update.",
       server: (n: number) => `Server ${n}`,
       addServer: "Add a server",
       removeServer: (n: number) => `Remove server ${n}`,

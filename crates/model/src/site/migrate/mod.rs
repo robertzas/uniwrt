@@ -9,13 +9,31 @@ use serde_json::{Value, json};
 
 use super::{SCHEMA_VERSION, SiteConfig};
 
+mod v20;
+
 /// Rewrites the JSON of one version into the next: `STEPS[0]` turns v1 into v2, and so on.
 type Step = fn(&mut Value) -> Result<(), String>;
 
 const STEPS: &[Step] = &[
-    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
-    v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15, v15_to_v16, v16_to_v17, v17_to_v18,
+    v1_to_v2,
+    v2_to_v3,
+    v3_to_v4,
+    v4_to_v5,
+    v5_to_v6,
+    v6_to_v7,
+    v7_to_v8,
+    v8_to_v9,
+    v9_to_v10,
+    v10_to_v11,
+    v11_to_v12,
+    v12_to_v13,
+    v13_to_v14,
+    v14_to_v15,
+    v15_to_v16,
+    v16_to_v17,
+    v17_to_v18,
     v18_to_v19,
+    v20::v19_to_v20,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),

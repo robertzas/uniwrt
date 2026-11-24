@@ -1,6 +1,6 @@
 //! The `services` set: ddns-scripts' run files per section (the registered address, the last
-//! update in seconds of uptime, whether the updater runs) and https-dns-proxy's running
-//! instances, with the node's clock and uptime, which place the update in time; and the DNS
+//! update in seconds of uptime, whether the updater runs), https-dns-proxy's and stubby's
+//! running instances (D-146), with the node's clock and uptime, which place the update in time; and the DNS
 //! blocklist's header line and conf file (D-133); and the WireGuard tunnel's peers and
 //! [`Tailscale`](super::tailscale) (D-140).
 
@@ -23,6 +23,8 @@ pub(super) struct Raw {
     ddns: Vec<Ddns>,
     #[serde(default)]
     doh: Option<u32>,
+    #[serde(default)]
+    dot: Option<u32>,
     /// The blocklist's first line.
     #[serde(default)]
     blocklist: Option<String>,
@@ -98,6 +100,7 @@ pub(super) fn parse(raw: Raw) -> ServiceFacts {
     ServiceFacts {
         ddns,
         doh_instances: raw.doh,
+        dot_instances: raw.dot,
         blocklist: BlocklistFacts {
             sha256,
             domains,
@@ -148,7 +151,7 @@ mod tests {
     #[test]
     fn updates_are_placed_on_the_clock_and_odd_files_skipped() {
         let raw = serde_json::from_str(
-            r#"{"now": 1700000000, "uptime": 5000, "doh": 2, "ddns": [
+            r#"{"now": 1700000000, "uptime": 5000, "doh": 2, "dot": 1, "ddns": [
                 {"id": "home", "ip": "203.0.113.7", "update": "4000", "running": true},
                 {"id": "six", "ip": "2001:db8::1\n", "update": "0", "running": false},
                 {"id": "new", "ip": null, "update": null, "running": false},
@@ -157,7 +160,10 @@ mod tests {
         )
         .unwrap();
         let facts = parse(raw);
-        assert_eq!(facts.doh_instances, Some(2));
+        assert_eq!(
+            (facts.doh_instances, facts.dot_instances),
+            (Some(2), Some(1))
+        );
         assert_eq!(
             facts.blocklist,
             uniwrt_model::facts::BlocklistFacts::default()

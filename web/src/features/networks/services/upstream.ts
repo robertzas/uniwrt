@@ -10,8 +10,32 @@ const e = strings.networks.upstream.errors;
 /** The most servers, resolvers and bootstrap servers (`MAX_SERVERS` in the model). */
 export const MAX = 4;
 
-export type Mode = Upstream["kind"];
+/** The card's three ways to send queries; layers and DoT come with M9.0b2's editor (D-146). */
+export type Mode = "isp" | "custom" | "doh";
 export const MODES: readonly Mode[] = ["isp", "custom", "doh"];
+
+/** The WAN's servers alone, as OpenWrt ships. */
+export const ISP_UPSTREAM: Upstream = { encrypted: [], servers: [], isp: true, strict: false };
+
+/**
+ * The card's mode for `upstream`, or `undefined` where it holds more than one mode can: more
+ * than one layer, or DoT (the card shows those read-only).
+ */
+export function modeOf(upstream: Upstream): Mode | undefined {
+  const { encrypted, servers, isp, strict } = upstream;
+  if (encrypted.length === 0) {
+    if (servers.length === 0) return isp ? "isp" : undefined;
+    return isp ? undefined : "custom";
+  }
+  return strict && encrypted.every((r) => r.protocol === "doh") ? "doh" : undefined;
+}
+
+/** The DoH resolvers of `upstream`, in order. */
+export function dohResolvers(upstream: Upstream): DohResolver[] {
+  return upstream.encrypted.flatMap((r) =>
+    r.protocol === "doh" ? [{ url: r.url, bootstrap: r.bootstrap }] : [],
+  );
+}
 
 export type PresetId = "cloudflare" | "quad9" | "google" | "nextdns" | "adguard";
 export const PRESET_IDS: readonly PresetId[] = [
@@ -87,11 +111,12 @@ export function presetResolver(preset: PresetId | "custom"): ResolverDraft {
 }
 
 export function upstreamDraft(upstream: Upstream): UpstreamDraft {
+  const mode = modeOf(upstream) ?? "isp";
+  const doh = dohResolvers(upstream);
   return {
-    mode: upstream.kind,
-    servers: upstream.kind === "custom" ? [...upstream.servers] : [""],
-    resolvers:
-      upstream.kind === "doh" ? upstream.resolvers.map(resolverDraft) : [presetResolver("quad9")],
+    mode,
+    servers: mode === "custom" ? [...upstream.servers] : [""],
+    resolvers: mode === "doh" ? doh.map(resolverDraft) : [presetResolver("quad9")],
   };
 }
 
@@ -140,13 +165,14 @@ function addressErrors(list: readonly string[]): (string | undefined)[] {
 /** The upstream a draft describes, or what is wrong with it, checked as the server checks it. */
 export function upstreamOf(draft: UpstreamDraft): { upstream?: Upstream; errors: UpstreamErrors } {
   const errors: UpstreamErrors = { servers: [], resolvers: [] };
-  if (draft.mode === "isp") return { upstream: { kind: "isp" }, errors };
+  if (draft.mode === "isp") return { upstream: ISP_UPSTREAM, errors };
   if (draft.mode === "custom") {
     const servers = draft.servers.map((s) => s.trim());
     if (servers.length === 0 || servers.length > MAX) errors.list = e.servers;
     errors.servers = addressErrors(servers);
     const bad = errors.list !== undefined || errors.servers.some(Boolean);
-    return bad ? { errors } : { upstream: { kind: "custom", servers }, errors };
+    const upstream: Upstream = { encrypted: [], servers, isp: false, strict: false };
+    return bad ? { errors } : { upstream, errors };
   }
   if (draft.resolvers.length === 0 || draft.resolvers.length > MAX) errors.list = e.resolvers;
   const urls = new Set<string>();
@@ -174,7 +200,10 @@ export function upstreamOf(draft: UpstreamDraft): { upstream?: Upstream; errors:
     return { url, bootstrap };
   });
   const bad = errors.list !== undefined || errors.resolvers.some((r) => r.url || r.bootstrap);
-  return bad ? { errors } : { upstream: { kind: "doh", resolvers }, errors };
+  const encrypted = resolvers.map((r) => ({ protocol: "doh" as const, ...r }));
+  return bad
+    ? { errors }
+    : { upstream: { encrypted, servers: [], isp: false, strict: true }, errors };
 }
 
 /** The server's issues on `services/upstream/…` as the rows' errors; the rest as text. */
@@ -187,8 +216,8 @@ export function upstreamErrorsOfIssues(issues: readonly { path: string; message:
   for (const issue of issues) {
     const path = issue.path.replace(/^services\/upstream\//, "");
     const server = path.match(/^servers\/(\d+)$/);
-    const resolver = path.match(/^resolvers\/(\d+)\/(url|bootstrap)(?:\/\d+)?$/);
-    if (path === "servers" || path === "resolvers") errors.list ??= issue.message;
+    const resolver = path.match(/^encrypted\/(\d+)\/(url|bootstrap)(?:\/\d+)?$/);
+    if (path === "servers" || path === "encrypted") errors.list ??= issue.message;
     else if (server) errors.servers[Number(server[1])] ??= issue.message;
     else if (resolver) {
       const at = Number(resolver[1]);
