@@ -17,6 +17,7 @@ uniwrt-core = { path = "crates/core" }
 uniwrt-dns = { path = "crates/dns" }
 uniwrt-engine = { path = "crates/engine" }
 uniwrt-events = { path = "crates/events" }
+uniwrt-feeds = { path = "crates/feeds" }
 uniwrt-firmware = { path = "crates/firmware" }
 uniwrt-jobs = { path = "crates/jobs" }
 uniwrt-metrics = { path = "crates/metrics" }

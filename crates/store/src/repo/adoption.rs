@@ -2,7 +2,7 @@
 //! SQLite: the `node_inventory` and `node_backups` tables.
 
 use rusqlite::{OptionalExtension as _, params};
-use uniwrt_core::NodeId;
+use uniwrt_core::{NodeId, Timestamp};
 use uniwrt_model::{
     facts::NodeFacts,
     inventory::Inventory,
@@ -31,6 +31,7 @@ pub struct Adoption {
 pub(crate) struct Encoded {
     facts: String,
     packages: String,
+    feeds: String,
 }
 
 impl Adoption {
@@ -40,12 +41,8 @@ impl Adoption {
                 what: "node facts",
                 source,
             })?,
-            packages: serde_json::to_string(&self.inventory.packages).map_err(|source| {
-                Error::Encode {
-                    what: "packages",
-                    source,
-                }
-            })?,
+            packages: encode("packages", &self.inventory.packages)?,
+            feeds: encode("feeds", &self.inventory.feeds)?,
         })
     }
 }
@@ -83,12 +80,13 @@ pub(crate) fn record(
         encoded.facts
     ])?;
     conn.prepare_cached(
-        "INSERT INTO node_inventory (node_id, taken_at, packages) VALUES (?1, ?2, ?3)",
+        "INSERT INTO node_inventory (node_id, taken_at, packages, feeds) VALUES (?1, ?2, ?3, ?4)",
     )?
     .execute(params![
         node.get(),
         inventory.taken_at.as_unix_ms(),
-        encoded.packages
+        encoded.packages,
+        encoded.feeds
     ])?;
     if let Some(backup) = backup {
         insert_backup(conn, node, &backup)?;
@@ -135,44 +133,90 @@ pub(crate) fn insert_backup(
     Ok(())
 }
 
+fn encode<T: serde::Serialize>(what: &'static str, value: &T) -> Result<String> {
+    serde_json::to_string(value).map_err(|source| Error::Encode { what, source })
+}
+
+/// An inventory row: `taken_at, packages, feeds` from column `first` on.
+fn inventory_row(
+    row: &rusqlite::Row<'_>,
+    first: usize,
+) -> rusqlite::Result<(Timestamp, String, String)> {
+    Ok((
+        timestamp_column(row, first)?,
+        row.get(first + 1)?,
+        row.get(first + 2)?,
+    ))
+}
+
+fn decode(
+    node: NodeId,
+    (taken_at, packages, feeds): (Timestamp, String, String),
+) -> Result<Inventory> {
+    fn column<T: serde::de::DeserializeOwned>(
+        node: NodeId,
+        what: &'static str,
+        text: &str,
+    ) -> Result<T> {
+        serde_json::from_str(text).map_err(|source| Error::Decode {
+            what,
+            key: format!("node {node}"),
+            source,
+        })
+    }
+    Ok(Inventory {
+        taken_at,
+        packages: column(node, "packages", &packages)?,
+        feeds: column(node, "feeds", &feeds)?,
+    })
+}
+
 impl InventoryRepo for Store {
     async fn inventory(&self, node: NodeId) -> Result<Option<Inventory>> {
         self.read(move |conn| {
-            let Some((taken_at, packages)) = conn
-                .prepare_cached("SELECT taken_at, packages FROM node_inventory WHERE node_id = ?1")?
-                .query_row([node.get()], |row| {
-                    Ok((timestamp_column(row, 0)?, row.get::<_, String>(1)?))
-                })
-                .optional()?
-            else {
-                return Ok(None);
-            };
-            let packages = serde_json::from_str(&packages).map_err(|source| Error::Decode {
-                what: "packages",
-                key: format!("node {node}"),
-                source,
-            })?;
-            Ok(Some(Inventory { taken_at, packages }))
+            conn.prepare_cached(
+                "SELECT taken_at, packages, feeds FROM node_inventory WHERE node_id = ?1",
+            )?
+            .query_row([node.get()], |row| inventory_row(row, 0))
+            .optional()?
+            .map(|row| decode(node, row))
+            .transpose()
+        })
+        .await
+    }
+
+    async fn inventories(&self) -> Result<Vec<(NodeId, Inventory)>> {
+        self.read(|conn| {
+            let mut statement = conn.prepare_cached(
+                "SELECT node_id, taken_at, packages, feeds FROM node_inventory ORDER BY node_id",
+            )?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok((NodeId::new(row.get(0)?), inventory_row(row, 1)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows.into_iter()
+                .map(|(node, row)| Ok((node, decode(node, row)?)))
+                .collect()
         })
         .await
     }
 
     async fn set_inventory(&self, node: NodeId, inventory: Inventory) -> Result<()> {
-        let packages =
-            serde_json::to_string(&inventory.packages).map_err(|source| Error::Encode {
-                what: "packages",
-                source,
-            })?;
+        let packages = encode("packages", &inventory.packages)?;
+        let feeds = encode("feeds", &inventory.feeds)?;
         self.write(move |conn| {
             conn.prepare_cached(
-                "INSERT INTO node_inventory (node_id, taken_at, packages) VALUES (?1, ?2, ?3)
+                "INSERT INTO node_inventory (node_id, taken_at, packages, feeds)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT (node_id) DO UPDATE SET taken_at = excluded.taken_at,
-                 packages = excluded.packages",
+                 packages = excluded.packages, feeds = excluded.feeds",
             )?
             .execute(params![
                 node.get(),
                 inventory.taken_at.as_unix_ms(),
-                packages
+                packages,
+                feeds
             ])?;
             Ok(())
         })
@@ -185,7 +229,7 @@ mod tests {
     use uniwrt_core::{BackupId, MacAddr};
     use uniwrt_model::{
         facts::NodeFacts,
-        inventory::{BackupReason, Inventory, Package},
+        inventory::{BackupReason, Inventory, NodeFeed, Package},
         node::HostKeyPin,
     };
 
@@ -215,6 +259,11 @@ mod tests {
                     name: "dropbear".to_owned(),
                     version: "2024.86-r3".to_owned(),
                     explicit: true,
+                }],
+                feeds: vec![NodeFeed {
+                    name: Some("openwrt_core".to_owned()),
+                    url: "https://downloads.openwrt.org/releases/24.10.4/targets/x86/64/packages"
+                        .to_owned(),
                 }],
             },
             backup: Some(
@@ -289,9 +338,11 @@ mod tests {
         let newer = Inventory {
             taken_at: testing::START.saturating_add(std::time::Duration::from_secs(60)),
             packages: Vec::new(),
+            feeds: Vec::new(),
         };
         store.set_inventory(node.id, newer.clone()).await.unwrap();
-        assert_eq!(store.inventory(node.id).await.unwrap(), Some(newer));
+        assert_eq!(store.inventory(node.id).await.unwrap(), Some(newer.clone()));
+        assert_eq!(store.inventories().await.unwrap(), [(node.id, newer)]);
 
         // Deleting the node deletes what adoption recorded.
         assert!(store.delete_node(node.id).await.unwrap());

@@ -9,6 +9,7 @@
 
 pub mod catalog;
 pub mod dry_run;
+pub mod feeds;
 
 use std::collections::BTreeSet;
 

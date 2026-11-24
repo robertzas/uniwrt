@@ -142,6 +142,25 @@ pub(crate) const FEED: [FeedPackage; 20] = [
     ),
 ];
 
+/// The release's official feeds, as its `distfeeds` file names them (D-147): opkg's `src/gz`
+/// lines, or apk's index URLs.
+pub(crate) fn distfeeds(version: &str, target: &str, arch: &str, manager: &str) -> String {
+    let base = format!("https://downloads.openwrt.org/releases/{version}");
+    let core = ("core", format!("{base}/targets/{target}/packages"));
+    let feeds = ["base", "luci", "packages", "routing", "telephony"]
+        .map(|feed| (feed, format!("{base}/packages/{arch}/{feed}")));
+    std::iter::once(core)
+        .chain(feeds)
+        .map(|(name, url)| {
+            if manager == "apk" {
+                format!("{url}/packages.adb\n")
+            } else {
+                format!("src/gz openwrt_{name} {url}\n")
+            }
+        })
+        .collect()
+}
+
 /// The version of a package from the feeds.
 pub(crate) fn version(name: &str) -> Option<&'static str> {
     FEED.iter()

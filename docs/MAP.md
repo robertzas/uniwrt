@@ -56,6 +56,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074):
 - `src/drift/tests.rs`: (no header comment)
 - `src/events.rs`: The events routes, with a session (features/observability.md, Events):
+- `src/feeds.rs`: The package feed mirror (features/lifecycle.md, Offline packages; D-147):
+- `src/feeds_tests.rs`: The feed mirror's routes over the demo, whose upstream never answers: a node's feeds read and planned, the settings saved and in force at once, a refresh refused while off, and the nodes' route serving nothing it doesn't plan.
 - `src/firmware.rs`: Firmware upgrades (features/lifecycle.md, M7.1a1; D-121):
 - `src/firmware_github.rs`: GitHub releases in the firmware catalog and plans (M7.1a2b, D-122): a node whose source is a GitHub repo (its own, or the site's) is offered the repo's newest releases with an image for it instead of OpenWrt's; its plan names the release's images, flashed as they are.
 - `src/firmware_install.rs`: Installing a prepared upgrade (M7.1c1, D-124): `POST /api/v1/firmware/nodes/{id}/install` ([`UpgradeInstallBody`]), for admins, starts the upgrade job on a managed node and answers 202 with it (`GET /api/v1/jobs/{id}` and the WS hub's `jobs` topic follow it); 409 for a node in observe mode.
@@ -230,6 +232,10 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/engine.rs`: [`Engine`]: the fleet's node actors, the live state they keep and the bus they announce on.
 - `src/events/mod.rs`: Recording events (features/observability.md, Events; `uniwrt_events`): a deriver fed by the bus (statuses, facts, topology builds, clients, roams, steering, stored log entries) and by the job runner, ticked for conditions that must last, its events folded and stored in batches through [`EventRepo`] and announced as [`Event::Recorded`] once stored; retention runs beside it.
 - `src/events/tests.rs`: The recorder over a store and an engine without nodes, fed by hand on a manual clock: the controller's start, a node going offline (once it lasts) and back after a restart, log entries whose pattern is an event folding together, and an adoption from the job runner.
+- `src/feeds/mod.rs`: The controller's package feed mirror (features/lifecycle.md, Offline packages; D-147).
+- `src/feeds/plan.rs`: What the mirror keeps (D-147): the nodes' feed sets, their feeds and the names wanted.
+- `src/feeds/task.rs`: The mirror's task: the plan made from the store, the feeds read from nodes that have none kept, and when to sync.
+- `src/feeds/tests.rs`: The mirror's plan from the nodes' facts and inventories, and its task over a store and a source that never answers: a refresh at start, again after a failed one, on demand, a sync for a changed plan, nothing while off, and the feeds of a node whose inventory has none read over its link.
 - `src/fleet.rs`: [`Fleet`]: the engine as its readers see it, whatever the link type, so the API holds one `Arc<dyn Fleet>` while the server runs `Engine<FleetLink>` (D-041).
 - `src/history.rs`: The topology's history, for the replay (features/observability.md, Topology): each build as [`Topology::for_history`] keeps it, recorded through [`TopologyRepo`] as a keyframe every hour and as deltas between, at most every 30 s, and pruned to the last 24 h.
 - `src/history_tests.rs`: The history's frames: the policy over hand-made topologies, then the recorder over a store.
@@ -695,6 +701,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/pkg.rs`: The package managers (D-100): opkg on OpenWrt 24.10 and before, apk from 25.12.
 - `src/pkg/catalog.rs`: What a node's feeds offer, read once its index is refreshed ([`super::update`]): apk's `query` over the available packages, or opkg's lists (`/var/opkg-lists/*`, gzipped) through `grep`; and the installed packages with a newer version.
 - `src/pkg/dry_run.rs`: A change tried first ([`simulate`]: `apk … -s`, `opkg … --noaction`), and what the managers say it would do ([`DryRun`]): what comes, what goes (with the dependencies only it needed), and what a removal leaves because others need it (apk updates its world and keeps them; opkg refuses).
+- `src/pkg/feeds.rs`: The feeds a node's package manager reads (D-147), kept with its inventory so the controller mirrors them: opkg reads `/etc/opkg.conf`, then `/etc/opkg/*.conf` in order, and the first `src` line of a name wins; apk reads `/etc/apk/repositories`, then `/etc/apk/repositories.d/*.list`.
 - `src/probe.rs`: The WAN quality monitor's probes (D-144): a round is `probe.uc` from the agent's bundle, run on the gateway over exec ([`round`]), so a slow round holds up no agent request; it answers one JSON object, read back as a [`ProbeRound`] ([`parse_round`]).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
@@ -859,10 +866,11 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/demo_backhaul_tests.rs`: The wired backhaul end to end in demo mode (features/mesh.md, Wired backhaul; D-097): the demo's plain cable between the living room's and the office's access points, both managed, comes over as an overlay in the first transaction, passes the probe from both ends, and carries the mesh alone after the backhaul round.
 - `src/demo_port_tests.rs`: The adoption port end to end in demo mode (features/adoption.md, Path C; D-107, D-108): the sim's bench device on the gateway's `lan4` is found through the gateway's login, adopted as an access point (staged, lent to the LAN, confirmed at its lease), given the mesh's packages its image lacks and configured with the revision the gateway holds.
 - `src/demo_site.rs`: Demo mode's first revision (D-071, D-073): the brownfield import of the simulated nodes it adopted (their facts and `/etc/config` as they hold them, which `POST v1/import/preview` reads too) into the defaults, named "Demo home".
+- `src/feeds.rs`: The package feed mirror's copies (D-147): in `<data>/feeds`, downloaded over HTTP(S); demo mode's come from [`DemoFeeds`] instead, with no internet.
 - `src/fleet.rs`: The fleet at startup: an SSH link per adopted node, handed to the engine with the node's latest snapshot, the snapshot writer, the topology's history, the metrics recorder, the clients' recorder (which restores the clients first) and the log recorder (with the syslog receiver, when it listens); the event recorder, the notifications, the alert engine and RF insight's scanner join them once the job runner is up ([`Fleet::record_events`]; demo mode scans sooner and busy or not).
 - `src/fleet_link.rs`: [`FleetLink`]: the one link type the engine runs on, so the API has one engine type whether the nodes are real (SSH) or simulated (demo mode).
 - `src/healthcheck.rs`: `uniwrt healthcheck`: `GET /api/v1/health` on the local server; success means a 200.
-- `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api` and its one-liners' `/b/{token}`, the embedded UI as the fallback, and the middleware both share.
+- `src/http/mod.rs`: The HTTP surface: the API (`uniwrt-api`) under `/api`, its one-liners' `/b/{token}` and the feed mirror's `/feeds/{*path}` (D-147), the embedded UI as the fallback, and the middleware both share.
 - `src/http/plain.rs`: The plain HTTP listener (features/security.md, TLS; D-039): it redirects to HTTPS, except for the health check (Docker probes it) and for requests from a trusted reverse proxy, which terminates TLS itself and gets the whole application.
 - `src/launcher/child.rs`: The supervised controller: started with the launcher's arguments, signals forwarded to it, its health watched during a trial, and stopped when the trial fails.
 - `src/launcher/mod.rs`: The launcher (D-121, D-123): `uniwrt serve` in a release build supervises the controller as a child process, so the controller can upgrade itself in a container whose image it can't change.
@@ -1149,7 +1157,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (552 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (556 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

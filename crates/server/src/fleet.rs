@@ -17,11 +17,12 @@ use uniwrt_core::Clock;
 use uniwrt_engine::{
     AlertEngine, Alerts, AlertsConfig, Bans, BansConfig, Blocklist, BlocklistConfig, BlocklistSync,
     ClientBans, ClientRecorder, ClientSteering, DriftConfig, DriftWatch, Drifts, Engine,
-    EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LedSchedule, LedScheduleConfig,
-    LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
-    Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
-    Snapshots, SteeringConfig, TailscaleConfig, TailscaleSync, TopologyHistory, WanMonitor,
-    WanMonitorConfig, WanMonitorHandle, WlanSchedules,
+    EngineConfig, EventRecorder, EventsConfig, FeedMirror, FeedMirrorConfig, FeedMirrorSync,
+    HistoryConfig, LedSchedule, LedScheduleConfig, LogRecorder, LogsConfig, MetricsConfig,
+    MetricsRecorder, NeighborReports, NeighborsConfig, Notifications, Notify, NotifyConfig,
+    RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig, Snapshots, SteeringConfig,
+    TailscaleConfig, TailscaleSync, TopologyHistory, WanMonitor, WanMonitorConfig,
+    WanMonitorHandle, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -66,6 +67,8 @@ pub(crate) struct Fleet {
     bans: Option<ClientBans>,
     /// DNS filtering's lists and the gateway's copy (D-133).
     blocklist: Option<BlocklistSync>,
+    /// The package feed mirror (D-147).
+    feeds: Option<FeedMirrorSync>,
     neighbors: Option<NeighborReports>,
     steering: Option<ClientSteering>,
     syslog: Option<Receiver>,
@@ -127,6 +130,7 @@ impl Fleet {
             tailscale: None,
             bans: None,
             blocklist: None,
+            feeds: None,
             neighbors: None,
             steering: None,
             syslog,
@@ -211,6 +215,7 @@ impl Fleet {
             tailscale: None,
             bans: None,
             blocklist: None,
+            feeds: None,
             neighbors: None,
             steering: None,
             syslog,
@@ -276,6 +281,9 @@ impl Fleet {
         }
         if let Some(blocklist) = self.blocklist {
             blocklist.stop().await;
+        }
+        if let Some(feeds) = self.feeds {
+            feeds.stop().await;
         }
         if let Some(steering) = self.steering {
             steering.stop().await;
@@ -413,6 +421,28 @@ impl Fleet {
         ));
         self.neighbors = Some(neighbors);
         self.filter_dns(store, jobs, state_dir).await;
+        self.mirror_feeds(store, state_dir).await;
+    }
+
+    /// Keeps the package feed mirror in `state_dir` (made up in demo mode); without its
+    /// directory it doesn't run, with a warning.
+    async fn mirror_feeds(&mut self, store: &Store, state_dir: &Path) {
+        match crate::feeds::open(state_dir, self.sim.is_some()).await {
+            Ok(mirror) => {
+                self.feeds = Some(FeedMirrorSync::start(
+                    &self.engine,
+                    store.clone(),
+                    mirror,
+                    FeedMirrorConfig::default(),
+                ));
+            }
+            Err(err) => warn!("The feed mirror cannot start: {err:#}"),
+        }
+    }
+
+    /// The feed mirror's handle, once [`Fleet::mirror_feeds`] started it.
+    pub(crate) fn feeds(&self) -> Option<FeedMirror> {
+        self.feeds.as_ref().map(FeedMirrorSync::handle)
     }
 
     /// Drift detection's handle, once [`Fleet::record_events`] started it.

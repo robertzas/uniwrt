@@ -71,6 +71,7 @@ async fn packages_show_their_locks_and_change_by_a_job() {
                     package("dropbear", false),
                     package("rpcd", true),
                 ],
+                feeds: Vec::new(),
             },
         )
         .await

@@ -35,6 +35,9 @@ pub(crate) const COLLECTED: &str = include_str!(concat!(
     "/../node/fixtures/collect/x86-64-24.10.8.json"
 ));
 pub(crate) const PASSWORD: &str = "correct horse battery staple";
+/// The fake node's one feed.
+pub(crate) const FEED: &str =
+    "https://downloads.openwrt.org/releases/24.10.4/targets/x86/64/packages";
 pub(crate) const OPKG_STATUS: &str = "Package: dropbear\nVersion: 2024.86-r3\nStatus: install ok installed\n\
                            Package: luci\nVersion: 25.1\nStatus: install user installed\n";
 pub(crate) const BOARD: &str = r#"{"model":"QEMU Standard PC (Q35 + ICH9, 2009)","hostname":"OpenWrt","board_name":"qemu-standard-pc-q35-ich9-2009"}"#;
@@ -148,6 +151,9 @@ impl FakeNode {
                 ok(b"")
             }
             ["grep", _, _, "/usr/lib/opkg/status"] => ok(OPKG_STATUS.as_bytes()),
+            ["sh", "-c", script] if *script == uniwrt_node::pkg::feeds::OPKG => {
+                ok(format!("src/gz openwrt_core {FEED}\n").as_bytes())
+            }
             ["ubus", "call", "system", "board"] => ok(BOARD.as_bytes()),
             ["sysupgrade", "-b", "-"] => ok(TARBALL),
             ["sh", "-c", script] if *script == script_of(&txn::status().request) => {

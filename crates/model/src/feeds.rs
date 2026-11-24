@@ -30,6 +30,11 @@ pub struct MirrorSettings {
     pub whole_feeds: bool,
 }
 
+impl MirrorSettings {
+    /// The controller setting that holds them.
+    pub const KEY: &'static str = "feed_mirror";
+}
+
 impl Default for MirrorSettings {
     fn default() -> Self {
         Self {

@@ -185,6 +185,8 @@ async fn tools(
         outputs.push(read(&api, &node, &argv, "the installed packages").await?);
     }
     let packages = pkg::parse(manager, &outputs);
+    let feeds = pkg::feeds::command(manager);
+    let feeds = pkg::feeds::parse(manager, &read(&api, &node, &feeds, "the feeds").await?);
     let installed = |name: &str| packages.iter().any(|package| package.name == name);
     let statuses = OptionalTool::ALL
         .map(|tool| tool.status(installed))
@@ -195,6 +197,7 @@ async fn tools(
             Inventory {
                 taken_at: api.now(),
                 packages,
+                feeds,
             },
         )
         .await?;

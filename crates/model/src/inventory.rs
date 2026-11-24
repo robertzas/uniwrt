@@ -4,13 +4,25 @@
 use serde::{Deserialize, Serialize};
 use uniwrt_core::{BackupId, NodeId, Timestamp};
 
-/// The node's software as read at adoption.
+/// The node's software as read at adoption, and read again since.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Inventory {
     pub taken_at: Timestamp,
     /// Installed packages, by name.
     pub packages: Vec<Package>,
+    /// The feeds its package manager reads, in its order (D-147); empty where they weren't read.
+    #[serde(default)]
+    pub feeds: Vec<NodeFeed>,
+}
+
+/// A feed a node's package manager reads (D-147): an opkg `src` line's name and base URL, or an
+/// apk repository line's URL (`…/packages.adb`) with its tag, if any.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct NodeFeed {
+    pub name: Option<String>,
+    pub url: String,
 }
 
 /// An installed package.

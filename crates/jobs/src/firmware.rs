@@ -37,7 +37,8 @@ pub(crate) async fn keep(
     manager: PackageManager,
 ) -> Result<Inventory, JobError> {
     let mut outputs = Vec::new();
-    for argv in pkg::inventory(manager) {
+    let feeds = pkg::feeds::command(manager).to_vec();
+    for argv in pkg::inventory(manager).into_iter().chain([feeds]) {
         let output = remote
             .exec(ExecRequest::new(argv.iter().copied()))
             .await
@@ -46,9 +47,11 @@ pub(crate) async fn keep(
         outputs.push(String::from_utf8_lossy(&output.stdout).into_owned());
     }
     let packages: Vec<Package> = pkg::parse(manager, &outputs);
+    let feeds = pkg::feeds::parse(manager, outputs.last().map_or("", String::as_str));
     let inventory = Inventory {
         taken_at: shared.clock.now(),
         packages,
+        feeds,
     };
     shared
         .store

@@ -168,6 +168,58 @@ async fn blocklist(
     uniwrt_engine::BlocklistSync::start(engine, store.clone(), lists, None, config)
 }
 
+/// DNS filtering's lists, the feed mirror and the WAN quality monitor.
+async fn services(
+    engine: &Engine<SimLink>,
+    store: &Store,
+    dir: &std::path::Path,
+) -> (
+    uniwrt_engine::BlocklistSync,
+    uniwrt_engine::FeedMirrorSync,
+    uniwrt_engine::WanMonitor,
+) {
+    (
+        blocklist(engine, store, dir).await,
+        feed_mirror(engine, store, dir).await,
+        wan_monitor(engine, store),
+    )
+}
+
+/// The feed mirror, looking every 50 ms; upstream never answers.
+async fn feed_mirror(
+    engine: &Engine<SimLink>,
+    store: &Store,
+    dir: &std::path::Path,
+) -> uniwrt_engine::FeedMirrorSync {
+    struct Offline;
+    impl uniwrt_feeds::Source for Offline {
+        fn fetch<'a>(
+            &'a self,
+            url: &'a str,
+            _validators: &'a uniwrt_feeds::Validators,
+            _dest: &'a std::path::Path,
+            _max: u64,
+        ) -> uniwrt_feeds::BoxFuture<'a, Result<uniwrt_feeds::Fetched, uniwrt_feeds::Error>>
+        {
+            Box::pin(async move {
+                Err(uniwrt_feeds::Error::Unreachable {
+                    url: url.to_owned(),
+                    why: "offline".to_owned(),
+                })
+            })
+        }
+    }
+    let clock: Arc<dyn Clock> = Arc::new(uniwrt_core::SystemClock);
+    let mirror = uniwrt_feeds::Mirror::open(dir.join("feeds"), Arc::new(Offline), clock)
+        .await
+        .unwrap();
+    let config = uniwrt_engine::FeedMirrorConfig {
+        tick_every: Duration::from_millis(50),
+        ..uniwrt_engine::FeedMirrorConfig::default()
+    };
+    uniwrt_engine::FeedMirrorSync::start(engine, store.clone(), mirror, config)
+}
+
 /// The WAN quality monitor, probing the simulated gateway every 100 ms.
 fn wan_monitor(engine: &Engine<SimLink>, store: &Store) -> uniwrt_engine::WanMonitor {
     let config = uniwrt_engine::WanMonitorConfig {
@@ -192,6 +244,7 @@ pub(crate) struct Handles {
     pub(crate) drift: Option<Drifts>,
     pub(crate) bans: Option<Bans>,
     pub(crate) blocklist: Option<uniwrt_engine::Blocklist>,
+    pub(crate) feeds: Option<uniwrt_engine::FeedMirror>,
     pub(crate) wan_monitor: Option<uniwrt_engine::WanMonitorHandle>,
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
     pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
@@ -217,6 +270,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         blocklist,
+        feeds,
         wan_monitor,
         asu,
         uploads,
@@ -249,6 +303,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         blocklist,
+        feeds,
         wan_monitor,
         asu,
         uploads,
@@ -295,7 +350,8 @@ pub(crate) struct Demo {
     /// Watches for drift, reading what the store confirmed every 100 ms.
     _drift: DriftWatch,
     _bans: ClientBans,
-    _blocklist: uniwrt_engine::BlocklistSync,
+    /// DNS filtering's lists and the feed mirror.
+    _services: (uniwrt_engine::BlocklistSync, uniwrt_engine::FeedMirrorSync),
     /// Probes from the simulated gateway every 100 ms.
     _wan_monitor: uniwrt_engine::WanMonitor,
 }
@@ -381,8 +437,7 @@ impl Demo {
                 ..BansConfig::default()
             },
         );
-        let blocklist = blocklist(&engine, &store, dir.path()).await;
-        let wan_monitor = wan_monitor(&engine, &store);
+        let (blocklist, feeds, wan_monitor) = services(&engine, &store, dir.path()).await;
         let handles = Handles {
             alerts: Some(alerts.handle()),
             notify: Some((notifications.handle(), vault)),
@@ -390,6 +445,7 @@ impl Demo {
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
             blocklist: Some(blocklist.handle()),
+            feeds: Some(feeds.handle()),
             wan_monitor: Some(wan_monitor.handle()),
             asu,
             uploads: Some(uploads_in(dir.path()).await),
@@ -414,7 +470,7 @@ impl Demo {
             _rf: rf,
             _drift: drift,
             _bans: bans,
-            _blocklist: blocklist,
+            _services: (blocklist, feeds),
             _wan_monitor: wan_monitor,
         };
         demo.cookie = login(&demo.api).await;

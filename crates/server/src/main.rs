@@ -29,6 +29,7 @@ mod demo_backhaul_tests;
 #[cfg(test)]
 mod demo_port_tests;
 mod demo_site;
+mod feeds;
 mod fleet;
 mod fleet_link;
 mod healthcheck;

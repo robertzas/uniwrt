@@ -187,6 +187,33 @@ pub struct Requirement {
     pub service: Option<&'static str>,
 }
 
+/// Every feed package a render may require, each once: what the controller's feed mirror keeps
+/// for any node (D-147).
+pub fn every_package() -> Vec<&'static str> {
+    let mut all: Vec<&'static str> = sqm::REQUIRES
+        .iter()
+        .chain(&failover::USB_REQUIRES)
+        .chain(&[
+            failover::REQUIRES,
+            upnp::REQUIRES,
+            doh::REQUIRES,
+            dot::REQUIRES,
+            ddns::REQUIRES,
+            ddns::SERVICES,
+            ddns::CLOUDFLARE,
+            ddns::NOIP,
+            mdns::REQUIRES,
+            usteer::REQUIRES,
+            wireguard::REQUIRES,
+            tailscale::REQUIRES,
+        ])
+        .map(|requirement| requirement.package)
+        .collect();
+    all.sort_unstable();
+    all.dedup();
+    all
+}
+
 /// Something about the node or the site that render reports, at the path of the document's
 /// part it concerns (`wlans/home`, `mesh`) or of the node (`node`).
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -120,7 +120,7 @@ pub enum AuditAction {
     /// An admin restarted nodes (the detail names them and the job; D-137).
     Reboot,
     /// An admin changed a node's packages (the detail names the node, the changes and the job;
-    /// D-139).
+    /// D-139), or the feed mirror's settings, or refreshed it (D-147).
     Packages,
     /// An admin logged the gateway's Tailscale in or out (the detail says which; D-140).
     Tailscale,

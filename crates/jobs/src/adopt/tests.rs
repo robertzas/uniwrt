@@ -47,8 +47,8 @@ async fn adopting_with_the_password_installs_the_key_records_everything_and_watc
     );
     assert_eq!(
         setup.node.commands(),
-        ["cat", "sh", "grep", "sysupgrade"],
-        "read the release, install the key, read the packages, back up"
+        ["cat", "sh", "grep", "sh", "sysupgrade"],
+        "read the release, install the key, read the packages and feeds, back up"
     );
 
     let node = setup.store.node(id).await.unwrap().unwrap();
@@ -66,6 +66,12 @@ async fn adopting_with_the_password_installs_the_key_records_everything_and_watc
         .map(|package| (package.name.as_str(), package.explicit))
         .collect();
     assert_eq!(names, [("dropbear", false), ("luci", true)]);
+    let feeds: Vec<_> = inventory
+        .feeds
+        .iter()
+        .map(|feed| feed.url.as_str())
+        .collect();
+    assert_eq!(feeds, [crate::testing::FEED], "the node's feeds are kept");
     let backups = setup.store.backups(id).await.unwrap();
     let (_, tarball) = setup
         .vault
@@ -117,7 +123,11 @@ async fn a_node_that_trusts_the_key_needs_no_password_and_no_change() {
             StepName::SetPassword
         ]
     );
-    assert!(!setup.node.commands().contains(&"sh".to_owned()));
+    assert_eq!(
+        setup.node.commands(),
+        ["cat", "grep", "sh", "sysupgrade"],
+        "no key installed: the release, the packages, the feeds, the backup"
+    );
     let node = setup.store.node(job.node.unwrap()).await.unwrap().unwrap();
     assert_eq!((node.name.as_str(), node.role), ("attic", NodeRole::Bridge));
     assert!(
@@ -196,7 +206,7 @@ async fn a_node_without_a_root_password_gets_a_random_one_kept_in_the_vault() {
         );
         assert_eq!(
             setup.node.commands(),
-            ["cat", "sh", "passwd", "grep", "sysupgrade"],
+            ["cat", "sh", "passwd", "grep", "sh", "sysupgrade"],
             "the password is set after the key works, before the inventory"
         );
         let set = setup.node.password.lock().unwrap().clone();

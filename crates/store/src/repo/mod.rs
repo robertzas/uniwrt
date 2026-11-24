@@ -302,6 +302,9 @@ pub trait HostKeyRepo: Send + Sync {
 pub trait InventoryRepo: Send + Sync {
     fn inventory(&self, node: NodeId) -> impl Future<Output = Result<Option<Inventory>>> + Send;
 
+    /// Every node's inventory, by node id.
+    fn inventories(&self) -> impl Future<Output = Result<Vec<(NodeId, Inventory)>>> + Send;
+
     /// Replaces the node's packages with a newer read (M7.1a1: before an upgrade is planned).
     fn set_inventory(
         &self,

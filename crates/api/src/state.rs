@@ -7,8 +7,8 @@ use std::{fmt, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{
-    Alerts, Bans, Blocklist, DiagConfig, Diagnostics, Drifts, Fleet, Notify, Rf, Starter,
-    WanMonitorHandle,
+    Alerts, Bans, Blocklist, DiagConfig, Diagnostics, Drifts, FeedMirror, Fleet, Notify, Rf,
+    Starter, WanMonitorHandle,
 };
 use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
 use uniwrt_jobs::{Jobs, RolloutTiming, Rollouts};
@@ -43,6 +43,9 @@ pub struct ApiConfig {
     /// DNS filtering's lists, when they are kept; without them, `v1/services/blocklists`
     /// answers 503.
     pub blocklist: Option<Blocklist>,
+    /// The package feed mirror (D-147), when it runs; without it, `v1/feeds` answers 503 and
+    /// `/feeds/…` 404.
+    pub feeds: Option<FeedMirror>,
     /// The WAN quality monitor, when it runs; without it, `v1/wan/monitor` answers 503.
     pub wan_monitor: Option<WanMonitorHandle>,
     /// The controller's own latest log lines, for the support bundle.
@@ -94,6 +97,7 @@ impl ApiConfig {
             drift: None,
             bans: None,
             blocklist: None,
+            feeds: None,
             wan_monitor: None,
             log_tail: None,
             asu: None,
@@ -141,6 +145,7 @@ struct Inner {
     drift: Option<Drifts>,
     bans: Option<Bans>,
     blocklist: Option<Blocklist>,
+    feeds: Option<FeedMirror>,
     wan_monitor: Option<WanMonitorHandle>,
     log_tail: Option<crate::LogTail>,
     /// The diagnostics toolkit's runs (D-141).
@@ -212,6 +217,7 @@ impl Api {
                 drift: config.drift,
                 bans: config.bans,
                 blocklist: config.blocklist,
+                feeds: config.feeds,
                 wan_monitor: config.wan_monitor,
                 log_tail: config.log_tail,
                 diag,
@@ -417,6 +423,13 @@ impl Api {
             .blocklist
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("DNS filtering is not running".to_owned()))
+    }
+
+    pub(crate) fn feeds(&self) -> Result<&FeedMirror, ApiError> {
+        self.inner
+            .feeds
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("The feed mirror is not running".to_owned()))
     }
 
     pub(crate) fn log_tail(&self) -> Option<&crate::LogTail> {

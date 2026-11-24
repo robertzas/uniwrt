@@ -506,7 +506,7 @@ async fn inspect(
         mut notes,
     } = checked;
     progress.start(StepName::Inventory).await;
-    let packages = if let Some(manager) = facts.capabilities.package_manager {
+    let (packages, feeds) = if let Some(manager) = facts.capabilities.package_manager {
         let mut outputs = Vec::new();
         for argv in pkg::inventory(manager) {
             match text_argv(remote, &argv, "Cannot read the packages").await {
@@ -514,10 +514,18 @@ async fn inspect(
                 Err(err) => notes.push(err.message),
             }
         }
-        pkg::parse(manager, &outputs)
+        let feeds = pkg::feeds::command(manager);
+        let feeds = match text_argv(remote, &feeds, "Cannot read the feeds").await {
+            Ok(output) => pkg::feeds::parse(manager, &output),
+            Err(err) => {
+                notes.push(err.message);
+                Vec::new()
+            }
+        };
+        (pkg::parse(manager, &outputs), feeds)
     } else {
         notes.push("No package manager found".to_owned());
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
     let explicit = packages.iter().filter(|package| package.explicit).count();
     let mut detail = format!(
@@ -532,6 +540,7 @@ async fn inspect(
     let inventory = Inventory {
         taken_at: facts.collected_at,
         packages,
+        feeds,
     };
 
     progress.start(StepName::Backup).await;

@@ -352,6 +352,7 @@ async fn start_api(
         drift: fleet.drift(),
         bans: fleet.bans(),
         blocklist: fleet.blocklist(),
+        feeds: fleet.feeds(),
         wan_monitor: fleet.wan_monitor(),
         log_tail: crate::logging::tail(),
         vault: Some(vault.clone()),

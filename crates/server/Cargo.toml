@@ -19,6 +19,7 @@ anyhow.workspace = true
 axum = { workspace = true, features = ["http2"] }
 bytes.workspace = true
 clap.workspace = true
+flate2.workspace = true
 ipnet.workspace = true
 mimalloc.workspace = true
 rcgen.workspace = true
@@ -27,6 +28,7 @@ rustix = { workspace = true, features = ["termios"] }
 rustls.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
+sha2.workspace = true
 # Demo mode's database lives in a temporary directory inside the data directory.
 tempfile.workspace = true
 time.workspace = true
@@ -42,12 +44,14 @@ uniwrt-api.workspace = true
 uniwrt-core.workspace = true
 uniwrt-dns.workspace = true
 uniwrt-engine.workspace = true
+uniwrt-feeds.workspace = true
 uniwrt-firmware.workspace = true
 uniwrt-import.workspace = true
 uniwrt-jobs.workspace = true
 uniwrt-model.workspace = true
 uniwrt-node.workspace = true
 uniwrt-notify.workspace = true
+uniwrt-render.workspace = true
 uniwrt-rf.workspace = true
 uniwrt-sim.workspace = true
 uniwrt-store.workspace = true

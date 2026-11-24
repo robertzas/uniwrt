@@ -19,8 +19,18 @@ pub(crate) const REQUIRES: Requirement = Requirement {
 };
 
 /// The service definitions of most providers.
-const SERVICES: Requirement = Requirement {
+pub(crate) const SERVICES: Requirement = Requirement {
     package: "ddns-scripts-services",
+    service: None,
+};
+
+/// Cloudflare's and No-IP's service definitions, which `ddns-scripts-services` lacks.
+pub(crate) const CLOUDFLARE: Requirement = Requirement {
+    package: "ddns-scripts-cloudflare",
+    service: None,
+};
+pub(crate) const NOIP: Requirement = Requirement {
+    package: "ddns-scripts-noip",
     service: None,
 };
 
@@ -41,14 +51,8 @@ pub(crate) fn requires(plan: &Plan<'_>) -> Vec<Requirement> {
     let mut requires = vec![REQUIRES, SERVICES];
     for ddns in enabled(plan) {
         let extra = match ddns.provider {
-            DdnsProvider::Cloudflare { .. } => Requirement {
-                package: "ddns-scripts-cloudflare",
-                service: None,
-            },
-            DdnsProvider::NoIp { .. } => Requirement {
-                package: "ddns-scripts-noip",
-                service: None,
-            },
+            DdnsProvider::Cloudflare { .. } => CLOUDFLARE,
+            DdnsProvider::NoIp { .. } => NOIP,
             _ => continue,
         };
         if !requires.contains(&extra) {

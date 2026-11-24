@@ -28,6 +28,9 @@
 //!   `drift`), the address plan's suggestions (`GET v1/ipam/network`, `GET
 //!   v1/ipam/reservation` ([`ReservationSuggestion`]); see `ipam`), DNS filtering's lists (`GET
 //!   v1/services/blocklists` ([`BlocklistsView`]), admins: `POST …/refresh`; see `blocklists`),
+//!   the package feed mirror (`GET v1/feeds` ([`FeedsView`]), admins: `PUT v1/feeds/settings`
+//!   and `POST v1/feeds/refresh`; D-147), and [`feed_files`], the public `GET /feeds/{*path}`
+//!   the server serves at the root of its HTTPS listener,
 //!   DNS query statistics (`GET v1/services/dns/stats` ([`DnsStats`]), `GET
 //!   v1/services/dns/queries` ([`DnsQueryPage`]); see `dns_stats`),
 //!   the WAN quality monitor (`GET v1/wan/monitor` ([`WanMonitorView`]), admins: `PUT`; D-144),
@@ -143,6 +146,7 @@ mod dns_stats;
 mod doctor;
 mod drift;
 mod events;
+mod feeds;
 mod firmware;
 mod firmware_github;
 mod firmware_install;
@@ -224,6 +228,7 @@ pub use diag::DiagRunBody;
 pub use dns_stats::{DnsClientStats, DnsQueryPage, DnsRange, DnsStats};
 pub use drift::DriftMuteBody;
 pub use events::EventPage;
+pub use feeds::{FeedsView, feed_files};
 pub use firmware::{PlanBody, UpgradeBody};
 pub use firmware_install::UpgradeInstallBody;
 pub use firmware_rollouts::{CanaryBody, RolloutBody, RolloutNodeBody};
@@ -333,6 +338,7 @@ pub fn router(api: Api) -> Router {
         .merge(config_routes())
         .merge(adoption_routes())
         .merge(ztp::routes())
+        .merge(feeds::routes())
         .merge(firmware::routes())
         .merge(reboot::routes())
         .merge(diag::routes())

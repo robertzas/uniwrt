@@ -360,9 +360,29 @@ fn software(node: &Node, argv: &[&str], disk: &mut Disk) -> Option<ExecOutput> {
     super::wpad::exec(argv, manager, &mut disk.wpad)
         .or_else(|| super::packages::exec(argv, manager, disk))
         .or_else(|| super::feeds::exec(argv, manager, &mut disk.installed, &mut disk.tool))
+        .or_else(|| distfeeds(node, argv))
         .or_else(|| {
             let services = &mut disk.tool.services;
             super::tmp::exec(argv, &mut disk.tmp, node.booted_ms, services)
+        })
+}
+
+/// The feed configuration's read (D-147): the release's official feeds.
+fn distfeeds(node: &Node, argv: &[&str]) -> Option<ExecOutput> {
+    let ["sh", "-c", script] = argv else {
+        return None;
+    };
+    let (release, model) = (node.release, node.model);
+    [uniwrt_node::pkg::feeds::OPKG, uniwrt_node::pkg::feeds::APK]
+        .contains(script)
+        .then(|| {
+            let text = super::feeds::distfeeds(
+                release.version,
+                model.target,
+                model.arch,
+                release.package_manager,
+            );
+            ok(text.into_bytes())
         })
 }
 
