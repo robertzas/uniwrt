@@ -4,7 +4,7 @@
 //!
 //! [`Tool::exec`] answers the tool's commands with its replies and error codes, the
 //! footprint's status, install and removal, and the reads of the current packages and services
-//! ([`uniwrt_node::txn::current`]). Time is the caller's ([`Now`]): the dead-man timer expires
+//! ([`uniwrt_node::txn::current`], every package too). Time is the caller's ([`Now`]): the dead-man timer expires
 //! when a command runs after its deadline, and a node that booted since its apply rolls back
 //! (reason `boot`). The reload is instant, so an apply is `applied` at once, a scheduled one too
 //! (its countdown is kept in [`Tool::waits`] and lengthens its timer). `check` takes any
@@ -112,6 +112,10 @@ impl Tool {
             }
             ["sh", "-c", script, "sh", names @ ..] if *script == current::PACKAGES_SCRIPT => {
                 return Some(ok_raw(self.read_packages(names)));
+            }
+            ["sh", "-c", script, "sh"] if *script == current::ALL_SCRIPT => {
+                let names: Vec<&str> = self.files.keys().map(String::as_str).collect();
+                return Some(ok_raw(self.read_packages(&names)));
             }
             ["sh", "-c", script, "sh", names @ ..] if *script == current::SERVICES_SCRIPT => {
                 return Some(ok_raw(self.read_services(names).into_bytes()));

@@ -41,7 +41,7 @@ pub(super) fn routes() -> axum::Router<Api> {
         .route("/v1/nodes/{id}/diag/tools", get(tools))
 }
 
-pub(super) async fn node(api: &Api, id: Result<Path<i64>, PathRejection>) -> ApiResult<Node> {
+pub(crate) async fn node(api: &Api, id: Result<Path<i64>, PathRejection>) -> ApiResult<Node> {
     let Path(id) = id.map_err(|_| ApiError::BadRequest("A node ID is a number".to_owned()))?;
     let id = NodeId::new(id);
     api.store()

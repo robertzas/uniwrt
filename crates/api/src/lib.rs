@@ -67,7 +67,7 @@
 //!   admin), `GET v1/clients/{mac}/sessions?since=<ms>`, and an admin's `POST
 //!   v1/clients/{mac}/kick` ([`ClientKick`], [`KickOutcome`]), `PUT`/`DELETE
 //!   v1/clients/{mac}/block` and `POST v1/clients/{mac}/wake` ([`WakeOutcome`], D-137)),
-//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), diagnostics runs (`GET v1/diag/runs`, an admin's `POST v1/diag/runs` with a [`DiagRunBody`] and `DELETE v1/diag/runs/{id}`, followed by the WS hub's `diag:<id>`; see `diag`, D-141; a node's tables and an admin's packet capture, `GET v1/nodes/{id}/diag/capture` with a [`CaptureQuery`](uniwrt_model::diag::capture::CaptureQuery), a streamed `.pcap`, D-142; an admin's terminal, `GET v1/nodes/{id}/terminal` as a WebSocket of [`TerminalClientMessage`]s and [`TerminalServerMessage`]s, see `terminal`, D-141), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
+//!   restarts (an admin's `POST v1/reboots`, [`RebootBody`]: a job; see `reboot`), diagnostics runs (`GET v1/diag/runs`, an admin's `POST v1/diag/runs` with a [`DiagRunBody`] and `DELETE v1/diag/runs/{id}`, followed by the WS hub's `diag:<id>`; see `diag`, D-141; a node's tables and an admin's packet capture, `GET v1/nodes/{id}/diag/capture` with a [`CaptureQuery`](uniwrt_model::diag::capture::CaptureQuery), a streamed `.pcap`, D-142; an admin's terminal, `GET v1/nodes/{id}/terminal` as a WebSocket of [`TerminalClientMessage`]s and [`TerminalServerMessage`]s, see `terminal`, D-141; a node's live UCI for the explorer, `GET v1/nodes/{id}/uci`, a [`NodeUci`](uniwrt_model::explorer::NodeUci) with secrets masked, see `uci`, D-143), a node's packages (`GET v1/nodes/{id}/packages`, an admin's `POST …/packages/catalog` and `POST …/packages`: a job; see `packages`, D-139), the metrics (`GET v1/metrics`, an
 //!   entity's series downsampled to a width ([`MetricsResponse`]), and `GET v1/metrics/series`,
 //!   what is kept ([`SeriesInfo`])), the logs (`GET v1/logs` pages ([`LogPage`]),
 //!   `GET v1/logs/histogram`, `GET v1/logs/{id}/context`, `GET v1/logs/sources`,
@@ -181,6 +181,7 @@ mod terminal;
 mod testing;
 mod tls;
 mod topology;
+mod uci;
 mod vpn;
 mod wan;
 #[cfg(test)]
@@ -375,6 +376,7 @@ fn node_routes() -> Router<Api> {
         .route("/v1/nodes/{id}/management", put(management::put))
         .route("/v1/nodes/{id}/role", put(node_role::put))
         .route("/v1/nodes/{id}/wpad", post(wpad::post))
+        .route("/v1/nodes/{id}/uci", get(uci::get))
 }
 
 fn adoption_routes() -> Router<Api> {

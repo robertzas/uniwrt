@@ -12,7 +12,8 @@
 //!   failover, UPnP, DoH, DDNS names or mDNS reflection on, or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
 //!   says how an anonymous section is found. A package render doesn't write that a raw section
 //!   names is patched: the node's own file in [`Target::current`] with its raw sections
-//!   ([`Rendered::patched`], D-143).
+//!   ([`Rendered::patched`], D-143). [`explorer::tree`] is the UCI explorer's view of a node's
+//!   files: each parsed, secrets masked, its owner, and the raw sections placed on what they find.
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
 //!   network's interface sits on `br-lan.<vid>`, `bat0` is a trunk (the untagged network
@@ -64,6 +65,7 @@ mod blocking;
 mod ddns;
 mod dhcp;
 mod doh;
+pub mod explorer;
 mod ext;
 mod failover;
 mod firewall;

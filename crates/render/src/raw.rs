@@ -167,7 +167,7 @@ pub(crate) fn merge(package: &mut Package, raw: &[RawSection], at: Merge<'_>) {
 
 /// The section a merge or removal of `raw` finds: by name, by the options it matches, or by its
 /// type's key ([`find`]).
-fn target(package: &Package, raw: &RawSection) -> Option<usize> {
+pub fn target(package: &Package, raw: &RawSection) -> Option<usize> {
     if raw.name.is_none() && !raw.matching.is_empty() {
         return package.sections.iter().position(|s| {
             s.kind == raw.kind
@@ -187,7 +187,7 @@ fn target(package: &Package, raw: &RawSection) -> Option<usize> {
 }
 
 /// Whether `section` holds `name` as `value` (a plain one: a secret never matches).
-fn holds(section: &Section, name: &str, value: &RawValue) -> bool {
+pub(crate) fn holds(section: &Section, name: &str, value: &RawValue) -> bool {
     match (section.get(name), value) {
         (Some(Value::Single(held)), RawValue::Option(value)) => held == value,
         (Some(Value::List(held)), RawValue::List(value)) => held == value,

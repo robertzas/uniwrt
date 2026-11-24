@@ -10,6 +10,8 @@
 mod capture;
 mod tables;
 
+pub(crate) use tables::node;
+
 use axum::{
     Json,
     extract::{Path, State, rejection::JsonRejection},

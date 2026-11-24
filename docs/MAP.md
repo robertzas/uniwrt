@@ -109,6 +109,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
 - `src/topology/layout.rs`: The topology view's layout: where users pinned its vertices, one layout for every user and browser.
 - `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
+- `src/uci.rs`: The UCI explorer's read (features/observability.md, Diagnostics toolkit › UCI explorer; D-141, D-143), with a session: `GET v1/nodes/{id}/uci` reads every package in the node's `/etc/config` live over the engine's link (any adopted node, observe mode included) and answers a [`NodeUci`]: each package parsed with secret options masked, who writes it, and the node's raw sections of the site's latest revision placed on the sections they find (`uniwrt_render::explorer`). 409 while the node is offline, 502 when the read fails.
+- `src/uci/tests.rs`: The UCI explorer's read on the demo, whose simulated nodes hold the stock `/etc/config` their brownfield import read.
 - `src/vpn.rs`: The WireGuard server's peers (features/network.md, VPN; D-140), with a session:
 - `src/vpn/keys.rs`: WireGuard keys (features/network.md, VPN; D-140), made by the controller as a save or an import gives the site its next revision ([`fill`]):
 - `src/vpn/stats.rs`: `GET /api/v1/vpn/wireguard/peers` ([`VpnStatus`]): each peer of the latest revision with what the gateway's tunnel reports of it (the `services` set's `wg show vpn dump`, matched by public key; D-140): its latest handshake, endpoint and traffic, and whether it is connected.
@@ -503,6 +505,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/drift.rs`: Drift (features/lifecycle.md, Drift; D-072, D-074): a managed package that changed on its node after the controller confirmed it, and what the user made of it.
 - `src/event.rs`: What nodes report as it happens: the node agent's push events (ARCHITECTURE.md, Node protocol), which the `node` crate parses from hostapd's, netifd's, the DHCP servers' and usteer's ubus notifications.
 - `src/events.rs`: Events (features/observability.md, Events, alerts, notifications): what happened on the network, as the controller records it for its timeline.
+- `src/explorer.rs`: The UCI explorer's read of a node (features/observability.md, Diagnostics toolkit › UCI explorer; D-141, D-143): every package in its `/etc/config` as the node holds it now, with the values of secret options masked, who owns each package, and which of the node's raw sections in the site's latest revision find each section.
 - `src/facts/batman.rs`: batman-adv meshes, as batctl reports them: the node's view of the other nodes (originators), its direct neighbors, the gateways, and which node each client sits behind (the translation tables).
 - `src/facts/capabilities.rs`: Detected capabilities: what rendering and the agent may rely on (ARCHITECTURE.md, principle 4).
 - `src/facts/interface.rs`: Logical interfaces (netifd) and the kernel network devices beneath them.
@@ -725,6 +728,8 @@ Render (features/lifecycle.md, Render → diff → apply): a site's desired stat
 - `src/ddns.rs`: The `ddns` package (ddns-scripts; features/network.md, Other services; D-132): a `service` section per DDNS entry, named by its id, which publishes the WAN's address (`wan`, or `wan6` for an AAAA record) or the one a web service sees.
 - `src/dhcp.rs`: The `dhcp` package (features/network.md, DHCP & local DNS): on the gateway dnsmasq serves each network's pool and reservations and the local DNS records, and odhcpd advertises IPv6 as each network's clients mode says; on APs every network is ignored, as their DHCP services are off.
 - `src/doh.rs`: The `https-dns-proxy` package (features/network.md, DHCP & local DNS; D-132): DNS over HTTPS on the gateway, one local instance per resolver on `127.0.0.1`, from port [`FIRST_PORT`] up, which the gateway's dnsmasq forwards to ([`servers`]).
+- `src/explorer.rs`: The UCI explorer's view of a node's files (features/observability.md, Diagnostics toolkit › UCI explorer; D-143): [`tree`] parses each package the node holds, masks the values of secret options ([`is_masked_option`]), says who writes each package ([`UciOwner`]) and places each of the node's raw sections on the section it finds, as render would find it ([`raw::target`]).
+- `src/explorer/tests.rs`: (no header comment)
 - `src/ext.rs`: Builders for sections whose options are optional, lists that may be empty, and flags.
 - `src/failover.rs`: Failover to a backup line (features/wan.md, Failover; D-076): `wanb` in the `network` package (on a port taken out of the LAN, a VLAN of one, or a USB tether), and the `mwan3` package, which checks both lines against [`HEALTH_TARGETS`] and routes IPv4 over the backup while the WAN fails.
 - `src/firewall.rs`: The `firewall` package (fw4; features/network.md, Firewall policy): a zone per network and one for the WAN, a forwarding for each allowed cell of the policy matrix ([`matrix`](self::matrix)), OpenWrt's stock WAN rules, and on the zones that don't reach the gateway freely the rules that let their clients get addresses and names. fw4 accepts replies to allowed connections in every direction, so "block" and "established" both render as no forwarding.
@@ -1099,7 +1104,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (526 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (531 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

@@ -200,6 +200,11 @@ fn reads_report_files_and_services() {
     let files = read.parse(output).unwrap();
     assert_eq!(files["network"].as_deref(), Some("old network\n"));
     assert_eq!(files["dhcp"], None);
+    let read = current::all();
+    let output = tool.exec(&read.request.argv, None, T0).unwrap();
+    let every = read.parse(output).unwrap();
+    assert!(every.keys().eq(tool.files.keys()), "{every:?}");
+    assert_eq!(every["network"].as_deref(), Ok("old network\n"));
     let read = current::services(&["firewall", "usteer"]).unwrap();
     let output = tool.exec(&read.request.argv, None, T0).unwrap();
     let services = read.parse(output).unwrap();
