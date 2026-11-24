@@ -23,7 +23,7 @@ import { BlockingCard } from "./services/BlockingCard";
 import { DdnsCard } from "./services/DdnsCard";
 import { DnsQueriesCard } from "./services/DnsQueriesCard";
 import { NtpCard } from "./services/NtpCard";
-import { UpstreamCard } from "./services/UpstreamCard";
+import { UpstreamCard } from "./services/upstream/UpstreamCard";
 import { useOf, warningsOf } from "./summary";
 
 const t = strings.networks;

@@ -5159,34 +5159,42 @@ export const strings = {
     upstream: {
       title: "Upstream DNS",
       description:
-        "Where the gateway sends the queries it can't answer itself: the ISP's servers, servers of your choice, or encrypted DNS over HTTPS.",
-      modeLabel: "Upstream",
-      modes: { isp: "ISP", custom: "Custom servers", doh: "DNS over HTTPS" } as Record<
-        string,
-        string
-      >,
-      modeHints: {
-        isp: "The servers the WAN connection hands out, as stock OpenWrt uses them.",
-        custom: "Up to 4 plain DNS servers, IPv4 or IPv6, asked in turn.",
-        doh: "Up to 4 resolvers, each an encrypted proxy on the gateway. Queries leave the network unreadable to the ISP.",
-      } as Record<string, string>,
+        "Where the gateway sends the queries it can't answer itself, in layers asked in turn: encrypted resolvers, then DNS servers of your choice, then the ISP's.",
+      layers: "Layers, asked in turn",
+      encrypted: "Encrypted resolvers",
+      encryptedHint:
+        "Asked first, in this order, each through an encrypted proxy on the gateway. DNS over TLS resolvers stay together: they are asked in turn, in the first one's place.",
+      servers: "DNS servers",
+      serversHint: "Plain servers, IPv4 or IPv6, asked when the encrypted resolvers fail.",
+      ispLayer: "ISP",
       isp: "The ISP's servers, from the WAN connection",
-      layered:
-        "Layered upstream with DNS over TLS or fallbacks, set through the API. Editing it here comes in a later update.",
+      ispOption: "Then the ISP's servers",
+      ispHint: "The servers the WAN connection hands out, asked last, as stock OpenWrt does.",
+      strict: "Encrypted only",
+      strictHint:
+        "Only the encrypted resolvers are asked, so no query leaves the gateway unencrypted. The other layers are kept for later.",
+      strictOff: "Add an encrypted resolver first.",
+      leftOut: "Not asked: encrypted only",
+      protocols: { doh: "DNS over HTTPS", dot: "DNS over TLS" } as Record<string, string>,
+      short: { doh: "DoH", dot: "DoT" } as Record<string, string>,
+      addProtocol: "Protocol of the resolver to add",
       server: (n: number) => `Server ${n}`,
       addServer: "Add a server",
       removeServer: (n: number) => `Remove server ${n}`,
       resolver: (n: number) => `Resolver ${n}`,
+      rowName: (name: string, protocol: string) => `${name} (${protocol})`,
       presets: {
         cloudflare: "Cloudflare",
         quad9: "Quad9",
         google: "Google",
         nextdns: "NextDNS",
         adguard: "AdGuard",
-        custom: "Custom URL",
+        custom: "Custom",
       } as Record<string, string>,
       addResolver: "Add a resolver",
       removeResolver: (name: string) => `Remove ${name}`,
+      moveUp: (name: string) => `Move ${name} up`,
+      moveDown: (name: string) => `Move ${name} down`,
       url: "Resolver URL",
       urlHint: "Its RFC 8484 endpoint, such as https://dns.example/dns-query",
       profile: "NextDNS profile ID",
@@ -5195,24 +5203,46 @@ export const strings = {
       bootstrapHint:
         "2 to 4 plain DNS servers, separated by commas, that find the resolver when the gateway starts. The gateway also resolves its time servers through the first one.",
       bootstrapLabel: "bootstrap",
+      name: "Certificate name",
+      nameHint: "The host name its TLS certificate is for, such as dns.example",
+      addresses: "Addresses",
+      addressesHint: "1 to 4 IP addresses of the resolver, separated by commas, asked in order.",
+      port: "Port",
+      portHint: "853 unless the resolver says otherwise.",
+      spki: "Key pins (optional)",
+      spkiHint:
+        "Up to 4 base64 SHA-256 pins of the resolver's public key, checked besides its certificate. A pin stops working when the resolver changes its key.",
+      pinsLabel: (n: number) => `${n} key ${n === 1 ? "pin" : "pins"}`,
       proxies: (running: number, wanted: number) =>
         running >= wanted
           ? `${running} DoH ${running === 1 ? "proxy" : "proxies"} running on the gateway`
           : `${running} of ${wanted} DoH proxies running on the gateway`,
       noProxy: "No DoH proxy runs on the gateway yet: apply the latest revision.",
+      stubby: (running: boolean) =>
+        running
+          ? "Stubby (DoT) running on the gateway"
+          : "Stubby (DoT) isn't running on the gateway yet: apply the latest revision.",
       edit: "Edit",
       cancel: "Cancel",
       save: "Save",
-      message: (mode: string) => `Upstream DNS: ${mode}`,
+      message: (what: string) => `Upstream DNS: ${what}`,
+      describe: { isp: "the ISP's", strict: (what: string) => `${what} only` },
       errors: {
-        servers: "Name 1 to 4 DNS servers",
-        resolvers: "Add 1 to 4 resolvers",
+        layers: "Choose where queries go: encrypted resolvers, DNS servers or the ISP's",
+        strict: "Encrypted only needs an encrypted resolver",
+        resolvers: "At most 4 encrypted resolvers",
+        servers: "At most 4 DNS servers",
         ip: "Not an IP address",
         twice: "Named twice",
+        notIp: (text: string) => `${text} is not an IP address`,
         url: "An https:// URL, such as https://dns.quad9.net/dns-query",
         profile: "Enter your NextDNS profile ID: letters and digits",
         bootstrap: "Name 2 to 4 IP addresses",
-        bootstrapIp: (text: string) => `${text} is not an IP address`,
+        name: "A host name, such as dns.quad9.net",
+        addresses: "Name 1 to 4 IP addresses",
+        port: "A port from 1 to 65535",
+        pin: (text: string) => `${text} is not a key pin: a base64 SHA-256, 43 characters and =`,
+        pins: "At most 4 key pins",
       },
     },
     ddns: {

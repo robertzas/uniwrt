@@ -114,8 +114,9 @@ describe("Network services", () => {
           url: "https://dns.quad9.net/dns-query",
           bootstrap: ["9.9.9.9", "149.112.112.112"],
         },
+        { protocol: "dot", name: "dns.google", addresses: ["8.8.8.8"], port: 853, spki: [] },
       ],
-      servers: [],
+      servers: ["192.0.2.53"],
       isp: false,
       strict: true,
     };
@@ -123,7 +124,7 @@ describe("Network services", () => {
     services = {
       ddns: [{ id: "home", address: "203.0.113.7", updated_at: 0, running: true }],
       doh_instances: 1,
-      dot_instances: null,
+      dot_instances: 1,
       wireguard: null,
       tailscale: null,
       blocklist: NO_BLOCKLIST,
@@ -137,6 +138,11 @@ describe("Network services", () => {
     expect(
       await within(upstream).findByText("1 DoH proxy running on the gateway"),
     ).toBeInTheDocument();
+    expect(within(upstream).getByText("Google")).toBeInTheDocument();
+    expect(within(upstream).getByText("dns.google · 8.8.8.8")).toBeInTheDocument();
+    expect(within(upstream).getByText("Stubby (DoT) running on the gateway")).toBeInTheDocument();
+    expect(within(upstream).getByText("Encrypted only")).toBeInTheDocument();
+    expect(within(upstream).getByText("Not asked: encrypted only")).toBeInTheDocument();
     expect(within(upstream).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
 
     const ddns = screen.getByRole("region", { name: "Dynamic DNS" });
@@ -159,7 +165,7 @@ describe("Network services", () => {
     expect(screen.getByRole("checkbox", { name: "Serve time to the networks" })).toBeDisabled();
   });
 
-  it("switches the upstream to DNS over HTTPS with NextDNS", async () => {
+  it("layers DoT and DoH resolvers before the ISP's, in the order chosen", async () => {
     const user = userEvent.setup();
     await renderNetworks();
     const card = await screen.findByRole("region", { name: "Upstream DNS" });
@@ -167,20 +173,26 @@ describe("Network services", () => {
       within(card).getByText("The ISP's servers, from the WAN connection"),
     ).toBeInTheDocument();
     await user.click(within(card).getByRole("button", { name: "Edit" }));
+    expect(within(card).getByRole("checkbox", { name: "Encrypted only" })).toBeDisabled();
+    // DNS over TLS is the protocol offered first.
+    await user.click(within(card).getByRole("button", { name: "Quad9" }));
+    expect(within(card).getByRole("button", { name: "Quad9" })).toBeDisabled();
     await user.click(within(card).getByRole("button", { name: "DNS over HTTPS" }));
-    await user.click(within(card).getByRole("button", { name: "Remove Quad9" }));
+    expect(within(card).getByRole("button", { name: "Quad9" })).toBeEnabled();
     await user.click(within(card).getByRole("button", { name: "NextDNS" }));
-    expect(within(card).getByRole("button", { name: "NextDNS" })).toBeDisabled();
     await user.click(within(card).getByRole("button", { name: "Save" }));
     expect(
       within(card).getByText("Enter your NextDNS profile ID: letters and digits"),
     ).toBeInTheDocument();
     expect(put()).toBeUndefined();
 
-    await user.type(within(card).getByLabelText("NextDNS profile ID"), "abc123");
+    const nextdns = within(card).getByRole("group", { name: "NextDNS (DoH)" });
+    await user.type(within(nextdns).getByLabelText("NextDNS profile ID"), "abc123");
+    await user.click(within(card).getByRole("button", { name: "Move NextDNS (DoH) up" }));
+    expect(within(card).getByRole("button", { name: "Move NextDNS (DoH) up" })).toBeDisabled();
     await user.click(within(card).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(put()).toBeDefined());
-    expect(put().message).toBe("Upstream DNS: DNS over HTTPS");
+    expect(put().message).toBe("Upstream DNS: NextDNS (DoH), Quad9 (DoT) → the ISP's");
     expect(put().config.services.upstream).toEqual({
       encrypted: [
         {
@@ -188,12 +200,47 @@ describe("Network services", () => {
           url: "https://dns.nextdns.io/abc123",
           bootstrap: ["45.90.28.0", "45.90.30.0"],
         },
+        {
+          protocol: "dot",
+          name: "dns.quad9.net",
+          addresses: ["9.9.9.9", "149.112.112.112"],
+          port: 853,
+          spki: [],
+        },
       ],
       servers: [],
-      isp: false,
-      strict: true,
+      isp: true,
+      strict: false,
     });
     expect(await within(card).findByText(/Saved as revision 3/)).toBeInTheDocument();
+  });
+
+  it("keeps queries encrypted only, with the plain layers kept", async () => {
+    const user = userEvent.setup();
+    await renderNetworks();
+    const card = await screen.findByRole("region", { name: "Upstream DNS" });
+    await user.click(within(card).getByRole("button", { name: "Edit" }));
+    await user.click(within(card).getByRole("button", { name: "Add a server" }));
+    await user.type(within(card).getByLabelText("Server 1"), "9.9.9.9");
+    await user.click(within(card).getByRole("button", { name: "Custom" }));
+    const row = within(card).getByRole("group", { name: "Resolver 1 (DoT)" });
+    await user.type(within(row).getByLabelText("Certificate name"), "dot.example");
+    await user.type(within(row).getByLabelText("Addresses"), "192.0.2.53");
+    await user.clear(within(row).getByLabelText("Port"));
+    await user.type(within(row).getByLabelText("Port"), "8853");
+    await user.click(within(card).getByRole("checkbox", { name: "Encrypted only" }));
+    expect(within(card).getAllByText("Not asked: encrypted only")).toHaveLength(2);
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(put()).toBeDefined());
+    expect(put().message).toBe("Upstream DNS: dot.example (DoT) only");
+    expect(put().config.services.upstream).toEqual({
+      encrypted: [
+        { protocol: "dot", name: "dot.example", addresses: ["192.0.2.53"], port: 8853, spki: [] },
+      ],
+      servers: ["9.9.9.9"],
+      isp: true,
+      strict: true,
+    });
   });
 
   it("shows the server's refusal on the custom server it concerns", async () => {
@@ -201,7 +248,14 @@ describe("Network services", () => {
     await renderNetworks();
     const card = await screen.findByRole("region", { name: "Upstream DNS" });
     await user.click(within(card).getByRole("button", { name: "Edit" }));
-    await user.click(within(card).getByRole("button", { name: "Custom servers" }));
+    await user.click(within(card).getByRole("checkbox", { name: "Then the ISP's servers" }));
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+    expect(
+      within(card).getByText(
+        "Choose where queries go: encrypted resolvers, DNS servers or the ISP's",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "Add a server" }));
     await user.type(within(card).getByLabelText("Server 1"), "nope");
     await user.click(within(card).getByRole("button", { name: "Save" }));
     expect(within(card).getByText("Not an IP address")).toBeInTheDocument();
