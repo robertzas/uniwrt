@@ -146,7 +146,10 @@ pub struct RadioOverride {
 }
 
 /// A raw UCI section: added to (or replacing the same named section of) what is rendered for
-/// its package, or with `merge` its options set on a rendered section.
+/// its package, or with `merge` its options set (or `unset`) on a rendered section, or with
+/// `remove` that section removed. A package the controller doesn't render on the node is
+/// patched instead: its sections apply in the same way to the node's own file (schema v19,
+/// D-143).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RawSection {
@@ -164,6 +167,39 @@ pub struct RawSection {
     /// render doesn't write this way, so the site's edits still reach the section.
     #[serde(default)]
     pub merge: bool,
+    /// With `merge`, the options removed from the section (schema v19).
+    #[serde(default)]
+    pub unset: BTreeSet<String>,
+    /// Removes the section a merge would find (schema v19); `options` then hold at most its
+    /// type's key options, which find an anonymous one. Nothing to remove is not an error.
+    #[serde(default)]
+    pub remove: bool,
+    /// The plain options an anonymous section that a merge or removal finds holds: with any,
+    /// it is the first of its type holding them all, rather than the one its type's key finds
+    /// (schema v19). The UCI explorer finds a section of a type without a key this way.
+    #[serde(default)]
+    pub matching: BTreeMap<String, RawValue>,
+}
+
+impl RawSection {
+    /// A section of `kind` in `package`, without options, added to the package.
+    pub fn new(package: impl Into<String>, kind: impl Into<String>, name: Option<String>) -> Self {
+        Self {
+            package: package.into(),
+            kind: kind.into(),
+            name,
+            options: BTreeMap::new(),
+            merge: false,
+            unset: BTreeSet::new(),
+            remove: false,
+            matching: BTreeMap::new(),
+        }
+    }
+
+    /// Whether it finds a section rather than adding one: a merge or a removal.
+    pub const fn finds(&self) -> bool {
+        self.merge || self.remove
+    }
 }
 
 /// A UCI option's value: one string (`option`), several (`list`), or a secret sealed in the

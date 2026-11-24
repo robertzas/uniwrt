@@ -36,6 +36,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v16.json"),
     include_str!("../../fixtures/site/v17.json"),
     include_str!("../../fixtures/site/v18.json"),
+    include_str!("../../fixtures/site/v19.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -569,7 +570,6 @@ fn gateway_and_node_rules() {
             action: super::firewall::ZoneAction::Block,
         });
         c.nodes[0].hostname = Some("bad name".to_owned());
-        c.nodes[0].raw[0].package = "wireless".to_owned();
         c.nodes[1].raw[0].options.insert(
             "bad-option".to_owned(),
             super::node::RawValue::Option("a\nb".to_owned()),
@@ -584,7 +584,6 @@ fn gateway_and_node_rules() {
         ("firewall/policies/2/from", Severity::Error),
         ("firewall/policies/2", Severity::Error),
         ("nodes/1/hostname", Severity::Error),
-        ("nodes/1/raw/0", Severity::Warning),
         ("nodes/2/raw/0/options/bad-option", Severity::Error),
         ("nodes/7", Severity::Warning),
     ] {

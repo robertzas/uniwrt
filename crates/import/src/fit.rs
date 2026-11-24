@@ -423,6 +423,9 @@ fn merge(package: &str, target: &Section, kept: &[uniwrt_uci::Entry]) -> RawSect
         name: target.name.clone(),
         options,
         merge: true,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     }
 }
 
@@ -439,6 +442,9 @@ fn whole(package: &str, section: &Section) -> RawSection {
             .map(|e| (e.name.clone(), raw_value(&e.value)))
             .collect(),
         merge: false,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     }
 }
 

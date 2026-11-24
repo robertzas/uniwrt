@@ -3258,9 +3258,12 @@ export const strings = {
       raw: {
         toggle: "Raw overrides",
         count: (n: number) => `${n} ${n === 1 ? "section" : "sections"}`,
-        hint: "UCI the site keeps for this device as the device held it: a whole section is written as it is; merged options are set on the section uniwrt renders.",
+        hint: "UCI the site keeps for this device: a whole section is written as it is; a merge sets and deletes options on its section, and a removal deletes the section. In a package uniwrt doesn't manage, they patch the device's own file.",
         whole: "Whole section",
         merged: "Merged",
+        removed: "Removed",
+        where: "where",
+        deleted: "delete",
         secret: "secret",
         secretHint: "Sealed in the vault; the device receives the real value.",
       },

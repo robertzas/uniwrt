@@ -229,21 +229,76 @@ fn secrets_are_masked_in_the_plan() {
 }
 
 #[test]
-fn the_plan_shows_the_raw_overrides_of_the_packages_it_writes() {
+fn raw_sections_patch_the_packages_render_doesnt_write() {
     let gw = node(1, NodeRole::Gateway, "192.168.1.1");
-    let raw = |package: &str, name: &str| RawSection {
-        package: package.to_owned(),
-        kind: "interface".to_owned(),
-        name: Some(name.to_owned()),
-        options: [("proto".to_owned(), RawValue::Option("none".to_owned()))].into(),
-        merge: false,
-    };
     let mut site = site(&[gw.id]);
-    site.nodes[0].raw = vec![raw("network", "spare"), raw("dropbear", "x")];
-    let planned = part(&site, &gw, &BTreeMap::new());
-    assert_eq!(planned.plan.raw, vec![raw("network", "spare")]);
-    site.nodes[0].managed.remove(&ManagedPackage::Network);
-    assert_eq!(part(&site, &gw, &BTreeMap::new()).plan.raw, Vec::new());
+    let mut spare = RawSection::new("network", "interface", Some("spare".to_owned()));
+    spare
+        .options
+        .insert("proto".to_owned(), RawValue::Option("none".to_owned()));
+    let mut https = RawSection::new("uhttpd", "uhttpd", Some("main".to_owned()));
+    https.merge = true;
+    https.options.insert(
+        "listen_https".to_owned(),
+        RawValue::List(vec!["0.0.0.0:8443".to_owned()]),
+    );
+    https.unset.insert("redirect_https".to_owned());
+    let mut cert = RawSection::new("uhttpd", "cert", Some("defaults".to_owned()));
+    cert.remove = true;
+    let luci = RawSection::new("luci", "core", Some("main".to_owned()));
+    site.nodes[0].raw = vec![spare, https, cert, luci];
+    let held = "config uhttpd 'main'\n\toption redirect_https '1'\n\tlist listen_http '0.0.0.0:80'\n\nconfig cert 'defaults'\n\toption days '730'\n";
+    let files = BTreeMap::from([("uhttpd".to_owned(), Some(held.to_owned()))]);
+    let planned = part(&site, &gw, &files);
+    assert_eq!(
+        planned.plan.action,
+        PlanAction::Change,
+        "{:?}",
+        planned.plan.issues
+    );
+    assert_eq!(
+        planned.plan.raw, site.nodes[0].raw,
+        "every raw section shows"
+    );
+    let file = planned
+        .files
+        .iter()
+        .find(|(name, _)| name == "uhttpd")
+        .map(|(_, file)| file.clone())
+        .unwrap();
+    let patched = uniwrt_uci::parse("uhttpd", &file).unwrap();
+    assert_eq!(patched.sections.len(), 1, "the cert section is removed");
+    let main = patched.section("main").unwrap();
+    assert_eq!(main.option("redirect_https"), None);
+    assert_eq!(
+        main.get("listen_https").map(uniwrt_uci::Value::items),
+        Some(&["0.0.0.0:8443".to_owned()][..])
+    );
+    assert_eq!(
+        main.get("listen_http").map(uniwrt_uci::Value::items),
+        Some(&["0.0.0.0:80".to_owned()][..]),
+        "the rest of the file stays the node's"
+    );
+    assert!(planned.plan.packages.iter().any(|d| d.package == "uhttpd"));
+    assert!(
+        !planned.held.contains_key("uhttpd"),
+        "drift doesn't watch a patched package"
+    );
+    assert!(
+        planned
+            .plan
+            .warnings
+            .iter()
+            .any(|w| w.path == "node/raw/3" && w.message.contains("/etc/config/luci")),
+        "{:?}",
+        planned.plan.warnings
+    );
+    assert!(!planned.files.iter().any(|(name, _)| name == "luci"));
+    // Once applied, the node's file holds the patch: it doesn't change again.
+    let files = BTreeMap::from([("uhttpd".to_owned(), Some(file))]);
+    let again = part(&site, &gw, &files);
+    assert!(!again.files.iter().any(|(name, _)| name == "uhttpd"));
+    assert!(!again.plan.packages.iter().any(|d| d.package == "uhttpd"));
 }
 
 #[test]

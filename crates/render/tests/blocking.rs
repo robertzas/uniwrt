@@ -155,6 +155,9 @@ fn a_raw_merge_into_dnsmasq_reaches_the_named_main_instance() {
             .into_iter()
             .collect(),
         merge: true,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     });
     let rendered = gateway(&site);
     let dhcp = &rendered.packages[&ManagedPackage::Dhcp];

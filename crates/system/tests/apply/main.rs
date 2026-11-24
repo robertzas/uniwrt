@@ -423,6 +423,9 @@ fn break_wan(config: &mut SiteConfig, device: &str) {
             .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
             .collect(),
         merge: false,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     });
 }
 

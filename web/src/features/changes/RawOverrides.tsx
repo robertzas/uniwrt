@@ -7,8 +7,11 @@ import { Icon } from "../../ui/Icon";
 
 const t = strings.changes.node.raw;
 
-/** One option as `uci` would write it; a list item by item, a sealed secret as a lock. */
-function Option(props: { name: string; value: RawValue }) {
+/**
+ * One option as `uci` would write it; a list item by item, a sealed secret as a lock. `where`:
+ * an option the section is found by.
+ */
+function Option(props: { name: string; value: RawValue; where?: boolean }) {
   const items = () => {
     const value = props.value;
     return Array.isArray(value) ? value : [value];
@@ -17,7 +20,9 @@ function Option(props: { name: string; value: RawValue }) {
     <For each={items()}>
       {(item) => (
         <li class="py-0.5 pr-3 pl-8">
-          <span class="text-fg-subtle">{Array.isArray(props.value) ? "list" : "option"}</span>{" "}
+          <span class="text-fg-subtle">
+            {props.where ? t.where : Array.isArray(props.value) ? "list" : "option"}
+          </span>{" "}
           <span class="text-fg-muted">{props.name}</span>{" "}
           <Show
             when={typeof item === "string"}
@@ -39,9 +44,16 @@ function Option(props: { name: string; value: RawValue }) {
   );
 }
 
+/** What a raw section does to its section. */
+function kindOf(section: RawSection): string {
+  if (section.remove) return t.removed;
+  return section.merge ? t.merged : t.whole;
+}
+
 /**
- * A node's raw overrides (lifecycle.md, Brownfield import): each section in the site's order,
- * kept whole or merged into the rendered one, closed until opened.
+ * A node's raw overrides (lifecycle.md, Brownfield import; D-143): each section in the site's
+ * order, kept whole, merged into its section (options set and deleted) or removing it, found
+ * by name or by the options it matches; closed until opened.
  */
 export function RawOverrides(props: { raw: readonly RawSection[] }) {
   const [open, setOpen] = createSignal(false);
@@ -75,13 +87,22 @@ export function RawOverrides(props: { raw: readonly RawSection[] }) {
                       {(name) => <span class="text-fg"> '{name()}'</span>}
                     </Show>
                   </span>
-                  <span class="font-sans text-[0.6875rem] text-fg-muted">
-                    {section.merge ? t.merged : t.whole}
-                  </span>
+                  <span class="font-sans text-[0.6875rem] text-fg-muted">{kindOf(section)}</span>
                 </div>
                 <ul>
+                  <For each={Object.entries(section.matching)}>
+                    {([name, value]) => <Option name={name} value={value} where />}
+                  </For>
                   <For each={Object.entries(section.options)}>
                     {([name, value]) => <Option name={name} value={value} />}
+                  </For>
+                  <For each={section.unset}>
+                    {(name) => (
+                      <li class="py-0.5 pr-3 pl-8">
+                        <span class="text-fg-subtle">{t.deleted}</span>{" "}
+                        <span class="text-crit line-through">{name}</span>
+                      </li>
+                    )}
                   </For>
                 </ul>
               </li>

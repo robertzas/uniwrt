@@ -70,6 +70,9 @@ fn site() -> SiteConfig {
         name: Some("br_old".to_owned()),
         options: BTreeMap::new(),
         merge: false,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     }];
     config.nodes = vec![NodeConfig::new(NodeId::new(2)), node];
     config.radio.plan.radios = vec![

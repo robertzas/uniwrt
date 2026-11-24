@@ -197,6 +197,9 @@ fn a_port_a_raw_interface_takes_leaves_the_bridge() {
         .map(|(k, v)| (k.to_owned(), RawValue::Option(v.to_owned())))
         .collect(),
         merge: false,
+        unset: std::collections::BTreeSet::new(),
+        remove: false,
+        matching: std::collections::BTreeMap::new(),
     });
     let rendered = ok(run(&site, AP, NodeRole::Ap, &facts));
     let network = &rendered.packages[&ManagedPackage::Network];

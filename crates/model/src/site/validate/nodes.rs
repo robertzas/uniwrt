@@ -7,7 +7,7 @@ use uniwrt_core::NodeId;
 use super::{Issues, names, wireless::tx_power};
 use crate::site::{
     SiteConfig,
-    node::{NodeConfig, RawValue},
+    node::{NodeConfig, RawValue, is_secret_option},
 };
 
 pub(super) fn nodes(config: &SiteConfig, adopted: &BTreeSet<NodeId>, issues: &mut Issues) {
@@ -71,40 +71,69 @@ fn raw(node: &NodeConfig, at: &str, issues: &mut Issues) {
                 );
             }
         }
-        if !node
-            .managed
-            .iter()
-            .any(|package| package.name() == section.package)
-        {
-            issues.warn(
+        if section.merge && section.remove {
+            issues.error(
                 &at,
-                format!(
-                    "Ignored while the controller does not manage {} on this node",
-                    section.package
-                ),
+                "A raw section either merges into its section or removes it",
             );
         }
-        for (option, value) in &section.options {
-            if !uniwrt_uci::is_name(option) {
+        if section.remove && section.name.is_some() && !section.options.is_empty() {
+            issues.error(
+                format!("{at}/options"),
+                "Removing a named section needs no options",
+            );
+        }
+        for option in &section.unset {
+            if !section.merge {
                 issues.error(
-                    format!("{at}/options/{option}"),
+                    format!("{at}/unset/{option}"),
+                    "Only a merge removes options",
+                );
+            } else if !uniwrt_uci::is_name(option) {
+                issues.error(
+                    format!("{at}/unset/{option}"),
                     format!("{option:?} is not a UCI option name"),
                 );
-            }
-            let values = match value {
-                RawValue::Option(value) => std::slice::from_ref(value),
-                RawValue::List(values) => values.as_slice(),
-                RawValue::Secret { .. } => &[],
-            };
-            if values
-                .iter()
-                .any(|value| value.contains(['\0', '\n', '\r']))
-            {
+            } else if section.options.contains_key(option) {
                 issues.error(
-                    format!("{at}/options/{option}"),
-                    "A value holds no line breaks or NUL characters",
+                    format!("{at}/unset/{option}"),
+                    format!("{option} is both set and removed"),
                 );
             }
         }
+        if !section.matching.is_empty() && (section.name.is_some() || !section.finds()) {
+            issues.error(
+                format!("{at}/matching"),
+                "Only a merge or a removal of an anonymous section finds it by its options",
+            );
+        }
+        for (option, value) in &section.matching {
+            let at = format!("{at}/matching/{option}");
+            if is_secret_option(option) || matches!(value, RawValue::Secret { .. }) {
+                issues.error(&at, "A secret never identifies a section");
+            }
+            option_value(option, value, &at, issues);
+        }
+        for (option, value) in &section.options {
+            option_value(option, value, &format!("{at}/options/{option}"), issues);
+        }
+    }
+}
+
+/// Checks an option's name and value at `at`.
+fn option_value(option: &str, value: &RawValue, at: &str, issues: &mut Issues) {
+    if !uniwrt_uci::is_name(option) {
+        issues.error(at, format!("{option:?} is not a UCI option name"));
+    }
+    let values = match value {
+        RawValue::Option(value) => std::slice::from_ref(value),
+        RawValue::List(values) => values.as_slice(),
+        RawValue::Secret { .. } => &[],
+    };
+    if values
+        .iter()
+        .any(|value| value.contains(['\0', '\n', '\r']))
+    {
+        issues.error(at, "A value holds no line breaks or NUL characters");
     }
 }

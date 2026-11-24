@@ -3,7 +3,10 @@ import type { RawValue } from "./RawValue";
 
 /**
  * A raw UCI section: added to (or replacing the same named section of) what is rendered for
- * its package, or with `merge` its options set on a rendered section.
+ * its package, or with `merge` its options set (or `unset`) on a rendered section, or with
+ * `remove` that section removed. A package the controller doesn't render on the node is
+ * patched instead: its sections apply in the same way to the node's own file (schema v19,
+ * D-143).
  */
 export type RawSection = { 
 /**
@@ -24,4 +27,19 @@ name: string | null, options: { [key in string]: RawValue },
  * `raw::key`, such as a `zone`'s `name`). Brownfield import keeps a node's options that
  * render doesn't write this way, so the site's edits still reach the section.
  */
-merge: boolean, };
+merge: boolean, 
+/**
+ * With `merge`, the options removed from the section (schema v19).
+ */
+unset: Array<string>, 
+/**
+ * Removes the section a merge would find (schema v19); `options` then hold at most its
+ * type's key options, which find an anonymous one. Nothing to remove is not an error.
+ */
+remove: boolean, 
+/**
+ * The plain options an anonymous section that a merge or removal finds holds: with any,
+ * it is the first of its type holding them all, rather than the one its type's key finds
+ * (schema v19). The UCI explorer finds a section of a type without a key this way.
+ */
+matching: { [key in string]: RawValue }, };

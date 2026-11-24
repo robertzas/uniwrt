@@ -216,12 +216,15 @@ impl Reading {
     }
 }
 
-async fn read(shared: &Shared, login: &Login) -> Result<Reading, String> {
+/// What `login`'s node holds now: `packages` (render's and those its raw sections patch), its
+/// services and facts.
+async fn read(shared: &Shared, login: &Login, packages: Vec<String>) -> Result<Reading, String> {
     let remote = login.remote.as_ref();
     if !idle_tool(remote).await? {
         return Err("The transaction tool is missing: turn management off and on again".to_owned());
     }
-    let packages = current::packages(&plan::packages()).map_err(|err| err.to_string())?;
+    let names: Vec<&str> = packages.iter().map(String::as_str).collect();
+    let packages = current::packages(&names).map_err(|err| err.to_string())?;
     let files = remote
         .exec(packages.request.clone())
         .await
@@ -408,7 +411,12 @@ pub(crate) async fn plan_all(
         .backhaul_failures()
         .await
         .map_err(|err| internal("reading the wired backhaul's failures", &err))?;
-    let readings = join_all(logins.iter().map(|login| read(shared, login))).await;
+    let readings = join_all(
+        logins
+            .iter()
+            .map(|login| read(shared, login, plan::packages_of(site, login.node.id))),
+    )
+    .await;
     let read: Vec<(&Node, &Reading)> = logins
         .iter()
         .zip(&readings)

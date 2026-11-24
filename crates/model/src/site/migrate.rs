@@ -15,6 +15,7 @@ type Step = fn(&mut Value) -> Result<(), String>;
 const STEPS: &[Step] = &[
     v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10,
     v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15, v15_to_v16, v16_to_v17, v17_to_v18,
+    v18_to_v19,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
@@ -392,6 +393,25 @@ fn v17_to_v18(value: &mut Value) -> Result<(), String> {
         .and_then(Value::as_object_mut)
         .ok_or("the document has no VPN")?
         .insert("tailscale".to_owned(), Value::Null);
+    Ok(())
+}
+
+/// v19 (M8.3a4a, D-143): a raw section may unset options, remove its section and find an
+/// anonymous one by the options it holds (none of them).
+fn v18_to_v19(value: &mut Value) -> Result<(), String> {
+    let Some(nodes) = value.get_mut("nodes").and_then(Value::as_array_mut) else {
+        return Err("the document has no nodes".to_owned());
+    };
+    for node in nodes {
+        let Some(raw) = node.get_mut("raw").and_then(Value::as_array_mut) else {
+            return Err("a node has no raw sections".to_owned());
+        };
+        for section in raw.iter_mut().filter_map(Value::as_object_mut) {
+            section.insert("unset".to_owned(), json!([]));
+            section.insert("remove".to_owned(), Value::Bool(false));
+            section.insert("matching".to_owned(), json!({}));
+        }
+    }
     Ok(())
 }
 

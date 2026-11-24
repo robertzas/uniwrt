@@ -125,6 +125,22 @@ pub(crate) fn packages() -> Vec<&'static str> {
     RENDERABLE.iter().map(|package| package.name()).collect()
 }
 
+/// The packages the planner reads on `node`: render's, then those its raw sections patch.
+pub(crate) fn packages_of(site: &SiteConfig, node: uniwrt_core::NodeId) -> Vec<String> {
+    let mut names: Vec<String> = packages().into_iter().map(str::to_owned).collect();
+    let raw = site
+        .nodes
+        .iter()
+        .filter(|config| config.node == node)
+        .flat_map(|config| &config.raw);
+    for section in raw {
+        if !names.contains(&section.package) {
+            names.push(section.package.clone());
+        }
+    }
+    names
+}
+
 /// A node's plan with nothing to do: skipped or refused for `reason`.
 pub(crate) fn idle(node: &Node, action: PlanAction, reason: impl Into<String>) -> NodePlan {
     NodePlan {
@@ -211,7 +227,14 @@ pub(crate) fn plan(
         &current,
         &mut part,
     );
-    let mut uplink = files(&rendered.packages, &round, &current, report, &mut part);
+    let mut uplink = files(
+        &rendered.packages,
+        &round,
+        &rendered.patched,
+        &current,
+        report,
+        &mut part,
+    );
     let coming = installs(&rendered.requires, report, &mut part);
     services(
         &rendered.services,
@@ -354,37 +377,52 @@ fn first_round(
 }
 
 /// Fills the review's diffs (the whole change) and this transaction's files; whether the
-/// transaction changes the node's uplink.
+/// transaction changes the node's uplink. The packages raw sections patch (`patched`, D-143)
+/// change in the first transaction and stay out of drift's baseline.
 fn files(
     rendered: &BTreeMap<ManagedPackage, Package>,
     round: &BTreeMap<ManagedPackage, Package>,
+    patched: &BTreeMap<String, Package>,
     current: &BTreeMap<String, Package>,
     report: &Report<'_>,
     part: &mut Part,
 ) -> bool {
-    // The review's diffs and services are the whole change; the files are this transaction's.
-    for (package, after) in rendered {
-        let name = package.name();
-        let before = current
+    let before = |name: &str| {
+        current
             .get(name)
             .cloned()
-            .unwrap_or_else(|| Package::new(name));
-        let mut diff = uniwrt_uci::diff(&before, after);
+            .unwrap_or_else(|| Package::new(name))
+    };
+    // The review's diffs and services are the whole change; the files are this transaction's.
+    let whole = rendered
+        .iter()
+        .map(|(package, after)| (package.name(), after));
+    for (name, after) in whole
+        .clone()
+        .chain(patched.iter().map(|(n, p)| (n.as_str(), p)))
+    {
+        let mut diff = uniwrt_uci::diff(&before(name), after);
         if !diff.is_empty() {
             mask(&mut diff);
             part.plan.packages.push(diff);
         }
+    }
+    for (name, _) in whole {
         if let Some(Some(text)) = report.files.get(name) {
             part.held.insert(name.to_owned(), text.clone());
         }
     }
     let mut uplink = part.bridge.is_some();
-    for (package, after) in round {
-        let name = package.name();
-        let before = current
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| Package::new(name));
+    let this = round
+        .iter()
+        .map(|(package, after)| (package.name(), after, true))
+        .chain(
+            patched
+                .iter()
+                .map(|(name, after)| (name.as_str(), after, false)),
+        );
+    for (name, after, owned) in this {
+        let before = before(name);
         let diff = uniwrt_uci::diff(&before, after);
         if diff.is_empty() {
             continue;
@@ -397,10 +435,12 @@ fn files(
                 .any(uplink_section)
         });
         // A device only the WAN stands on is its uplink too.
-        uplink |= *package == ManagedPackage::Network
+        uplink |= name == ManagedPackage::Network.name()
             && !uniwrt_uci::diff(&without_wan(after, &before), after).is_empty();
         let file = after.to_file();
-        part.held.insert(name.to_owned(), file.clone());
+        if owned {
+            part.held.insert(name.to_owned(), file.clone());
+        }
         part.files.push((name.to_owned(), file));
     }
     uplink
@@ -448,22 +488,13 @@ fn installs(
     missing.iter().filter_map(|r| r.service).collect()
 }
 
-/// The node's raw sections that render writes: those of the packages it manages.
+/// The node's raw sections: render writes those of the packages it manages and patches the
+/// node's own files with the others (D-143).
 fn raw_overrides(site: &SiteConfig, node: &Node) -> Vec<RawSection> {
-    let Some(config) = site.nodes.iter().find(|config| config.node == node.id) else {
-        return Vec::new();
-    };
-    config
-        .raw
+    site.nodes
         .iter()
-        .filter(|raw| {
-            config
-                .managed
-                .iter()
-                .any(|package| package.name() == raw.package && RENDERABLE.contains(package))
-        })
-        .cloned()
-        .collect()
+        .find(|config| config.node == node.id)
+        .map_or_else(Vec::new, |config| config.raw.clone())
 }
 
 /// Switches the services whose start at boot differs from what render wants.

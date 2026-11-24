@@ -120,13 +120,17 @@ describe("Review & apply", () => {
     // Its raw overrides, closed until opened, a sealed secret never shown.
     expect(gateway).not.toHaveTextContent("wireguard");
     await user.click(within(gateway).getByRole("button", { name: /Raw overrides/ }));
-    expect(gateway).toHaveTextContent("2 sections");
+    expect(gateway).toHaveTextContent("3 sections");
     expect(gateway).toHaveTextContent("config interface 'wg0'");
     expect(gateway).toHaveTextContent("option proto 'wireguard'");
     expect(gateway).toHaveTextContent("list addresses '10.9.0.1/24'");
     expect(gateway).toHaveTextContent("option private_key secret");
     expect(gateway).not.toHaveTextContent("7777");
     expect(gateway).toHaveTextContent("Merged");
+    expect(gateway).toHaveTextContent("delete log_limit");
+    // A removal, found by the options its section holds.
+    expect(gateway).toHaveTextContent("/etc/config/uhttpd config certRemoved");
+    expect(gateway).toHaveTextContent("where days '730'");
     expect(within(attic).queryByRole("button", { name: /Raw overrides/ })).toBeNull();
 
     const alone = screen.getByRole("region", { name: "Left alone" });

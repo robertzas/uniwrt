@@ -10,7 +10,9 @@
 //!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd`,
 //!   `https-dns-proxy`, `ddns`, `mdns_repeater` (the last six only on the gateway, only with SQM,
 //!   failover, UPnP, DoH, DDNS names or mDNS reflection on, or the node holding them); the node's raw sections are merged last ([`raw`](mod@raw)), whose [`raw::key`]
-//!   says how an anonymous section is found.
+//!   says how an anonymous section is found. A package render doesn't write that a raw section
+//!   names is patched: the node's own file in [`Target::current`] with its raw sections
+//!   ([`Rendered::patched`], D-143).
 //! - **Shapes:** every node bridges all networks into `br-lan`. With only an untagged network
 //!   that is a plain bridge, as OpenWrt ships; with VLANs it filters VLANs (`bridge-vlan`), a
 //!   network's interface sits on `br-lan.<vid>`, `bat0` is a trunk (the untagged network
@@ -155,8 +157,13 @@ pub fn held_controller(current: &BTreeMap<String, Package>) -> Option<IpAddr> {
 /// What a node is given.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rendered {
-    /// The managed packages (D-011); the node's other packages are never touched.
+    /// The managed packages (D-011); the node's other packages are touched only by its raw
+    /// sections (`patched`).
     pub packages: BTreeMap<ManagedPackage, Package>,
+    /// The packages render doesn't write that the node's raw sections patch, by name: the
+    /// node's own file ([`Target::current`]) with them applied (D-143). Drift doesn't watch
+    /// them: the rest of the file stays the node's.
+    pub patched: BTreeMap<String, Package>,
     /// Init scripts to enable (`true`) or disable, such as `dnsmasq` on an AP.
     pub services: BTreeMap<&'static str, bool>,
     /// The packages from OpenWrt's feeds the configuration needs on the node (SQM's, usteer),
@@ -397,11 +404,7 @@ pub fn render(
         };
         let mut rendered = rendered;
         preserve::carry_over(&mut rendered, target.current);
-        let at = raw::Merge {
-            secrets,
-            warnings: &mut plan.warnings,
-            errors: &mut plan.errors,
-        };
+        let at = raw::Merge::new(secrets, &mut plan.warnings, &mut plan.errors, false);
         raw::merge(&mut rendered, &config.raw, at);
         if let Err(invalid) = rendered.validate() {
             errors.push(Issue::new(
@@ -412,10 +415,12 @@ pub fn render(
         packages.insert(*package, rendered);
     }
     requires.extend(vpn_requires(&plan, &packages));
+    let patched = patch(config, &packages, secrets, target, &mut plan, &mut errors);
     errors.append(&mut plan.errors);
     if errors.is_empty() {
         Ok(Rendered {
             packages,
+            patched,
             services,
             requires,
             warnings: plan.warnings,
@@ -423,4 +428,44 @@ pub fn render(
     } else {
         Err(errors)
     }
+}
+
+/// The packages render didn't write that the node's raw sections patch: each the node's own
+/// file with them applied (D-143). One the node lacks is left out with a warning.
+fn patch(
+    config: &NodeConfig,
+    rendered: &BTreeMap<ManagedPackage, Package>,
+    secrets: &dyn Secrets,
+    target: Target<'_>,
+    plan: &mut plan::Plan<'_>,
+    errors: &mut Vec<Issue>,
+) -> BTreeMap<String, Package> {
+    let mut patched = BTreeMap::new();
+    for (i, raw) in config.raw.iter().enumerate() {
+        let name = raw.package.as_str();
+        if patched.contains_key(name)
+            || rendered.keys().any(|package| package.name() == name)
+            || config.raw[..i].iter().any(|before| before.package == name)
+        {
+            continue;
+        }
+        let Some(held) = target.current.get(name) else {
+            plan.warnings.push(Issue::new(
+                format!("node/raw/{i}"),
+                format!("The node has no /etc/config/{name}: its raw sections are left out"),
+            ));
+            continue;
+        };
+        let mut package = held.clone();
+        let at = raw::Merge::new(secrets, &mut plan.warnings, &mut plan.errors, true);
+        raw::merge(&mut package, &config.raw, at);
+        if let Err(invalid) = package.validate() {
+            errors.push(Issue::new(
+                format!("node/raw/{i}"),
+                format!("The {name} package came out invalid: {invalid}"),
+            ));
+        }
+        patched.insert(name.to_owned(), package);
+    }
+    patched
 }
