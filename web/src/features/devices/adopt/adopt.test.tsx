@@ -168,6 +168,39 @@ describe("Adoption", () => {
     expect(within(dialog).getByLabelText("Address")).toHaveValue("10.0.0.3");
   });
 
+  it("adopts a device on an unsupported release anyway, once asked", async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    stubApi({
+      "POST /api/v1/adopt/probe": () => probe,
+      "POST /api/v1/adopt": (body) => {
+        bodies.push(body);
+        return adoptJob(6 + bodies.length, "10.0.0.3", 0);
+      },
+    });
+    const { ws } = renderAt("/devices?adopt=1&host=10.0.0.3");
+    const dialog = await screen.findByRole("dialog", { name: "Adopt a device" });
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(await within(dialog).findByRole("button", { name: "It matches, adopt" }));
+    delta(
+      ws,
+      adoptJob(7, "10.0.0.3", 0, "failed", {
+        state: "failed",
+        error: {
+          code: "unsupported_release",
+          message: "The node runs OpenWrt 23.05.5; OpenWrt 24.10 or later is required",
+        },
+      }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "This release isn't supported",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Adopt anyway" }));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[0]).not.toHaveProperty("allow_unsupported_release");
+    expect(bodies[1]).toMatchObject({ host: "10.0.0.3", allow_unsupported_release: true });
+  });
+
   it("shows why a probe failed", async () => {
     const user = userEvent.setup();
     stubApi({
@@ -244,5 +277,52 @@ describe("Adoption", () => {
 
     delta(ws, adoptJob(8, "10.0.0.3", 8, "done", { state: "succeeded", node: 9 }));
     await within(dialog).findByText("1 of 1 adopted");
+  });
+
+  it("adopts the devices of a batch that failed on their release anyway", async () => {
+    const user = userEvent.setup();
+    const office = discovered("10.0.0.3", "ap-office", "02:00:00:00:00:03");
+    const garage = discovered("10.0.0.4", "ap-garage", "02:00:00:00:00:04");
+    const batches: unknown[] = [];
+    stubApi({
+      "GET /api/v1/discovered": () => ({ nodes: [office, garage], scanning: false }),
+      "POST /api/v1/adopt/batch": (body) => {
+        batches.push(body);
+        return batches.length === 1
+          ? { jobs: [adoptJob(8, "10.0.0.3", 0), adoptJob(9, "10.0.0.4", 0)], refused: [] }
+          : { jobs: [adoptJob(10, "10.0.0.4", 0)], refused: [] };
+      },
+    });
+    const { ws } = renderAt("/devices");
+    const card = await screen.findByRole("region", { name: "Discovered" });
+    await user.click(within(card).getByLabelText("Select ap-office"));
+    await user.click(within(card).getByLabelText("Select ap-garage"));
+    await user.click(within(card).getByRole("button", { name: "Adopt 2 selected" }));
+    const dialog = await screen.findByRole("dialog", { name: "Adopt 2 devices" });
+    await user.click(within(dialog).getByRole("button", { name: "Adopt 2 devices" }));
+    await within(dialog).findByText("0 of 2 adopted");
+    expect(within(dialog).queryByRole("button", { name: /anyway/ })).toBeNull();
+
+    delta(
+      ws,
+      adoptJob(8, "10.0.0.3", 8, "done", { state: "succeeded", node: 9 }),
+      adoptJob(9, "10.0.0.4", 0, "failed", {
+        state: "failed",
+        error: { code: "unsupported_release", message: "The node runs OpenWrt 23.05.5" },
+      }),
+    );
+    await user.click(await within(dialog).findByRole("button", { name: "Adopt it anyway" }));
+    await waitFor(() => expect(batches).toHaveLength(2));
+    expect(batches[1]).toEqual({
+      nodes: [{ host: "10.0.0.4", host_key: garage.host_key?.host_key }],
+      allow_unsupported_release: true,
+    });
+    // The new job takes the failed one's place.
+    await waitFor(() =>
+      expect(within(dialog).queryByRole("button", { name: "Adopt it anyway" })).toBeNull(),
+    );
+    expect(within(dialog).getAllByRole("progressbar")).toHaveLength(2);
+    delta(ws, adoptJob(10, "10.0.0.4", 8, "done", { state: "succeeded", node: 10 }));
+    await within(dialog).findByText("2 of 2 adopted");
   });
 });

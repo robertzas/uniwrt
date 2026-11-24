@@ -119,6 +119,7 @@ async fn the_bench_device_is_found_adopted_through_the_gateway_and_configured() 
         host_key: HostKey::parse(&found.host_key).unwrap(),
         password: None,
         remember_password: false,
+        allow_unsupported_release: false,
         name: Some("ap-bench".to_owned()),
         role: Some(NodeRole::Ap),
         ztp: Some(ZtpClaim {

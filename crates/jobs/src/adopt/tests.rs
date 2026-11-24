@@ -291,11 +291,29 @@ async fn an_old_release_fails_the_check_before_any_change() {
         "DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='23.05.5'\n".to_owned();
     let (job, _) = setup.adopt(setup.request(Some(PASSWORD))).await;
     let error = job.error.clone().unwrap();
-    assert_eq!(error.code, JobErrorCode::Unsupported);
+    assert_eq!(error.code, JobErrorCode::UnsupportedRelease);
     assert!(error.message.contains("23.05.5"), "{error:?}");
     assert_eq!(states(&job)[1], (StepName::Check, StepState::Failed));
     assert_eq!(setup.node.commands(), ["cat"]);
     assert!(setup.node.authorized_keys.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn an_admin_may_adopt_an_old_release_anyway_with_a_warning() {
+    let setup = setup(true).await;
+    *setup.node.release.lock().unwrap() =
+        "DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='23.05.5'\n".to_owned();
+    let mut request = setup.request(Some(PASSWORD));
+    request.allow_unsupported_release = true;
+    let (job, _) = setup.adopt(request).await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    let check = job.steps[1].detail.as_deref().unwrap_or_default();
+    assert!(
+        check.starts_with("OpenWrt 23.05.5 on ")
+            && check.contains("OpenWrt 24.10 or later is required: adopted anyway, unsupported"),
+        "{check}"
+    );
+    assert_eq!(setup.store.nodes().await.unwrap().len(), 1);
 }
 
 #[tokio::test]

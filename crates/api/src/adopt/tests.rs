@@ -141,6 +141,34 @@ async fn an_unreachable_node_fails_the_probe_and_the_adoption_records_why() {
 }
 
 #[tokio::test]
+async fn overriding_the_release_check_is_audited() {
+    let demo = Demo::start().await;
+    let port = closed_port().await;
+    let adopt = json!({
+        "host": "127.0.0.1",
+        "port": port,
+        "host_key": host_key(),
+        "allow_unsupported_release": true,
+    });
+    let res = demo
+        .send(post("/v1/adopt", &adopt, Some(demo.cookie.as_str())))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let job = body(res).await;
+    let audit = demo.store.audit_log(1).await.unwrap();
+    assert_eq!(
+        audit[0].detail.as_deref(),
+        Some(
+            format!(
+                "root@127.0.0.1:{port}, job {}, release check overridden",
+                job["id"]
+            )
+            .as_str()
+        )
+    );
+}
+
+#[tokio::test]
 async fn without_a_dial_nothing_is_adopted() {
     let dir = tempfile::tempdir().unwrap();
     let clock = Arc::new(SystemClock);

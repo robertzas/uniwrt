@@ -16,4 +16,8 @@ password?: string,
 /**
  * Keep the password in the vault, for each node.
  */
-remember_password?: boolean, };
+remember_password?: boolean, 
+/**
+ * Adopt them even if their release is one adoption refuses (D-145).
+ */
+allow_unsupported_release?: boolean, };

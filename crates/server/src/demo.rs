@@ -308,6 +308,7 @@ mod tests {
             host_key: host_key.clone(),
             password: Some(Zeroizing::new(password.to_owned())),
             remember_password: false,
+            allow_unsupported_release: false,
             name: None,
             role: None,
             ztp: None,
@@ -358,6 +359,7 @@ mod tests {
             host_key: gateway.host_key.clone(),
             password: Some(Zeroizing::new(String::new())),
             remember_password: false,
+            allow_unsupported_release: false,
             name: None,
             // The wizard says so: with no internet yet, nothing else tells a gateway.
             role: Some(uniwrt_model::node::NodeRole::Gateway),

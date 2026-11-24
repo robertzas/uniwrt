@@ -179,6 +179,7 @@ describe("Devices", () => {
     await screen.findByRole("heading", { name: "gw" });
     expect(document.title).toBe("gw · uniwrt");
     expect(screen.getByTitle(/^Read-only/)).toHaveTextContent("Observe");
+    expect(screen.queryByText("Unsupported")).toBeNull();
     expect(screen.getByText("5 GHz")).toBeInTheDocument();
     expect(screen.getByText("Channel 36 · 80 MHz · Wi-Fi 6")).toBeInTheDocument();
     expect(screen.getByText("Restarts tonight")).toBeInTheDocument();
@@ -211,6 +212,22 @@ describe("Devices", () => {
     });
     expect(await screen.findByText("Collecting stations failed: timeout")).toBeInTheDocument();
     expect(screen.getByText("Degraded")).toBeInTheDocument();
+  });
+
+  it("marks a release adoption doesn't support, as one adopted anyway runs", async () => {
+    const { ws } = renderAt("/devices/1");
+    await waitFor(() =>
+      expect(ws.sent.at(-1)).toEqual({ sub: ["fleet", "alerts", "config", "jobs", "node:1"] }),
+    );
+    const old = wirelessFacts();
+    old.board.release = { ...old.board.release, version: "23.05.5" };
+    ws.receive({ type: "node_snapshot", topic: "node:1", node: detail(old) });
+    await screen.findByRole("heading", { name: "gw" });
+    expect(screen.getByTitle("OpenWrt 23.05.5")).toBeInTheDocument();
+    expect(screen.getByText("Unsupported").closest("[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("24.10 or later"),
+    );
   });
 
   it("says when a device does not exist", async () => {

@@ -148,6 +148,7 @@ async fn adoption_changes_only_authorized_keys() {
         host_key: host_key.clone(),
         password: password.map(|password| Zeroizing::new(password.to_owned())),
         remember_password: false,
+        allow_unsupported_release: false,
         name: None,
         role: None,
         ztp: None,

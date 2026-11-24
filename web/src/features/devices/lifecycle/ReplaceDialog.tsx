@@ -84,9 +84,11 @@ function Wizard(props: { node: Node; onClose: () => void }) {
       setStage({ kind: "confirm", probe: await api.adopt.probe(target) });
     });
 
-  const replace = (probe: ProbeResult) =>
+  /** Starts the replacement; `anyway` overrides the release check (D-145). */
+  const replace = (probe: ProbeResult, anyway = false) =>
     run(async () => {
       const body: ReplaceBody = { host: probe.host, host_key: probe.host_key };
+      if (anyway) body.allow_unsupported_release = true;
       if (probe.port !== 22) body.port = probe.port;
       if (password()) {
         body.password = password();
@@ -111,6 +113,9 @@ function Wizard(props: { node: Node; onClose: () => void }) {
       case "unreachable":
       case "unsupported":
         setStage({ kind: "address" });
+        break;
+      case "unsupported_release":
+        void replace(probe, true);
         break;
       case "already_adopted":
       case "identity_mismatch":

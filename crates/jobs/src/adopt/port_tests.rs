@@ -146,6 +146,7 @@ fn request(device: &FakeNode, gateway: NodeId, role: Option<NodeRole>) -> AdoptR
         host_key: device.host_key.clone(),
         password: None,
         remember_password: false,
+        allow_unsupported_release: false,
         name: Some("Attic".to_owned()),
         role,
         ztp: None,

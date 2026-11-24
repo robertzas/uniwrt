@@ -29,4 +29,8 @@ name?: string,
 /**
  * Inferred from the node's interfaces when left out.
  */
-role?: NodeRole, };
+role?: NodeRole, 
+/**
+ * Adopt it even if its release is one adoption refuses (D-145).
+ */
+allow_unsupported_release?: boolean, };

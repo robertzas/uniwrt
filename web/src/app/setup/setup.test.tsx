@@ -150,6 +150,29 @@ describe("the first-run wizard", () => {
     expect(sent("PUT", "/api/v1/nodes/1/management")).toBeUndefined();
   });
 
+  it("adopts a router on an unsupported release only when asked to", async () => {
+    const why = "The node runs OpenWrt 23.05.5; OpenWrt 24.10 or later is required";
+    found = [{ ...FACTORY, release: "OpenWrt 23.05.5", unsupported: why }];
+    const user = userEvent.setup();
+    const { ws } = await renderSetup();
+    sendFleet(ws, []);
+
+    expect(await screen.findByText("This router's release isn't supported")).toBeInTheDocument();
+    expect(screen.getByText(why)).toBeInTheDocument();
+    const use = screen.getByRole("button", { name: "Use this router" });
+    expect(use).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /Adopt it anyway/ }));
+    expect(use).toBeEnabled();
+    await user.click(use);
+    await waitFor(() =>
+      expect(sent("POST", "/api/v1/adopt")).toMatchObject({
+        host: "192.168.1.1",
+        role: "gateway",
+        allow_unsupported_release: true,
+      }),
+    );
+  });
+
   it("says so when no router answers, and takes an address", async () => {
     found = [];
     const { ws } = await renderSetup();

@@ -620,6 +620,9 @@ export const strings = {
       submit: (count: number) => `Adopt ${count} ${count === 1 ? "device" : "devices"}`,
       refused: "Not started",
       done: (ok: number, total: number) => `${ok} of ${total} adopted`,
+      anyway: (count: number) => `Adopt ${count === 1 ? "it" : `these ${count}`} anyway`,
+      anywayHint: (count: number) =>
+        `${count === 1 ? "One device runs" : `${count} devices run`} a release uniwrt doesn't support (OpenWrt 24.10 or later). Adopted anyway, some features may not work on ${count === 1 ? "it" : "them"}.`,
     },
   },
   /** Jobs' steps and errors, shared by adoption, management and applies. */
@@ -759,8 +762,13 @@ export const strings = {
       },
       unsupported: {
         title: "This device cannot be adopted",
-        hint: "uniwrt needs OpenWrt 24.10 or later, 8 MiB of free memory and 1 MiB free in /tmp.",
+        hint: "uniwrt's agent needs 8 MiB of free memory, 1 MiB free in /tmp, and a MAC address to know the device by.",
         action: "Check the address",
+      },
+      unsupported_release: {
+        title: "This release isn't supported",
+        hint: "uniwrt is built and tested for OpenWrt 24.10 or later. You can adopt the device anyway: it stays read-only until you manage it, but some features may not work on this release.",
+        action: "Adopt anyway",
       },
       already_adopted: {
         title: "This device is adopted already",
@@ -1420,6 +1428,9 @@ export const strings = {
       mac: "MAC address",
       address: "Management address",
       mode: "Mode",
+      unsupported: "Unsupported",
+      unsupportedHint:
+        "uniwrt supports OpenWrt 24.10 or later. This device was adopted anyway: some features may not work on its release.",
     },
     radios: {
       title: "Radios",
@@ -5974,7 +5985,10 @@ export const strings = {
         "Continuing trusts this key from now on. It should match the one the router shows under System → Administration, or on its console.",
       factoryHint:
         "Root has no password. The controller installs its key and sets a long random root password, kept in its vault (you can see it on the device's page).",
-      unsupported: "This router can't be managed",
+      unsupported: "This router's release isn't supported",
+      anyway: "Adopt it anyway",
+      anywayHint:
+        "uniwrt is built and tested for OpenWrt 24.10 or later. Some features may not work on this release.",
       adoptedElsewhere: "This router is adopted already, but not as the gateway.",
       openDevices: "Open Devices",
       password: "Root password",

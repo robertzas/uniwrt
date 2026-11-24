@@ -465,6 +465,7 @@ impl Setup {
             host_key: self.node.host_key.clone(),
             password: password.map(|password| Zeroizing::new(password.to_owned())),
             remember_password: false,
+            allow_unsupported_release: false,
             name: None,
             role: None,
             ztp: None,

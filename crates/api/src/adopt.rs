@@ -89,6 +89,10 @@ pub struct AdoptBody {
     #[serde(default)]
     #[ts(optional)]
     pub role: Option<NodeRole>,
+    /// Adopt it even if its release is one adoption refuses (D-145).
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_unsupported_release: Option<bool>,
 }
 
 pub(crate) async fn probe(
@@ -117,11 +121,13 @@ pub(crate) async fn adopt(
     let Json(body) = body?;
     let password = password(body.password)?;
     let remember_password = remember(body.remember_password, password.as_ref())?;
+    let request_overrode = body.allow_unsupported_release == Some(true);
     let request = AdoptRequest {
         target: target(&body.host, body.port.unwrap_or(SSH_PORT))?,
         host_key: host_key(&body.host_key)?,
         password,
         remember_password,
+        allow_unsupported_release: body.allow_unsupported_release.unwrap_or(false),
         name: body.name.map(|name| display_name(&name)).transpose()?,
         role: body.role,
         ztp: None,
@@ -134,7 +140,7 @@ pub(crate) async fn adopt(
         .adopt(request, Some(user.id))
         .await
         .map_err(jobs_error)?;
-    audit(&api, &user, &client, &job).await?;
+    audit(&api, &user, &client, &job, request_overrode).await?;
     let location = format!("/api/v1/jobs/{}", job.id);
     Ok((
         StatusCode::ACCEPTED,
@@ -144,8 +150,20 @@ pub(crate) async fn adopt(
         .into_response())
 }
 
-/// Records who started adopting a node, and from where.
-async fn audit(api: &Api, user: &User, client: &Client, job: &Job) -> ApiResult<()> {
+/// Records who started adopting a node, from where, and whether its release check was
+/// overridden.
+pub(crate) async fn audit(
+    api: &Api,
+    user: &User,
+    client: &Client,
+    job: &Job,
+    overridden: bool,
+) -> ApiResult<()> {
+    let overridden = if overridden {
+        ", release check overridden"
+    } else {
+        ""
+    };
     api.store()
         .record(AuditEntry {
             at: api.now(),
@@ -153,7 +171,7 @@ async fn audit(api: &Api, user: &User, client: &Client, job: &Job) -> ApiResult<
             user_id: Some(user.id),
             username: Some(user.username.clone()),
             ip: Some(client.ip.to_string()),
-            detail: Some(format!("{}, job {}", job.target, job.id)),
+            detail: Some(format!("{}, job {}{overridden}", job.target, job.id)),
         })
         .await?;
     Ok(())

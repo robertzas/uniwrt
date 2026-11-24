@@ -36,6 +36,10 @@ pub struct BatchAdoptBody {
     #[serde(default)]
     #[ts(optional)]
     pub remember_password: Option<bool>,
+    /// Adopt them even if their release is one adoption refuses (D-145).
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_unsupported_release: Option<bool>,
 }
 
 /// One node of a batch, as in `POST /api/v1/adopt`.
@@ -89,6 +93,7 @@ pub(crate) async fn adopt(
     }
     let password = password(body.password)?;
     let remember_password = remember(body.remember_password, password.as_ref())?;
+    let allow_unsupported_release = body.allow_unsupported_release == Some(true);
     let mut targets = BTreeSet::new();
     let mut requests = Vec::with_capacity(body.nodes.len());
     for (i, node) in body.nodes.into_iter().enumerate() {
@@ -109,6 +114,7 @@ pub(crate) async fn adopt(
             host_key: host_key(&node.host_key).map_err(numbered)?,
             password: password.clone(),
             remember_password,
+            allow_unsupported_release,
             name: node
                 .name
                 .map(|name| display_name(&name))
@@ -133,7 +139,7 @@ pub(crate) async fn adopt(
         let (host, port) = (request.target.host.clone(), request.target.port);
         match api.jobs().adopt(request, Some(user.id)).await {
             Ok(job) => {
-                audit(&api, &user, &client, &job).await?;
+                audit(&api, &user, &client, &job, allow_unsupported_release).await?;
                 result.jobs.push(job);
             }
             Err(uniwrt_jobs::Error::Busy { .. }) => result.refused.push(Refused {

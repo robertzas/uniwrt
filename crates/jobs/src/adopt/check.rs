@@ -16,9 +16,17 @@ const MIN_TMP: u64 = 1 << 20;
 /// Room on the overlay below which installing the key may fail.
 const LOW_ROOT: u64 = 64 << 10;
 
+/// A release adoption refuses: what it is, for people, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Unsupported {
+    /// Such as `OpenWrt 23.05.5`, or `an unknown release`.
+    pub(crate) release: String,
+    pub(crate) why: String,
+}
+
 /// Checks `/etc/openwrt_release`: OpenWrt at [`MIN_RELEASE`] or later, or a snapshot. Returns
 /// the release for people, such as `OpenWrt 24.10.8`.
-pub(crate) fn release(openwrt_release: &str) -> Result<String, String> {
+pub(crate) fn release(openwrt_release: &str) -> Result<String, Unsupported> {
     let field = |name: &str| {
         openwrt_release.lines().find_map(|line| {
             let value = line.strip_prefix(name)?.strip_prefix('=')?;
@@ -26,19 +34,26 @@ pub(crate) fn release(openwrt_release: &str) -> Result<String, String> {
         })
     };
     let (Some(id), Some(version)) = (field("DISTRIB_ID"), field("DISTRIB_RELEASE")) else {
-        return Err("The node does not say which OpenWrt release it runs".to_owned());
+        return Err(Unsupported {
+            release: "an unknown release".to_owned(),
+            why: "The node does not say which OpenWrt release it runs".to_owned(),
+        });
     };
     let described = format!("{id} {version}");
     if id != "OpenWrt" {
-        return Err(format!(
-            "The node runs {described}; only OpenWrt is supported"
-        ));
+        return Err(Unsupported {
+            why: format!("The node runs {described}; only OpenWrt is supported"),
+            release: described,
+        });
     }
     if !supported(&version) {
-        return Err(format!(
-            "The node runs {described}; OpenWrt {}.{} or later is required",
-            MIN_RELEASE.0, MIN_RELEASE.1
-        ));
+        return Err(Unsupported {
+            why: format!(
+                "The node runs {described}; OpenWrt {}.{} or later is required",
+                MIN_RELEASE.0, MIN_RELEASE.1
+            ),
+            release: described,
+        });
     }
     Ok(described)
 }
@@ -191,9 +206,11 @@ mod tests {
         assert!(release(&file("OpenWrt", "SNAPSHOT")).is_ok());
         assert!(release(&file("OpenWrt", "24.10-SNAPSHOT")).is_ok());
         let old = release(&file("OpenWrt", "23.05.5")).unwrap_err();
-        assert!(old.contains("24.10 or later"), "{old}");
-        assert!(release(&file("ImmortalWrt", "24.10.0")).is_err());
-        assert!(release("").is_err());
+        assert_eq!(old.release, "OpenWrt 23.05.5");
+        assert!(old.why.contains("24.10 or later"), "{}", old.why);
+        let other = release(&file("ImmortalWrt", "24.10.0")).unwrap_err();
+        assert_eq!(other.release, "ImmortalWrt 24.10.0");
+        assert_eq!(release("").unwrap_err().release, "an unknown release");
     }
 
     fn facts(available_mib: u64, tmp_mib: u64) -> NodeFacts {

@@ -55,6 +55,10 @@ pub struct ReplaceBody {
     #[serde(default)]
     #[ts(optional)]
     pub remember_password: Option<bool>,
+    /// Take the device even if its release is one adoption refuses (D-145).
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_unsupported_release: Option<bool>,
 }
 
 pub(crate) async fn replace(
@@ -69,11 +73,13 @@ pub(crate) async fn replace(
     let Json(body) = body?;
     let password = password(body.password)?;
     let remember_password = remember(body.remember_password, password.as_ref())?;
+    let request_overrode = body.allow_unsupported_release == Some(true);
     let request = AdoptRequest {
         target: target(&body.host, body.port.unwrap_or(SSH_PORT))?,
         host_key: host_key(&body.host_key)?,
         password,
         remember_password,
+        allow_unsupported_release: body.allow_unsupported_release.unwrap_or(false),
         name: None,
         role: None,
         ztp: None,
@@ -85,7 +91,14 @@ pub(crate) async fn replace(
         .replace(id, request, Some(author(&user)))
         .await
         .map_err(jobs_error)?;
-    let how = format!("replaced with the device at {} the device of", body.host);
+    let how = if request_overrode {
+        format!(
+            "replaced (release check overridden) with the device at {} the device of",
+            body.host
+        )
+    } else {
+        format!("replaced with the device at {} the device of", body.host)
+    };
     audited(&api, &user, &client, job, AuditAction::Replace, &how).await
 }
 

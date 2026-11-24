@@ -123,6 +123,24 @@ export function installBody(
 }
 
 /** How an OpenWrt release is planned first: as the node's source says (ASU unless official). */
+/** The oldest OpenWrt release adoption accepts without an override (D-145). */
+const MIN_RELEASE: readonly [number, number] = [24, 10];
+
+/**
+ * Whether adoption accepts this release without an override, as the controller checks it:
+ * OpenWrt at 24.10 or later, or a snapshot.
+ */
+export function releaseSupported(distribution: string, version: string): boolean {
+  if (distribution !== "OpenWrt") return false;
+  if (version.toLowerCase() === "snapshot") return true;
+  const [major, minor] = version
+    .split(/[.-]/)
+    .map((part) => (/^\d+$/.test(part) ? Number(part) : Number.NaN));
+  if (major === undefined || minor === undefined || Number.isNaN(major) || Number.isNaN(minor))
+    return false;
+  return major > MIN_RELEASE[0] || (major === MIN_RELEASE[0] && minor >= MIN_RELEASE[1]);
+}
+
 export function openwrtSource(source: NodeSource): "asu" | "official" {
   return source.kind === "official" ? "official" : "asu";
 }

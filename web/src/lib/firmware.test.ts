@@ -14,6 +14,7 @@ import {
   openwrtSource,
   planBody,
   preparable,
+  releaseSupported,
   tightTmp,
 } from "./firmware";
 import { strings } from "./strings";
@@ -199,5 +200,17 @@ describe("tightTmp", () => {
     expect(tightTmp({ image_bytes: 10 * mb, tmp_free_bytes: 27 * mb, source: "official" })).toBe(
       false,
     );
+  });
+});
+
+describe("releaseSupported", () => {
+  it("takes OpenWrt from 24.10 and snapshots, as adoption's check does", () => {
+    expect(releaseSupported("OpenWrt", "24.10.8")).toBe(true);
+    expect(releaseSupported("OpenWrt", "25.12.0-rc1")).toBe(true);
+    expect(releaseSupported("OpenWrt", "24.10-SNAPSHOT")).toBe(true);
+    expect(releaseSupported("OpenWrt", "SNAPSHOT")).toBe(true);
+    expect(releaseSupported("OpenWrt", "23.05.5")).toBe(false);
+    expect(releaseSupported("OpenWrt", "")).toBe(false);
+    expect(releaseSupported("ImmortalWrt", "24.10.0")).toBe(false);
   });
 });

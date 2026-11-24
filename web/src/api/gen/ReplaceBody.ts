@@ -20,4 +20,8 @@ password?: string,
 /**
  * Keep the password in the vault, for emergencies.
  */
-remember_password?: boolean, };
+remember_password?: boolean, 
+/**
+ * Take the device even if its release is one adoption refuses (D-145).
+ */
+allow_unsupported_release?: boolean, };

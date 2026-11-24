@@ -300,6 +300,7 @@ pub(crate) async fn start(
                 target: Target::new(device.address.to_string(), 22),
                 host_key,
                 remember_password: password.is_some(),
+                allow_unsupported_release: false,
                 password: password.map(Zeroizing::new),
                 name,
                 role,
@@ -315,6 +316,7 @@ pub(crate) async fn start(
             // The image trusts the controller's key.
             password: None,
             remember_password: false,
+            allow_unsupported_release: false,
             name,
             role,
             ztp: Some(claim),

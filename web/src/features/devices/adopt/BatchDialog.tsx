@@ -58,13 +58,16 @@ function Batch(props: BatchDialogProps) {
   const [error, setError] = createSignal<string>();
   const [started, setStarted] = createSignal<{ jobs: Job["id"][]; refused: Refused[] }>();
 
-  const submit = async (event: SubmitEvent) => {
-    event.preventDefault();
+  /**
+   * Starts adopting `chosen`; `anyway` overrides the release check (D-145), and its jobs take
+   * the places of the failed ones they retry.
+   */
+  const start = async (chosen: readonly Discovered[], anyway: boolean) => {
     if (pending()) return;
     setPending(true);
     setError(undefined);
     const body: BatchAdoptBody = {
-      nodes: nodes.flatMap((node) =>
+      nodes: chosen.flatMap((node) =>
         node.ip && node.host_key ? [{ host: node.ip, host_key: node.host_key.host_key }] : [],
       ),
     };
@@ -72,15 +75,29 @@ function Batch(props: BatchDialogProps) {
       body.password = password();
       if (remember()) body.remember_password = true;
     }
+    if (anyway) body.allow_unsupported_release = true;
     try {
       const result = await api.adopt.batch(body);
       props.addJobs(result.jobs);
-      setStarted({ jobs: result.jobs.map((job) => job.id), refused: result.refused });
+      const before = started();
+      const retried = new Map(result.jobs.map((job) => [job.target, job.id]));
+      setStarted(
+        before
+          ? {
+              jobs: before.jobs.map((id) => retried.get(props.jobs.byId[id]?.target ?? "") ?? id),
+              refused: [...before.refused, ...result.refused],
+            }
+          : { jobs: result.jobs.map((job) => job.id), refused: result.refused },
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : strings.auth.unreachable.title);
     } finally {
       setPending(false);
     }
+  };
+  const submit = (event: SubmitEvent) => {
+    event.preventDefault();
+    void start(nodes, false);
   };
 
   const byTarget = new Map(nodes.map((node) => [sshTarget(node.ip ?? ""), node]));
@@ -94,6 +111,12 @@ function Batch(props: BatchDialogProps) {
       return job ? [job] : [];
     });
   const succeeded = () => jobs().filter((job) => job.state === "succeeded").length;
+  /** The devices whose adoption failed on their release only, which an override may adopt. */
+  const blocked = () =>
+    jobs().flatMap((job) => {
+      const node = job.error?.code === "unsupported_release" ? byTarget.get(job.target) : undefined;
+      return node ? [node] : [];
+    });
 
   return (
     <div class="px-5 pt-1 pb-5">
@@ -170,11 +193,24 @@ function Batch(props: BatchDialogProps) {
                 </ul>
               </div>
             </Show>
+            <RequestError text={error()} />
+            <Show when={blocked().length > 0}>
+              <p class="text-fg-muted text-sm">{s.batch.anywayHint(blocked().length)}</p>
+            </Show>
             <div class="mt-2 flex flex-wrap items-center justify-end gap-3">
               <p role="status" class="mr-auto text-fg-muted text-sm">
                 {s.batch.done(succeeded(), result().jobs.length)}
               </p>
               <Button onClick={() => props.onOpenChange(false)}>{s.progress.close}</Button>
+              <Show when={blocked().length > 0}>
+                <Button
+                  variant="primary"
+                  disabled={pending()}
+                  onClick={() => void start(blocked(), true)}
+                >
+                  {s.batch.anyway(blocked().length)}
+                </Button>
+              </Show>
             </div>
           </div>
         )}

@@ -93,6 +93,9 @@ pub struct AdoptRequest {
     /// The node whose record the device takes over, in place of its failed one (D-131); its
     /// name and role stay, so `name` and `role` are ignored.
     pub replace: Option<Replace>,
+    /// Adopt a node whose release the check refuses (D-145): the refusal becomes the check's
+    /// warning. The user's call; the agent may still fail on what the release lacks.
+    pub allow_unsupported_release: bool,
 }
 
 /// A zero-touch device's hello, as far as adoption checks it.
@@ -359,7 +362,16 @@ async fn check(
         "Cannot read the release",
     )
     .await?;
-    let release = check::release(&release).map_err(unsupported)?;
+    let (release, overridden) = match check::release(&release) {
+        Ok(release) => (release, None),
+        Err(refused) if request.allow_unsupported_release => (refused.release, Some(refused.why)),
+        Err(refused) => {
+            return Err(JobError {
+                code: JobErrorCode::UnsupportedRelease,
+                message: refused.why,
+            });
+        }
+    };
     let collected = remote
         .collect(&Set::ALL)
         .await
@@ -376,7 +388,10 @@ async fn check(
             message: format!("Cannot tell what the node is: {err}"),
         });
     }
-    let warnings = check::resources(&facts).map_err(unsupported)?;
+    let mut warnings = check::resources(&facts).map_err(unsupported)?;
+    if let Some(why) = overridden {
+        warnings.insert(0, format!("{why}: adopted anyway, unsupported"));
+    }
     let mac = check::identity(&facts)
         .ok_or_else(|| unsupported("Cannot tell the node's MAC address".to_owned()))?;
     if let Some(claim) = &request.ztp {

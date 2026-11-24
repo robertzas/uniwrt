@@ -68,6 +68,7 @@ async fn a_factory_device_on_the_adoption_port_is_adopted_through_the_gateway() 
         host_key: lab.dial.host_key(FAC),
         password: None,
         remember_password: false,
+        allow_unsupported_release: false,
         name: Some("fac".to_owned()),
         role: Some(NodeRole::Ap),
         ztp: None,

@@ -10,6 +10,7 @@ import type { JobsState } from "../../lib/jobs";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
+import { Checkbox } from "../../ui/Checkbox";
 import { Icon } from "../../ui/Icon";
 import { JobErrorNote, RequestError } from "../../ui/JobOutcome";
 import { JobSteps } from "../../ui/JobSteps";
@@ -55,6 +56,8 @@ export function RouterStep(props: {
   const [addressError, setAddressError] = createSignal<string>();
   const [password, setPassword] = createSignal("");
   const [fate, setFate] = createSignal<Fate>("fresh");
+  /** Adopt a router whose release the check refuses (D-145). */
+  const [anyway, setAnyway] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
   const [adoptId, setAdoptId] = createSignal<JobId>();
@@ -74,6 +77,7 @@ export function RouterStep(props: {
       const found = await api.bootstrap.gateways();
       setLooked(found.candidates);
       const first = found.gateways.find((g) => g.adopted === null) ?? found.gateways[0];
+      setAnyway(false);
       setCandidate(first);
     } catch (err) {
       setError(errorText(err));
@@ -96,6 +100,7 @@ export function RouterStep(props: {
     setError(undefined);
     try {
       const probe = await api.adopt.probe(target);
+      setAnyway(false);
       setCandidate({
         ...probe,
         blank: undefined,
@@ -125,13 +130,14 @@ export function RouterStep(props: {
     }
   };
 
-  const adopt = async (found: Candidate) => {
+  const adopt = async (found: Candidate, override = anyway()) => {
     setBusy(true);
     setError(undefined);
     setManageId(undefined);
     try {
       // The wizard says it is the gateway: before it has internet, nothing else tells.
       const body: AdoptBody = { host: found.host, host_key: found.host_key, role: "gateway" };
+      if (override) body.allow_unsupported_release = true;
       if (found.port !== 22) body.port = found.port;
       body.password = found.blank ? "" : password();
       const started = await api.adopt.start(body);
@@ -221,7 +227,18 @@ export function RouterStep(props: {
               </div>
               <Switch>
                 <Match when={found().unsupported}>
-                  {(why) => <Note tone="warn" title={t.unsupported} text={why()} />}
+                  {(why) => (
+                    <Note tone="warn" title={t.unsupported} text={why()}>
+                      <div class="mt-2">
+                        <Checkbox
+                          label={t.anyway}
+                          hint={t.anywayHint}
+                          checked={anyway()}
+                          onChange={setAnyway}
+                        />
+                      </div>
+                    </Note>
+                  )}
                 </Match>
                 <Match when={found().adopted !== null}>
                   <Note tone="warn" title={t.adoptedElsewhere}>
@@ -323,8 +340,19 @@ export function RouterStep(props: {
           </Match>
           <Match when={failed() && candidate()}>
             {(found) => (
-              <Button variant="primary" disabled={working()} onClick={() => void adopt(found())}>
-                {strings.setup.retry}
+              <Button
+                variant="primary"
+                disabled={working()}
+                onClick={() => {
+                  // A refused release: the retry is the override (D-145).
+                  const refused = failed()?.code === "unsupported_release";
+                  if (refused) setAnyway(true);
+                  void adopt(found(), refused || anyway());
+                }}
+              >
+                {failed()?.code === "unsupported_release"
+                  ? strings.job.error.unsupported_release.action
+                  : strings.setup.retry}
               </Button>
             )}
           </Match>
@@ -349,7 +377,7 @@ export function RouterStep(props: {
                 disabled={
                   working() ||
                   searching() ||
-                  found().unsupported !== null ||
+                  (found().unsupported !== null && !anyway()) ||
                   found().adopted !== null ||
                   (found().blank === false && password() === "")
                 }

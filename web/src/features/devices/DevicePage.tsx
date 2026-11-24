@@ -15,11 +15,13 @@ import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { NodeDetail } from "../../api/gen/NodeDetail";
 import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { api } from "../../lib/api";
+import { releaseSupported } from "../../lib/firmware";
 import { formatBytes, formatCelsius, formatDuration, formatPercent, NONE } from "../../lib/format";
 import { createJobsView } from "../../lib/jobs";
 import { createNodeView, type Live, LiveContext, type NodeViewState } from "../../lib/live";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
+import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
@@ -332,10 +334,17 @@ function Stats(props: { facts: NodeFacts; view: NodeViewState }) {
 function Details(props: { detail: NodeDetail; facts: NodeFacts }) {
   const t = d.details;
   const board = () => props.facts.board;
-  const rows = (): [string, string][] => [
+  const supported = () => releaseSupported(board().release.distribution, board().release.version);
+  /** Each row's label, value, and whether the value is one uniwrt doesn't support. */
+  const rows = (): [string, string, boolean?][] => [
     [t.model, board().model],
     [t.board, board().board_name],
-    [t.firmware, `${board().release.distribution} ${board().release.version}`],
+    [
+      t.firmware,
+      `${board().release.distribution} ${board().release.version}`,
+      // Facts not collected yet have no distribution: nothing to warn about.
+      board().release.distribution !== "" && !supported(),
+    ],
     [t.target, board().release.target],
     [t.kernel, board().kernel],
     [t.cpu, board().cpu],
@@ -348,11 +357,18 @@ function Details(props: { detail: NodeDetail; facts: NodeFacts }) {
       <CardHeader title={t.title} />
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 pb-4 text-sm">
         <For each={rows()}>
-          {([label, value]) => (
+          {([label, value, unsupported]) => (
             <>
               <dt class="text-fg-subtle">{label}</dt>
-              <dd class="truncate text-right font-medium" title={value}>
-                {value || NONE}
+              <dd class="flex min-w-0 items-center justify-end gap-2 font-medium">
+                <Show when={unsupported}>
+                  <span class="shrink-0" title={t.unsupportedHint}>
+                    <Badge tone="warn">{t.unsupported}</Badge>
+                  </span>
+                </Show>
+                <span class="truncate" title={value}>
+                  {value || NONE}
+                </span>
               </dd>
             </>
           )}

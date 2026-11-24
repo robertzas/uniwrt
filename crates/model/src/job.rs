@@ -294,8 +294,11 @@ pub enum JobErrorCode {
     HostKeyMismatch,
     /// The node refused the password or the controller's key.
     AuthRejected,
-    /// The node runs something the controller does not support, such as an old release.
+    /// The node lacks what the agent needs (memory, room in `/tmp`) or has no MAC to know it by.
     Unsupported,
+    /// The node runs a release adoption refuses (older than 24.10, or not OpenWrt); the user may
+    /// adopt it anyway (`allow_unsupported_release`, D-145).
+    UnsupportedRelease,
     /// The node is adopted already.
     AlreadyAdopted,
     /// The node isn't the zero-touch device that called home: another board or MAC (D-102).

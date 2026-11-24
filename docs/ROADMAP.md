@@ -165,7 +165,8 @@ Goal: adopt the owner's existing nodes read-only and watch them live in a polish
 
 ## M9 — Polish and 1.0
 
-- [ ] **M9.1 UX polish, accessibility, mobile, onboarding** (L)
+- [ ] **M9.0 Owner requests** (L; the owner's BUGS.md, D-145): an override for the OpenWrt release check, DNS over TLS with fallback layers, and setup that works offline. Split: ✅ a release override (the user adopts a node whose release adoption refuses, with a warning, from every adoption path; the device shows the release as unsupported) | b DNS over TLS & fallbacks (DoT beside DoH; ordered fallback layers: encrypted, then plain servers, then the ISP's) | c offline packages (the controller keeps every package the nodes need, per release and architecture, refreshed while online, and serves them to the nodes, so setup and installs work without internet).
+- [ ] **M9.1 UX polish, mobile, onboarding** (L; D-145): every page usable at phone width (navigation, tables, dialogs, topology); onboarding after the first-run wizard (empty states and next steps per page); e2e for the screens the follow-ups list without one (Wi-Fi, VPN, tools, doctor, WAN monitor, …). No dedicated accessibility pass (the owner's choice): WCAG 2.2 AA stays the bar for new work.
 - [ ] **M9.2 Performance budgets enforced in CI; profiling** (M)
 - [ ] **M9.3 Security review, fuzzing, threat model** (M)
 - [ ] **M9.4 User guide, screenshots from demo mode, 1.0 release** (M)

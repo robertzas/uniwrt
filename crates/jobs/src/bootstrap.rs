@@ -150,7 +150,10 @@ async fn read(remote: &dyn Remote, found: &mut FoundGateway) {
     if let Some(release) = text(&["cat", "/etc/openwrt_release"]).await {
         match check::release(&release) {
             Ok(release) => found.release = Some(release),
-            Err(why) => found.unsupported = Some(why),
+            Err(refused) => {
+                found.release = Some(refused.release);
+                found.unsupported = Some(refused.why);
+            }
         }
     }
     if let Some(board) = text(&["ubus", "call", "system", "board"]).await
