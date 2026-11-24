@@ -197,7 +197,11 @@ pub(crate) async fn wake(
         )));
     }
     let managed = gateway.mode == NodeMode::Managed;
-    let woken = uniwrt_engine::wake(api.fleet(), gateway.id, managed, mac, &ips)
+    let via = api.feeds().map_or_else(
+        |_| uniwrt_node::pkg::via::Via::default(),
+        uniwrt_engine::FeedMirror::via,
+    );
+    let woken = uniwrt_engine::wake(api.fleet(), gateway.id, managed, &via, mac, &ips)
         .await
         .map_err(|err| match err {
             WakeError::Offline => ApiError::Conflict(format!("{} is offline", gateway.name)),

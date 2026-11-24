@@ -289,7 +289,10 @@ pub(crate) struct FakeRemote(pub(crate) Arc<FakeNode>);
 impl Remote for FakeRemote {
     fn exec(&self, request: ExecRequest) -> BoxFuture<'_, Result<ExecOutput>> {
         Box::pin(async move {
-            let argv: Vec<&str> = request.argv.iter().map(String::as_str).collect();
+            // A package command through the controller's feed mirror answers as itself.
+            let command = uniwrt_node::pkg::via::unwrap(&request.argv)
+                .map_or(request.argv.as_slice(), |(_, _, command)| command);
+            let argv: Vec<&str> = command.iter().map(String::as_str).collect();
             let scripted = self
                 .0
                 .script
@@ -301,6 +304,8 @@ impl Remote for FakeRemote {
                 self.0.commands.lock().unwrap().push(request.argv.clone());
                 return result;
             }
+            let mut request = request.clone();
+            request.argv = command.to_vec();
             Ok(self.0.run(&request))
         })
     }
@@ -420,6 +425,8 @@ pub(crate) struct Setup {
     pub(crate) watched: Arc<Watched>,
     pub(crate) jobs: Jobs,
     pub(crate) clock: Arc<ManualClock>,
+    /// The way to the controller's feed mirror: off until a test turns it on.
+    pub(crate) via: uniwrt_node::pkg::via::Via,
 }
 
 pub(crate) async fn setup(dial: bool) -> Setup {
@@ -439,6 +446,7 @@ pub(crate) async fn setup_timed(dial: bool, timing: crate::ApplyTiming) -> Setup
     let key = ControllerKey::generate().unwrap();
     let node = FakeNode::new();
     let watched = Arc::new(Watched::default());
+    let via = uniwrt_node::pkg::via::Via::new(8443);
     let jobs = Jobs::start_with(
         JobsConfig {
             store: store.clone(),
@@ -447,12 +455,14 @@ pub(crate) async fn setup_timed(dial: bool, timing: crate::ApplyTiming) -> Setup
             key: key.clone(),
             dial: dial.then(|| Arc::new(FakeDial(Arc::clone(&node))) as Arc<dyn Dial>),
             watch: Arc::clone(&watched) as Arc<dyn Watch>,
+            via: via.clone(),
         },
         timing,
     )
     .await
     .unwrap();
     Setup {
+        via,
         _dir: dir,
         store,
         vault,

@@ -19,7 +19,7 @@ use uniwrt_model::{
     node::Node,
     packages::PackageChanges,
 };
-use uniwrt_node::ExecRequest;
+use uniwrt_node::{ExecRequest, pkg::via::Via};
 
 pub(crate) use self::check::read_catalog;
 use self::check::{Plan, commands};
@@ -92,7 +92,7 @@ async fn packages(
             return Err(err);
         }
     };
-    let installed = install(remote.as_ref(), &plan, progress).await;
+    let installed = install(remote.as_ref(), &shared.via, &plan, progress).await;
     let result = match installed {
         Ok(()) => {
             progress.start(StepName::Inventory).await;
@@ -120,6 +120,7 @@ async fn packages(
 /// The Install step: each change in turn; the first failure ends it, saying what went before.
 async fn install(
     remote: &dyn Remote,
+    via: &Via,
     plan: &Plan,
     progress: &mut Progress,
 ) -> Result<(), JobError> {
@@ -145,7 +146,7 @@ async fn install(
             }
         };
         let output = remote
-            .exec(request(argv))
+            .exec(request(via.wrap(argv)))
             .await
             .map_err(|err| failed(node_error(&err, "the command broke off").message))?;
         if !output.status.success() {
@@ -166,12 +167,13 @@ async fn install(
 /// of `installed`. Only the index changes.
 pub(crate) async fn catalog(
     remote: &dyn Remote,
+    via: &Via,
     manager: uniwrt_model::facts::PackageManager,
     installed: &[uniwrt_model::inventory::Package],
     now: uniwrt_core::Timestamp,
 ) -> Result<uniwrt_model::packages::PackageCatalog, JobError> {
     let update = remote
-        .exec(request(uniwrt_node::pkg::update(manager)))
+        .exec(request(via.wrap(uniwrt_node::pkg::update(manager))))
         .await
         .map_err(|err| node_error(&err, "Cannot refresh the package index"))?;
     if !update.status.success() {
@@ -181,9 +183,14 @@ pub(crate) async fn catalog(
             last_line(&said)
         )));
     }
-    let available = read_catalog(remote, manager).await?.into_values().collect();
+    let available = read_catalog(remote, via, manager)
+        .await?
+        .into_values()
+        .collect();
     let output = remote
-        .exec(request(uniwrt_node::pkg::catalog::upgradable(manager)))
+        .exec(request(
+            via.wrap(uniwrt_node::pkg::catalog::upgradable(manager)),
+        ))
         .await
         .map_err(|err| node_error(&err, "Cannot read the upgrades"))?;
     if !output.status.success() {

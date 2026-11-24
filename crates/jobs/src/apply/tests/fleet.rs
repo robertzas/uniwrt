@@ -377,6 +377,7 @@ pub(crate) async fn fleet(members: &[(NodeRole, &str)]) -> Fleet {
             key: ControllerKey::generate().unwrap(),
             dial: Some(Arc::new(dial)),
             watch: Arc::clone(&watched) as _,
+            via: uniwrt_node::pkg::via::Via::default(),
         },
         ApplyTiming {
             poll: Duration::from_millis(5),

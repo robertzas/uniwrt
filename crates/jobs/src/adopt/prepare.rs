@@ -120,7 +120,7 @@ async fn bring(
         };
         let names = needs.packages.join(", ");
         progress.note(format!("Installing {names}")).await;
-        if let Err(why) = install(remote.as_ref(), manager, &needs.packages).await {
+        if let Err(why) = install(remote.as_ref(), &shared.via, manager, &needs.packages).await {
             return (
                 Some(remote),
                 Err(format!(
@@ -153,12 +153,13 @@ async fn bring(
 
 async fn install(
     remote: &dyn Remote,
+    via: &uniwrt_node::pkg::via::Via,
     manager: uniwrt_model::facts::PackageManager,
     packages: &[&str],
 ) -> Result<(), String> {
     for argv in [pkg::update(manager), pkg::install(manager, packages)] {
         let what = argv.join(" ");
-        let mut request = ExecRequest::new(argv);
+        let mut request = ExecRequest::new(via.wrap(argv));
         request.timeout = INSTALL_TIMEOUT;
         request.max_output = 1 << 20;
         match remote.exec(request).await {

@@ -12,7 +12,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::{
     ExecRequest,
-    pkg::{self, catalog, dry_run},
+    pkg::{self, catalog, dry_run, via::Via},
     proto::ops::Set,
     txn::current,
 };
@@ -82,13 +82,14 @@ pub(crate) async fn check(
     progress.note("Refreshing the package index").await;
     run(
         remote,
+        &shared.via,
         pkg::update(manager),
         "Nothing changed. Refreshing the index",
     )
     .await?;
     progress.note("Reading what the feeds offer").await;
-    let available = read_catalog(remote, manager).await?;
-    let upgrades = read_upgrades(remote, manager).await?;
+    let available = read_catalog(remote, &shared.via, manager).await?;
+    let upgrades = read_upgrades(remote, &shared.via, manager).await?;
     if let Some(name) = changes
         .install
         .iter()
@@ -109,7 +110,7 @@ pub(crate) async fn check(
     }
 
     progress.note("Trying the changes").await;
-    let tried = dry_runs(remote, manager, changes).await?;
+    let tried = dry_runs(remote, &shared.via, manager, changes).await?;
     if let Some(name) = tried.removed.iter().find(|name| locked(name).is_some()) {
         return Err(refused(format!(
             "That would remove {name} along, which the device needs"
@@ -134,13 +135,14 @@ pub(crate) async fn check(
 /// would remove nothing.
 async fn dry_runs(
     remote: &dyn Remote,
+    via: &Via,
     manager: PackageManager,
     changes: &PackageChanges,
 ) -> Result<dry_run::DryRun, JobError> {
     let mut tried = dry_run::DryRun::default();
     for (argv, names) in commands(manager, changes) {
         let output = remote
-            .exec(request(dry_run::simulate(argv)))
+            .exec(request(via.wrap(dry_run::simulate(argv))))
             .await
             .map_err(|err| node_error(&err, "Nothing changed. The dry run failed"))?;
         let run = dry_run::parse(&String::from_utf8_lossy(&output.stdout));
@@ -254,10 +256,15 @@ async fn current_packages(remote: &dyn Remote) -> Result<BTreeMap<String, Packag
     Ok(current)
 }
 
-async fn run(remote: &dyn Remote, argv: Vec<String>, what: &str) -> Result<Vec<u8>, JobError> {
+async fn run(
+    remote: &dyn Remote,
+    via: &Via,
+    argv: Vec<String>,
+    what: &str,
+) -> Result<Vec<u8>, JobError> {
     let command = argv.join(" ");
     let output = remote
-        .exec(request(argv))
+        .exec(request(via.wrap(argv)))
         .await
         .map_err(|err| node_error(&err, &format!("{what} failed")))?;
     if !output.status.success() {
@@ -273,9 +280,10 @@ async fn run(remote: &dyn Remote, argv: Vec<String>, what: &str) -> Result<Vec<u
 /// The feeds' packages, by name.
 pub(crate) async fn read_catalog(
     remote: &dyn Remote,
+    via: &Via,
     manager: PackageManager,
 ) -> Result<BTreeMap<String, AvailablePackage>, JobError> {
-    let mut read = request(catalog::catalog(manager));
+    let mut read = request(via.wrap(catalog::catalog(manager)));
     read.max_output = CATALOG_OUTPUT;
     let output = remote
         .exec(read)
@@ -298,9 +306,16 @@ pub(crate) async fn read_catalog(
 /// The names of the installed packages with a newer version.
 async fn read_upgrades(
     remote: &dyn Remote,
+    via: &Via,
     manager: PackageManager,
 ) -> Result<BTreeSet<String>, JobError> {
-    let stdout = run(remote, catalog::upgradable(manager), "Reading the upgrades").await?;
+    let stdout = run(
+        remote,
+        via,
+        catalog::upgradable(manager),
+        "Reading the upgrades",
+    )
+    .await?;
     Ok(
         catalog::parse_upgrades(manager, &String::from_utf8_lossy(&stdout), &[])
             .into_iter()

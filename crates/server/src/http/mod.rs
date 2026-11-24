@@ -98,6 +98,7 @@ pub(crate) async fn test_api() -> (tempfile::TempDir, Api) {
             clock: Arc::new(SystemClock),
             demo: None,
         }),
+        via: uniwrt_node::pkg::via::Via::default(),
     })
     .await
     .unwrap();

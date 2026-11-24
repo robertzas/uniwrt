@@ -11,7 +11,12 @@ use uniwrt_model::{
     job::{JobError, JobErrorCode, StepName},
     node::Node,
 };
-use uniwrt_node::{ExecRequest, pkg, proto::ops::Set, txn::Footprint};
+use uniwrt_node::{
+    ExecRequest,
+    pkg::{self, via::Via},
+    proto::ops::Set,
+    txn::Footprint,
+};
 
 use super::{
     Baseline, UpgradeRequest,
@@ -98,10 +103,11 @@ async fn install(
     };
     let plan = after_image(&request.packages, &installed);
     let mut problems = Vec::new();
-    let added = add(remote.as_ref(), manager, &plan.install, &mut problems).await;
+    let via = &shared.via;
+    let added = add(remote.as_ref(), via, manager, &plan.install, &mut problems).await;
     let mut removed = 0;
     if !plan.remove.is_empty() {
-        match run(remote.as_ref(), pkg::remove(manager, &plan.remove)).await {
+        match run(remote.as_ref(), via, pkg::remove(manager, &plan.remove)).await {
             Ok(()) => removed = plan.remove.len(),
             Err(why) => problems.push(format!("{} not removed ({why})", plan.remove.join(", "))),
         }
@@ -138,6 +144,7 @@ async fn install(
 /// Installs `packages` at once, else one by one to find which fail; returns how many went in.
 async fn add(
     remote: &dyn Remote,
+    via: &Via,
     manager: PackageManager,
     packages: &[String],
     problems: &mut Vec<String>,
@@ -145,18 +152,27 @@ async fn add(
     if packages.is_empty() {
         return 0;
     }
-    if let Err(why) = run(remote, pkg::update(manager)).await {
+    if let Err(why) = run(remote, via, pkg::update(manager)).await {
         problems.push(format!(
             "the feeds can't be read ({why}): nothing installed"
         ));
         return 0;
     }
-    if run(remote, pkg::install(manager, packages)).await.is_ok() {
+    if run(remote, via, pkg::install(manager, packages))
+        .await
+        .is_ok()
+    {
         return packages.len();
     }
     let mut added = 0;
     for package in packages {
-        match run(remote, pkg::install(manager, std::slice::from_ref(package))).await {
+        match run(
+            remote,
+            via,
+            pkg::install(manager, std::slice::from_ref(package)),
+        )
+        .await
+        {
             Ok(()) => added += 1,
             Err(why) => problems.push(format!("{package} not installed ({why})")),
         }
@@ -164,9 +180,10 @@ async fn add(
     added
 }
 
-async fn run(remote: &dyn Remote, argv: Vec<String>) -> Result<(), String> {
+/// `argv`, a package manager command, through the controller's feed mirror where it serves.
+async fn run(remote: &dyn Remote, via: &Via, argv: Vec<String>) -> Result<(), String> {
     let output = remote
-        .exec(ExecRequest::new(argv).timeout(PACKAGES_TIMEOUT))
+        .exec(ExecRequest::new(via.wrap(argv)).timeout(PACKAGES_TIMEOUT))
         .await
         .map_err(|err| chain(&err))?;
     if output.status.success() {

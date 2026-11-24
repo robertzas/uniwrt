@@ -2,7 +2,9 @@
 # Runs the transport tests against dropbear on real OpenWrt (TESTING.md, Transport): for each
 # OpenWrt rootfs image, starts a container with a random root password and one without (factory
 # defaults) and runs crates/node/tests/{dropbear,capture,iperf3,pty}.rs against them (iperf3's also
-# runs the image's iperf3 on the host's network, against the controller's server on loopback). Usage: scripts/test-dropbear.sh [image…]
+# runs the image's iperf3 on the host's network, against the controller's server on loopback), then
+# crates/system/tests/feeds.rs: the image's opkg or apk installing through a mirror of its own feeds
+# served on loopback (D-147; needs the internet, skipped without). Usage: scripts/test-dropbear.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,4 +59,6 @@ for image in "${images[@]}"; do
     --status-level fail --hide-progress-bar
   docker rm -f "$container" "$factory" >/dev/null
   container='' factory=''
+  UNIWRT_IMAGE="$image" cargo nextest run --locked -p uniwrt-system --test feeds --run-ignored only \
+    --status-level fail --hide-progress-bar
 done

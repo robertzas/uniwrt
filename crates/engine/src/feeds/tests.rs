@@ -18,6 +18,7 @@ use uniwrt_model::{
     inventory::{Inventory, NodeFeed, Package},
     node::{NewNode, NodeRole},
 };
+use uniwrt_node::pkg::via::Via;
 use uniwrt_store::{FactsRepo as _, InventoryRepo as _, NodeRepo as _, SettingsRepo as _, Store};
 
 use super::{FeedMirrorConfig, FeedMirrorError, FeedMirrorSync, plan};
@@ -234,6 +235,7 @@ impl Harness {
         let config = FeedMirrorConfig {
             tick_every: Duration::from_millis(20),
             timeout: WAIT,
+            via: Via::new(8443),
             ..FeedMirrorConfig::default()
         };
         let sync = FeedMirrorSync::start(&engine, store.clone(), mirror, config);
@@ -280,6 +282,8 @@ async fn the_mirror_refreshes_at_start_after_a_failure_on_demand_and_never_while
     assert!(set.feeds[0].error.is_some(), "{set:#?}");
     assert!(status.sync_error.is_some());
     assert!(h.sync.handle().settings().enabled);
+    // The nodes' package commands go through the controller.
+    assert_eq!(h.sync.handle().via().port(), Some(8443));
     let asked = h.source.asked();
     assert!(asked >= 1);
     assert!(h.source.0.lock().unwrap()[0].starts_with(CORE));
@@ -326,6 +330,7 @@ async fn the_mirror_refreshes_at_start_after_a_failure_on_demand_and_never_while
         .unwrap();
     h.sync.handle().reload().await.unwrap();
     assert!(!h.sync.handle().settings().enabled);
+    assert_eq!(h.sync.handle().via().port(), None);
     assert!(matches!(
         h.sync.handle().refresh().await,
         Err(FeedMirrorError::Off)

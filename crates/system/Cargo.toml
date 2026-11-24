@@ -17,8 +17,13 @@ uniwrt-render.workspace = true
 uniwrt-uci.workspace = true
 
 [dev-dependencies]
+axum.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "process", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "time"] }
+tokio-rustls.workspace = true
+uniwrt-feeds.workspace = true
 uniwrt-jobs.workspace = true
 uniwrt-store.workspace = true
 

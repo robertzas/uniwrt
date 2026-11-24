@@ -21,6 +21,7 @@ use uniwrt_model::{
 };
 use uniwrt_node::{
     ExecRequest,
+    pkg::via::{Via, unwrap},
     proto::ops::Set,
     wpad::{self as swap, Outcome, Swap},
 };
@@ -135,7 +136,7 @@ async fn swap_and_verify(
     swap: &Swap,
     report: &mut Report<'_>,
 ) -> (Option<Box<dyn Remote>>, Result<(), JobError>) {
-    if let Err(err) = fetch(remote.as_ref(), swap, report).await {
+    if let Err(err) = fetch(remote.as_ref(), &shared.via, swap, report).await {
         // The packages go; nothing else changed.
         let _ = remote
             .exec(ExecRequest::new(["rm", "-rf", swap::DIR]))
@@ -252,15 +253,17 @@ async fn check(
 /// Downloads every package the swap needs onto the node.
 async fn fetch(
     remote: &dyn Remote,
+    via: &Via,
     swap: &Swap,
     progress: &mut Report<'_>,
 ) -> Result<(), JobError> {
     progress.start(StepName::Fetch).await;
-    for argv in swap::fetch(swap) {
-        let what = if argv[0] == "sh" {
+    for argv in swap::fetch(swap, via) {
+        let command = unwrap(&argv).map_or(argv.as_slice(), |(_, _, command)| command);
+        let what = if command[0] == "sh" {
             "opkg download".to_owned()
         } else {
-            argv[..2].join(" ")
+            command[..2].join(" ")
         };
         let mut request = ExecRequest::new(argv);
         request.timeout = FETCH_TIMEOUT;

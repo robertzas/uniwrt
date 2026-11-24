@@ -230,6 +230,7 @@ async fn lab_with(extra: &[&str]) -> Lab {
             key: ControllerKey::generate().expect("a key"),
             dial: Some(Arc::new(dial.clone())),
             watch: Arc::clone(&moves) as _,
+            via: uniwrt_node::pkg::via::Via::default(),
         },
         timing(),
     )

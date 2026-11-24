@@ -29,7 +29,9 @@ use uniwrt_model::{
     facts::NodeFacts,
     node::{NewNode, Node},
 };
-use uniwrt_node::{AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, SshLink, Target};
+use uniwrt_node::{
+    AgentLaunch, ControllerKey, Credential, HostKey, LinkConfig, SshLink, Target, pkg::via::Via,
+};
 use uniwrt_sim::{SimConfig, SimFleet};
 use uniwrt_store::{FactsRepo, HostKeyRepo, NodeRepo, Store, Vault};
 use uniwrt_syslog::{Receiver, ReceiverConfig};
@@ -76,6 +78,8 @@ pub(crate) struct Fleet {
     sim: Option<(SimFleet, Arc<DemoDial>)>,
     /// The simulated nodes demo mode adopted, in the sim's order.
     demo_adopted: Vec<uniwrt_core::NodeId>,
+    /// How nodes fetch packages through the feed mirror (D-147).
+    via: Via,
 }
 
 impl Fleet {
@@ -136,6 +140,7 @@ impl Fleet {
             syslog,
             sim: None,
             demo_adopted: Vec::new(),
+            via: Via::default(),
         })
     }
 
@@ -221,6 +226,7 @@ impl Fleet {
             syslog,
             sim: Some((sim, dial)),
             demo_adopted,
+            via: Via::default(),
         })
     }
 
@@ -429,15 +435,26 @@ impl Fleet {
     async fn mirror_feeds(&mut self, store: &Store, state_dir: &Path) {
         match crate::feeds::open(state_dir, self.sim.is_some()).await {
             Ok(mirror) => {
+                let config = FeedMirrorConfig {
+                    via: self.via.clone(),
+                    ..FeedMirrorConfig::default()
+                };
                 self.feeds = Some(FeedMirrorSync::start(
                     &self.engine,
                     store.clone(),
                     mirror,
-                    FeedMirrorConfig::default(),
+                    config,
                 ));
             }
             Err(err) => warn!("The feed mirror cannot start: {err:#}"),
         }
+    }
+
+    /// Nodes fetch their packages through the feed mirror on the HTTPS listener's `port`
+    /// (D-147), while it runs with its setting on. Before [`Fleet::jobs`] and
+    /// [`Fleet::record_events`].
+    pub(crate) fn fetch_packages_through(&mut self, port: u16) {
+        self.via = Via::new(port);
     }
 
     /// The feed mirror's handle, once [`Fleet::mirror_feeds`] started it.
@@ -531,6 +548,7 @@ impl Fleet {
                 clock,
                 demo,
             }),
+            via: self.via.clone(),
         })
         .await
         .context("cannot start the jobs")

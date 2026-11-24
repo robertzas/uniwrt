@@ -22,7 +22,8 @@
 //! of new feeds, the packages of new names, the sweep) whenever the plan changes, which the task
 //! looks for every [`FeedMirrorConfig::tick_every`] and when the settings change
 //! ([`FeedMirror::reload`]). One sync runs at a time. With the mirror off nothing syncs and
-//! nothing is served; the copies stay. No plan is made before the inventories and facts were
+//! nothing is served; the copies stay. [`FeedMirrorConfig::via`] follows the setting, so the
+//! nodes' package commands go through the controller only while it serves. No plan is made before the inventories and facts were
 //! read, so a start never sweeps the copies for want of them.
 
 mod plan;
@@ -36,7 +37,7 @@ use tokio::{
 };
 use uniwrt_feeds::{Mirror, ServeError, Served};
 use uniwrt_model::feeds::{MirrorSettings, MirrorStatus};
-use uniwrt_node::NodeLink;
+use uniwrt_node::{NodeLink, pkg::via::Via};
 use uniwrt_store::{FactsRepo, InventoryRepo, SettingsRepo};
 
 pub use plan::plan;
@@ -55,6 +56,9 @@ pub struct FeedMirrorConfig {
     pub read_every: Duration,
     /// How long that read may take.
     pub timeout: Duration,
+    /// How nodes fetch packages through the mirror: on while the mirror runs and its setting
+    /// says so (the jobs and the API wrap their package commands with it).
+    pub via: Via,
 }
 
 impl Default for FeedMirrorConfig {
@@ -65,6 +69,7 @@ impl Default for FeedMirrorConfig {
             retry_after: Duration::from_mins(30),
             read_every: Duration::from_hours(1),
             timeout: Duration::from_secs(30),
+            via: Via::default(),
         }
     }
 }
@@ -89,6 +94,7 @@ pub struct FeedMirrorSync {
 #[derive(Clone)]
 pub struct FeedMirror {
     mirror: Mirror,
+    via: Via,
     commands: mpsc::Sender<task::Command>,
     settings: watch::Receiver<MirrorSettings>,
 }
@@ -113,12 +119,14 @@ impl FeedMirrorSync {
             ..MirrorSettings::default()
         };
         let (settings, watched) = watch::channel(off);
+        let via = config.via.clone();
         let task = task::Task::new(engine.clone(), repo, mirror.clone(), config, settings);
         let task = tokio::spawn(task.run(received, stopped));
         Self {
             stop,
             handle: FeedMirror {
                 mirror,
+                via,
                 commands,
                 settings: watched,
             },
@@ -140,6 +148,11 @@ impl FeedMirror {
     /// What the mirror holds of the current plan.
     pub fn status(&self) -> MirrorStatus {
         self.mirror.status()
+    }
+
+    /// How nodes fetch packages through the mirror, while it is on.
+    pub fn via(&self) -> Via {
+        self.via.clone()
     }
 
     /// The settings in force.

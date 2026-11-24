@@ -115,7 +115,7 @@ impl Run<'_> {
             let mut result = Ok(());
             for argv in commands(*manager, packages) {
                 let what = argv.join(" ");
-                let outcome = live.exec(request(argv)).await;
+                let outcome = live.exec(request(self.shared.via.wrap(argv))).await;
                 result = match outcome {
                     Ok(output) if output.status.success() => Ok(()),
                     Ok(output) => {

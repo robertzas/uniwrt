@@ -2,13 +2,21 @@
 //! goes out on the gateway's devices that reach the client ([`uniwrt_node::wol::devices`])
 //! through `etherwake`. A gateway without it gets it from the feeds (the index refreshed, then
 //! the package installed) when the caller may change it (`may_install`: it is managed), else
-//! the wake is refused with [`WakeError::NoSender`].
+//! the wake is refused with [`WakeError::NoSender`]. The install goes through the controller's
+//! feed mirror where it serves (`via`, D-147).
 
 use std::{net::IpAddr, time::Duration};
 
 use uniwrt_core::{MacAddr, NodeId};
 use uniwrt_model::status::NodeState;
-use uniwrt_node::{ExecOutput, ExecRequest, ExitStatus, pkg, wol};
+use uniwrt_node::{
+    ExecOutput, ExecRequest, ExitStatus,
+    pkg::{
+        self,
+        via::{Via, unwrap},
+    },
+    wol,
+};
 
 use crate::Fleet;
 
@@ -45,6 +53,7 @@ pub async fn wake(
     fleet: &dyn Fleet,
     gateway: NodeId,
     may_install: bool,
+    via: &Via,
     mac: MacAddr,
     ips: &[IpAddr],
 ) -> Result<Woken, WakeError> {
@@ -70,7 +79,7 @@ pub async fn wake(
             })?;
             for argv in [pkg::update(manager), pkg::install(manager, &[wol::PACKAGE])] {
                 let what = argv.join(" ");
-                let request = ExecRequest::new(argv).timeout(INSTALL_TIMEOUT);
+                let request = ExecRequest::new(via.wrap(argv)).timeout(INSTALL_TIMEOUT);
                 let done = run(fleet, gateway, request).await?;
                 check(&what, done)?;
             }
@@ -91,7 +100,9 @@ async fn run(
     node: NodeId,
     request: ExecRequest,
 ) -> Result<ExecOutput, WakeError> {
-    let what = request.argv.join(" ");
+    let what = unwrap(&request.argv)
+        .map_or(request.argv.as_slice(), |(_, _, command)| command)
+        .join(" ");
     fleet
         .exec(node, request)
         .await

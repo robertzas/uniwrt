@@ -5,11 +5,14 @@
 //! file, or apk's installed database plus its world file (the packages wanted on purpose). Only
 //! the fields needed are sent, through `grep`. The package manager UI (D-139) adds
 //! [`upgrade`], [`uninstall`], what the feeds offer ([`catalog`]) and dry runs ([`dry_run`]). Detection is the agent's (`capabilities.uc`:
-//! the facts' `package_manager`). The wpad swap's offline commands stay in [`crate::wpad`].
+//! the facts' `package_manager`). The wpad swap's offline commands stay in [`crate::wpad`]. The
+//! callers send every package manager command through [`via`] (D-147): the controller's feed
+//! mirror where it serves.
 
 pub mod catalog;
 pub mod dry_run;
 pub mod feeds;
+pub mod via;
 
 use std::collections::BTreeSet;
 

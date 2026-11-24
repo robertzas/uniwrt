@@ -246,6 +246,17 @@ pub(crate) fn now(node: &Node, now_ms: i64) -> Now {
 
 /// Runs `request` on `node`, whose files are on `disk`, at `now_ms` (the world's clock).
 pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: i64) -> ExecOutput {
+    // A package command through the controller's feed mirror (D-147): the simulated feeds
+    // answer it as they would the node's own.
+    if let Some((_, _, command)) = uniwrt_node::pkg::via::unwrap(&request.argv) {
+        let mut inner = request.clone();
+        inner.argv = command.to_vec();
+        return answer(node, &inner, disk, now_ms);
+    }
+    answer(node, request, disk, now_ms)
+}
+
+fn answer(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: i64) -> ExecOutput {
     let now = now(node, now_ms);
     if let Some(output) = disk.tool.exec(&request.argv, request.stdin.as_deref(), now) {
         return output;

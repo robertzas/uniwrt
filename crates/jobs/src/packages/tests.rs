@@ -106,7 +106,9 @@ async fn finished(setup: &Setup, job: Job) -> Job {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let job = setup.store.job(job.id).await.unwrap().unwrap();
-            if job.state != JobState::Running {
+            // The runner lets go of the node just after storing the end: the next job waits.
+            if job.state != JobState::Running && job.node.is_none_or(|node| !setup.jobs.holds(node))
+            {
                 return job;
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -204,6 +206,48 @@ async fn removals_go_first_then_upgrades_then_installs() {
     assert!(
         kept.packages.iter().any(|p| p.name == "htop"),
         "as the node said"
+    );
+}
+
+/// While the controller's feed mirror serves (D-147), every opkg command goes through it; reading
+/// the node's files doesn't.
+#[tokio::test]
+async fn package_commands_go_through_the_controller_s_mirror_while_it_serves() {
+    let (setup, id) = adopted(true).await;
+    play(&setup, PLAIN);
+    setup.via.set(true);
+    let job = change(&setup, id, changes(&["tcpdump"], &[], &[])).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
+    let commands = setup.node.commands.lock().unwrap().clone();
+    let through: Vec<String> = commands
+        .iter()
+        .filter_map(|argv| uniwrt_node::pkg::via::unwrap(argv))
+        .map(|(port, dir, command)| {
+            assert_eq!((port, dir), (8443, ""));
+            command.join(" ")
+        })
+        .collect();
+    for command in [
+        "opkg update",
+        "opkg list-upgradable",
+        "opkg install --noaction tcpdump",
+        "opkg install tcpdump",
+    ] {
+        assert!(
+            through.iter().any(|line| line == command),
+            "{command}: {through:#?}"
+        );
+    }
+    assert!(
+        !commands.iter().any(|argv| argv[0] == "opkg"),
+        "every opkg command goes through: {commands:?}"
+    );
+    assert!(
+        commands
+            .iter()
+            .any(|argv| argv[0] == "grep"
+                && argv.last().is_some_and(|f| f == "/usr/lib/opkg/status")),
+        "reads stay as they are"
     );
 }
 

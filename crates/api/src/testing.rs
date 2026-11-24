@@ -292,6 +292,7 @@ pub(crate) async fn api_full(
         key: ControllerKey::generate().unwrap(),
         dial,
         watch: Arc::new(NoWatch),
+        via: uniwrt_node::pkg::via::Via::default(),
     })
     .await
     .unwrap();

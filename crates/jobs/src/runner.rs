@@ -21,7 +21,7 @@ use uniwrt_model::{
     job::{Job, JobError, JobErrorCode, JobKind, NewJob},
     node::Node,
 };
-use uniwrt_node::{ControllerKey, HostKey, Target};
+use uniwrt_node::{ControllerKey, HostKey, Target, pkg::via::Via};
 use uniwrt_store::{
     BackupRepo as _, FactsRepo as _, JobRepo as _, NodeRepo as _, RevisionRepo as _, Store, Vault,
     ZtpRepo as _,
@@ -66,6 +66,9 @@ pub struct JobsConfig {
     /// How to reach nodes; `None` where nothing can be adopted (some tests).
     pub dial: Option<Arc<dyn Dial>>,
     pub watch: Arc<dyn Watch>,
+    /// How nodes fetch packages through the controller's feed mirror (D-147); the default never
+    /// does.
+    pub via: Via,
 }
 
 /// The job runner. Clones share it.
@@ -81,6 +84,7 @@ pub(crate) struct Shared {
     pub(crate) key: ControllerKey,
     pub(crate) dial: Option<Arc<dyn Dial>>,
     pub(crate) watch: Arc<dyn Watch>,
+    pub(crate) via: Via,
     pub(crate) adoptions: Semaphore,
     pub(crate) timing: apply::ApplyTiming,
     discovery: Discovery,
@@ -181,6 +185,7 @@ impl Jobs {
                 key: config.key,
                 dial: config.dial,
                 watch: config.watch,
+                via: config.via,
                 adoptions: Semaphore::new(ADOPTIONS),
                 timing,
                 updates: broadcast::channel(UPDATES).0,
@@ -777,6 +782,7 @@ impl Jobs {
             .map_err(|err| Error::Failed(err.message))?;
         let read = crate::packages::catalog(
             remote.as_ref(),
+            &self.shared.via,
             manager,
             &installed,
             self.shared.clock.now(),

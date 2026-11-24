@@ -3569,10 +3569,15 @@ dependencies = [
 name = "uniwrt-system"
 version = "0.0.0"
 dependencies = [
+ "axum",
+ "rcgen",
+ "rustls",
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-rustls",
  "uniwrt-core",
+ "uniwrt-feeds",
  "uniwrt-jobs",
  "uniwrt-model",
  "uniwrt-node",

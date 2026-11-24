@@ -202,6 +202,7 @@ where
             settings.whole_feeds,
         ));
         self.read_settings = Some(settings);
+        self.config.via.set(settings.enabled);
         self.settings.send_if_modified(|current| {
             let moved = *current != settings;
             *current = settings;

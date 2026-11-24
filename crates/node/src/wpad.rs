@@ -8,10 +8,16 @@
 //! login, offline, from those files, and it puts the old wpad back by itself when neither is
 //! left installed. hostapd's access points and the mesh come back on their own once the service
 //! runs again (checked on 24.10 and 25.12); the script brings Wi-Fi up where they don't.
+//!
+//! The downloads go through the controller's feed mirror ([`Via::wrap_in`], D-147), the shim kept
+//! in [`DIR`], and the swap runs the package manager through that shim: apk installs offline
+//! from the indexes of the repository URLs its fetch used.
 
 use std::collections::BTreeSet;
 
 use uniwrt_model::facts::PackageManager;
+
+use crate::pkg::via::{KEPT, Via};
 
 /// Where the packages, the swap's log and its result go, in RAM.
 pub const DIR: &str = "/tmp/uniwrt-wpad";
@@ -85,46 +91,55 @@ fn argv(words: &[&str]) -> Vec<String> {
 }
 
 /// Downloads the full wpad, a copy of the current one (the swap's way back) and
-/// [`COMMON`] into [`DIR`]; for apk, then checks that the swap resolves offline. Nothing
-/// changes on the node.
-pub fn fetch(swap: &Swap) -> Vec<Vec<String>> {
+/// [`COMMON`] into [`DIR`], through `via`; for apk, then checks that the swap resolves offline.
+/// Nothing changes on the node.
+pub fn fetch(swap: &Swap, via: &Via) -> Vec<Vec<String>> {
     let (to, from) = (swap.to.as_str(), swap.from.as_str());
     let mut commands = vec![argv(&["rm", "-rf", DIR]), argv(&["mkdir", "-p", DIR])];
     match swap.manager {
         PackageManager::Apk => {
             commands.extend([
-                argv(&["apk", "--cache-dir", DIR, "update"]),
-                argv(&[
-                    "apk",
-                    "--cache-dir",
+                via.wrap_in(DIR, argv(&["apk", "--cache-dir", DIR, "update"])),
+                via.wrap_in(
                     DIR,
-                    "fetch",
-                    "-o",
+                    argv(&[
+                        "apk",
+                        "--cache-dir",
+                        DIR,
+                        "fetch",
+                        "-o",
+                        DIR,
+                        "--pkgname-spec",
+                        APK_CACHE_NAME,
+                        to,
+                        from,
+                        COMMON,
+                    ]),
+                ),
+                via.wrap_in(
                     DIR,
-                    "--pkgname-spec",
-                    APK_CACHE_NAME,
-                    to,
-                    from,
-                    COMMON,
-                ]),
-                argv(&[
-                    "apk",
-                    "add",
-                    "--no-network",
-                    "--cache-dir",
-                    DIR,
-                    "--simulate",
-                    to,
-                    &format!("!{from}"),
-                ]),
+                    argv(&[
+                        "apk",
+                        "add",
+                        "--no-network",
+                        "--cache-dir",
+                        DIR,
+                        "--simulate",
+                        to,
+                        &format!("!{from}"),
+                    ]),
+                ),
             ]);
         }
         PackageManager::Opkg => {
             commands.extend([
-                crate::pkg::update(PackageManager::Opkg),
+                via.wrap_in(DIR, crate::pkg::update(PackageManager::Opkg)),
                 // `opkg download` writes to the current directory, under the feed's file
                 // names, which `--cache` looks for.
-                argv(&["sh", "-c", DOWNLOAD, "sh", DIR, to, from, COMMON]),
+                via.wrap_in(
+                    DIR,
+                    argv(&["sh", "-c", DOWNLOAD, "sh", DIR, to, from, COMMON]),
+                ),
             ]);
         }
     }
@@ -151,11 +166,13 @@ fi
 echo started"#;
 
 /// The swap, from the files in the directory and offline: `$1` the package manager, `$2` the
-/// wpad installed, `$3` the full one, `$4` the directory. It writes one word to `state` when it
+/// wpad installed, `$3` the full one, `$4` the directory, `$5` where in it the fetch kept the
+/// mirror's shim ([`KEPT`]), run instead of the package manager where it is there. It writes one word to `state` when it
 /// ends: `swapped`; `unchanged` (the old wpad still runs); `restored` (the old wpad is back
 /// after the new one failed); `broken` (neither is installed).
 const SWAP: &str = r#"trap '' HUP PIPE
-m=$1 from=$2 to=$3 dir=$4
+m=$1 from=$2 to=$3 dir=$4 kept=$5
+[ -d "$dir/$kept/bin" ] && PATH=$dir/$kept/bin:$PATH
 wifi_count() { ubus list 2>/dev/null | grep -cE '^(hostapd|wpa_supplicant)\.'; }
 before=$(wifi_count)
 put() {
@@ -203,6 +220,7 @@ pub fn launch(swap: &Swap) -> Vec<String> {
         &swap.from,
         &swap.to,
         DIR,
+        KEPT,
     ])
 }
 
@@ -292,7 +310,7 @@ mod tests {
             from: "wpad-basic-mbedtls".to_owned(),
             to: "wpad-mbedtls".to_owned(),
         };
-        let apk = fetch(&swap(PackageManager::Apk));
+        let apk = fetch(&swap(PackageManager::Apk), &Via::default());
         assert_eq!(apk[0], ["rm", "-rf", DIR]);
         assert_eq!(
             apk[3][8..],
@@ -311,7 +329,7 @@ mod tests {
                 "!wpad-basic-mbedtls"
             ]
         );
-        let opkg = fetch(&swap(PackageManager::Opkg));
+        let opkg = fetch(&swap(PackageManager::Opkg), &Via::default());
         assert_eq!(opkg[2], ["opkg", "update"]);
         assert_eq!(
             opkg[3][3..],
@@ -326,8 +344,16 @@ mod tests {
         let launch = launch(&swap(PackageManager::Opkg));
         assert_eq!(
             launch[5..],
-            ["opkg", "wpad-basic-mbedtls", "wpad-mbedtls", DIR]
+            ["opkg", "wpad-basic-mbedtls", "wpad-mbedtls", DIR, KEPT]
         );
+        let via = Via::new(8443);
+        via.set(true);
+        for argv in &fetch(&swap(PackageManager::Apk), &via)[2..] {
+            assert_eq!(
+                crate::pkg::via::unwrap(argv).map(|(port, dir, _)| (port, dir)),
+                Some((8443, DIR))
+            );
+        }
     }
 
     /// The scripts are POSIX sh: the local `sh` parses them.

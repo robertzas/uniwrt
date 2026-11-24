@@ -129,6 +129,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
         log_start(&http, &https, &state_dir, &controller_key)?;
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
         let mut fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
+        fleet.fetch_packages_through(args.https_listen.port());
         let jobs = fleet
             .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;

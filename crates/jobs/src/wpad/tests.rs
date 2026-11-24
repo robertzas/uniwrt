@@ -112,7 +112,8 @@ fn play(setup: &Setup, plays: Plays) {
                 "wpad-basic-mbedtls",
                 "wpad-mbedtls",
                 dir,
-            ] if *dir == DIR => {
+                kept,
+            ] if *dir == DIR && *kept == uniwrt_node::pkg::via::KEPT => {
                 state = Some(plays.outcome);
                 if plays.outcome == "swapped" {
                     *node.collected.lock().unwrap() = Some(collected(true));

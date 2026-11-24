@@ -12,7 +12,10 @@ use std::{
 };
 
 use uniwrt_model::facts::{PackageManager, WifiFeature};
-use uniwrt_node::wpad::{self, Outcome, Swap};
+use uniwrt_node::{
+    pkg::via::Via,
+    wpad::{self, Outcome, Swap},
+};
 use uniwrt_system::Node;
 
 /// How long the swap may take, until its Wi-Fi is back.
@@ -117,7 +120,7 @@ fn check(node: &Node, manager: PackageManager, gateway: &str) {
     };
 
     // The full package arrives corrupted: the basic wpad runs when the swap ends.
-    for argv in wpad::fetch(&swap_to_full) {
+    for argv in wpad::fetch(&swap_to_full, &Via::default()) {
         exec(node, &argv);
     }
     online(node, gateway, false);
@@ -136,7 +139,7 @@ fn check(node: &Node, manager: PackageManager, gateway: &str) {
 
     // For real, offline once fetched.
     online(node, gateway, true);
-    for argv in wpad::fetch(&swap_to_full) {
+    for argv in wpad::fetch(&swap_to_full, &Via::default()) {
         exec(node, &argv);
     }
     online(node, gateway, false);

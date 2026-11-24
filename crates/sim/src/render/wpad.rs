@@ -43,7 +43,7 @@ pub(crate) fn exec(argv: &[&str], manager: &str, wpad: &mut &'static str) -> Opt
             ok(Vec::new())
         }
         ["sh", "-c", _, "sh", dir, ..] if *dir == DIR && manager == "opkg" => ok(Vec::new()),
-        ["sh", "-c", _, "sh", _, tool, from, to, dir]
+        ["sh", "-c", _, "sh", _, tool, from, to, dir, ..]
             if *dir == DIR && *tool == manager && from == wpad && *to == FULL =>
         {
             *wpad = FULL;
@@ -67,7 +67,10 @@ pub(crate) fn exec(argv: &[&str], manager: &str, wpad: &mut &'static str) -> Opt
 #[cfg(test)]
 mod tests {
     use uniwrt_model::facts::PackageManager;
-    use uniwrt_node::wpad::{self, Swap};
+    use uniwrt_node::{
+        pkg::via::Via,
+        wpad::{self, Swap},
+    };
 
     use super::{BASIC, FULL, exec};
 
@@ -93,7 +96,7 @@ mod tests {
             let state = vec!["cat".to_owned(), format!("{}/state", wpad::DIR)];
             assert!(!run(&state).status.success());
             // `opkg update` is the feeds' (`super::super::feeds`).
-            for argv in wpad::fetch(&swap)
+            for argv in wpad::fetch(&swap, &Via::default())
                 .iter()
                 .filter(|argv| *argv != &["opkg", "update"])
             {

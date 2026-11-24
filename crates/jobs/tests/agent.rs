@@ -125,6 +125,7 @@ async fn adoption_changes_only_authorized_keys() {
         key: key.clone(),
         dial: Some(Arc::new(SshDial::default())),
         watch: Arc::clone(&watched) as Arc<dyn Watch>,
+        via: uniwrt_node::pkg::via::Via::default(),
     })
     .await
     .unwrap();
