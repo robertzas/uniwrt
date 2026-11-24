@@ -32,6 +32,8 @@ export function formatUnit(unit: Unit): (value: number) => string {
       return (v) => `${integer.format(v)} dB`;
     case "count":
       return (v) => decimal.format(v);
+    case "milliseconds":
+      return (v) => `${v < 10 ? decimal.format(v) : integer.format(v)} ms`;
     case "score":
     case "tq":
       return (v) => integer.format(v);
@@ -65,6 +67,10 @@ export const METRIC_UNITS: Record<Metric, Unit> = {
   score: "score",
   quality: "score",
   tq: "tq",
+  rtt: "milliseconds",
+  rtt_min: "milliseconds",
+  rtt_max: "milliseconds",
+  loss: "percent",
 };
 
 /** A metric's value with its unit: `92 %`, `−71 dBm`, `48 Mbit/s`. */

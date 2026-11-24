@@ -264,6 +264,11 @@ pub(crate) fn exec(node: &Node, request: &ExecRequest, disk: &mut Disk, now_ms: 
         };
     }
     if node.gateway
+        && let Some(output) = wan_probe(node, &argv, &disk.tool.files, now_ms)
+    {
+        return output;
+    }
+    if node.gateway
         && let Some(output) = wan_check(node, &argv, &disk.tool.files)
     {
         return output;
@@ -358,6 +363,29 @@ fn software(node: &Node, argv: &[&str], disk: &mut Disk) -> Option<ExecOutput> {
 
 /// The WAN test's commands on the gateway (`ping`, `nslookup` through a resolver, `wget`): they
 /// answer once the ISP gave the WAN what they need.
+/// The WAN quality monitor's round and traceroute (D-144).
+fn wan_probe(
+    node: &Node,
+    argv: &[&str],
+    files: &std::collections::BTreeMap<String, String>,
+    now_ms: i64,
+) -> Option<ExecOutput> {
+    let up = || {
+        crate::isp::uplink(
+            files.get("network").map(String::as_str),
+            node.model.wan_port,
+        )
+        .ipv4()
+    };
+    match argv {
+        ["ucode", "/tmp/uniwrt/agent/probe.uc", spec] => {
+            Some(super::probe::round(spec, up(), now_ms))
+        }
+        ["traceroute", .., "--", host] => Some(super::probe::traceroute(host, up())),
+        _ => None,
+    }
+}
+
 fn wan_check(
     node: &Node,
     argv: &[&str],

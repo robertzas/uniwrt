@@ -60,7 +60,14 @@ export const KIND_GROUPS: readonly { group: keyof typeof t.kindGroups; kinds: Ki
   },
   {
     group: "internet",
-    kinds: ["wan_down", "wan_up", "wan_address_changed", "sqm_rates_drifted"],
+    kinds: [
+      "wan_down",
+      "wan_up",
+      "wan_outage",
+      "wan_restored",
+      "wan_address_changed",
+      "sqm_rates_drifted",
+    ],
   },
   {
     group: "mesh",

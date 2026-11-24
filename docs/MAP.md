@@ -121,6 +121,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/vpn/tailscale_tests.rs`: Tailscale's endpoints: the status against the gateway's facts ([`report`]), and over the demo, the login's refusals (the site's Tailscale off, an observed gateway) and a user who isn't an admin.
 - `src/vpn/tests.rs`: The VPN over the demo: a save makes the keys the server and its peers lack, public keys follow private keys, a peer may bring its own, a peer's configuration is revealed (audited), and an import without the keys makes new ones.
 - `src/wan.rs`: The WAN wizard's API (features/wan.md; D-075):
+- `src/wan_monitor.rs`: The WAN quality monitor's routes (features/observability.md, Troubleshooting assistants; D-144): `GET v1/wan/monitor` is its settings, the latest round of probes and what it said of the internet ([`WanMonitorView`]), for any signed-in user; an admin's `PUT v1/wan/monitor` saves the settings ([`WanMonitorSettings`], checked; audited) and runs a round at once.
+- `src/wan_monitor_tests.rs`: The WAN quality monitor's routes over the demo: the simulated gateway's rounds and their health, saving targets (checked, admins only, audited), and turning the monitor off.
 - `src/wan_tests.rs`: The WAN wizard's routes against the simulated fleet, whose ISP serves DHCP on VLAN 201.
 - `src/wpad.rs`: The wpad swap, with an admin's session (D-085, D-089): `POST /api/v1/nodes/{id}/wpad` starts the job that swaps a managed node's basic wpad for the full one, which adds 802.11v.
 - `src/ws/conn.rs`: One WebSocket connection: its subscriptions fed by the engine's bus and the jobs' updates and flushed every [`FLUSH_EVERY`], kept alive with pings, and closed when its session ends, the peer goes silent, a send stalls or the controller stops.
@@ -264,6 +266,9 @@ The engine: an actor per node over its `NodeLink`, the live state of the fleet, 
 - `src/topology.rs`: The fleet's topology (`uniwrt_topo`): rebuilt from the live state a moment after a node's facts or status change (the changes of that moment share one build), kept for readers, and announced as [`Event::Topology`] when it changed; each build updates the clients' book ([`Event::Clients`]).
 - `src/topology_tests.rs`: The topology of the hwsim lab's captures (TESTING.md, Wi-Fi lab): node a (the gateway, 25.12) and node b (an access point, 24.10) meshed over 802.11s and a wired backhaul (`bh0`) with batman-adv over both; client c on a's 2g AP (`…:04:00`) and b's 5g AP (`…:05:00`).
 - `src/wake.rs`: Wake-on-LAN from the gateway (features/network.md, Other services; D-137): the magic packet goes out on the gateway's devices that reach the client ([`uniwrt_node::wol::devices`]) through `etherwake`.
+- `src/wan_monitor/mod.rs`: The WAN quality monitor (features/observability.md, Troubleshooting assistants; D-144): every `every` (30 s), the gateway runs a round of probes (`uniwrt_node::probe`) over its link's exec, not its agent, so a slow round holds nothing up.
+- `src/wan_monitor/task.rs`: The WAN monitor's task: a round, its samples, and the outage it may start or end.
+- `src/wan_monitor/tests.rs`: The WAN monitor over a store and an engine watching a scripted gateway whose probe script answers what the test says: a round's samples are stored and kept, an outage is raised once with where it lies and the traceroute's last hop, and cleared with how long it lasted; a disabled monitor probes nothing, and an offline gateway concludes nothing.
 - `src/wlans/mod.rs`: WLAN schedules (features/wifi.md, WLANs; D-083): the controller turns a WLAN's BSSes off outside its schedule and on again, through each node's agent (the `bss` op: hostapd takes netifd's config less the BSSes that are off, so no configuration changes and nothing runs on the nodes on its own).
 - `src/wlans/plan.rs`: Which of a node's BSSes the WLANs' schedules want on now: pure, over the saved site and the node's facts, so a schedule needs no apply (it changes no configuration on the node).
 - `src/wlans/task.rs`: The schedules' task: when to compare, what to send, and what to announce.
@@ -595,6 +600,8 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/speed.rs`: Speed tests from the gateway (features/wan.md, SQM; D-076): the line's rates and its latency idle and under load, graded for bufferbloat, and what they suggest for SQM.
 - `src/status.rs`: A node's status as the engine derives it from its connection and its telemetry: online, degraded or offline, with the reasons.
 - `src/user.rs`: Controller users and what the audit log records about them (features/security.md, Controller authentication & sessions).
+- `src/wan_monitor.rs`: The WAN quality monitor (features/observability.md, Troubleshooting assistants; D-144): what the gateway probes every [`INTERVAL`] ([`WanMonitorSettings`], kept in the controller's settings), what a round of probes found ([`ProbeRound`]), and what that says of the internet connection ([`assess`]).
+- `src/wan_monitor_tests.rs`: (no header comment)
 - `src/wifi.rs`: Wi-Fi vocabulary: bands, channel widths and 802.11 standards, named as OpenWrt names them.
 - `src/ztp.rs`: Zero-touch provisioning (features/adoption.md, Path B; D-022, D-102): what a device flashed with a ZTP image tells the controller when it calls home ([`ZtpHello`]), the pending adoption inbox it lands in ([`PendingDevice`]; the gateway's adoption port puts the factory-default devices it finds there too, Path C, D-106), and the owner's pre-approvals by MAC ([`ZtpApproval`]) or by a one-liner's single-use token ([`ZtpOneLiner`], Path D).
 
@@ -663,6 +670,7 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/pkg.rs`: The package managers (D-100): opkg on OpenWrt 24.10 and before, apk from 25.12.
 - `src/pkg/catalog.rs`: What a node's feeds offer, read once its index is refreshed ([`super::update`]): apk's `query` over the available packages, or opkg's lists (`/var/opkg-lists/*`, gzipped) through `grep`; and the installed packages with a newer version.
 - `src/pkg/dry_run.rs`: A change tried first ([`simulate`]: `apk … -s`, `opkg … --noaction`), and what the managers say it would do ([`DryRun`]): what comes, what goes (with the dependencies only it needed), and what a removal leaves because others need it (apk updates its world and keeps them; opkg refuses).
+- `src/probe.rs`: The WAN quality monitor's probes (D-144): a round is `probe.uc` from the agent's bundle, run on the gateway over exec ([`round`]), so a slow round holds up no agent request; it answers one JSON object, read back as a [`ProbeRound`] ([`parse_round`]).
 - `src/proto.rs`: The agent protocol's envelope (ARCHITECTURE.md, Node protocol): one JSON object per line in each direction.
 - `src/proto/ops.rs`: The agent's operations: their names, arguments and results, mirrored by `node-agent/ops.uc`.
 - `src/proto/ops/btm.rs`: `btm`: a BSS transition request to one client, mirrored by `node-agent/btm.uc` (features/wifi.md, Steering & balancing: controller-sent transition requests; D-093).
@@ -888,6 +896,7 @@ The simulated fleet: a gateway, mesh access points and their clients, each node 
 - `src/render/net.rs`: The `interfaces` set: netifd's `network.interface dump`.
 - `src/render/packages.rs`: The package manager UI's commands as a simulated node answers them (D-139): what its feeds offer beyond [`super::feeds`] ([`EXTRA`]), the newer versions of image packages ([`NEWER`]), `/rom`'s packages (the image's), dry runs, removals (with the dependencies only they needed) and upgrades, for apk and opkg alike.
 - `src/render/packages_tests.rs`: The package manager UI's commands on a simulated node, for apk and opkg.
+- `src/render/probe.rs`: The WAN quality monitor's round and traceroute on the simulated gateway (D-144): answers `probe.uc` as the real script prints, with latencies that wander from round to round (a hash of the round's 30-second slot and each target), and nothing beyond the gateway while its WAN is down.
 - `src/render/queries.rs`: What the gateway's disk says of its dnsmasq query log (D-133): on while the main instance's section of `dhcp` sets `logqueries` and dnsmasq runs; the names it blocks are a sample of the blocklist the controller pushed to `/tmp` since the boot; the clients bypassing the filter are those of the firewall's redirects to the unfiltered instance.
 - `src/render/scan.rs`: The `scan` op's answer in the agent's raw shape (`node-agent/scan.uc`): the networks next door (a fixed set outside the house), the other nodes' access points and mesh points (an unadopted one too), each at the signal the path between them leaves, with their information elements; and the channel survey of the band, busier where networks crowd.
 - `src/render/services.rs`: The `services` set as the sim's gateway reports it (D-132): each enabled DDNS section of its `ddns` file registered with the ISP's lease (IPv4 only; the sim's WAN has no IPv6 address), updated a minute after boot, its updater running while the `ddns` service is on; and one https-dns-proxy instance per section of its package while that service is on; and the DNS blocklist's files the controller uploaded to its `/tmp` since it booted (D-133); and the WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140), and Tailscale where its `firewall` file has the zone ([`super::tailscale`]).
@@ -1096,6 +1105,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 - `main.uc`: The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one JSON object per line (proto.uc), until stdin closes.
 - `mtu.uc`: The `mtu` op (features/mesh.md, Wired backhaul; D-094): whether a cable carries packets of `size` bytes, batman-adv's 1532 on a backhaul's VLAN device (`<port>.<vid>`).
 - `ops.uc`: The agent's operations (`proto::ops`).
+- `probe.uc`: The WAN quality monitor's round (D-144), run on the gateway over exec rather than by the agent, which a slow round must not hold up: `ucode /tmp/uniwrt/agent/probe.uc <spec>`, the spec one JSON argument:   {"count":10,"icmp":[{"key":"first-hop","host":null},{"key":"cloudflare","host":"1.1.1.1"}],    "dns":[{"key":"resolver","server":null,"name":"openwrt.org"},           {"key":"isp-dns","server":"upstreams","name":"openwrt.org"}],    "http":[{"key":"web","url":"http://connectivitycheck.gstatic.com/generate_204"}]} A null ICMP host is the default route's gateway (the ISP's first hop); a null DNS server is the gateway's own resolver, and "upstreams" each server the WAN learned, a result each keyed `<key>@<address>`.
 - `proto.uc`: The agent protocol, mirrored from crates/node/src/proto.rs and proto/ops.rs: one JSON object per line in each direction.
 - `rrm.uc`: The `rrm` op (features/wifi.md, Roaming): 802.11k neighbor reports.
 - `scan.uc`: The `scan` op's worker, run by ops.uc as a process of its own (`ucode scan.uc '<args>'`) so that its nl80211 socket is its own: a forked task would share the agent's, and the agent's ticks could read the scan's replies.
@@ -1110,7 +1120,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (540 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (549 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

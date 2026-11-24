@@ -181,7 +181,8 @@ impl EventCondition {
 
 /// Series a metric rule watches, by entity: each part is a value, or `*` for any. Its text form
 /// follows [`Entity`]'s: `site`, `node:<id|*>`, `node:<id|*>/dev:<name|*>`,
-/// `node:<id|*>/radio:<name|*>`, `link:<id|*>`, `client:<mac|*>`.
+/// `node:<id|*>/radio:<name|*>`, `link:<id|*>`, `client:<mac|*>`, `probe:<key|*>` (the WAN
+/// quality monitor's series, D-144).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EntityPattern {
     Site,
@@ -196,6 +197,7 @@ pub enum EntityPattern {
     },
     Link(Option<String>),
     Client(Option<MacAddr>),
+    Probe(Option<String>),
 }
 
 impl EntityPattern {
@@ -219,7 +221,9 @@ impl EntityPattern {
                     name: hname,
                 },
             ) => node(*n, *hn) && any(name.as_deref(), hname),
-            (Self::Link(want), Entity::Link(have)) => any(want.as_deref(), have),
+            (Self::Link(want), Entity::Link(have)) | (Self::Probe(want), Entity::Probe(have)) => {
+                any(want.as_deref(), have)
+            }
             (Self::Client(want), Entity::Client(have)) => want.is_none_or(|want| want == *have),
             _ => false,
         }
@@ -241,6 +245,7 @@ impl EntityPattern {
                 metric,
                 M::Signal | M::Snr | M::TxRate | M::RxRate | M::DownBps | M::UpBps | M::Score
             ),
+            Self::Probe(_) => matches!(metric, M::Rtt | M::RttMin | M::RttMax | M::Loss),
         }
     }
 }
@@ -271,6 +276,7 @@ impl fmt::Display for EntityPattern {
             }
             Self::Link(id) => write!(f, "link:{}", part(id.as_ref())),
             Self::Client(mac) => write!(f, "client:{}", part(mac.as_ref())),
+            Self::Probe(key) => write!(f, "probe:{}", part(key.as_ref())),
         }
     }
 }
@@ -298,6 +304,15 @@ impl FromStr for EntityPattern {
                 None => Ok(Self::Link(None)),
                 Some(_) => match entity(text)? {
                     Entity::Link(id) => Ok(Self::Link(Some(id))),
+                    _ => Err(fail()),
+                },
+            };
+        }
+        if let Some(key) = text.strip_prefix("probe:") {
+            return match star(key) {
+                None => Ok(Self::Probe(None)),
+                Some(_) => match entity(text)? {
+                    Entity::Probe(key) => Ok(Self::Probe(Some(key))),
                     _ => Err(fail()),
                 },
             };
@@ -405,6 +420,8 @@ mod tests {
             "link:node:1~node:2~wifi~5g",
             "client:*",
             "client:f0:18:98:00:00:01",
+            "probe:*",
+            "probe:isp-dns@10.0.0.53",
         ] {
             let pattern: EntityPattern = text.parse().unwrap();
             assert_eq!(pattern.to_string(), text);
@@ -429,6 +446,14 @@ mod tests {
         assert!(!matches("node:*/radio:radio0"));
         assert!(!matches("node:*"));
         assert!(!matches("node:*/dev:*"));
+        let probe = Entity::Probe("cloudflare".to_owned());
+        let pattern = |text: &str| text.parse::<EntityPattern>().unwrap();
+        assert!(pattern("probe:*").matches(&probe));
+        assert!(pattern("probe:cloudflare").matches(&probe));
+        assert!(!pattern("probe:google").matches(&probe));
+        assert!(pattern("probe:*").measures(Metric::Loss));
+        assert!(!pattern("probe:*").measures(Metric::Cpu));
+        assert!("probe:".parse::<EntityPattern>().is_err());
     }
 
     fn spec(when: RuleCondition) -> RuleSpec {

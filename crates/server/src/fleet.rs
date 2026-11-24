@@ -20,7 +20,8 @@ use uniwrt_engine::{
     EngineConfig, EventRecorder, EventsConfig, HistoryConfig, LedSchedule, LedScheduleConfig,
     LogRecorder, LogsConfig, MetricsConfig, MetricsRecorder, NeighborReports, NeighborsConfig,
     Notifications, Notify, NotifyConfig, RecorderConfig, Rf, RfConfig, RfScanner, SchedulesConfig,
-    Snapshots, SteeringConfig, TailscaleConfig, TailscaleSync, TopologyHistory, WlanSchedules,
+    Snapshots, SteeringConfig, TailscaleConfig, TailscaleSync, TopologyHistory, WanMonitor,
+    WanMonitorConfig, WanMonitorHandle, WlanSchedules,
 };
 use uniwrt_jobs::{BoxFuture, Dial, Jobs, JobsConfig, SshDial, Watch};
 use uniwrt_model::{
@@ -60,6 +61,7 @@ pub(crate) struct Fleet {
     schedules: Option<WlanSchedules>,
     /// The LEDs schedule (D-138).
     leds: Option<LedSchedule>,
+    wan_monitor: Option<WanMonitor>,
     tailscale: Option<TailscaleSync>,
     bans: Option<ClientBans>,
     /// DNS filtering's lists and the gateway's copy (D-133).
@@ -121,6 +123,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             leds: None,
+            wan_monitor: None,
             tailscale: None,
             bans: None,
             blocklist: None,
@@ -204,6 +207,7 @@ impl Fleet {
             drift: None,
             schedules: None,
             leds: None,
+            wan_monitor: None,
             tailscale: None,
             bans: None,
             blocklist: None,
@@ -260,6 +264,9 @@ impl Fleet {
         }
         if let Some(leds) = self.leds {
             leds.stop().await;
+        }
+        if let Some(monitor) = self.wan_monitor {
+            monitor.stop().await;
         }
         if let Some(tailscale) = self.tailscale {
             tailscale.stop().await;
@@ -433,6 +440,17 @@ impl Fleet {
     /// DNS filtering's handle, once [`Fleet::filter_dns`] started it.
     pub(crate) fn blocklist(&self) -> Option<Blocklist> {
         self.blocklist.as_ref().map(BlocklistSync::handle)
+    }
+
+    /// Starts the WAN quality monitor (D-144).
+    pub(crate) fn monitor_wan(&mut self, store: &Store) {
+        let config = WanMonitorConfig::default();
+        self.wan_monitor = Some(WanMonitor::start(&self.engine, store.clone(), config));
+    }
+
+    /// The WAN quality monitor's handle, once [`Fleet::monitor_wan`] started it.
+    pub(crate) fn wan_monitor(&self) -> Option<WanMonitorHandle> {
+        self.wan_monitor.as_ref().map(WanMonitor::handle)
     }
 
     /// The client bans' handle, once [`Fleet::record_events`] started them.

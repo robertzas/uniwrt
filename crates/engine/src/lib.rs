@@ -42,6 +42,9 @@
 //!   handle on it (state, acknowledge, mute); [`WlanSchedules`] ([`SchedulesConfig`]) keeps
 //!   the WLANs to their schedules (the saved site's), turning managed nodes' BSSes off and on
 //!   through the agent's `bss` op, and announces the turns and refusals as events (D-083);
+//!   [`WanMonitor`] ([`WanMonitorConfig`]) probes the internet from the gateway every 30 s
+//!   (`uniwrt_node::probe`), stores each target's round as `probe:<key>` metrics and raises
+//!   `wan_outage` and `wan_restored`; [`WanMonitorHandle`] is the API's handle on it (D-144);
 //!   [`LedSchedule`] ([`LedScheduleConfig`]) keeps the managed nodes' LEDs dark while the
 //!   site's LEDs schedule is on, through the agent's `leds` op (D-138);
 //! - [`TailscaleSync`] ([`TailscaleConfig`]) keeps the gateway's Tailscale daemon to the site
@@ -129,6 +132,7 @@ mod tailscale;
 mod testing;
 mod topology;
 mod wake;
+mod wan_monitor;
 mod wlans;
 
 pub use alerts::{AlertEngine, Alerts, AlertsConfig, AlertsError};
@@ -160,4 +164,7 @@ pub use steering::{ClientSteering, SteeringConfig};
 pub use tailscale::{TAILSCALE_TIMEOUT, TailscaleConfig, TailscaleSync, step as tailscale_step};
 pub use topology::Identity;
 pub use wake::{WakeError, Woken, wake};
+pub use wan_monitor::{
+    OUTAGE_CONDITION, WanMonitor, WanMonitorConfig, WanMonitorHandle, WanMonitorState,
+};
 pub use wlans::{SchedulesConfig, WlanSchedules};

@@ -27,6 +27,8 @@ pub enum Entity {
     /// A link of the topology (a mesh link), by its edge id.
     Link(String),
     Client(MacAddr),
+    /// A target of the WAN quality monitor, by its series key (`uniwrt_model::wan_monitor`).
+    Probe(String),
 }
 
 impl Entity {
@@ -34,7 +36,7 @@ impl Entity {
     pub fn node(&self) -> Option<NodeId> {
         match self {
             Self::Node(node) | Self::Device { node, .. } | Self::Radio { node, .. } => Some(*node),
-            Self::Site | Self::Link(_) | Self::Client(_) => None,
+            Self::Site | Self::Link(_) | Self::Client(_) | Self::Probe(_) => None,
         }
     }
 }
@@ -48,6 +50,7 @@ impl fmt::Display for Entity {
             Self::Radio { node, name } => write!(f, "node:{node}/radio:{name}"),
             Self::Link(id) => write!(f, "link:{id}"),
             Self::Client(mac) => write!(f, "client:{mac}"),
+            Self::Probe(key) => write!(f, "probe:{key}"),
         }
     }
 }
@@ -78,6 +81,9 @@ impl FromStr for Entity {
             return (!id.is_empty() && id.len() <= 256 && !id.contains(char::is_control))
                 .then(|| Self::Link(id.to_owned()))
                 .ok_or_else(fail);
+        }
+        if let Some(key) = text.strip_prefix("probe:") {
+            return name(key).map(Self::Probe);
         }
         if let Some(mac) = text.strip_prefix("client:") {
             return mac.parse().map(Self::Client).map_err(|_| fail());
@@ -187,6 +193,14 @@ pub enum Metric {
     Clients,
     /// Adopted nodes online.
     NodesOnline,
+    /// A WAN probe's median answer time.
+    Rtt,
+    /// A WAN probe's fastest answer.
+    RttMin,
+    /// A WAN probe's slowest answer.
+    RttMax,
+    /// The share of a WAN probe's probes lost.
+    Loss,
 }
 
 /// The unit of a metric's values.
@@ -203,6 +217,7 @@ pub enum Unit {
     Dbm,
     Db,
     Count,
+    Milliseconds,
     /// 0–100, higher is better.
     Score,
     /// batman-adv's 0–255.
@@ -210,7 +225,7 @@ pub enum Unit {
 }
 
 impl Metric {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 25] = [
         Self::Cpu,
         Self::Memory,
         Self::Load,
@@ -232,6 +247,10 @@ impl Metric {
         Self::Tq,
         Self::Clients,
         Self::NodesOnline,
+        Self::Rtt,
+        Self::RttMin,
+        Self::RttMax,
+        Self::Loss,
     ];
 
     /// Its serde name (`rx_bps`), as the store keeps it.
@@ -258,12 +277,17 @@ impl Metric {
             Self::Tq => "tq",
             Self::Clients => "clients",
             Self::NodesOnline => "nodes_online",
+            Self::Rtt => "rtt",
+            Self::RttMin => "rtt_min",
+            Self::RttMax => "rtt_max",
+            Self::Loss => "loss",
         }
     }
 
     pub const fn unit(self) -> Unit {
         match self {
-            Self::Cpu | Self::Memory | Self::Busy => Unit::Percent,
+            Self::Cpu | Self::Memory | Self::Busy | Self::Loss => Unit::Percent,
+            Self::Rtt | Self::RttMin | Self::RttMax => Unit::Milliseconds,
             Self::Load => Unit::Load,
             Self::Temperature => Unit::Celsius,
             Self::RxBps | Self::TxBps | Self::DownBps | Self::UpBps => Unit::BitsPerSecond,

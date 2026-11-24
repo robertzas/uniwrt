@@ -19,6 +19,7 @@ use crate::{
     log::Severity,
     rf::{BandGain, NightlySkip},
     status::StatusReason,
+    wan_monitor::WanFault,
     wifi::{Band, ChannelWidth},
 };
 
@@ -218,6 +219,17 @@ pub enum EventKind {
         device: String,
         down_ms: Option<u64>,
     },
+    /// The WAN quality monitor lost every internet target (D-144): `fault` places it, and
+    /// `last_hop` is the furthest hop a traceroute reached, when one ran.
+    WanOutage {
+        fault: WanFault,
+        last_hop: Option<String>,
+    },
+    /// The internet answers the WAN quality monitor again, after `down_ms`.
+    WanRestored {
+        fault: WanFault,
+        down_ms: Option<u64>,
+    },
     /// A WAN interface's addresses or delegated prefixes changed.
     WanAddressChanged {
         interface: String,
@@ -405,7 +417,8 @@ impl EventKind {
             Self::MeshLinkDown { .. } => (C::Mesh, L::Critical),
             Self::MeshLinkWeak { .. } => (C::Mesh, L::Warning),
             Self::MeshLinkUp { .. } | Self::MeshLinkRecovered { .. } => (C::Mesh, L::Notice),
-            Self::WanDown { .. } => (C::Wan, L::Critical),
+            Self::WanDown { .. } | Self::WanOutage { .. } => (C::Wan, L::Critical),
+            Self::WanRestored { .. } => (C::Wan, L::Notice),
             Self::WanUp { .. } | Self::WanAddressChanged { .. } | Self::SqmRatesDrifted { .. } => {
                 (C::Wan, L::Notice)
             }
@@ -462,6 +475,8 @@ impl EventKind {
             Self::MeshLinkRecovered { .. } => "mesh_link_recovered",
             Self::WanDown { .. } => "wan_down",
             Self::WanUp { .. } => "wan_up",
+            Self::WanOutage { .. } => "wan_outage",
+            Self::WanRestored { .. } => "wan_restored",
             Self::WanAddressChanged { .. } => "wan_address_changed",
             Self::ClientJoined { .. } => "client_joined",
             Self::ClientLeft { .. } => "client_left",

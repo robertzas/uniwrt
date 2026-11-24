@@ -41,7 +41,8 @@
 //!   [`packages`] is the per-node package manager: installed packages with their locks, the
 //!   feeds' catalog and the changes asked for (D-139); [`diag`] is the diagnostics toolkit's
 //!   tools and runs ([`diag::DiagTool`], [`diag::DiagRun`]; D-141); [`explorer`] is the UCI
-//!   explorer's live read of a node ([`explorer::NodeUci`]; D-143).
+//!   explorer's live read of a node ([`explorer::NodeUci`]; D-143); [`wan_monitor`] is the WAN
+//!   quality monitor's targets, rounds and outage placement (D-144).
 //! - **Wire format:** serde with Rust field names (`snake_case`), units in field names (`_dbm`,
 //!   `_mhz`, `_kbps`, `_bytes`, `_s`, `_ms`), `null` for unknown values rather than omitted fields.
 //!   The same JSON is stored in SQLite and sent to the UI.
@@ -85,5 +86,6 @@ pub mod site;
 pub mod speed;
 pub mod status;
 pub mod user;
+pub mod wan_monitor;
 pub mod wifi;
 pub mod ztp;

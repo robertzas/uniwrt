@@ -205,6 +205,15 @@ export function describeEvent(event: EventRecord, names: Names): Described {
       const down = duration(what.down_ms);
       return withDetail(titles.wanUp(node, what.device), down && d.downFor(down));
     }
+    case "wan_outage":
+      return withDetail(
+        titles.wanOutage(d.wanFault[what.fault]),
+        what.last_hop && d.lastHop(what.last_hop),
+      );
+    case "wan_restored": {
+      const down = duration(what.down_ms);
+      return withDetail(titles.wanRestored, down && d.downFor(down));
+    }
     case "wan_address_changed":
       return withDetail(
         titles.wanAddress(node, what.interface),

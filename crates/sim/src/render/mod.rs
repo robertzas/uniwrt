@@ -14,6 +14,7 @@ mod net;
 mod packages;
 #[cfg(test)]
 mod packages_tests;
+pub(crate) mod probe;
 mod queries;
 pub(crate) mod scan;
 mod services;

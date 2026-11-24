@@ -19,7 +19,8 @@
 //!   [`Footprint`](txn::Footprint) that management installs, and [`txn::current`], the reads of
 //!   a node's packages and services); [`archive`] (the `sysupgrade -b` tarball read and written
 //!   in memory, and its content digest, D-126); [`pkg`] (opkg's and apk's commands and the installed
-//!   packages' parser, D-100); [`wpad`] (the commands that swap a node's basic wpad for
+//!   packages' parser, D-100); [`probe`] (the WAN quality monitor's round, `probe.uc` over exec,
+//!   and its traceroute; D-144); [`wpad`] (the commands that swap a node's basic wpad for
 //!   the full one, D-089); [`wol`] (Wake-on-LAN from the gateway: `etherwake` and the devices
 //!   to send on, D-137); [`decommission`] (the detached wipe that takes a node out of the
 //!   site: the mesh left, the footprint and the controller's key removed, `firstboot`
@@ -67,6 +68,7 @@ mod key;
 mod lines;
 mod link;
 pub mod pkg;
+pub mod probe;
 pub mod proto;
 pub mod root_password;
 pub mod shell;

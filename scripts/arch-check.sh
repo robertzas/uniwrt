@@ -166,7 +166,11 @@ while read -r count name; do
   ((count > 1)) && fail "two Rust types export the TypeScript type $name: give one a ts(rename = \"…\")"
 done < <(find crates -name '*.rs' -not -path '*/target/*' -print0 | xargs -0 awk '
   FNR == 1 { pending = 0 }
-  /derive\(.*ts_rs::TS/ { pending = 1; rename = ""; next }
+  /derive\(.*(ts_rs::TS|[(, ]TS[,)])/ {
+    pending = 1; rename = ""
+    if (match($0, /ts\(rename = "[A-Za-z0-9_]+"/)) rename = substr($0, RSTART + 13, RLENGTH - 14)
+    next
+  }
   pending && match($0, /ts\(rename = "[A-Za-z0-9_]+"/) {
     rename = substr($0, RSTART + 13, RLENGTH - 14)
   }

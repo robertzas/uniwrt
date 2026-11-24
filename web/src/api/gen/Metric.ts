@@ -3,4 +3,4 @@
 /**
  * What a series measures of its entity; the unit is in [`Metric::unit`].
  */
-export type Metric = "cpu" | "memory" | "load" | "temperature" | "rx_bps" | "tx_bps" | "busy" | "noise" | "stations" | "signal" | "snr" | "tx_rate" | "rx_rate" | "down_bps" | "up_bps" | "score" | "quality" | "capacity" | "tq" | "clients" | "nodes_online";
+export type Metric = "cpu" | "memory" | "load" | "temperature" | "rx_bps" | "tx_bps" | "busy" | "noise" | "stations" | "signal" | "snr" | "tx_rate" | "rx_rate" | "down_bps" | "up_bps" | "score" | "quality" | "capacity" | "tq" | "clients" | "nodes_online" | "rtt" | "rtt_min" | "rtt_max" | "loss";

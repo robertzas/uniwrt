@@ -133,6 +133,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
             .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;
         fleet.record_events(&store, &vault, &jobs, &state_dir).await;
+        fleet.monitor_wan(&store);
         let port_watch =
             crate::adoption_port::PortWatch::start(store.clone(), jobs.clone(), &fleet.engine);
         let autotune = crate::autotune::Autotune::start(
@@ -351,6 +352,7 @@ async fn start_api(
         drift: fleet.drift(),
         bans: fleet.bans(),
         blocklist: fleet.blocklist(),
+        wan_monitor: fleet.wan_monitor(),
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
         asu: asu(&args.asu_url)?,

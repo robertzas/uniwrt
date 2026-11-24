@@ -8,6 +8,7 @@ use tokio::sync::watch;
 use uniwrt_core::{Clock, NodeId, Timestamp};
 use uniwrt_engine::{
     Alerts, Bans, Blocklist, DiagConfig, Diagnostics, Drifts, Fleet, Notify, Rf, Starter,
+    WanMonitorHandle,
 };
 use uniwrt_firmware::{Asu, GitHub, ImageCache, Uploads};
 use uniwrt_jobs::{Jobs, RolloutTiming, Rollouts};
@@ -42,6 +43,8 @@ pub struct ApiConfig {
     /// DNS filtering's lists, when they are kept; without them, `v1/services/blocklists`
     /// answers 503.
     pub blocklist: Option<Blocklist>,
+    /// The WAN quality monitor, when it runs; without it, `v1/wan/monitor` answers 503.
+    pub wan_monitor: Option<WanMonitorHandle>,
     /// ASU, which builds zero-touch images; without it, the catalog and builds answer 503.
     pub asu: Option<Asu>,
     /// The uploaded firmware images; without them, uploads answer 503.
@@ -89,6 +92,7 @@ impl ApiConfig {
             drift: None,
             bans: None,
             blocklist: None,
+            wan_monitor: None,
             asu: None,
             uploads: None,
             github: None,
@@ -134,6 +138,7 @@ struct Inner {
     drift: Option<Drifts>,
     bans: Option<Bans>,
     blocklist: Option<Blocklist>,
+    wan_monitor: Option<WanMonitorHandle>,
     /// The diagnostics toolkit's runs (D-141).
     diag: Diagnostics,
     /// The open terminals (D-141).
@@ -203,6 +208,7 @@ impl Api {
                 drift: config.drift,
                 bans: config.bans,
                 blocklist: config.blocklist,
+                wan_monitor: config.wan_monitor,
                 diag,
                 terminals: crate::terminal::Terminals::default(),
                 asu: config.asu,
@@ -406,6 +412,13 @@ impl Api {
             .blocklist
             .as_ref()
             .ok_or_else(|| ApiError::Unavailable("DNS filtering is not running".to_owned()))
+    }
+
+    pub(crate) fn wan_monitor(&self) -> Result<&WanMonitorHandle, ApiError> {
+        self.inner
+            .wan_monitor
+            .as_ref()
+            .ok_or_else(|| ApiError::Unavailable("The WAN monitor is not running".to_owned()))
     }
 
     /// Drift detection's handle, when it runs (the WS hub's `config` topic).

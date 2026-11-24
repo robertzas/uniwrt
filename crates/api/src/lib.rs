@@ -30,6 +30,7 @@
 //!   v1/services/blocklists` ([`BlocklistsView`]), admins: `POST …/refresh`; see `blocklists`),
 //!   DNS query statistics (`GET v1/services/dns/stats` ([`DnsStats`]), `GET
 //!   v1/services/dns/queries` ([`DnsQueryPage`]); see `dns_stats`),
+//!   the WAN quality monitor (`GET v1/wan/monitor` ([`WanMonitorView`]), admins: `PUT`; D-144),
 //!   the WAN wizard (`GET v1/isp/presets`, admins: `POST v1/wan/test`
 //!   ([`WanTestBody`], a job); see `wan`), speed tests (`GET v1/wan/speed-tests`, admins:
 //!   `POST v1/wan/speed-test` ([`SpeedTestBody`], a job); see `speed`), `POST v1/adopt/probe`, `POST v1/adopt`,
@@ -187,6 +188,7 @@ mod topology;
 mod uci;
 mod vpn;
 mod wan;
+mod wan_monitor;
 #[cfg(test)]
 mod wan_tests;
 mod wpad;
@@ -254,6 +256,7 @@ pub use vpn::{
     PeerConfig as VpnPeerConfig, TailscaleLogin, TailscaleStatus, VpnPeerStatus, VpnStatus,
 };
 pub use wan::WanTestBody;
+pub use wan_monitor::WanMonitorView;
 pub use ws::{ClientMessage, FactsPatch, ServerMessage, TimedEvent, TimedRoam};
 pub use ztp::{
     HelloAnswer, ZtpAdoptBody, ZtpApprovalBody,
@@ -405,6 +408,10 @@ fn config_routes() -> Router<Api> {
         .route("/v1/ipam/network", get(ipam::network))
         .route("/v1/ipam/reservation", get(ipam::reservation))
         .route("/v1/wan/test", post(wan::test))
+        .route(
+            "/v1/wan/monitor",
+            get(wan_monitor::get).put(wan_monitor::put),
+        )
         .route("/v1/wan/speed-test", post(speed::start))
         .route("/v1/wan/speed-tests", get(speed::list))
         .route("/v1/site/secrets/reveal", post(site::reveal))

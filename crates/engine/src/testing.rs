@@ -178,6 +178,14 @@ impl Script {
         while self.calls.try_recv().is_ok() {}
     }
 
+    /// No request of `op` within `wait`.
+    pub(crate) async fn no_call_of(&mut self, op: &str, wait: Duration) {
+        let deadline = tokio::time::Instant::now() + wait;
+        while let Ok(Some(call)) = tokio::time::timeout_at(deadline, self.calls.recv()).await {
+            assert_ne!(call.op, op, "unexpected request {call:?}");
+        }
+    }
+
     /// No request within `wait`.
     pub(crate) async fn no_call(&mut self, wait: Duration) {
         if let Ok(call) = tokio::time::timeout(wait, self.calls.recv()).await {
@@ -252,7 +260,11 @@ impl NodeLink for SharedLink {
                         .as_u64()
                         .map_or(0, |c| u32::try_from(c).unwrap_or(u32::MAX)),
                 ),
-                stdout: Vec::new(),
+                stdout: value["stdout"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .as_bytes()
+                    .to_vec(),
                 stderr: value["stderr"]
                     .as_str()
                     .unwrap_or_default()

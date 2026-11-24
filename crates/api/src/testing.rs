@@ -168,6 +168,14 @@ async fn blocklist(
     uniwrt_engine::BlocklistSync::start(engine, store.clone(), lists, None, config)
 }
 
+/// The WAN quality monitor, probing the simulated gateway every 100 ms.
+fn wan_monitor(engine: &Engine<SimLink>, store: &Store) -> uniwrt_engine::WanMonitor {
+    let config = uniwrt_engine::WanMonitorConfig {
+        every: Duration::from_millis(100),
+    };
+    uniwrt_engine::WanMonitor::start(engine, store.clone(), config)
+}
+
 /// The firmware images' cache in `dir`.
 async fn images_in(dir: &std::path::Path) -> uniwrt_firmware::ImageCache {
     uniwrt_firmware::ImageCache::open(dir.join("images"), "uniwrt/test")
@@ -184,6 +192,7 @@ pub(crate) struct Handles {
     pub(crate) drift: Option<Drifts>,
     pub(crate) bans: Option<Bans>,
     pub(crate) blocklist: Option<uniwrt_engine::Blocklist>,
+    pub(crate) wan_monitor: Option<uniwrt_engine::WanMonitorHandle>,
     pub(crate) asu: Option<uniwrt_firmware::Asu>,
     pub(crate) uploads: Option<uniwrt_firmware::Uploads>,
     pub(crate) github: Option<uniwrt_firmware::GitHub>,
@@ -208,6 +217,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         blocklist,
+        wan_monitor,
         asu,
         uploads,
         github,
@@ -239,6 +249,7 @@ pub(crate) async fn api_full(
         drift,
         bans,
         blocklist,
+        wan_monitor,
         asu,
         uploads,
         github,
@@ -285,6 +296,8 @@ pub(crate) struct Demo {
     _drift: DriftWatch,
     _bans: ClientBans,
     _blocklist: uniwrt_engine::BlocklistSync,
+    /// Probes from the simulated gateway every 100 ms.
+    _wan_monitor: uniwrt_engine::WanMonitor,
 }
 
 impl Demo {
@@ -358,8 +371,6 @@ impl Demo {
         .await;
         let alerts =
             AlertEngine::start(&engine, store.clone(), None, AlertsConfig::default()).await;
-        let dial = dial.then(ssh_dial);
-        let notify = Some((notifications.handle(), vault));
         let (rf, drift) = scanners(&engine, &store).await;
         let bans = ClientBans::start(
             &engine,
@@ -371,13 +382,15 @@ impl Demo {
             },
         );
         let blocklist = blocklist(&engine, &store, dir.path()).await;
+        let wan_monitor = wan_monitor(&engine, &store);
         let handles = Handles {
             alerts: Some(alerts.handle()),
-            notify,
+            notify: Some((notifications.handle(), vault)),
             rf: Some(rf.handle()),
             drift: Some(drift.handle()),
             bans: Some(bans.handle()),
             blocklist: Some(blocklist.handle()),
+            wan_monitor: Some(wan_monitor.handle()),
             asu,
             uploads: Some(uploads_in(dir.path()).await),
             github,
@@ -385,7 +398,7 @@ impl Demo {
             self_update: None,
             controller_backups: None,
         };
-        let api = api_full(store.clone(), fleet, clock, dial, handles).await;
+        let api = api_full(store.clone(), fleet, clock, dial.then(ssh_dial), handles).await;
         api.create_admin("admin", PASSWORD).await.unwrap();
         let mut demo = Self {
             _dir: dir,
@@ -402,6 +415,7 @@ impl Demo {
             _drift: drift,
             _bans: bans,
             _blocklist: blocklist,
+            _wan_monitor: wan_monitor,
         };
         demo.cookie = login(&demo.api).await;
         demo

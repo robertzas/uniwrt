@@ -75,6 +75,7 @@ pub fn subject(alert: &AlertRecord, names: &Names) -> String {
             }
             Entity::Link(edge) => names.link(&edge),
             Entity::Client(mac) => names.client(mac),
+            Entity::Probe(key) => format!("WAN monitor · {key}"),
         };
     }
     if let Some((_, edge)) = state.subject.split_once("/mesh:") {
@@ -166,6 +167,10 @@ pub const fn metric_label(metric: Metric) -> &'static str {
         Metric::Tq => "TQ",
         Metric::Clients => "Clients",
         Metric::NodesOnline => "Nodes online",
+        Metric::Rtt => "Latency",
+        Metric::RttMin => "Fastest answer",
+        Metric::RttMax => "Slowest answer",
+        Metric::Loss => "Loss",
     }
 }
 
@@ -181,6 +186,7 @@ pub fn metric_value(metric: Metric, value: f64) -> String {
         Unit::Dbm => format!("{} dBm", number(value, 0)),
         Unit::Db => format!("{} dB", number(value, 0)),
         Unit::Count => number(value, 1),
+        Unit::Milliseconds => format!("{} ms", number(value, usize::from(value < 10.0))),
         Unit::Score | Unit::Tq => number(value, 0),
     }
 }

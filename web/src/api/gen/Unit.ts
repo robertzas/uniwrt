@@ -3,4 +3,4 @@
 /**
  * The unit of a metric's values.
  */
-export type Unit = "percent" | "load" | "celsius" | "bits_per_second" | "kbps" | "mbps" | "dbm" | "db" | "count" | "score" | "tq";
+export type Unit = "percent" | "load" | "celsius" | "bits_per_second" | "kbps" | "mbps" | "dbm" | "db" | "count" | "milliseconds" | "score" | "tq";
