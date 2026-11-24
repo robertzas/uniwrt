@@ -349,10 +349,7 @@ pub fn router(api: Api) -> Router {
         .merge(controller_backups::routes())
         .merge(floors::routes())
         .merge(backups::routes())
-        .route("/v1/services/blocklists", get(blocklists::get))
-        .route("/v1/services/blocklists/refresh", post(blocklists::refresh))
-        .route("/v1/services/dns/stats", get(dns_stats::stats))
-        .route("/v1/services/dns/queries", get(dns_stats::queries))
+        .merge(dns_routes())
         .route("/v1/backhaul/failures", get(backhaul::list))
         .route(
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",
@@ -380,6 +377,15 @@ pub fn router(api: Api) -> Router {
 
 /// Adoption: probes, adoptions one at a time or in a batch, the first run's gateway and its
 /// root password, and discovery.
+/// DNS filtering's lists and the DNS query statistics.
+fn dns_routes() -> Router<Api> {
+    Router::new()
+        .route("/v1/services/blocklists", get(blocklists::get))
+        .route("/v1/services/blocklists/refresh", post(blocklists::refresh))
+        .route("/v1/services/dns/stats", get(dns_stats::stats))
+        .route("/v1/services/dns/queries", get(dns_stats::queries))
+}
+
 fn node_routes() -> Router<Api> {
     Router::new()
         .route("/v1/nodes", get(nodes::list))
