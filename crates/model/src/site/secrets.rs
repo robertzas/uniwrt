@@ -172,6 +172,41 @@ impl SiteConfig {
         }
     }
 
+    /// Points the slot at `path` at `secret`, or clears it; false where the document has no such
+    /// slot. Besides [`secret_mut`](Self::secret_mut)'s slots, a save may seal any option of a
+    /// raw section (`nodes/<node>/raw/<i>/<option>`), held or not: the UCI explorer seals what
+    /// an admin types into a masked option (D-143). Clearing one removes the option.
+    pub fn set_secret(&mut self, path: &str, secret: Option<SecretRef>) -> bool {
+        if let ["nodes", node, "raw", index, option] = path.split('/').collect::<Vec<_>>()[..] {
+            let raw = self
+                .nodes
+                .iter_mut()
+                .find(|config| config.node.to_string() == node)
+                .and_then(|config| {
+                    let i = index.parse::<usize>().ok()?;
+                    (i.to_string() == index).then_some(())?;
+                    config.raw.get_mut(i)
+                });
+            let Some(raw) = raw.filter(|_| uniwrt_uci::is_name(option)) else {
+                return false;
+            };
+            match secret {
+                Some(secret) => raw
+                    .options
+                    .insert(option.to_owned(), node::RawValue::Secret { secret }),
+                None => raw.options.remove(option),
+            };
+            return true;
+        }
+        match self.secret_mut(path) {
+            Some(slot) => {
+                *slot = secret;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// The secret at `path`, if set.
     pub fn secret(&self, path: &str) -> Option<&SecretRef> {
         self.secrets()

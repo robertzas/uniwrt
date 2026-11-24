@@ -295,6 +295,26 @@ fn raw_secrets_are_slots_that_replace_secret_renames() {
     let path = format!("nodes/{}/raw/0/private_key", config.nodes[1].node);
     assert_eq!(config.secret(&path), Some(&old));
     assert!(config.secret_mut(&path).is_none());
+    // A save seals any option of a raw section, held or not, and clearing one removes it.
+    let typed = SecretRef::new(format!("config/{}", "d".repeat(32))).unwrap();
+    let node = config.nodes[1].node;
+    assert!(config.set_secret(&format!("nodes/{node}/raw/0/psk"), Some(typed.clone())));
+    assert_eq!(
+        config.secret(&format!("nodes/{node}/raw/0/psk")),
+        Some(&typed)
+    );
+    assert!(config.set_secret(&format!("nodes/{node}/raw/0/psk"), None));
+    assert!(!config.nodes[1].raw[0].options.contains_key("psk"));
+    for bad in [
+        format!("nodes/{node}/raw/9/psk"),
+        format!("nodes/{node}/raw/00/psk"),
+        format!("nodes/{node}/raw/0/bad-name"),
+        "nodes/999/raw/0/psk".to_owned(),
+        "site/name".to_owned(),
+    ] {
+        assert!(!config.set_secret(&bad, None), "{bad}");
+    }
+    assert!(config.set_secret("wan/password", None));
     let new = SecretRef::new(format!("config/{}", "c".repeat(32))).unwrap();
     let mesh = config.mesh.key.clone().unwrap();
     config.replace_secret(&old, &new);

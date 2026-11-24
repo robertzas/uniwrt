@@ -39,7 +39,10 @@ pub fn tree(
             .clone()
             .and_then(|text| uniwrt_uci::parse(name, &text).map_err(|err| err.to_string()));
         let (sections, error) = match &read {
-            Ok(package) => (package.sections.iter().map(section).collect(), None),
+            Ok(package) => (
+                package.sections.iter().map(|s| section(name, s)).collect(),
+                None,
+            ),
             Err(error) => (Vec::new(), Some(error.clone())),
         };
         packages.push(UciTreePackage {
@@ -110,7 +113,7 @@ fn finds(package: &Package, raw: &RawSection) -> Option<usize> {
     })
 }
 
-fn section(section: &Section) -> UciTreeSection {
+fn section(package: &str, section: &Section) -> UciTreeSection {
     UciTreeSection {
         kind: section.kind.clone(),
         name: section.name.clone(),
@@ -134,6 +137,8 @@ fn section(section: &Section) -> UciTreeSection {
             })
             .collect(),
         overrides: Vec::new(),
+        key: raw::key(package, &section.kind)
+            .map(|key| key.iter().map(|&k| k.to_owned()).collect()),
     }
 }
 

@@ -62,6 +62,10 @@ pub struct UciTreeSection {
     pub options: Vec<UciTreeOption>,
     /// The node's raw sections that find it (indices, in the site's order).
     pub overrides: Vec<u32>,
+    /// The options a merge or removal finds an anonymous section of its type by when it matches
+    /// none (render's `raw::key`, such as a zone's `name`; empty for a type a package holds
+    /// once: its first section); `None` for a type without them.
+    pub key: Option<Vec<String>>,
 }
 
 /// An option or a list.

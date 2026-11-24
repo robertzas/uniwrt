@@ -74,6 +74,7 @@ import type { NodePackages } from "../api/gen/NodePackages";
 import type { NodeRole } from "../api/gen/NodeRole";
 import type { NodeSource } from "../api/gen/NodeSource";
 import type { NodeSummary } from "../api/gen/NodeSummary";
+import type { NodeUci } from "../api/gen/NodeUci";
 import type { NotificationSettings } from "../api/gen/NotificationSettings";
 import type { NotifierInput } from "../api/gen/NotifierInput";
 import type { NotifierList } from "../api/gen/NotifierList";
@@ -402,6 +403,11 @@ export const api = {
      */
     changePackages: (id: NodeId, body: PackageChanges) =>
       request<Job>(`/nodes/${id}/packages`, { method: "POST", body }),
+    /**
+     * Every package in the node's `/etc/config`, read live: secrets masked, each package's owner
+     * and each section's raw overrides (D-143); 409 offline, 502 when the read fails.
+     */
+    uci: (id: NodeId, signal?: AbortSignal) => request<NodeUci>(`/nodes/${id}/uci`, { signal }),
     /** The root password the vault keeps for the node (admins; audited); 404 when it keeps none. */
     rootPassword: (id: NodeId) =>
       request<RevealedSecret>(`/nodes/${id}/root-password/reveal`, { method: "POST" }),

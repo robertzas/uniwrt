@@ -42,6 +42,7 @@ import { describeReason, ModeBadge, StatusBadge } from "./status";
 import { scopeTerminal } from "./terminal/session";
 import { TerminalTab } from "./terminal/TerminalTab";
 import { ToolsTab } from "./tools/ToolsTab";
+import { UciTab } from "./uci/UciTab";
 
 const d = strings.device;
 
@@ -129,7 +130,8 @@ function Overview(props: {
     params.tab === "ports" ||
     params.tab === "mesh" ||
     params.tab === "tools" ||
-    params.tab === "terminal"
+    params.tab === "terminal" ||
+    params.tab === "uci"
       ? params.tab
       : "overview";
   return (
@@ -200,6 +202,7 @@ function Overview(props: {
           <Tab value="config">{d.tabs.config}</Tab>
           <Tab value="tools">{d.tabs.tools}</Tab>
           <Tab value="terminal">{d.tabs.terminal}</Tab>
+          <Tab value="uci">{d.tabs.uci}</Tab>
         </TabList>
         <TabPanel value="overview" class="flex flex-col gap-4">
           <Show
@@ -238,6 +241,9 @@ function Overview(props: {
         </TabPanel>
         <TabPanel value="terminal">
           <TerminalTab node={node()} />
+        </TabPanel>
+        <TabPanel value="uci">
+          <UciTab node={node()} />
         </TabPanel>
       </Tabs>
     </div>

@@ -16,4 +16,10 @@ options: Array<UciTreeOption>,
 /**
  * The node's raw sections that find it (indices, in the site's order).
  */
-overrides: Array<number>, };
+overrides: Array<number>, 
+/**
+ * The options a merge or removal finds an anonymous section of its type by when it matches
+ * none (render's `raw::key`, such as a zone's `name`; empty for a type a package holds
+ * once: its first section); `None` for a type without them.
+ */
+key: Array<string> | null, };

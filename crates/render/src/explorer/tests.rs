@@ -161,6 +161,25 @@ fn raw_sections_are_placed_on_the_sections_they_find() {
     assert_eq!(overrides(0, 1), [1, 2]);
     assert_eq!(overrides(1, 0), [0]);
     assert_eq!(tree.unmatched, [3, 4, 5]);
+    // Each section says which options find an anonymous one of its type, as render's key does.
+    assert_eq!(tree.packages[0].sections[1].key, None);
+    assert_eq!(tree.packages[1].sections[0].key, None);
+    let firewall = tree_of(
+        "firewall",
+        "config defaults
+
+config zone
+	option name 'lan'
+",
+    );
+    assert_eq!(firewall.sections[0].key, Some(vec![]));
+    assert_eq!(firewall.sections[1].key, Some(vec!["name".to_owned()]));
+}
+
+fn tree_of(name: &str, text: &str) -> UciTreePackage {
+    tree(&files(&[(name, text)]), None, false)
+        .packages
+        .remove(0)
 }
 
 #[test]

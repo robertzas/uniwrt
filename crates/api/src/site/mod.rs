@@ -202,11 +202,12 @@ fn secrets(
     let mut sealed = Vec::new();
     for (path, value) in secrets {
         let value = value.map(Zeroizing::new);
-        let slot = config
-            .secret_mut(&path)
-            .ok_or_else(|| ApiError::BadRequest(format!("The document has no secret at {path}")))?;
+        if !config.set_secret(&path, None) {
+            return Err(ApiError::BadRequest(format!(
+                "The document has no secret at {path}"
+            )));
+        }
         let Some(value) = value else {
-            *slot = None;
             continue;
         };
         if let Err(why) = check_secret(&path, &value) {
@@ -218,7 +219,7 @@ fn secrets(
             return Err(ApiError::Invalid(why.to_owned(), vec![issue]));
         }
         let secret = api.vault()?.seal_config_secret(value.as_bytes())?;
-        *slot = Some(secret.reference().clone());
+        config.set_secret(&path, Some(secret.reference().clone()));
         if path.starts_with("vpn/") {
             known.insert(secret.reference().clone(), value);
         }

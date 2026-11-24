@@ -245,3 +245,55 @@ async fn a_ddns_token_is_sealed_with_its_name_and_the_upstream_checked() {
             .contains(&json!({ "path": "services/ddns/home/secret", "set": true }))
     );
 }
+
+#[tokio::test]
+async fn a_save_seals_a_raw_option_the_uci_explorer_types() {
+    let demo = Demo::start().await;
+    let (_, site) = send(&demo, Method::GET, "/v1/site", None).await;
+    let mut config = site["config"].clone();
+    // The demo's nodes are observed: the first edit gives the node its entry.
+    let node = demo.ids[0].get();
+    config["nodes"] = json!([{
+        "node": node, "hostname": null, "managed": [], "radios": [], "ports": [], "raw": [],
+        "reboot": { "kind": "site" }, "led_schedule": true,
+    }]);
+    let raw = config["nodes"][0]["raw"].as_array_mut().unwrap();
+    raw.push(json!({
+        "package": "wireless", "type": "wifi-iface", "name": "lab", "options": { "ssid": "Lab" },
+        "merge": false, "unset": [], "remove": false, "matching": {},
+    }));
+    let path = format!("nodes/{node}/raw/{}/key", raw.len() - 1);
+    let mut secrets = serde_json::Map::new();
+    secrets.insert(path.clone(), json!("lab passphrase"));
+    let save = json!({ "base": site["revision"]["id"], "config": config, "secrets": secrets });
+    let (status, saved) = put(&demo, &save).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let sealed = &saved["config"]["nodes"][0]["raw"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()["options"]["key"];
+    assert!(
+        sealed["secret"].as_str().unwrap().starts_with("config/"),
+        "{sealed}"
+    );
+    assert!(!saved.to_string().contains("lab passphrase"));
+    let (status, body) = send(
+        &demo,
+        Method::POST,
+        "/v1/site/secrets/reveal",
+        Some(&json!({ "path": path })),
+    )
+    .await;
+    assert_eq!(
+        (status, body),
+        (StatusCode::OK, json!({ "value": "lab passphrase" }))
+    );
+    // A raw section the document lacks has no slot.
+    let mut secrets = serde_json::Map::new();
+    secrets.insert(format!("nodes/{node}/raw/999/key"), json!("x"));
+    let save =
+        json!({ "base": saved["revision"]["id"], "config": saved["config"], "secrets": secrets });
+    let (status, _) = put(&demo, &save).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

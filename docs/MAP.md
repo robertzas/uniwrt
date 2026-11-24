@@ -1123,6 +1123,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/software/`: CatalogDialog.tsx, ChangesDialog.tsx, SoftwareCard.tsx, software.ts
 - `features/devices/terminal/`: TerminalTab.tsx, connection.ts, session.ts, styles.ts, xterm.ts
 - `features/devices/tools/`: CaptureCard.tsx, ConntrackPanel.tsx, NeighborsPanel.tsx, OptionalTools.tsx, RoutesPanel.tsx, RunForm.tsx, RunOutput.tsx, RunsCard.tsx, TableView.tsx, TablesCard.tsx, ToolsTab.tsx, capture.ts, captureSession.ts, draft.ts, iperf3.ts, run.ts, tables.ts
+- `features/devices/uci/`: RawLine.tsx, SectionCard.tsx, SectionEditor.tsx, UciTab.tsx, draft.ts, edits.ts, uci.ts
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
