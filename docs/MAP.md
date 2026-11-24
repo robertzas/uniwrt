@@ -301,6 +301,25 @@ Events (features/observability.md, Events, alerts, notifications): deriving the 
 - `src/steer_tests.rs`: (no header comment)
 - `src/tests.rs`: The deriver over hand-made statuses, facts, topologies, clients, log entries and jobs.
 
+### `uniwrt-feeds` (crates/feeds)
+
+The controller's package feed mirror (features/lifecycle.md, Offline packages; D-147).
+
+- `src/closure.rs`: The packages to keep of a feed set (the feeds one release, target and architecture's nodes use, D-147): the wanted names with everything they depend on, as the package manager would resolve them.
+- `src/feed.rs`: Feeds as the mirror knows them (D-147): where a feed's index and packages are upstream ([`Feed`], parsed from a node's feed line), and the path the mirror keeps and serves them under: the upstream host, then its path, so `https://downloads.openwrt.org/releases/…/base` is kept in `<root>/downloads.openwrt.org/releases/…/base` and served at `/feeds/downloads.openwrt.org/releases/…/base/<file>`.
+- `src/index.rs`: A feed's index, read the way the node's package manager reads it: opkg's `Packages.gz` ([`opkg`]) or apk's `packages.adb` ([`adb`]).
+- `src/index/adb.rs`: apk's binary database format (ADB, apk-tools 3), as far as the mirror reads it: a feed's index (`packages.adb`, schema `indx`) and a package's control block (schema `pckg`).
+- `src/index/opkg.rs`: opkg's index: `Packages.gz`, a gzipped list of stanzas (`Package:`, `Version:`, `Depends:`, `Provides:`, `Filename:`, `Size:`, `SHA256sum:`; a line starting with a space continues the field before it).
+- `src/index/tests.rs`: (no header comment)
+- `src/lib.rs`: The controller's package feed mirror (features/lifecycle.md, Offline packages; D-147).
+- `src/mirror.rs`: [`Mirror`]: the feeds kept in a directory of the controller's, what is planned for them ([`Plan`]), and what they hold ([`Mirror::status`]).
+- `src/serve.rs`: Serving the mirror to nodes (D-147): a planned feed's index (refreshed first when upstream was last asked over an hour ago and answers within 30 s; else the copy kept), or a package its index lists: kept, or downloaded now, checked, kept and remembered as wanted (pull through).
+- `src/source.rs`: Where feeds come from ([`Source`]): the upstream servers over HTTP(S) ([`HttpSource`]: hyper with rustls and Mozilla's roots, conditional GETs, a file streamed to disk as it arrives and stopped past its size limit), or a fake in tests and demo mode.
+- `src/state.rs`: What the mirror remembers between starts, in `<root>/.state.json`: each feed's validators and times, why its last refresh failed, the names nodes fetched through the mirror per feed set (kept from then on, D-147), and the last sync.
+- `src/sync.rs`: Bringing the mirror to a [`Plan`] (D-147): each feed's index refreshed (conditionally; a failure keeps the copy kept and says why), then the packages each feed set needs downloaded (the wanted names and those nodes fetched before, with their dependencies, or every package with *Keep whole feeds*), each checked against its index before it is kept, then every file no planned feed's index needs deleted: older versions, packages nothing wants any more, the feeds of sets no longer planned.
+- `src/tests.rs`: The mirror against a fake upstream: an opkg feed made up per test.
+- `src/verify.rs`: Checking a downloaded package before the mirror keeps it: its size, then the hash its feed's index gives (opkg's SHA-256 of the file; apk's of the package's control block, the first block of its ADB stream, which is decompressed only that far).
+
 ### `uniwrt-firmware` (crates/firmware)
 
 Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-121): OpenWrt's catalog, zero-touch images and upgrade images built by ASU, OpenWrt's public Attended Sysupgrade service.
@@ -535,6 +554,7 @@ The uniwrt domain model: what the controller observes on nodes, what it records 
 - `src/facts/system.rs`: Board identity, the firmware release and resource usage (`system board`, `system info`).
 - `src/facts/tailscale.rs`: The gateway's Tailscale as `tailscale status --json` reports it (the `services` set; D-140), without the login URL: whoever opens it may join the gateway to their tailnet, so only the login endpoint hands it out, to admins.
 - `src/facts/upnp.rs`: The ports clients opened on the gateway's WAN through UPnP IGD or NAT-PMP/PCP (miniupnpd).
+- `src/feeds.rs`: The controller's package feed mirror (features/lifecycle.md, Offline packages; D-147): the feed sets it keeps ([`FeedSet`]: one release, target and architecture, whose nodes share their feeds), its settings ([`MirrorSettings`]) and what it holds ([`MirrorStatus`]).
 - `src/firmware.rs`: Firmware (features/adoption.md, Path B; D-022, D-104): OpenWrt's catalog of releases and device profiles, and the zero-touch images the controller asks ASU (OpenWrt's public Attended Sysupgrade service) to build.
 - `src/floor.rs`: Floor plans (features/wifi.md, Coverage & floor plans; D-117): each floor's image, its scale and where nodes are placed on it.
 - `src/floor/walls.rs`: A floor's walls (features/wifi.md, Coverage & floor plans; M6.2c): segments drawn on the plan, each of a material that takes a fixed loss per band from every signal crossing it.
@@ -1129,7 +1149,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (551 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (552 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

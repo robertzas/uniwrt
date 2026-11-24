@@ -70,6 +70,7 @@ pub mod event;
 pub mod events;
 pub mod explorer;
 pub mod facts;
+pub mod feeds;
 pub mod firmware;
 pub mod floor;
 pub mod import;

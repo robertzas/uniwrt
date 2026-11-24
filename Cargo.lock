@@ -3314,6 +3314,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniwrt-feeds"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "flate2",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uniwrt-core",
+ "uniwrt-model",
+ "webpki-roots",
+]
+
+[[package]]
 name = "uniwrt-firmware"
 version = "0.0.0"
 dependencies = [
