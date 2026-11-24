@@ -84,7 +84,7 @@ pub enum TerminalServerMessage {
 }
 
 pub(crate) fn routes() -> axum::Router<Api> {
-    axum::Router::new().route("/v1/nodes/{id}/terminal", get(open))
+    axum::Router::new().route("/v1/nodes/{id}/terminal", get(open).connect(open))
 }
 
 async fn open(

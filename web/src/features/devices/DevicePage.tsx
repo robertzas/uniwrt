@@ -39,6 +39,8 @@ import { RebootDialog } from "./reboot/RebootDialog";
 import { canReboot, runningReboot } from "./reboot/reboot";
 import { SteeringCard } from "./SteeringCard";
 import { describeReason, ModeBadge, StatusBadge } from "./status";
+import { scopeTerminal } from "./terminal/session";
+import { TerminalTab } from "./terminal/TerminalTab";
 import { ToolsTab } from "./tools/ToolsTab";
 
 const d = strings.device;
@@ -121,11 +123,13 @@ function Overview(props: {
   const session = useContext(SessionContext);
   const admin = () => session.user.role === "admin";
   const [params, setParams] = useSearchParams<{ tab?: string }>();
+  scopeTerminal(() => node().id);
   const tab = () =>
     params.tab === "config" ||
     params.tab === "ports" ||
     params.tab === "mesh" ||
-    params.tab === "tools"
+    params.tab === "tools" ||
+    params.tab === "terminal"
       ? params.tab
       : "overview";
   return (
@@ -195,6 +199,7 @@ function Overview(props: {
           <Tab value="mesh">{d.tabs.mesh}</Tab>
           <Tab value="config">{d.tabs.config}</Tab>
           <Tab value="tools">{d.tabs.tools}</Tab>
+          <Tab value="terminal">{d.tabs.terminal}</Tab>
         </TabList>
         <TabPanel value="overview" class="flex flex-col gap-4">
           <Show
@@ -230,6 +235,9 @@ function Overview(props: {
         </TabPanel>
         <TabPanel value="tools">
           <ToolsTab node={node()} facts={props.detail.facts} />
+        </TabPanel>
+        <TabPanel value="terminal">
+          <TerminalTab node={node()} />
         </TabPanel>
       </Tabs>
     </div>

@@ -16,7 +16,7 @@ use uniwrt_core::NodeId;
 use uniwrt_store::{AuditRepo as _, NodeRepo as _};
 
 use super::PER_NODE;
-use crate::testing::{Demo, ORIGIN};
+use crate::testing::{Demo, ORIGIN, connect_h2};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -81,6 +81,21 @@ async fn shown(ws: &mut Ws, suffix: &str) -> String {
 
 async fn name_of(demo: &Demo, id: NodeId) -> String {
     demo.store.node(id).await.unwrap().unwrap().name
+}
+
+#[tokio::test]
+async fn browsers_on_http2_open_it_with_an_extended_connect() {
+    let demo = Demo::start().await;
+    let addr = demo.serve().await;
+    let id = demo.ids[1];
+    let path = format!("/v1/nodes/{id}/terminal");
+    let mut ws = connect_h2(addr, &path, &demo.cookie).await;
+    let opened = tokio::time::timeout(PATIENCE, ws.next())
+        .await
+        .expect("a message in time")
+        .expect("the connection open")
+        .unwrap();
+    assert_eq!(opened, Message::text(json!({"type": "opened"}).to_string()));
 }
 
 #[tokio::test]

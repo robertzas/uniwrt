@@ -4,10 +4,8 @@
 
 use std::{net::SocketAddr, time::Duration};
 
-use axum::http::{StatusCode, Version};
+use axum::http::StatusCode;
 use futures_util::{SinkExt as _, StreamExt as _};
-use hyper::{ext::Protocol, upgrade::Upgraded};
-use hyper_util::rt::{TokioExecutor, TokioIo};
 use serde_json::{Value, json};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -17,9 +15,7 @@ use tokio::{
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, client_async,
     tungstenite::{
-        self, Message,
-        client::IntoClientRequest as _,
-        protocol::{Role, frame::coding::CloseCode},
+        self, Message, client::IntoClientRequest as _, protocol::frame::coding::CloseCode,
     },
 };
 use uniwrt_core::NodeId;
@@ -27,7 +23,7 @@ use uniwrt_engine::Interests;
 use uniwrt_store::NodeRepo as _;
 
 use super::conn::{CLOSE_SESSION_ENDED, FLUSH_EVERY, SESSION_CHECK_EVERY};
-use crate::testing::{Demo, ORIGIN, json as body_json, post, request};
+use crate::testing::{Demo, ORIGIN, connect_h2, json as body_json, post, request};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -52,31 +48,6 @@ async fn connect(
     let tcp = TcpStream::connect(addr).await.unwrap();
     let (ws, _) = client_async(request, MaybeTlsStream::Plain(tcp)).await?;
     Ok(ws)
-}
-
-/// Opens the hub as browsers do on an HTTP/2 connection: an extended CONNECT (RFC 8441), here
-/// over cleartext HTTP/2 with prior knowledge.
-async fn connect_h2(addr: SocketAddr, cookie: &str) -> WebSocketStream<TokioIo<Upgraded>> {
-    let tcp = TcpStream::connect(addr).await.unwrap();
-    let (mut sender, connection) =
-        hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(tcp))
-            .await
-            .unwrap();
-    tokio::spawn(connection);
-    let mut request = axum::http::Request::connect(format!("http://{addr}/v1/ws"))
-        .version(Version::HTTP_2)
-        .header("sec-websocket-version", "13")
-        .header("cookie", cookie)
-        .header("origin", ORIGIN)
-        .body(String::new())
-        .unwrap();
-    request
-        .extensions_mut()
-        .insert(Protocol::from_static("websocket"));
-    let response = sender.send_request(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let upgraded = hyper::upgrade::on(response).await.unwrap();
-    WebSocketStream::from_raw_socket(TokioIo::new(upgraded), Role::Client, None).await
 }
 
 async fn open(demo: &Demo) -> Ws {
@@ -162,7 +133,7 @@ async fn the_upgrade_needs_a_session_and_our_origin() {
 async fn browsers_on_http2_open_it_with_an_extended_connect() {
     let demo = Demo::start().await;
     let addr = demo.serve().await;
-    let mut ws = connect_h2(addr, &demo.cookie).await;
+    let mut ws = connect_h2(addr, "/v1/ws", &demo.cookie).await;
     sub(&mut ws, &["fleet"]).await;
     let snapshot = next(&mut ws).await;
     assert_eq!(snapshot["type"], "fleet_snapshot");

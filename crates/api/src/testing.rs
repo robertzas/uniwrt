@@ -2,6 +2,8 @@
 //! without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in,
 //! served over the router or a loopback socket.
 
+mod h2;
+
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
@@ -34,6 +36,8 @@ use crate::{Api, ApiConfig, BuildInfo, Certificate, Client, PasswordCost, TlsInf
 
 /// The host the test clients address, and the origin of their pages.
 pub(crate) const HOST: &str = "uniwrt.lan:8443";
+pub(crate) use h2::connect_h2;
+
 pub(crate) const ORIGIN: &str = "https://uniwrt.lan:8443";
 pub(crate) const PASSWORD: &str = "correct horse battery";
 

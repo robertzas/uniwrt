@@ -104,6 +104,7 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/terminal/pump.rs`: One terminal's connection: the shell opened in its slot, its bytes relayed both ways until it ends, and the end told to the browser, closed and audited.
 - `src/terminal/tests.rs`: The terminal's WebSocket over a loopback socket, against the simulated fleet's pretend shell: an admin's terminal from greeting to exit, resized and audited; the bounds, and the slot a closed one frees; and what the upgrade refuses.
 - `src/testing.rs`: Test support: an API over a temporary store (its jobs reach nodes over SSH, or nothing without a dial), and [`Demo`], the simulated fleet adopted into one with an admin logged in, served over the router or a loopback socket.
+- `src/testing/h2.rs`: A WebSocket opened as browsers open one on an HTTP/2 connection: an extended CONNECT (RFC 8441), here over cleartext HTTP/2 with prior knowledge.
 - `src/tls.rs`: `GET /api/v1/tls` (what the HTTPS certificate covers, and the CA's fingerprint to compare on a device) and `GET /api/v1/tls/ca.crt` (the local CA, for devices to trust).
 - `src/topology/history.rs`: The topology's history, for the replay (features/observability.md, Topology): `GET /api/v1/topology/timeline` says how far back it goes and when it changed, and `GET /api/v1/topology/at/{ms}` is the topology at a time, as the history keeps it.
 - `src/topology/layout.rs`: The topology view's layout: where users pinned its vertices, one layout for every user and browser.
@@ -1113,6 +1114,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/devices/reboot/`: RebootDialog.tsx, reboot.ts
 - `features/devices/software/`: CatalogDialog.tsx, ChangesDialog.tsx, SoftwareCard.tsx, software.ts
+- `features/devices/terminal/`: TerminalTab.tsx, connection.ts, session.ts, styles.ts, xterm.ts
 - `features/devices/tools/`: CaptureCard.tsx, ConntrackPanel.tsx, NeighborsPanel.tsx, OptionalTools.tsx, RoutesPanel.tsx, RunForm.tsx, RunOutput.tsx, RunsCard.tsx, TableView.tsx, TablesCard.tsx, ToolsTab.tsx, capture.ts, captureSession.ts, draft.ts, iperf3.ts, run.ts, tables.ts
 - `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts

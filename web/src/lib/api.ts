@@ -176,6 +176,11 @@ let sessionEnded: (() => void) | undefined;
  * Called when a request that needs a session gets 401: the session expired or was revoked. The
  * app answers by showing the sign-in screen. Returns a function that removes the handler.
  */
+/** Tells the app the session ended (a socket the server closed with 4401). */
+export function endSession() {
+  sessionEnded?.();
+}
+
 export function onSessionEnded(handler: () => void): () => void {
   sessionEnded = handler;
   return () => {
