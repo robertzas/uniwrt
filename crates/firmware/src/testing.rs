@@ -114,6 +114,10 @@ async fn profiles(Path(release): Path<String>) -> (StatusCode, Json<Value>) {
     (StatusCode::OK, Json(profiles))
 }
 
+/// The vermagic of every release's kernel: its kernel modules are in
+/// `kmods/<version>-1-<this>`.
+pub const KERNEL_HASH: &str = "b4125196ecec75391093e1e2edeba490";
+
 /// The sysupgrade image's size in every release.
 pub const SYSUPGRADE_BYTES: u64 = 10_598_720;
 
@@ -158,6 +162,7 @@ async fn target_profiles(
         Json(json!({
             "arch_packages": "aarch64_cortex-a53",
             "default_packages": [manager, "dnsmasq", "ppp", "wpad-basic-mbedtls"],
+            "linux_kernel": {"version": if manager == "opkg" { "6.6.119" } else { "6.12.112" }, "release": "1", "vermagic": KERNEL_HASH},
             "profiles": {
                 "glinet_gl-mt6000": {
                     "device_packages": ["kmod-mt7915e"],

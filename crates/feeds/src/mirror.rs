@@ -14,7 +14,8 @@ use std::{
 use uniwrt_core::{Clock, Timestamp};
 use uniwrt_model::{
     facts::PackageManager,
-    feeds::{FeedSet, FeedStatus, MirrorStatus, SetStatus},
+    feeds::{FeedSet, FeedStatus, ImageStatus, MirrorStatus, SetStatus},
+    firmware::FirmwareImage,
 };
 
 use crate::{
@@ -31,6 +32,8 @@ pub struct Plan {
     pub sets: Vec<SetPlan>,
     /// Every package of every feed (the *Keep whole feeds* setting).
     pub whole: bool,
+    /// OpenWrt's own images for the upgrades on offer (M9.0c1b2).
+    pub images: Vec<FirmwareImage>,
 }
 
 /// One feed set to keep: its feeds and the names wanted of them (the packages uniwrt can
@@ -40,6 +43,8 @@ pub struct SetPlan {
     pub set: FeedSet,
     pub feeds: Vec<Feed>,
     pub wanted: BTreeSet<String>,
+    /// Kept for an upgrade on offer: no node runs it yet.
+    pub offered: bool,
 }
 
 /// A planned feed, as serving looks it up by its mirror path.
@@ -82,6 +87,8 @@ pub(crate) struct Inner {
     pub syncing: AtomicBool,
     pub reports: Mutex<BTreeMap<FeedSet, SetReport>>,
     pub kept: Mutex<HashMap<String, Kept>>,
+    /// Why the last sync couldn't keep an image, by its URL.
+    pub image_errors: Mutex<BTreeMap<String, String>>,
     pub partial: AtomicU64,
 }
 
@@ -106,6 +113,14 @@ impl Inner {
 
     pub(crate) fn state(&self) -> State {
         lock(&self.state).clone()
+    }
+
+    pub(crate) fn plan(&self) -> Arc<Plan> {
+        lock(&self.plan).clone()
+    }
+
+    pub(crate) fn set_image_errors(&self, errors: BTreeMap<String, String>) {
+        *lock(&self.image_errors) = errors;
     }
 
     pub(crate) fn planned(&self) -> Arc<HashMap<String, Planned>> {
@@ -211,6 +226,7 @@ impl Mirror {
                 syncing: AtomicBool::new(false),
                 reports: Mutex::default(),
                 kept: Mutex::default(),
+                image_errors: Mutex::default(),
                 partial: AtomicU64::new(0),
             }),
         })
@@ -263,11 +279,31 @@ impl Mirror {
                     feeds,
                     missing: report.missing,
                     failed: report.failed,
+                    offered: set.offered,
+                }
+            })
+            .collect();
+        let errors = lock(&inner.image_errors).clone();
+        let images = plan
+            .images
+            .iter()
+            .map(|image| {
+                let kept = self.image(image).is_some();
+                if kept {
+                    total += image.size_bytes.unwrap_or(0);
+                }
+                ImageStatus {
+                    url: image.url.clone(),
+                    name: image.name.clone(),
+                    bytes: image.size_bytes,
+                    kept,
+                    error: errors.get(&image.url).cloned(),
                 }
             })
             .collect();
         MirrorStatus {
             sets,
+            images,
             bytes: total,
             synced_at: state.synced.as_ref().map(|sync| sync.at),
             sync_error: state.synced.and_then(|sync| sync.error),

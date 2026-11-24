@@ -164,8 +164,10 @@ fn plan(wanted: &[&str]) -> Plan {
             set: set(),
             feeds: vec![Feed::parse(BASE).unwrap()],
             wanted: wanted.iter().map(|&name| name.to_owned()).collect(),
+            offered: false,
         }],
         whole: false,
+        images: Vec::new(),
     }
 }
 
@@ -376,3 +378,6 @@ async fn whole_feeds_keep_everything_and_an_empty_plan_keeps_nothing() {
     .unwrap();
     assert!(again.inner.state().synced.is_some());
 }
+
+#[path = "images_tests.rs"]
+mod images;

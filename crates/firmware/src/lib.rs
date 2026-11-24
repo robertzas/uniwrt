@@ -13,15 +13,22 @@
 //!   node's packages carried over with ASU's renames between the branches' branch-off
 //!   revisions, checked against ASU's package indexes, the missing ones dropped and listed)
 //!   and [`Asu::build_upgrade`] (that image, without a first-boot script), [`Asu::official_plan`]
-//!   (the same plan with OpenWrt's own image, the packages installed after the upgrade); and
+//!   (the same plan with OpenWrt's own image, the packages installed after the upgrade),
+//!   [`Asu::next_releases`] (D-147: each offer with an official image for the board, with that
+//!   plan's packages and images and what the target's `profiles.json` tells of its feeds: the
+//!   package architecture, the kernel modules' directory, the package manager);
+//!   [`Asu::keeping_catalog_in`] keeps every catalog answer on disk and reads it from there while
+//!   ASU or the download server can't be reached or fail (5xx), so offers and plans work
+//!   offline (builds and their status never come from disk); and
 //!   [`Uploads`] (images admins upload, kept in a directory under their SHA-256 once their
 //!   metadata names the boards they fit, or an x86 image's name its target; [`upload_fits`]);
 //!   [`GitHub`] (D-122: a repo's releases, [`GitHub::releases`], read with an optional token
 //!   and kept ten minutes; [`Releases::offers`], the newest [`MAX_OFFERS`] with an image for a
 //!   [`Device`]: its profile or board in the asset's name, x86's subtarget; [`parse_repo`];
 //!   [`GitHub::fetch_image`], an asset downloaded, through the API with a token);
-//!   [`ImageCache`] (D-124: images to flash, downloaded once into a directory and kept only when
-//!   they match their SHA-256 and size; the newest [`MAX_CACHED`] by use);
+//!   [`ImageCache`] (D-124: images to flash, downloaded once into a directory, or copied from a
+//!   copy on this host such as the feed mirror's, and kept only when they match their SHA-256
+//!   and size; the newest [`MAX_CACHED`] by use);
 //!   the controller's own releases (D-123): [`Releases::controller`] (the newest `vX.Y.Z` of
 //!   [`CONTROLLER_REPO`] with a tarball for a target), [`GitHub::stage_controller`] (the tarball
 //!   downloaded, checked against GitHub's SHA-256 and its Sigstore attestation, its binary

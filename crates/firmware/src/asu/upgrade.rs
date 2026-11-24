@@ -254,7 +254,7 @@ impl Asu {
     }
 
     /// `target`'s devices in `release`, from the download server.
-    async fn target(&self, release: &str, target: &str) -> Result<Arc<Target>, Error> {
+    pub(super) async fn target(&self, release: &str, target: &str) -> Result<Arc<Target>, Error> {
         if release::Version::parse(release).is_none() || !valid_target(target) {
             return Err(Error::Invalid(format!(
                 "{release} {target} isn't a release's target"

@@ -19,7 +19,11 @@ use uniwrt_model::{
 use uniwrt_node::{ExecRequest, NodeLink, pkg};
 use uniwrt_store::{FactsRepo, InventoryRepo, SettingsRepo};
 
-use super::{FeedMirrorConfig, FeedMirrorError, plan::plan};
+use super::{
+    FeedMirrorConfig, FeedMirrorError,
+    next::{self, Lookups, NextSource},
+    plan::plan,
+};
 use crate::Engine;
 
 pub(super) enum Command {
@@ -38,6 +42,12 @@ enum Done {
     Read {
         node: NodeId,
         feeds: Option<Vec<NodeFeed>>,
+    },
+    /// A node's upgrades on offer were looked up, while it ran `version`.
+    Next {
+        node: NodeId,
+        version: String,
+        answer: Result<Vec<uniwrt_model::feeds::NextRelease>, String>,
     },
 }
 
@@ -65,6 +75,8 @@ pub(super) struct Task<L, R> {
     /// The feeds read from watched nodes that have no inventory stored.
     unstored: BTreeMap<NodeId, Vec<NodeFeed>>,
     reading: BTreeSet<NodeId>,
+    /// The releases each node is offered.
+    lookups: Lookups,
     done: (mpsc::Sender<Done>, mpsc::Receiver<Done>),
 }
 
@@ -96,6 +108,7 @@ where
             reads: BTreeMap::new(),
             unstored: BTreeMap::new(),
             reading: BTreeSet::new(),
+            lookups: Lookups::default(),
             done: mpsc::channel(8),
         }
     }
@@ -195,12 +208,16 @@ where
                 None => self.read_feeds(node, &facts),
             }
         }
-        self.plan = Some(plan(
-            nodes
-                .iter()
-                .map(|(_, facts, inventory)| (&**facts, inventory)),
-            settings.whole_feeds,
-        ));
+        if self.look_up_next(&nodes) {
+            let lookups = &self.lookups;
+            self.plan = Some(plan(
+                nodes.iter().map(|(node, facts, inventory)| {
+                    let next = next::running(facts).map_or(&[][..], |v| lookups.of(*node, v));
+                    (&**facts, inventory, next)
+                }),
+                settings.whole_feeds,
+            ));
+        }
         self.read_settings = Some(settings);
         self.config.via.set(settings.enabled);
         self.settings.send_if_modified(|current| {
@@ -208,6 +225,49 @@ where
             *current = settings;
             moved
         });
+    }
+
+    /// Looks up the upgrades on offer of the nodes due; whether every node has been looked up
+    /// for the release it runs (always, without a source).
+    fn look_up_next(&mut self, nodes: &[(NodeId, Arc<NodeFacts>, Inventory)]) -> bool {
+        let Some(source) = self.config.next.clone() else {
+            return true;
+        };
+        let now = self.engine.context().clock.now();
+        self.lookups
+            .retain(|node| nodes.iter().any(|(known, ..)| *known == node));
+        for (node, facts, inventory) in nodes {
+            let Some(version) = next::running(facts) else {
+                continue;
+            };
+            if self
+                .lookups
+                .due(*node, version, now, self.config.next_every)
+            {
+                self.lookups.start(*node, version.to_owned(), now);
+                let (source, done) = (source.clone(), self.done.0.clone());
+                let (node, facts, inventory) = (*node, facts.clone(), inventory.clone());
+                let timeout = self.config.next_timeout;
+                tokio::spawn(async move {
+                    let NextSource(source) = source;
+                    let looked = source.next(node, &facts, &inventory);
+                    let answer = tokio::time::timeout(timeout, looked)
+                        .await
+                        .unwrap_or_else(|_| Err("the lookup timed out".to_owned()));
+                    let version = facts.board.release.version.clone();
+                    let _ = done
+                        .send(Done::Next {
+                            node,
+                            version,
+                            answer,
+                        })
+                        .await;
+                });
+            }
+        }
+        nodes.iter().all(|(node, facts, _)| {
+            next::running(facts).is_none_or(|version| self.lookups.settled(*node, version))
+        })
     }
 
     /// Reads `node`'s feeds over its link, unless it is offline, being read, or was read lately.
@@ -299,6 +359,16 @@ where
             Done::Synced { ok } => {
                 self.syncing = false;
                 self.failed = (!ok).then_some(now);
+            }
+            Done::Next {
+                node,
+                version,
+                answer,
+            } => {
+                self.lookups.finish(node, version, answer);
+                if self.lookups.idle() {
+                    self.reload().await;
+                }
             }
             Done::Read { node, feeds } => {
                 self.reading.remove(&node);

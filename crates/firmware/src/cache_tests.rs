@@ -94,6 +94,37 @@ async fn an_image_is_downloaded_once_checked_and_reused() {
 }
 
 #[tokio::test]
+async fn a_copy_kept_on_this_host_is_taken_once_it_matches() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = ImageCache::open(dir.path().join("images"), "uniwrt/test")
+        .await
+        .unwrap();
+    let local = dir.path().join("mirror.bin");
+    std::fs::write(&local, BODY).unwrap();
+    let wanted = image("a.bin", "http://127.0.0.1:9/a.bin".to_owned(), BODY);
+    let path = cache.fetch_local(&wanted, &local).await.unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), BODY);
+    // Kept now: the download isn't tried (the URL goes nowhere).
+    assert_eq!(cache.fetch(&wanted).await.unwrap(), path);
+    let other = image("b.bin", String::new(), b"another image");
+    assert!(matches!(
+        cache.fetch_local(&other, &local).await,
+        Err(Error::Untrusted(_))
+    ));
+    assert!(
+        cache
+            .fetch_local(&other, &dir.path().join("gone"))
+            .await
+            .is_err()
+    );
+    let left: Vec<_> = std::fs::read_dir(dir.path().join("images"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(left.len(), 1, "nothing of the refused copies: {left:?}");
+}
+
+#[tokio::test]
 async fn an_image_that_isnt_what_its_source_lists_is_refused() {
     let (url, _, task) = server().await;
     let dir = tempfile::tempdir().unwrap();

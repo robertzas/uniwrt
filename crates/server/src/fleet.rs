@@ -80,6 +80,8 @@ pub(crate) struct Fleet {
     demo_adopted: Vec<uniwrt_core::NodeId>,
     /// How nodes fetch packages through the feed mirror (D-147).
     via: Via,
+    /// The catalog the feed mirror reads the upgrades on offer from.
+    asu: Option<uniwrt_firmware::Asu>,
 }
 
 impl Fleet {
@@ -141,6 +143,7 @@ impl Fleet {
             sim: None,
             demo_adopted: Vec::new(),
             via: Via::default(),
+            asu: None,
         })
     }
 
@@ -227,6 +230,7 @@ impl Fleet {
             sim: Some((sim, dial)),
             demo_adopted,
             via: Via::default(),
+            asu: None,
         })
     }
 
@@ -435,8 +439,16 @@ impl Fleet {
     async fn mirror_feeds(&mut self, store: &Store, state_dir: &Path) {
         match crate::feeds::open(state_dir, self.sim.is_some()).await {
             Ok(mirror) => {
+                // Demo mode's feeds are made up: no next release of theirs exists.
+                let next = self.asu.clone().filter(|_| self.sim.is_none()).map(|asu| {
+                    uniwrt_engine::NextSource(Arc::new(crate::feeds_next::OfficialNext {
+                        asu,
+                        store: store.clone(),
+                    }))
+                });
                 let config = FeedMirrorConfig {
                     via: self.via.clone(),
+                    next,
                     ..FeedMirrorConfig::default()
                 };
                 self.feeds = Some(FeedMirrorSync::start(
@@ -455,6 +467,12 @@ impl Fleet {
     /// [`Fleet::record_events`].
     pub(crate) fn fetch_packages_through(&mut self, port: u16) {
         self.via = Via::new(port);
+    }
+
+    /// The feed mirror keeps what the upgrades `asu` offers would need (D-147). Before
+    /// [`Fleet::record_events`].
+    pub(crate) fn keep_upgrades_from(&mut self, asu: Option<uniwrt_firmware::Asu>) {
+        self.asu = asu;
     }
 
     /// The feed mirror's handle, once [`Fleet::mirror_feeds`] started it.

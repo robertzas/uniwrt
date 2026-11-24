@@ -10,6 +10,12 @@
 //! essentials, each node's full wpad where it runs a basic one, and the packages each node has
 //! installed on purpose; the mirror adds their dependencies and what nodes fetched through it.
 //! A set without a feed is left out. *Keep whole feeds* sets [`Plan::whole`](uniwrt_feeds::Plan).
+//! With a [`NextReleases`] ([`FeedMirrorConfig::next`]; the server's reads OpenWrt's catalog),
+//! each node's upgrades on offer are planned too (M9.0c1b2): per offer a feed set (`offered`),
+//! its feeds derived from the node's ([`uniwrt_feeds::next::derive`]), wanting what uniwrt
+//! installs and what the reinstall after OpenWrt's own image would ask for, with that image's
+//! files ([`Plan::images`](uniwrt_feeds::Plan)). The lookups are paced and held as [`next`]
+//! says; the plan waits for the first answer of each node.
 //!
 //! **Feeds:** a node whose inventory names none (read before D-147) has them read over its link
 //! while it is online, at most once per [`FeedMirrorConfig::read_every`], and kept in its
@@ -26,6 +32,7 @@
 //! nodes' package commands go through the controller only while it serves. No plan is made before the inventories and facts were
 //! read, so a start never sweeps the copies for want of them.
 
+mod next;
 mod plan;
 mod task;
 
@@ -40,6 +47,7 @@ use uniwrt_model::feeds::{MirrorSettings, MirrorStatus};
 use uniwrt_node::{NodeLink, pkg::via::Via};
 use uniwrt_store::{FactsRepo, InventoryRepo, SettingsRepo};
 
+pub use next::{NextReleases, NextSource};
 pub use plan::plan;
 
 use crate::Engine;
@@ -59,6 +67,12 @@ pub struct FeedMirrorConfig {
     /// How nodes fetch packages through the mirror: on while the mirror runs and its setting
     /// says so (the jobs and the API wrap their package commands with it).
     pub via: Via,
+    /// Where the releases nodes are offered come from; `None` keeps only what nodes run.
+    pub next: Option<NextSource>,
+    /// How often a node's upgrades on offer are looked up at most, while it runs one release.
+    pub next_every: Duration,
+    /// How long that lookup may take.
+    pub next_timeout: Duration,
 }
 
 impl Default for FeedMirrorConfig {
@@ -70,6 +84,9 @@ impl Default for FeedMirrorConfig {
             read_every: Duration::from_hours(1),
             timeout: Duration::from_secs(30),
             via: Via::default(),
+            next: None,
+            next_every: Duration::from_hours(1),
+            next_timeout: Duration::from_mins(3),
         }
     }
 }
@@ -180,6 +197,14 @@ impl FeedMirror {
             .await
             .map_err(|_| FeedMirrorError::Stopped)?;
         answer.await.map_err(|_| FeedMirrorError::Stopped)
+    }
+
+    /// Where the mirror keeps OpenWrt's `image` for an upgrade on offer, when it does.
+    pub fn image(
+        &self,
+        image: &uniwrt_model::firmware::FirmwareImage,
+    ) -> Option<std::path::PathBuf> {
+        self.mirror.image(image)
     }
 
     /// A node's request below `/feeds/`; nothing while the mirror is off.

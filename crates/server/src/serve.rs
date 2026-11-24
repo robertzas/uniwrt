@@ -130,6 +130,8 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
         info!(names = ?tls.info().names, ca_sha256 = %tls.info().ca_sha256, "HTTPS certificate");
         let mut fleet = start_fleet(&args, &store, &controller_key, &clock).await?;
         fleet.fetch_packages_through(args.https_listen.port());
+        let asu = asu(&args.asu_url, &state_dir)?;
+        fleet.keep_upgrades_from(asu.clone());
         let jobs = fleet
             .jobs(&store, vault.clone(), &controller_key, Arc::clone(&clock))
             .await?;
@@ -158,6 +160,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
                 &github,
                 &updater,
                 backup_api(&controller_backups, &state_dir, &restart),
+                asu,
             ),
         )
         .await?;
@@ -309,14 +312,17 @@ const UPLOADS: &str = "firmware";
 /// The images downloaded to flash (D-124), in the state directory.
 const IMAGES: &str = "images";
 
-/// ASU at `url`, unless it is `off`.
-fn asu(url: &str) -> anyhow::Result<Option<uniwrt_firmware::Asu>> {
+/// The catalog ASU answered last (D-147), in the state directory.
+const CATALOG: &str = "catalog";
+
+/// ASU at `url`, unless it is `off`, its catalog kept in `state_dir`.
+fn asu(url: &str, state_dir: &Path) -> anyhow::Result<Option<uniwrt_firmware::Asu>> {
     if url.eq_ignore_ascii_case("off") {
         return Ok(None);
     }
     let client = format!("uniwrt/{}", build_info::VERSION);
     uniwrt_firmware::Asu::new(url, &client)
-        .map(Some)
+        .map(|asu| Some(asu.keeping_catalog_in(state_dir.join(CATALOG))))
         .with_context(|| format!("cannot use the ASU at {url}"))
 }
 
@@ -329,12 +335,13 @@ async fn start_api(
     fleet: &Fleet,
     clock: &Arc<dyn Clock>,
     tls: &crate::tls::Tls,
-    (jobs, state_dir, github, updater, controller_backups): (
+    (jobs, state_dir, github, updater, controller_backups, asu): (
         &uniwrt_jobs::Jobs,
         &Path,
         &uniwrt_firmware::GitHub,
         &Updater,
         uniwrt_api::controller_backups::BackupConfig,
+        Option<uniwrt_firmware::Asu>,
     ),
 ) -> anyhow::Result<Api> {
     let uploads = uniwrt_firmware::Uploads::open(state_dir.join(UPLOADS))
@@ -358,7 +365,7 @@ async fn start_api(
         log_tail: crate::logging::tail(),
         vault: Some(vault.clone()),
         first_site: fleet.first_site()?,
-        asu: asu(&args.asu_url)?,
+        asu,
         github: Some(github.clone()),
         self_update: Some(Arc::new(updater.clone())),
         controller_backups: Some(controller_backups),

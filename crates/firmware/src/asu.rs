@@ -1,5 +1,7 @@
 //! The ASU client: OpenWrt's catalog, kept a while in memory, and zero-touch image builds.
 
+mod kept;
+mod next;
 mod upgrade;
 
 use std::{
@@ -53,6 +55,8 @@ struct Inner {
     client: String,
     http: Http,
     cache: Mutex<Cache>,
+    /// The catalog's answers on disk, read when upstream fails.
+    kept: Option<kept::Kept>,
 }
 
 #[derive(Default)]
@@ -81,8 +85,19 @@ impl Asu {
                 client: client.to_owned(),
                 http: Http::new(client)?,
                 cache: Mutex::default(),
+                kept: None,
             }),
         })
+    }
+
+    /// Keeps the catalog's answers in `dir` (made when first written) and reads them from there
+    /// while ASU or its download server can't be reached (D-147). Before the first clone.
+    #[must_use]
+    pub fn keeping_catalog_in(mut self, dir: std::path::PathBuf) -> Self {
+        if let Some(inner) = Arc::get_mut(&mut self.inner) {
+            inner.kept = Some(kept::Kept::new(dir));
+        }
+        self
     }
 
     /// Its URL, without a trailing `/`.
@@ -214,17 +229,39 @@ impl Asu {
         Ok(overview)
     }
 
-    /// A GET that must answer 200.
+    /// A GET that must answer 200; the answer kept last when upstream can't be reached or
+    /// fails, if the catalog is kept.
     async fn get(&self, url: &str, max: usize) -> Result<bytes::Bytes, Error> {
-        let answer = self.inner.http.get(url, max).await?;
-        match answer.status {
-            200 => Ok(answer.body),
-            404 => Err(Error::NotFound(format!("{url} doesn't exist"))),
-            status => Err(Error::Status {
+        let failed = match self.inner.http.get(url, max).await {
+            Ok(answer) if answer.status == 200 => {
+                if let Some(kept) = &self.inner.kept {
+                    let overview = url.ends_with("/json/v1/overview.json");
+                    kept.store(url, &answer.body, overview).await;
+                }
+                return Ok(answer.body);
+            }
+            Ok(answer) if answer.status == 404 => {
+                return Err(Error::NotFound(format!("{url} doesn't exist")));
+            }
+            Ok(answer) => Error::Status {
                 url: url.to_owned(),
-                status,
-            }),
+                status: answer.status,
+            },
+            Err(err) => err,
+        };
+        let upstream_down = match &failed {
+            Error::Unreachable { .. } => true,
+            Error::Status { status, .. } => *status >= 500,
+            _ => false,
+        };
+        if upstream_down
+            && let Some(kept) = &self.inner.kept
+            && let Some(body) = kept.read(url).await
+        {
+            tracing::debug!("{failed}: the answer kept last is used");
+            return Ok(body);
         }
+        Err(failed)
     }
 
     fn cache(&self) -> std::sync::MutexGuard<'_, Cache> {

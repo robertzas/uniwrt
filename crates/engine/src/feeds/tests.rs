@@ -85,10 +85,10 @@ fn nodes_of_one_release_share_a_feed_set_with_what_uniwrt_installs_and_they_chos
     );
     let made = plan(
         [
-            (&a, &a_inv),
-            (&b, &b_inv),
-            (&unknown, &unknown_inv),
-            (&none, &none_inv),
+            (&a, &a_inv, &[][..]),
+            (&b, &b_inv, &[][..]),
+            (&unknown, &unknown_inv, &[][..]),
+            (&none, &none_inv, &[][..]),
         ],
         true,
     );
@@ -201,6 +201,11 @@ struct Harness {
 impl Harness {
     /// With an inventory naming `feeds`, or none stored.
     async fn start(feeds: Option<&[&str]>) -> Self {
+        Self::start_with(feeds, None).await
+    }
+
+    /// [`Self::start`], the upgrades on offer from `next`.
+    async fn start_with(feeds: Option<&[&str]>, next: Option<super::NextSource>) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let clock = Arc::new(ManualClock::new(NOW));
         let store = Store::open(dir.path().join("test.db"), clock.clone())
@@ -218,7 +223,8 @@ impl Harness {
             .await
             .unwrap()
             .id;
-        let stored = facts("24.10.4", Some(PackageManager::Opkg));
+        let mut stored = facts("24.10.4", Some(PackageManager::Opkg));
+        stored.board.board_name = "x".to_owned();
         store.save_facts(node, &stored).await.unwrap();
         if let Some(feeds) = feeds {
             let packages = vec![package("luci", true)];
@@ -236,6 +242,7 @@ impl Harness {
             tick_every: Duration::from_millis(20),
             timeout: WAIT,
             via: Via::new(8443),
+            next,
             ..FeedMirrorConfig::default()
         };
         let sync = FeedMirrorSync::start(&engine, store.clone(), mirror, config);
@@ -402,3 +409,6 @@ async fn a_watched_node_without_an_inventory_is_planned_from_its_feeds_read_now(
     );
     h.sync.stop().await;
 }
+
+#[path = "next_tests.rs"]
+mod next;

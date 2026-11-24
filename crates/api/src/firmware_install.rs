@@ -5,7 +5,8 @@
 //! the client sends: ASU's finished build of an offered release, OpenWrt's official image of an
 //! offer (its packages installed after, D-122), an uploaded image that fits the node, or a
 //! release on offer from the node's GitHub repo. Images are downloaded into the controller's
-//! cache ([`ImageCache`]) and checked against their SHA-256 as the job's Download step. Audited
+//! cache ([`ImageCache`]) and checked against their SHA-256 as the job's Download step; an
+//! official image the feed mirror keeps (D-147) is copied from there instead. Audited
 //! (`firmware`).
 
 use std::{path::PathBuf, sync::Arc};
@@ -21,6 +22,7 @@ use axum::{
 };
 use serde::Deserialize;
 use ts_rs::TS;
+use uniwrt_engine::FeedMirror;
 use uniwrt_firmware::{GitHub, ImageCache};
 use uniwrt_jobs::{BoxFuture, FetchImage, UpgradeRequest};
 use uniwrt_model::{
@@ -161,7 +163,7 @@ async fn resolve(
                 Some(release),
                 images,
                 Vec::new(),
-                Arc::new(Fetch::Cache(cache)),
+                Arc::new(Fetch::Cache(cache, None)),
             )
         }
         UpgradeInstallBody::Official { release } => {
@@ -176,7 +178,7 @@ async fn resolve(
                 Some(release),
                 plan.images,
                 plan.packages,
-                Arc::new(Fetch::Cache(cache)),
+                Arc::new(Fetch::Cache(cache, api.feeds().ok().cloned())),
             )
         }
         UpgradeInstallBody::Upload { sha256 } => {
@@ -291,8 +293,8 @@ fn kind_of(name: &str) -> &'static str {
 
 /// Where the job's image comes from.
 enum Fetch {
-    /// Downloaded from its URL into the cache.
-    Cache(ImageCache),
+    /// Downloaded from its URL into the cache, or copied from the feed mirror's (D-147).
+    Cache(ImageCache, Option<FeedMirror>),
     /// An uploaded image's file.
     Upload(PathBuf),
     /// A GitHub release's asset, with the token kept for private repos.
@@ -309,7 +311,18 @@ impl FetchImage for Fetch {
     fn fetch<'a>(&'a self, image: &'a FirmwareImage) -> BoxFuture<'a, Result<PathBuf, String>> {
         Box::pin(async move {
             match self {
-                Self::Cache(cache) => cache.fetch(image).await.map_err(|err| err.to_string()),
+                Self::Cache(cache, mirror) => {
+                    if let Some(kept) = mirror.as_ref().and_then(|mirror| mirror.image(image)) {
+                        match cache.fetch_local(image, &kept).await {
+                            Ok(path) => return Ok(path),
+                            Err(err) => tracing::warn!(
+                                "the feed mirror's {} can't be used: {err}",
+                                image.name
+                            ),
+                        }
+                    }
+                    cache.fetch(image).await.map_err(|err| err.to_string())
+                }
                 Self::Upload(path) => match tokio::fs::metadata(path).await {
                     Ok(_) => Ok(path.clone()),
                     Err(_) => Err("the uploaded image was deleted".to_owned()),

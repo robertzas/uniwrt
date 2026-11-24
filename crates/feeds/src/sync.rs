@@ -18,6 +18,7 @@ use uniwrt_model::facts::PackageManager;
 use crate::{
     Error, closure,
     feed::Feed,
+    images,
     index::{self, Entry, MAX_INDEX},
     mirror::{Inner, Kept, Mirror, Plan, SetPlan, SetReport},
     source::{Fetched, Validators},
@@ -79,6 +80,7 @@ async fn run(
         .await;
         reports.insert(set.set.clone(), report);
     }
+    let image_errors = images::sync(inner, &plan.images, &mut keep, &mut problems).await;
 
     let root = inner.root.clone();
     let planned: Vec<String> = plan
@@ -91,6 +93,7 @@ async fn run(
         .map_err(|err| Error::Storage(err.to_string()))?;
     inner.set_kept(kept);
     inner.set_reports(reports);
+    inner.set_image_errors(image_errors);
     let at = inner.clock.now();
     let error = (!problems.is_empty()).then(|| problems.join("; "));
     inner.with_state(|state| {

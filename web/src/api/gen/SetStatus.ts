@@ -17,4 +17,8 @@ missing: Array<string>,
 /**
  * Packages that couldn't be downloaded or didn't match their index, with why.
  */
-failed: Array<string>, };
+failed: Array<string>, 
+/**
+ * Kept for an upgrade on offer: no node runs it yet (M9.0c1b2).
+ */
+offered: boolean, };

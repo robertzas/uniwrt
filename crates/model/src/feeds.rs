@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use uniwrt_core::Timestamp;
 
-use crate::facts::PackageManager;
+use crate::{facts::PackageManager, firmware::FirmwareImage};
 
 /// The feeds the nodes of one release, target and architecture use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -78,6 +78,45 @@ pub struct SetStatus {
     pub missing: Vec<String>,
     /// Packages that couldn't be downloaded or didn't match their index, with why.
     pub failed: Vec<String>,
+    /// Kept for an upgrade on offer: no node runs it yet (M9.0c1b2).
+    #[serde(default)]
+    pub offered: bool,
+}
+
+/// An official image the mirror keeps for an upgrade on offer (M9.0c1b2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct ImageStatus {
+    /// Its URL upstream.
+    pub url: String,
+    pub name: String,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub bytes: Option<u64>,
+    pub kept: bool,
+    /// Why the last sync couldn't keep it.
+    pub error: Option<String>,
+}
+
+/// What a node would need on a release it is offered (M9.0c1b2): the feed set's parts the
+/// node's current feeds don't tell, the packages the reinstall after OpenWrt's own image
+/// would ask for, and that image's files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NextRelease {
+    /// `25.12.6`.
+    pub release: String,
+    /// `x86/64`.
+    pub target: String,
+    /// The package architecture (`profiles.json`'s `arch_packages`).
+    pub arch: String,
+    /// The release's package manager, from its default packages; `None` when they don't say.
+    pub manager: Option<PackageManager>,
+    /// The kernel modules feed's directory (`6.12.112-1-b412…`: the kernel's version,
+    /// release and vermagic); `None` when `profiles.json` doesn't name the kernel.
+    pub kmods: Option<String>,
+    /// What the upgrade plan installs after the image (D-122).
+    pub packages: Vec<String>,
+    /// The device's images sysupgrade takes, with their SHA-256.
+    pub images: Vec<FirmwareImage>,
 }
 
 /// What the mirror holds.
@@ -85,6 +124,9 @@ pub struct SetStatus {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MirrorStatus {
     pub sets: Vec<SetStatus>,
+    /// The official images kept for upgrades on offer.
+    #[serde(default)]
+    pub images: Vec<ImageStatus>,
     /// Everything kept, in bytes.
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub bytes: u64,

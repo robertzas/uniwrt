@@ -6,6 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 
+use uniwrt_model::facts::PackageManager;
+
 use crate::{Error, catalog::valid_profile};
 
 /// A target's devices in one release.
@@ -13,6 +15,10 @@ use crate::{Error, catalog::valid_profile};
 pub(crate) struct Target {
     /// The package architecture, such as `aarch64_cortex-a53`.
     pub(crate) arch: String,
+    /// The kernel modules feed's directory: `<version>-<release>-<vermagic>` (D-147).
+    pub(crate) kmods: Option<String>,
+    /// The release's package manager, by its default packages (`opkg`, `apk-mbedtls`).
+    pub(crate) manager: Option<PackageManager>,
     defaults: Vec<String>,
     devices: Vec<Device>,
 }
@@ -50,6 +56,15 @@ struct Raw {
     #[serde(default)]
     default_packages: Vec<String>,
     profiles: BTreeMap<String, RawDevice>,
+    #[serde(default)]
+    linux_kernel: Option<RawKernel>,
+}
+
+#[derive(Deserialize)]
+struct RawKernel {
+    version: String,
+    release: String,
+    vermagic: String,
 }
 
 #[derive(Deserialize)]
@@ -101,8 +116,25 @@ pub(crate) fn target(body: &[u8]) -> Result<Target, Error> {
             own: device.device_packages,
         })
         .collect();
+    let kmods = raw
+        .linux_kernel
+        .map(|kernel| format!("{}-{}-{}", kernel.version, kernel.release, kernel.vermagic))
+        .filter(|dir| valid_image_name(dir));
+    let manager = if raw.default_packages.iter().any(|name| name == "opkg") {
+        Some(PackageManager::Opkg)
+    } else if raw
+        .default_packages
+        .iter()
+        .any(|name| name == "apk" || name.starts_with("apk-"))
+    {
+        Some(PackageManager::Apk)
+    } else {
+        None
+    };
     Ok(Target {
         arch: raw.arch_packages,
+        kmods,
+        manager,
         defaults: raw.default_packages,
         devices,
     })
@@ -238,6 +270,29 @@ mod tests {
         );
         assert!(target.device("evil").is_none());
         assert!(target.device("acme,unknown").is_none());
+        assert_eq!((target.kmods, target.manager), (None, None));
+    }
+
+    #[test]
+    fn the_kernel_modules_directory_and_package_manager_are_read() {
+        // 25.12.6's x86/64, cut down.
+        let body = br#"{"arch_packages":"x86_64","default_packages":["apk-mbedtls","dnsmasq"],
+            "linux_kernel":{"release":"1","vermagic":"b4125196ecec75391093e1e2edeba490","version":"6.12.112"},
+            "profiles":{"generic":{"supported_devices":[]}}}"#;
+        let target = target(body).unwrap();
+        assert_eq!(
+            target.kmods.as_deref(),
+            Some("6.12.112-1-b4125196ecec75391093e1e2edeba490")
+        );
+        assert_eq!(target.manager, Some(PackageManager::Apk));
+        let opkg = br#"{"arch_packages":"x86_64","default_packages":["opkg"],
+            "linux_kernel":{"release":"1","vermagic":"../x","version":"6.6"},"profiles":{}}"#;
+        let target = super::target(opkg).unwrap();
+        assert_eq!(target.manager, Some(PackageManager::Opkg));
+        assert_eq!(
+            target.kmods, None,
+            "a directory that can't be a path is dropped"
+        );
     }
 
     #[test]

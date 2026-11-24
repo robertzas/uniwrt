@@ -3361,6 +3361,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tracing",
  "uniwrt-core",
  "uniwrt-model",
  "webpki-roots",

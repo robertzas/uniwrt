@@ -77,6 +77,17 @@ impl Feed {
     pub fn host(&self) -> &str {
         &self.host
     }
+
+    /// Its base path, without a leading or trailing slash.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The same host and scheme with another base path, checked as a node's line is.
+    pub fn with_path(&self, path: &str) -> Result<Self, Error> {
+        let scheme = if self.secure { "https" } else { "http" };
+        Self::parse(&format!("{scheme}://{}/{path}", self.host))
+    }
 }
 
 /// Whether `host` (lowercase) is a DNS name or IPv4 address, with an optional port.

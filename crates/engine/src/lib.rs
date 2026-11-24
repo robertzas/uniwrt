@@ -149,7 +149,10 @@ pub use diag::{
 pub use drift::{DriftConfig, DriftError, DriftWatch, Drifts};
 pub use engine::Engine;
 pub use events::{EventRecorder, EventsConfig};
-pub use feeds::{FeedMirror, FeedMirrorConfig, FeedMirrorError, FeedMirrorSync, plan as feed_plan};
+pub use feeds::{
+    FeedMirror, FeedMirrorConfig, FeedMirrorError, FeedMirrorSync, NextReleases, NextSource,
+    plan as feed_plan,
+};
 pub use fleet::{Exec, Fleet, Stream, TailscaleCall, TerminalStart};
 pub use history::{HistoryConfig, TopologyHistory, replay};
 pub use interest::{Interest, Interests};
