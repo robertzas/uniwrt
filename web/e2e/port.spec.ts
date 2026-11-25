@@ -1,4 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { signIn, watchErrors } from "./support";
 
 /*
  * The adoption port end to end on the demo (features/adoption.md, Path C; D-107, D-108): the
@@ -8,24 +9,6 @@ import { expect, type Page, test } from "@playwright/test";
  * A controller of its own: managing the gateway and the new node would change what the smoke
  * tests see.
  */
-
-/** Collects the page's errors, which the test expects to stay empty. */
-function watchErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  return errors;
-}
-
-async function signIn(page: Page) {
-  await page.goto("/devices");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  await page.getByLabel("Username").fill("demo");
-  await page.getByLabel("Password", { exact: true }).fill("demo");
-  await page.getByRole("button", { name: "Sign in" }).click();
-}
 
 test("adopts the factory device on the gateway's adoption port", async ({ page }) => {
   test.setTimeout(240_000);

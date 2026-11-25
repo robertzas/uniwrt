@@ -12,6 +12,8 @@ import { defineConfig } from "@playwright/test";
  */
 const bin = process.env.UNIWRT_BIN ?? "../target/debug/uniwrt";
 const ci = Boolean(process.env.CI);
+/** The screens' specs (`e2e/<name>.spec.ts`), each a project with a controller of its own. */
+const screens = ["wifi", "networks", "vpn"];
 
 /** A controller of its own per project: `flags` after `serve`, HTTP on `http` and HTTPS on `https`. */
 function controller(flags: string, http: number, https: number) {
@@ -51,10 +53,18 @@ export default defineConfig({
     { name: "first-run", testMatch: "setup.spec.ts", use: { baseURL: "https://127.0.0.1:18444" } },
     // The demo again, for the adoption port's bench device (adoption.md, Path C).
     { name: "port", testMatch: "port.spec.ts", use: { baseURL: "https://127.0.0.1:18445" } },
+    // The screens' specs, each on a demo of its own: their saves stay out of the smoke tests' site,
+    // and no two workers save to one site at once (a stale save is refused).
+    ...screens.map((name, i) => ({
+      name,
+      testMatch: `${name}.spec.ts`,
+      use: { baseURL: `https://127.0.0.1:${18446 + i}` },
+    })),
   ],
   webServer: [
     controller("--demo --demo-seed 42", 18080, 18443),
     controller("--demo --demo-factory --demo-seed 42", 18081, 18444),
     controller("--demo --demo-seed 42", 18082, 18445),
+    ...screens.map((_, i) => controller("--demo --demo-seed 42", 18083 + i, 18446 + i)),
   ],
 });

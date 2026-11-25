@@ -1,28 +1,11 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { signIn, watchErrors } from "./support";
 
 /*
  * Sign in to the demo controller, watch the simulated fleet, open a device and find one with ⌘K;
  * then adopt the access point the demo leaves unadopted. In order: both use one controller.
  */
 test.describe.configure({ mode: "serial" });
-
-/** Collects the page's errors, which every test expects to stay empty. */
-function watchErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  return errors;
-}
-
-async function signIn(page: Page) {
-  await page.goto("/devices");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  await page.getByLabel("Username").fill("demo");
-  await page.getByLabel("Password", { exact: true }).fill("demo");
-  await page.getByRole("button", { name: "Sign in" }).click();
-}
 
 test("signs in and watches the simulated fleet live", async ({ page }) => {
   const errors = watchErrors(page);
