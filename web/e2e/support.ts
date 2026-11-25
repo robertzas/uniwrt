@@ -65,11 +65,19 @@ export async function manage(page: Page, device: string, packages: string[] = []
       .click();
   }
   await expect(on).toBeVisible({ timeout: 30_000 });
-  if (packages.length === 0) return;
   const config = page.getByRole("tabpanel", { name: "Config" });
-  for (const name of packages) await config.getByRole("checkbox", { name }).check();
+  let changed = false;
+  for (const name of packages) {
+    const box = config.getByRole("checkbox", { name });
+    if (await box.isChecked()) continue;
+    await box.check();
+    changed = true;
+  }
+  if (!changed) return;
+  // Save enables once the draft has the change: wait for it rather than look once.
   const save = config.getByRole("button", { name: "Save", exact: true });
-  if (await save.isEnabled()) await save.click();
+  await expect(save).toBeEnabled();
+  await save.click();
   await expect(save).toBeDisabled();
 }
 

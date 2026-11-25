@@ -32,9 +32,13 @@ export interface MetricsFeed {
   failed(): boolean;
 }
 
+/** How soon an answer without a single point is read again: about one window. */
+export const EMPTY_READ_MS = 15_000;
+
 /**
  * Reads the stored series of `input` (one request per entity) and reads them again as often as
- * the range changes ([`refreshEvery`]), while the page is visible. The answers go into a plain
+ * the range changes ([`refreshEvery`]), or every [`EMPTY_READ_MS`] while no series has a point
+ * yet (a fresh install's first windows), while the page is visible. The answers go into a plain
  * signal, not a query, so a refresh never holds a navigation (D-048).
  */
 export function createMetricsFeed(input: () => FeedInput | undefined): MetricsFeed {
@@ -50,6 +54,7 @@ export function createMetricsFeed(input: () => FeedInput | undefined): MetricsFe
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let busy = false;
+    let empty = false;
     const read = async () => {
       if (busy || controller.signal.aborted) return;
       busy = true;
@@ -62,13 +67,18 @@ export function createMetricsFeed(input: () => FeedInput | undefined): MetricsFe
           );
           setAnswer({ key: current, responses });
           setFailedKey(undefined);
+          empty = responses.every((response) =>
+            response.series.every((series) => series.at.length === 0),
+          );
         } catch {
           if (!controller.signal.aborted) setFailedKey(current);
         }
       }
       busy = false;
       const every = refreshEvery(range);
-      if (every !== null && !controller.signal.aborted) timer = setTimeout(read, every);
+      if (every !== null && !controller.signal.aborted) {
+        timer = setTimeout(read, empty ? Math.min(every, EMPTY_READ_MS) : every);
+      }
     };
     const onVisible = () => {
       if (!document.hidden && refreshEvery(range) !== null) void read();
