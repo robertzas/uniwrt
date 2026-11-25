@@ -16,6 +16,7 @@ import { PlanCard } from "./Plan";
 import { RadioCards } from "./RadioCards";
 import { Scanning, startScans } from "./Scanning";
 import { Spectrum } from "./Spectrum";
+import { createRfSaver } from "./settings";
 import { Utilization } from "./Utilization";
 
 const t = strings.rf;
@@ -31,6 +32,7 @@ export function RfPage() {
   const session = useContext(SessionContext);
   const [params, setParams] = useSearchParams<{ band?: string }>();
   const view = createRfView(live);
+  const save = createRfSaver();
   const admin = () => session.user.role === "admin";
   const [now, setNow] = createSignal(Date.now());
   const [selected, setSelected] = createSignal<string>();
@@ -65,7 +67,7 @@ export function RfPage() {
           <h1 class="font-semibold text-2xl tracking-tight">{t.title}</h1>
           <p class="mt-1 text-fg-muted text-sm">{strings.nav.rf.description}</p>
         </div>
-        <Show when={view()}>{(v) => <Scanning view={v()} admin={admin()} />}</Show>
+        <Show when={view()}>{(v) => <Scanning view={v()} admin={admin()} save={save} />}</Show>
       </header>
       <Show
         when={view()}
@@ -130,6 +132,7 @@ export function RfPage() {
                   <PlanCard
                     band={b().band}
                     settings={v().settings}
+                    save={save}
                     admin={admin()}
                     nodeName={nodeName}
                   />

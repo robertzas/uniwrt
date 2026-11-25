@@ -21,6 +21,7 @@ import { type Column, Table } from "../../ui/Table";
 import { showToast } from "../../ui/Toast";
 import { Nightly } from "./Nightly";
 import { usable, withBandPlan } from "./planned";
+import type { SaveRfSettings } from "./settings";
 
 const t = strings.rf.plan;
 const POLICIES: readonly DfsPolicy[] = ["avoid", "non_weather", "all"];
@@ -72,6 +73,8 @@ function termsText(cost: Breakdown): string {
 export function PlanCard(props: {
   band: Band;
   settings: RfSettings;
+  /** The page's saver of the settings (`createRfSaver`). */
+  save: SaveRfSettings;
   admin: boolean;
   nodeName: (id: number) => string;
 }) {
@@ -94,8 +97,8 @@ export function PlanCard(props: {
   };
   const setDfs = (dfs: DfsPolicy) => {
     setSaving(true);
-    api.rf
-      .settings({ ...props.settings, dfs })
+    props
+      .save(props.settings, { dfs })
       .then(() => {
         showToast({ title: t.dfs.saved, tone: "ok" });
         if (plan()) run();
@@ -126,7 +129,7 @@ export function PlanCard(props: {
         description={t.description}
         actions={
           <div class="flex flex-wrap items-center justify-end gap-3 text-sm">
-            <Nightly settings={props.settings} admin={props.admin} />
+            <Nightly settings={props.settings} admin={props.admin} save={props.save} />
             <Show when={props.band === "5g"}>
               <Show
                 when={props.admin}

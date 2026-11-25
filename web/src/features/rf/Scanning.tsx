@@ -6,6 +6,7 @@ import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
 import { showToast } from "../../ui/Toast";
+import type { SaveRfSettings } from "./settings";
 
 const t = strings.rf.scanning;
 const INTERVALS = [1, 2, 4, 8, 12, 24] as const;
@@ -26,17 +27,17 @@ export function startScans(node?: number, radio?: string): Promise<void> {
  * The page's scanning controls: how many radios have been scanned, and for admins the
  * background scans on or off, their interval and a scan of every radio now.
  */
-export function Scanning(props: { view: RfView; admin: boolean }) {
+export function Scanning(props: { view: RfView; admin: boolean; save: SaveRfSettings }) {
   const [saving, setSaving] = createSignal(false);
   const [scanning, setScanning] = createSignal(false);
   const scanned = () => props.view.radios.filter((r) => r.last !== null).length;
   // The usual intervals, and the one set when it is another (the API takes 1 to 24 h).
   const intervals = () =>
     [...new Set<number>([...INTERVALS, props.view.settings.interval_h])].sort((a, b) => a - b);
-  const save = (settings: RfSettings) => {
+  const save = (change: Partial<RfSettings>) => {
     setSaving(true);
-    api.rf
-      .settings(settings)
+    props
+      .save(props.view.settings, change)
       .then(() => showToast({ title: t.saved, tone: "ok" }))
       .catch((error: unknown) =>
         showToast({ title: t.saveFailed, description: errorText(error), tone: "crit" }),
@@ -65,7 +66,7 @@ export function Scanning(props: { view: RfView; admin: boolean }) {
           <Segmented
             label={t.background}
             value={props.view.settings.scanning ? "on" : "off"}
-            onChange={(value) => save({ ...props.view.settings, scanning: value === "on" })}
+            onChange={(value) => save({ scanning: value === "on" })}
             options={[
               { value: "on", label: t.on },
               { value: "off", label: t.off },
@@ -78,9 +79,7 @@ export function Scanning(props: { view: RfView; admin: boolean }) {
                 class="h-7 rounded-control border border-edge bg-surface px-1.5 text-fg text-xs"
                 value={String(props.view.settings.interval_h)}
                 disabled={saving()}
-                onChange={(event) =>
-                  save({ ...props.view.settings, interval_h: Number(event.currentTarget.value) })
-                }
+                onChange={(event) => save({ interval_h: Number(event.currentTarget.value) })}
               >
                 <For each={intervals()}>
                   {(hours) => <option value={String(hours)}>{t.every(hours)}</option>}

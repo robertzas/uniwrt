@@ -153,11 +153,12 @@ describe("the RF page", () => {
         body: { scanning: true, interval_h: 8, dfs: "all", nightly: true, nightly_at_min: 210 },
       }),
     );
+    // The page shows the old interval until the topic pushes the new one: Off keeps the 8 h.
     await user.click(screen.getByRole("button", { name: "Off" }));
     await waitFor(() =>
       expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toEqual({
         scanning: false,
-        interval_h: 4,
+        interval_h: 8,
         dfs: "all",
         nightly: true,
         nightly_at_min: 210,
@@ -271,7 +272,7 @@ describe("the RF page", () => {
     await waitFor(() =>
       expect(calls.filter((c) => c.method === "PUT").at(-1)?.body).toMatchObject({
         nightly: false,
-        nightly_at_min: 210,
+        nightly_at_min: 120,
       }),
     );
   });

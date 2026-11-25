@@ -1,10 +1,11 @@
 import { createSignal, For, Show } from "solid-js";
 import type { RfSettings } from "../../api/gen/RfSettings";
-import { api, errorText } from "../../lib/api";
+import { errorText } from "../../lib/api";
 import { clockText, nightlyTimes } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Checkbox } from "../../ui/Checkbox";
 import { showToast } from "../../ui/Toast";
+import type { SaveRfSettings } from "./settings";
 
 const t = strings.rf.plan.nightly;
 
@@ -12,12 +13,12 @@ const t = strings.rf.plan.nightly;
  * The nightly optimizer (features/wifi.md, RF planner: Apply; D-115): on or off, and when its
  * two-hour window opens, local time. Viewers read them.
  */
-export function Nightly(props: { settings: RfSettings; admin: boolean }) {
+export function Nightly(props: { settings: RfSettings; admin: boolean; save: SaveRfSettings }) {
   const [saving, setSaving] = createSignal(false);
-  const save = (settings: RfSettings) => {
+  const save = (change: Partial<RfSettings>) => {
     setSaving(true);
-    api.rf
-      .settings(settings)
+    props
+      .save(props.settings, change)
       .then(() => showToast({ title: t.saved, tone: "ok" }))
       .catch((error: unknown) =>
         showToast({ title: t.failed, description: errorText(error), tone: "crit" }),
@@ -38,7 +39,7 @@ export function Nightly(props: { settings: RfSettings; admin: boolean }) {
           label={t.label}
           checked={props.settings.nightly}
           disabled={saving()}
-          onChange={(nightly) => save({ ...props.settings, nightly })}
+          onChange={(nightly) => save({ nightly })}
         />
         <Show when={props.settings.nightly}>
           <label class="flex items-center gap-1.5">
@@ -47,9 +48,7 @@ export function Nightly(props: { settings: RfSettings; admin: boolean }) {
               class="h-7 rounded-control border border-edge bg-surface px-1.5 text-fg text-xs tabular-nums"
               value={String(props.settings.nightly_at_min)}
               disabled={saving()}
-              onChange={(event) =>
-                save({ ...props.settings, nightly_at_min: Number(event.currentTarget.value) })
-              }
+              onChange={(event) => save({ nightly_at_min: Number(event.currentTarget.value) })}
             >
               <For each={nightlyTimes(props.settings.nightly_at_min)}>
                 {(minutes) => <option value={String(minutes)}>{clockText(minutes)}</option>}
