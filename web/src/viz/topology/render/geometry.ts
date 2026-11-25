@@ -27,6 +27,29 @@ export function zoomAt(camera: Camera, factor: number, at: Point): Camera {
   return { k, x: at.x - (at.x - camera.x) * ratio, y: at.y - (at.y - camera.y) * ratio };
 }
 
+/** Room kept between a revealed vertex's edge and what covers the view, in screen pixels. */
+const REVEAL_MARGIN = 24;
+
+/**
+ * The camera panned up or down just enough that a vertex at `at` (world) with `radius` shows
+ * between `top` and the bottom `covered` pixels of a view `height` tall; `undefined` when it
+ * already does. A vertex that can't fit both ways keeps clear of the cover.
+ */
+export function revealCamera(
+  camera: Camera,
+  at: Point,
+  radius: number,
+  height: number,
+  covered: number,
+  top: number,
+): Camera | undefined {
+  const y = at.y * camera.k + camera.y;
+  const reach = radius * camera.k + REVEAL_MARGIN;
+  const bottom = height - covered - reach;
+  const shift = y > bottom ? bottom - y : y < Math.min(top, bottom) ? Math.min(top, bottom) - y : 0;
+  return shift === 0 ? undefined : { ...camera, y: camera.y + shift };
+}
+
 /** Room kept clear at each side of the view, in screen pixels (for overlays). */
 export interface Insets {
   top: number;

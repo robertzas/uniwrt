@@ -5,7 +5,7 @@ import type { SavedSearch } from "../../api/gen/SavedSearch";
 import { ApiError, api } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { Icon } from "../../ui/Icon";
 import { TextField } from "../../ui/TextField";
 import { showToast } from "../../ui/Toast";
@@ -185,14 +185,14 @@ function SaveDialog(props: {
           autofocus
           required
         />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
             {t.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={busy()}>
             {t.submit}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

@@ -7,7 +7,7 @@ import { hostnameOf, isHostname } from "../../lib/names";
 import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
 import { TextField } from "../../ui/TextField";
@@ -131,14 +131,14 @@ export function FixIpDialog(props: { client: Client; onClose: () => void }) {
                           error={nameError()}
                         />
                       </div>
-                      <div class="flex justify-end gap-2">
+                      <DialogFooter>
                         <Button variant="ghost" onClick={() => props.onClose()} disabled={busy()}>
                           {t.cancel}
                         </Button>
                         <Button type="submit" variant="primary" disabled={busy()}>
                           {t.save}
                         </Button>
-                      </div>
+                      </DialogFooter>
                     </form>
                   }
                 >
@@ -151,9 +151,9 @@ export function FixIpDialog(props: { client: Client; onClose: () => void }) {
         <RequestError text={failure()} />
         <For each={issues()}>{(message) => <p class="text-crit text-xs">{message}</p>}</For>
         <Show when={saved() || found()?.suggestion.existing || !ip || (failure() && !found())}>
-          <div class="flex justify-end">
+          <DialogFooter>
             <Button onClick={() => props.onClose()}>{t.close}</Button>
-          </div>
+          </DialogFooter>
         </Show>
       </div>
     </Dialog>

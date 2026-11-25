@@ -8,7 +8,7 @@ import { api, errorText } from "../../../lib/api";
 import { normalizeMac } from "../../../lib/names";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { RequestError } from "../../../ui/JobOutcome";
 import { Segmented } from "../../../ui/Segmented";
@@ -92,7 +92,7 @@ function NameAndRole(props: {
 }
 
 function Footer(props: { children: JSX.Element }) {
-  return <div class="mt-2 flex flex-wrap justify-end gap-2">{props.children}</div>;
+  return <DialogFooter class="mt-2">{props.children}</DialogFooter>;
 }
 
 const chosenRole = (role: RoleChoice) => (role === "image" ? undefined : role);

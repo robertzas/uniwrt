@@ -14,6 +14,8 @@ import type { Scene, VertexKind } from "./scene";
 export interface CanvasControls {
   fit(): void;
   zoom(factor: number): void;
+  /** Pans a vertex into view above the bottom `covered` pixels (a sheet over the map). */
+  reveal(id: string, covered: number): void;
 }
 
 const icons: Partial<Record<VertexKind, Parameters<typeof iconPathData>[0]>> = {
@@ -132,7 +134,11 @@ export function TopologyCanvas(props: {
       fixed ? { fixed, insets: MINI_INSETS } : {},
     );
     renderer = view;
-    props.controls?.({ fit: () => view.fit(), zoom: (factor) => view.zoom(factor) });
+    props.controls?.({
+      fit: () => view.fit(),
+      zoom: (factor) => view.zoom(factor),
+      reveal: (id, covered) => view.reveal(id, covered),
+    });
 
     const unwatch = watchTheme(() => view.setPalette(readPalette(canvas)));
     const motion = matchMedia("(prefers-reduced-motion: reduce)");

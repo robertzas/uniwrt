@@ -9,7 +9,7 @@ import { type JobsState, sshTarget } from "../../../lib/jobs";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { JobErrorNote, RequestError } from "../../../ui/JobOutcome";
 import { currentStep, jobProgress } from "../../../ui/JobSteps";
@@ -162,12 +162,12 @@ function Batch(props: BatchDialogProps) {
               onChange={setRemember}
               disabled={!password()}
             />
-            <div class="mt-2 flex flex-wrap justify-end gap-2">
+            <DialogFooter class="mt-2">
               <Button onClick={() => props.onOpenChange(false)}>{s.cancel}</Button>
               <Button type="submit" variant="primary" disabled={pending()}>
                 {pending() ? s.confirm.starting : s.batch.submit(nodes.length)}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         }
       >
@@ -197,7 +197,7 @@ function Batch(props: BatchDialogProps) {
             <Show when={blocked().length > 0}>
               <p class="text-fg-muted text-sm">{s.batch.anywayHint(blocked().length)}</p>
             </Show>
-            <div class="mt-2 flex flex-wrap items-center justify-end gap-3">
+            <DialogFooter class="mt-2 gap-3">
               <p role="status" class="mr-auto text-fg-muted text-sm">
                 {s.batch.done(succeeded(), result().jobs.length)}
               </p>
@@ -211,7 +211,7 @@ function Batch(props: BatchDialogProps) {
                   {s.batch.anyway(blocked().length)}
                 </Button>
               </Show>
-            </div>
+            </DialogFooter>
           </div>
         )}
       </Show>

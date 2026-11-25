@@ -6,7 +6,7 @@ import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { FormField, SELECT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
@@ -99,9 +99,9 @@ export function ServerEditor(props: { view: SiteView; onClose: () => void }) {
         fallback={
           <div class="flex flex-col gap-4 px-5 pb-5">
             <SavedRevision revision={saved() ?? 0} />
-            <div class="flex justify-end">
+            <DialogFooter>
               <Button onClick={() => props.onClose()}>{t.close}</Button>
-            </div>
+            </DialogFooter>
           </div>
         }
       >
@@ -216,7 +216,7 @@ export function ServerEditor(props: { view: SiteView; onClose: () => void }) {
               </div>
             </div>
           </Show>
-          <div class="flex flex-wrap items-center gap-2">
+          <DialogFooter>
             <Show when={!isNew && !removing()}>
               <Button variant="ghost" onClick={() => setRemoving(true)} disabled={busy()}>
                 {t.remove}
@@ -229,7 +229,7 @@ export function ServerEditor(props: { view: SiteView; onClose: () => void }) {
             <Button type="submit" variant="primary" disabled={busy()}>
               {t.save}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </Show>
     </Dialog>

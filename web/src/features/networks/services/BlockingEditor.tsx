@@ -12,7 +12,7 @@ import { saveSite } from "../../../lib/site";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { FormField, INPUT } from "../../../ui/FormField";
 import { RequestError } from "../../../ui/JobOutcome";
 import { SavedRevision } from "../../../ui/SavedRevision";
@@ -105,9 +105,9 @@ export function BlockingEditor(props: {
         fallback={
           <div class="flex flex-col gap-4 px-5 pb-5">
             <SavedRevision revision={saved() ?? 0} />
-            <div class="flex justify-end">
+            <DialogFooter>
               <Button onClick={() => props.onClose()}>{t.close}</Button>
-            </div>
+            </DialogFooter>
           </div>
         }
       >
@@ -209,14 +209,14 @@ export function BlockingEditor(props: {
             </div>
           </Show>
           <RequestError text={failure()} />
-          <div class="flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="ghost" onClick={() => props.onClose()} disabled={busy()}>
               {t.cancel}
             </Button>
             <Button type="submit" variant="primary" disabled={busy()}>
               {t.save}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </Show>
     </Dialog>

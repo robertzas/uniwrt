@@ -3,7 +3,7 @@ import type { NodeSource } from "../../api/gen/NodeSource";
 import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { RadioCards } from "../../ui/RadioCards";
 import { TextField } from "../../ui/TextField";
@@ -95,7 +95,7 @@ export function SourceDialog(props: {
           />
         </Show>
         <RequestError text={error()} />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button size="sm" onClick={() => props.onOpenChange(false)}>
             {t.cancel}
           </Button>
@@ -107,7 +107,7 @@ export function SourceDialog(props: {
           >
             {saving() ? t.saving : t.save}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

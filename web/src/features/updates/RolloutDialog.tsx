@@ -17,7 +17,7 @@ import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { type PlanState, planKey, RolloutDevice } from "./RolloutDevice";
 
@@ -269,7 +269,7 @@ export function RolloutDialog(props: {
           </div>
         </Show>
         <RequestError text={error()} />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button
             size="sm"
             onClick={() => (asking() ? setAsking(false) : props.onOpenChange(false))}
@@ -300,7 +300,7 @@ export function RolloutDialog(props: {
               {sending() ? r.starting : r.startNow}
             </Button>
           </Show>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

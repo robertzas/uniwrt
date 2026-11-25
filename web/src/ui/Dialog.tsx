@@ -23,20 +23,26 @@ export interface DialogProps {
 const overlay =
   "fixed inset-0 z-40 bg-canvas/70 backdrop-blur-sm data-expanded:animate-fade-in data-closed:animate-fade-out";
 
-/** A modal dialog: focus is trapped inside, and Escape or a click outside closes it. */
+/**
+ * A modal dialog: focus is trapped inside, and Escape or a click outside closes it. Below `md` it
+ * is a sheet from the bottom edge (D-148): its title stays on top while the body scrolls, and a
+ * `DialogFooter` keeps the actions at the bottom, in reach of a thumb.
+ */
 export function Dialog(props: DialogProps) {
   const focus = createFocusReturn();
   return (
     <KDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <KDialog.Portal>
         <KDialog.Overlay class={overlay} />
-        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pt-[12vh] pb-[6vh]">
+        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pt-[12vh] pb-[6vh] max-md:items-end max-md:overflow-hidden max-md:px-0 max-md:pt-3 max-md:pb-0">
           <KDialog.Content
             onOpenAutoFocus={(event) => focus.open(event, props.initialFocus)}
             onCloseAutoFocus={focus.close}
             class={[
               "relative w-full rounded-card border border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel data-expanded:animate-pop-in data-closed:animate-pop-out",
               { wide: "max-w-5xl", lg: "max-w-2xl", md: "max-w-lg" }[props.size ?? "md"],
+              // Below md, a sheet from the bottom edge as wide as the screen, whose body scrolls.
+              "max-md:max-h-full max-md:max-w-none max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:data-expanded:animate-sheet-in max-md:data-closed:animate-sheet-out",
               props.class,
             ]}
           >
@@ -121,32 +127,55 @@ function focusInitial(event: Event, target: DialogProps["initialFocus"]) {
   }
 }
 
+/** The close button and the title, which stay on top of a sheet's scrolling body. */
 function Header(props: DialogProps) {
   return (
     <>
-      <KDialog.CloseButton
-        aria-label={strings.common.close}
-        class="absolute top-2.5 right-2.5 z-10 grid size-8 place-items-center rounded-control text-fg-muted hover:bg-raised hover:text-fg"
-      >
-        <Icon icon={X} class="size-4" />
-      </KDialog.CloseButton>
-      <Show
-        when={!props.hideTitle}
-        fallback={<KDialog.Title class="sr-only">{props.title}</KDialog.Title>}
-      >
-        <div class="px-5 pt-4 pr-12 pb-2">
-          <KDialog.Title class="font-semibold text-base tracking-tight">
-            {props.title}
-          </KDialog.Title>
-          <Show when={props.description}>
-            {(description) => (
-              <KDialog.Description class="mt-1 text-fg-muted text-sm">
-                {description()}
-              </KDialog.Description>
-            )}
-          </Show>
-        </div>
+      <div class="relative z-10 max-md:sticky max-md:top-0 max-md:bg-surface max-md:glass:backdrop-blur-panel">
+        <KDialog.CloseButton
+          aria-label={strings.common.close}
+          class="absolute top-2.5 right-2.5 grid size-8 place-items-center rounded-control text-fg-muted hover:bg-raised hover:text-fg"
+        >
+          <Icon icon={X} class="size-4" />
+        </KDialog.CloseButton>
+        <Show
+          when={!props.hideTitle}
+          fallback={<KDialog.Title class="sr-only">{props.title}</KDialog.Title>}
+        >
+          <div class={["px-5 pt-4 pr-12", props.description ? "pb-1" : "pb-2"]}>
+            <KDialog.Title class="font-semibold text-base tracking-tight">
+              {props.title}
+            </KDialog.Title>
+          </div>
+        </Show>
+      </div>
+      <Show when={!props.hideTitle && props.description}>
+        {(description) => (
+          <KDialog.Description class="px-5 pr-12 pb-2 text-fg-muted text-sm">
+            {description()}
+          </KDialog.Description>
+        )}
       </Show>
     </>
+  );
+}
+
+/**
+ * A dialog's actions, at the end of its body (`gap-2` unless `class` names a gap). Below `md`
+ * they stick to the sheet's bottom edge over the scrolling body, on the surface's color as far as
+ * a body's `px-5` padding reaches.
+ */
+export function DialogFooter(props: { class?: string; children: JSX.Element }) {
+  return (
+    <div
+      class={[
+        "flex flex-wrap items-center justify-end",
+        !props.class?.match(/(^|\s)gap-/) && "gap-2",
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:bg-surface max-md:py-3 max-md:glass:backdrop-blur-panel max-md:shadow-[0_0_0_1.25rem_var(--color-surface)] max-md:[clip-path:inset(0_-1.25rem_-1.25rem)]",
+        props.class,
+      ]}
+    >
+      {props.children}
+    </div>
   );
 }

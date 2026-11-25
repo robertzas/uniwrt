@@ -6,7 +6,7 @@ import type { Purpose } from "../../api/gen/Purpose";
 import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { TextField } from "../../ui/TextField";
@@ -103,14 +103,14 @@ export function NewNetworkDialog(props: {
           error={vlanError()}
         />
         <RequestError text={failure()} />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="ghost" onClick={() => props.onOpenChange(false)} disabled={busy()}>
             {t.editor.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={busy()}>
             {t.choose.next}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

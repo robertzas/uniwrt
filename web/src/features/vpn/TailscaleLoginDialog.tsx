@@ -5,7 +5,7 @@ import type { TailscaleLogin } from "../../api/gen/TailscaleLogin";
 import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { QrCode } from "../../ui/QrCode";
@@ -81,9 +81,9 @@ export function TailscaleLoginDialog(props: {
         </Show>
         <RequestError text={error()} />
         <p class="text-fg-subtle text-xs">{t.audited}</p>
-        <div class="flex justify-end">
+        <DialogFooter>
           <Button onClick={() => props.onClose()}>{t.close}</Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

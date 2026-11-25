@@ -8,7 +8,7 @@ import { saveSite, sortNetworks } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { FormField, SELECT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
@@ -138,9 +138,9 @@ export function WlanEditor(props: {
         fallback={
           <div class="flex flex-col gap-4 px-5 pb-5">
             <SavedRevision revision={saved() ?? 0} />
-            <div class="flex justify-end">
+            <DialogFooter>
               <Button onClick={() => props.onClose()}>{t.close}</Button>
-            </div>
+            </DialogFooter>
           </div>
         }
       >
@@ -380,7 +380,7 @@ export function WlanEditor(props: {
               </div>
             </div>
           </Show>
-          <div class="flex flex-wrap items-center gap-2">
+          <DialogFooter>
             <Show when={!isNew && !deleting()}>
               <Button variant="ghost" onClick={() => setDeleting(true)} disabled={busy()}>
                 {t.delete}
@@ -393,7 +393,7 @@ export function WlanEditor(props: {
             <Button type="submit" variant="primary" disabled={busy()}>
               {t.save}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </Show>
     </Dialog>

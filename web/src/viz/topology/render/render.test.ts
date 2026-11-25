@@ -13,6 +13,7 @@ import {
   hitTest,
   linkWidth,
   particleAt,
+  revealCamera,
   toScreen,
   toWorld,
   zoomAt,
@@ -45,6 +46,20 @@ describe("the camera", () => {
     expect(toScreen(zoomed, world).x).toBeCloseTo(at.x);
     expect(toScreen(zoomed, world).y).toBeCloseTo(at.y);
     expect(zoomAt(camera, 100, at).k).toBe(4);
+  });
+
+  it("pans a vertex up out from under a sheet, and down from under the top, else leaves it", () => {
+    const camera = { x: 0, y: 0, k: 2 };
+    // At y 700 on screen in an 800 px view whose bottom 400 px a sheet covers: up to 400 − 16 − 24.
+    const up = revealCamera(camera, { x: 10, y: 350 }, 8, 800, 400, 64);
+    expect(up && toScreen(up, { x: 10, y: 350 })).toEqual({ x: 20, y: 360 });
+    expect(up?.k).toBe(2);
+    const down = revealCamera(camera, { x: 0, y: 10 }, 8, 800, 400, 64);
+    expect(down && toScreen(down, { x: 0, y: 10 }).y).toBe(64);
+    expect(revealCamera(camera, { x: 0, y: 100 }, 8, 800, 400, 64)).toBeUndefined();
+    // No room between the top inset and the sheet: clear of the sheet wins.
+    const tight = revealCamera(camera, { x: 0, y: 300 }, 8, 200, 150, 64);
+    expect(tight && toScreen(tight, { x: 0, y: 300 }).y).toBe(200 - 150 - 40);
   });
 });
 

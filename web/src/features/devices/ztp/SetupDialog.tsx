@@ -5,7 +5,7 @@ import { api, errorText } from "../../../lib/api";
 import { relative } from "../../../lib/rf";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { Tab, TabList, TabPanel, Tabs } from "../../../ui/Tabs";
@@ -63,9 +63,9 @@ export function SetupDialog(props: {
             <Script />
           </TabPanel>
         </Tabs>
-        <div class="mt-4 flex justify-end">
+        <DialogFooter class="mt-4">
           <Button onClick={() => props.onOpenChange(false)}>{t.close}</Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

@@ -17,6 +17,7 @@ import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
+import { SheetHandle } from "../../ui/SheetHandle";
 import type { Graph } from "../../viz/topology/graph";
 import {
   canGoDown,
@@ -53,18 +54,29 @@ export interface DetailsProps {
   onSelect: (id: string) => void;
   onUnpin: () => void;
   onToggleGroup: () => void;
+  /** The panel's element, as it mounts: below `md` a sheet over the map's bottom. */
+  ref?: (element: HTMLElement) => void;
 }
 
-/** What is known of the selected vertex or link, beside the map. */
+/**
+ * What is known of the selected vertex or link, beside the map; below `md`, a sheet along the
+ * screen's bottom edge (D-148) that a drag down on its grip dismisses.
+ */
 export function DetailsPanel(props: DetailsProps) {
+  let sheet: HTMLElement | undefined;
   const vertex = () => props.scene.byId.get(props.selected);
   const link = () => props.scene.links.find((l) => l.id === props.selected && l.edge !== null);
   return (
     <Show when={vertex() ?? link()}>
       <section
         aria-label={d.label}
-        class="absolute top-3 right-3 flex max-h-[calc(100%-5.5rem)] w-80 flex-col overflow-hidden rounded-card border border-card-edge bg-surface shadow-overlay glass:backdrop-blur-panel max-md:inset-x-3 max-md:top-auto max-md:bottom-16 max-md:w-auto max-md:max-h-[50%]"
+        ref={(element) => {
+          sheet = element;
+          props.ref?.(element);
+        }}
+        class="absolute top-3 right-3 flex max-h-[calc(100%-5.5rem)] w-80 flex-col overflow-hidden rounded-card border border-card-edge bg-surface shadow-overlay glass:backdrop-blur-panel max-md:fixed max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-30 max-md:max-h-[55dvh] max-md:w-auto max-md:animate-sheet-in max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)]"
       >
+        <SheetHandle sheet={() => sheet} onDismiss={() => props.onClose()} />
         <Switch>
           <Match when={vertex()}>{(v) => <VertexDetails {...props} vertex={v()} />}</Match>
           <Match when={link()}>{(l) => <LinkDetails {...props} link={l()} />}</Match>
@@ -81,7 +93,7 @@ function Header(props: {
   children?: JSX.Element;
 }) {
   return (
-    <header class="flex items-start gap-2 border-edge border-b px-4 py-3">
+    <header class="flex items-start gap-2 border-edge border-b px-4 py-3 max-md:pt-1">
       <div class="min-w-0 flex-1">
         <p class="text-fg-subtle text-xs">{props.kind}</p>
         <h2 class="truncate font-semibold text-base tracking-tight" title={props.title}>

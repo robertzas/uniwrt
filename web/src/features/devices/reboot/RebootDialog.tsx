@@ -8,7 +8,7 @@ import type { JobsState } from "../../../lib/jobs";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobNodes } from "../../../ui/JobNodes";
 import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { showToast } from "../../../ui/Toast";
@@ -133,7 +133,7 @@ export function RebootDialog(props: {
                 </Show>
               </div>
               <RequestError text={error()} />
-              <div class="flex justify-end gap-2">
+              <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
                   {r.cancel}
                 </Button>
@@ -146,7 +146,7 @@ export function RebootDialog(props: {
                 >
                   {sending() ? r.starting : r.start(picked().length)}
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           }
         >
@@ -168,11 +168,11 @@ export function RebootDialog(props: {
                 <JobSuccessNote text={r.done(job().nodes.length)} />
               </Show>
               <Show when={job().error}>{(error) => <JobErrorNote error={error()} />}</Show>
-              <div class="flex justify-end">
+              <DialogFooter>
                 <Button type="button" onClick={() => props.onOpenChange(false)}>
                   {r.close}
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           )}
         </Show>

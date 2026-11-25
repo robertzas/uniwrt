@@ -5,7 +5,7 @@ import { api, errorText } from "../../../lib/api";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { FormField, SELECT } from "../../../ui/FormField";
 import { RequestError } from "../../../ui/JobOutcome";
 import { TextField } from "../../../ui/TextField";
@@ -107,14 +107,14 @@ export function TargetsDialog(props: {
           </Show>
         </div>
         <RequestError text={failure()} />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="ghost" onClick={props.onClose} disabled={busy()}>
             {ed.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={busy()}>
             {ed.save}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

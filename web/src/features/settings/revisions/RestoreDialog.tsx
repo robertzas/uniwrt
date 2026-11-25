@@ -3,7 +3,7 @@ import { createSignal, Show } from "solid-js";
 import { api, errorText } from "../../../lib/api";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 
 const t = strings.settings.revisions.restore;
@@ -51,27 +51,27 @@ export function RestoreDialog(props: {
         <Show
           when={restored()}
           fallback={
-            <div class="flex justify-end gap-2">
+            <DialogFooter>
               <Button variant="ghost" onClick={() => close(false)}>
                 {t.cancel}
               </Button>
               <Button variant="primary" disabled={sending()} onClick={restore}>
                 {t.confirm}
               </Button>
-            </div>
+            </DialogFooter>
           }
         >
           {(as) => (
             <>
               <JobSuccessNote text={t.done(props.id, as())} />
-              <div class="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="ghost" onClick={() => close(false)}>
                   {strings.common.close}
                 </Button>
                 <Button variant="primary" onClick={() => navigate("/changes")}>
                   {t.review}
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           )}
         </Show>

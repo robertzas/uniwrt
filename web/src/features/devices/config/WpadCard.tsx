@@ -10,7 +10,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { JobSteps } from "../../../ui/JobSteps";
 import { showToast } from "../../../ui/Toast";
@@ -121,14 +121,14 @@ export function WpadCard(props: { node: Node; facts: NodeFacts | null; admin: bo
           description={w.confirm.body}
         >
           <p class="px-5 text-fg-muted text-sm">{w.confirm.after}</p>
-          <div class="flex justify-end gap-2 px-5 pt-4 pb-5">
+          <DialogFooter class="px-5 pt-4 pb-5">
             <Button variant="ghost" onClick={() => setAsking(false)}>
               {w.cancel}
             </Button>
             <Button variant="primary" disabled={sending()} onClick={install}>
               {w.confirm.action}
             </Button>
-          </div>
+          </DialogFooter>
         </Dialog>
       </Card>
     </Show>

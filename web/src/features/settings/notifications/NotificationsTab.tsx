@@ -7,7 +7,7 @@ import { api, errorText } from "../../../lib/api";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card } from "../../../ui/Card";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { showToast } from "../../../ui/Toast";
 import { inputOf, KINDS, type Kind, MAX_NOTIFIERS } from "./draft";
@@ -219,7 +219,7 @@ export function NotificationsTab(props: { nodes: readonly NodeSummary[]; admin: 
             title={t.removeTitle(notifier().name)}
             description={t.removeDetail}
           >
-            <div class="flex justify-end gap-2 px-5 pt-2 pb-4">
+            <DialogFooter class="px-5 pt-2 pb-4">
               <Button variant="ghost" onClick={() => setRemoving(undefined)}>
                 {t.cancel}
               </Button>
@@ -239,7 +239,7 @@ export function NotificationsTab(props: { nodes: readonly NodeSummary[]; admin: 
               >
                 {t.remove}
               </Button>
-            </div>
+            </DialogFooter>
           </Dialog>
         )}
       </Show>

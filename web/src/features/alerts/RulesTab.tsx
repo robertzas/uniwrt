@@ -10,7 +10,7 @@ import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { showToast } from "../../ui/Toast";
 import { RuleEditor } from "./RuleEditor";
 import { ruleSummary } from "./rules";
@@ -281,7 +281,7 @@ export function RulesTab(props: {
             title={t.removeTitle(rule().name)}
             description={t.removeDetail}
           >
-            <div class="flex justify-end gap-2 px-5 pt-2 pb-4">
+            <DialogFooter class="px-5 pt-2 pb-4">
               <Button variant="ghost" onClick={() => setRemoving(undefined)}>
                 {t.cancel}
               </Button>
@@ -301,7 +301,7 @@ export function RulesTab(props: {
               >
                 {t.remove}
               </Button>
-            </div>
+            </DialogFooter>
           </Dialog>
         )}
       </Show>

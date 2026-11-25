@@ -8,7 +8,7 @@ import { LiveContext } from "../../lib/live";
 import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { IspPicker } from "./IspPicker";
 import { TestPanel } from "./TestPanel";
@@ -128,7 +128,7 @@ export function WanWizard(props: {
 
         <RequestError text={failure()} />
 
-        <div class="flex flex-wrap justify-end gap-2">
+        <DialogFooter>
           <Switch>
             <Match when={step() === "isp"}>
               <Button variant="ghost" onClick={props.onClose}>
@@ -171,7 +171,7 @@ export function WanWizard(props: {
               <Button onClick={() => navigate("/changes")}>{w.review}</Button>
             </Match>
           </Switch>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

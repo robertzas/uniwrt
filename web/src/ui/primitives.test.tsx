@@ -5,7 +5,7 @@ import { createSignal } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
-import { Dialog } from "./Dialog";
+import { Dialog, DialogFooter } from "./Dialog";
 import { Sparkline } from "./Sparkline";
 import { Stat } from "./Stat";
 import { Tab, TabList, TabPanel, Tabs } from "./Tabs";
@@ -78,6 +78,25 @@ describe("Dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     // Kobalte restores focus after the dialog unmounts, a tick later under load.
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("is a sheet below md, with its description and a footer that stays in reach", async () => {
+    render(() => (
+      <Dialog open onOpenChange={() => {}} title="Rename" description="Shown on every page.">
+        <form class="px-5 pb-5">
+          <DialogFooter class="mt-2 gap-3">
+            <Button>Save</Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+    ));
+    const dialog = await screen.findByRole("dialog", { name: "Rename" });
+    expect(dialog).toHaveAccessibleDescription("Shown on every page.");
+    expect(dialog.className).toContain("max-md:overflow-y-auto");
+    const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
+    expect(footer.className).toContain("max-md:sticky");
+    expect(footer.className).toContain("gap-3");
+    expect(footer.className.split(" ")).not.toContain("gap-2");
   });
 });
 

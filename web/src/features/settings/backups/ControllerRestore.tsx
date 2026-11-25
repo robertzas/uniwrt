@@ -7,7 +7,7 @@ import { followRestore } from "../../../lib/controller";
 import { formatBytes, formatDateTime } from "../../../lib/format";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { FormField } from "../../../ui/FormField";
 import { Icon } from "../../../ui/Icon";
 import { RequestError } from "../../../ui/JobOutcome";
@@ -135,9 +135,9 @@ export function ControllerRestore(props: ControllerRestoreProps) {
                   <p role="alert" class="text-fg text-sm">
                     {t.lost}
                   </p>
-                  <div class="flex justify-end">
+                  <DialogFooter>
                     <Button onClick={() => window.location.reload()}>{t.reload}</Button>
-                  </div>
+                  </DialogFooter>
                 </div>
               }
             >
@@ -169,14 +169,14 @@ export function ControllerRestore(props: ControllerRestoreProps) {
                 </p>
               )}
             </Show>
-            <div class="flex justify-end gap-2">
+            <DialogFooter>
               <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
                 {t.cancel}
               </Button>
               <Button variant="primary" disabled={!file() || busy()} onClick={upload}>
                 {t.upload}
               </Button>
-            </div>
+            </DialogFooter>
           </Match>
           <Match when={uploadedSize() !== undefined}>
             <form class="flex flex-col gap-4" onSubmit={unlock}>
@@ -197,14 +197,14 @@ export function ControllerRestore(props: ControllerRestoreProps) {
                   {t.unlocking}
                 </p>
               </Show>
-              <div class="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="ghost" disabled={busy()} onClick={discard}>
                   {t.discard}
                 </Button>
                 <Button type="submit" variant="primary" disabled={!passphrase() || busy()}>
                   {t.unlock}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
           </Match>
           <Match when={manifest()}>
@@ -222,14 +222,14 @@ export function ControllerRestore(props: ControllerRestoreProps) {
                   <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
                   <span>{props.firstRun ? t.firstRun : `${t.replaces} ${t.signInAfter}`}</span>
                 </p>
-                <div class="flex justify-end gap-2">
+                <DialogFooter>
                   <Button variant="ghost" disabled={busy()} onClick={discard}>
                     {t.discard}
                   </Button>
                   <Button variant="primary" disabled={busy()} onClick={apply}>
                     {t.apply}
                   </Button>
-                </div>
+                </DialogFooter>
               </>
             )}
           </Match>

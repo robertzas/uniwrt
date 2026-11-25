@@ -12,7 +12,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { RequestError } from "../../../ui/JobOutcome";
 import { JobSteps } from "../../../ui/JobSteps";
@@ -183,7 +183,7 @@ export function BackupsCard(props: { node: Node; admin: boolean }) {
           <p>{b.confirm.rest}</p>
           <p>{b.confirm.drift}</p>
         </div>
-        <div class="flex justify-end gap-2 px-5 pt-4 pb-5">
+        <DialogFooter class="px-5 pt-4 pb-5">
           <Button variant="ghost" onClick={() => setRestoring(undefined)}>
             {b.cancel}
           </Button>
@@ -197,7 +197,7 @@ export function BackupsCard(props: { node: Node; admin: boolean }) {
           >
             {b.confirm.action}
           </Button>
-        </div>
+        </DialogFooter>
       </Dialog>
     </Card>
   );

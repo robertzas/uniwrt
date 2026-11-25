@@ -7,7 +7,7 @@ import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { FormField, INPUT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { RadioCards } from "../../ui/RadioCards";
@@ -115,7 +115,7 @@ export function PeerEditor(props: {
         fallback={
           <div class="flex flex-col gap-4 px-5 pb-5">
             <SavedRevision revision={saved()?.revision ?? 0} />
-            <div class="flex justify-end gap-2">
+            <DialogFooter>
               <Show when={saved()?.peer}>
                 {(peer) => (
                   <Button variant="secondary" onClick={() => props.onShow(peer())}>
@@ -124,7 +124,7 @@ export function PeerEditor(props: {
                 )}
               </Show>
               <Button onClick={() => props.onClose()}>{t.close}</Button>
-            </div>
+            </DialogFooter>
           </div>
         }
       >
@@ -269,7 +269,7 @@ export function PeerEditor(props: {
               </div>
             </div>
           </Show>
-          <div class="flex flex-wrap items-center gap-2">
+          <DialogFooter>
             <Show when={!isNew && !deleting()}>
               <Button variant="ghost" onClick={() => setDeleting(true)} disabled={busy()}>
                 {t.delete}
@@ -294,7 +294,7 @@ export function PeerEditor(props: {
                 {t.saveShow}
               </Button>
             </Show>
-          </div>
+          </DialogFooter>
         </form>
       </Show>
     </Dialog>

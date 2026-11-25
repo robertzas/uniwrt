@@ -42,6 +42,9 @@ const t = strings.topology;
 
 type Toggles = Record<ViewKind, ReadonlySet<string>>;
 
+/** Below Tailwind's `md`, where the details are a bottom sheet. */
+const PHONE = "(width < 48rem)";
+
 /** A link between nodes, switches or peers (a client's link is listed with the client). */
 function backhaul(scene: Scene, link: SceneLink): boolean {
   if (!link.edge) return false;
@@ -73,6 +76,8 @@ export function TopologyPage() {
   /** The vertex whose loss the map shows, while it stays selected. */
   const [whatIf, setWhatIf] = createSignal<string | null>(null);
   let controls: CanvasControls | undefined;
+  let map!: HTMLDivElement;
+  let sheet: HTMLElement | undefined;
 
   onSettled(() => {
     api.topology.layout().then(
@@ -85,6 +90,19 @@ export function TopologyPage() {
     () => t.title,
     (title) => {
       document.title = `${title} · ${strings.appName}`;
+    },
+  );
+
+  // Below md the details are a sheet over the map's bottom: the selected vertex stays above it.
+  createEffect(
+    () => selected(),
+    (id) => {
+      if (!id || !matchMedia(PHONE).matches) return;
+      requestAnimationFrame(() => {
+        if (!sheet?.isConnected) return;
+        const covered = map.getBoundingClientRect().bottom - (innerHeight - sheet.offsetHeight);
+        if (covered > 0) controls?.reveal(id, covered);
+      });
     },
   );
 
@@ -243,7 +261,10 @@ export function TopologyPage() {
           </div>
         </div>
       </header>
-      <div class="relative min-h-0 flex-1 overflow-hidden rounded-card border border-card-edge bg-canvas shadow-card">
+      <div
+        ref={map}
+        class="relative min-h-0 flex-1 overflow-hidden rounded-card border border-card-edge bg-canvas shadow-card"
+      >
         <Show
           when={scene()}
           fallback={
@@ -327,6 +348,9 @@ export function TopologyPage() {
                     pinned={view() !== "tree" && id() in pins()}
                     grouped={hostOf(id()) === undefined ? undefined : grouped(hostOf(id()) ?? "")}
                     labelOf={labelOf}
+                    ref={(element) => {
+                      sheet = element;
+                    }}
                     onClose={() => {
                       setSelected(null);
                       setWhatIf(null);

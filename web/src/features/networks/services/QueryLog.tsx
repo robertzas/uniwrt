@@ -10,7 +10,7 @@ import { formatCount, formatTime } from "../../../lib/format";
 import { strings } from "../../../lib/strings";
 import { Badge } from "../../../ui/Badge";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { FormField, INPUT, SELECT } from "../../../ui/FormField";
 import { RequestError } from "../../../ui/JobOutcome";
 import { type Column, Table } from "../../../ui/Table";
@@ -230,11 +230,11 @@ export function QueryLog(props: {
           />
         </Show>
         <RequestError text={first.error?.message ?? props.listing.failure()} />
-        <div class="flex justify-end">
+        <DialogFooter>
           <Button variant="secondary" onClick={() => props.onClose()}>
             {v.close}
           </Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

@@ -10,7 +10,7 @@ import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { type Column, Table } from "../../ui/Table";
@@ -247,7 +247,7 @@ export function MirrorCard(props: { admin: boolean }) {
                 title={t.confirm.title}
                 description={t.confirm.body(Math.max(found().sets.length, 1))}
               >
-                <div class="flex justify-end gap-2 px-5 pb-5">
+                <DialogFooter class="px-5 pb-5">
                   <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
                     {t.confirm.cancel}
                   </Button>
@@ -261,7 +261,7 @@ export function MirrorCard(props: { admin: boolean }) {
                   >
                     {t.confirm.keep}
                   </Button>
-                </div>
+                </DialogFooter>
               </Dialog>
             </>
           )}

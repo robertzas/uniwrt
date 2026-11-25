@@ -20,7 +20,7 @@ import {
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { Icon } from "../../ui/Icon";
 import { BuildFailed, BuildRunning, ImageRow } from "../../ui/ImageBuild";
 import { JobSuccessNote, RequestError } from "../../ui/JobOutcome";
@@ -282,7 +282,7 @@ export function UpgradeDialog(props: {
           name={props.name}
           official={plan()?.source === "official"}
         />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button size="sm" onClick={() => props.onOpenChange(false)}>
             {d.close}
           </Button>
@@ -300,7 +300,7 @@ export function UpgradeDialog(props: {
               {starting() ? d.building : build() ? d.again : d.build}
             </Button>
           </Show>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

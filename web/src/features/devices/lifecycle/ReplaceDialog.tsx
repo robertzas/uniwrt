@@ -11,7 +11,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { JobSteps } from "../../../ui/JobSteps";
 import { TextField } from "../../../ui/TextField";
@@ -275,5 +275,5 @@ function Wizard(props: { node: Node; onClose: () => void }) {
 }
 
 function Footer(props: { children: JSX.Element }) {
-  return <div class="mt-2 flex flex-wrap justify-end gap-2">{props.children}</div>;
+  return <DialogFooter class="mt-2">{props.children}</DialogFooter>;
 }

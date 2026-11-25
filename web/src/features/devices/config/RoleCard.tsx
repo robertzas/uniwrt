@@ -7,7 +7,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { RadioCards } from "../../../ui/RadioCards";
 import { showToast } from "../../../ui/Toast";
@@ -106,7 +106,7 @@ export function RoleCard(props: { node: Node; admin: boolean }) {
               {blocked() ?? r.becomes[chosen()]}
             </p>
           </Show>
-          <div class="flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="ghost" onClick={() => setAsking(false)}>
               {r.cancel}
             </Button>
@@ -117,7 +117,7 @@ export function RoleCard(props: { node: Node; admin: boolean }) {
             >
               {r.save}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </Dialog>
     </Card>

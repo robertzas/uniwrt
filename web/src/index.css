@@ -13,6 +13,8 @@
   --animate-slide-out-left: slide-out-left 160ms ease-in;
   --animate-slide-in-right: slide-in-right 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
   --animate-slide-out-right: slide-out-right 160ms ease-in;
+  --animate-sheet-in: sheet-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-sheet-out: sheet-out 160ms ease-in;
 
   @keyframes fade-in {
     from {
@@ -54,6 +56,16 @@
   @keyframes slide-out-right {
     to {
       transform: translateX(100%);
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      transform: translateY(100%);
     }
   }
 }

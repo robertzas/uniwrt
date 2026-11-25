@@ -4,7 +4,7 @@ import type { LengthUnit } from "../../api/gen/LengthUnit";
 import { api, errorText } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { FormField, INPUT, SELECT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { TextField } from "../../ui/TextField";
@@ -196,7 +196,7 @@ export function FloorDialog(props: {
           />
         </FormField>
         <RequestError text={failure()} />
-        <div class="flex flex-wrap items-center justify-end gap-2">
+        <DialogFooter>
           <Show when={props.floor}>
             <Show
               when={confirming()}
@@ -229,7 +229,7 @@ export function FloorDialog(props: {
           <Button type="submit" variant="primary" disabled={busy()}>
             {props.floor ? t.save : t.add}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

@@ -10,7 +10,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Card, CardHeader } from "../../../ui/Card";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { Icon } from "../../../ui/Icon";
 import { JobSteps } from "../../../ui/JobSteps";
 import { showToast } from "../../../ui/Toast";
@@ -135,14 +135,14 @@ export function ManagementCard(props: { node: Node; admin: boolean }) {
         title={confirm().title(props.node.name)}
         description={confirm().body}
       >
-        <div class="flex justify-end gap-2 px-5 pt-2 pb-5">
+        <DialogFooter class="px-5 pt-2 pb-5">
           <Button variant="ghost" onClick={() => setAsking(false)}>
             {m.cancel}
           </Button>
           <Button variant="primary" disabled={sending()} onClick={toggle}>
             {confirm().action}
           </Button>
-        </div>
+        </DialogFooter>
       </Dialog>
     </Card>
   );

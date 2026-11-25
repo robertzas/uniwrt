@@ -5,7 +5,7 @@ import { ApiError, api, errorText } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { Segmented } from "../../ui/Segmented";
 import { showToast } from "../../ui/Toast";
@@ -91,14 +91,14 @@ export function KickDialog(props: {
             class="self-start"
           />
         </div>
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
             {k.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={busy()}>
             {k.kick}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );
@@ -141,14 +141,14 @@ export function BlockDialog(props: {
         <Show when={props.randomized}>
           <p class="text-fg-muted text-sm">{b.note}</p>
         </Show>
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
             {b.cancel}
           </Button>
           <Button type="button" variant="primary" disabled={busy()} onClick={block}>
             {b.block}
           </Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );
@@ -220,14 +220,14 @@ export function WakeDialog(props: {
           </p>
         </Show>
         <RequestError text={error()} />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
             {w.cancel}
           </Button>
           <Button type="button" variant="primary" disabled={busy()} onClick={() => void wake()}>
             {busy() ? w.sending : w.wake}
           </Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

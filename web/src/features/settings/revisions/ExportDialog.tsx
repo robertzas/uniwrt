@@ -3,7 +3,7 @@ import { api, errorText } from "../../../lib/api";
 import { saveFile } from "../../../lib/download";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { RadioCards } from "../../../ui/RadioCards";
 import { TextField } from "../../../ui/TextField";
@@ -118,14 +118,14 @@ export function ExportDialog(props: {
         </Show>
         <RequestError text={error()} />
         <Show when={saved()}>{(name) => <JobSuccessNote text={t.done(name())} />}</Show>
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="ghost" onClick={() => close(false)}>
             {saved() ? strings.common.close : t.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={sending()}>
             {sending() ? t.downloading : t.download}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

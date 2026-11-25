@@ -2,7 +2,7 @@ import { createEffect, createSignal } from "solid-js";
 import { ApiError, api } from "../../lib/api";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { TextField } from "../../ui/TextField";
 import { showToast } from "../../ui/Toast";
 
@@ -58,14 +58,14 @@ export function RenameDialog(props: {
           error={error()}
           autofocus
         />
-        <div class="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
             {r.cancel}
           </Button>
           <Button type="submit" variant="primary" disabled={saving()}>
             {r.save}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

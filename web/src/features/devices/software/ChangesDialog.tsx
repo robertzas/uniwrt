@@ -9,7 +9,7 @@ import { api, errorText } from "../../../lib/api";
 import { formatBytes } from "../../../lib/format";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { JobSteps } from "../../../ui/JobSteps";
 import { changeCount, changeRows, installBytes } from "./software";
@@ -88,7 +88,7 @@ export function ChangesDialog(props: {
                 <p class="text-fg-muted">{k.after}</p>
               </div>
               <RequestError text={error()} />
-              <div class="flex justify-end gap-2">
+              <DialogFooter>
                 <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
                   {k.cancel}
                 </Button>
@@ -100,7 +100,7 @@ export function ChangesDialog(props: {
                 >
                   {sending() ? k.starting : k.start(changeCount(props.changes))}
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           }
         >
@@ -111,9 +111,9 @@ export function ChangesDialog(props: {
                 <JobSuccessNote text={k.done} />
               </Show>
               <Show when={job().error}>{(failure) => <JobErrorNote error={failure()} />}</Show>
-              <div class="flex justify-end">
+              <DialogFooter>
                 <Button onClick={() => props.onOpenChange(false)}>{k.close}</Button>
-              </div>
+              </DialogFooter>
             </>
           )}
         </Show>

@@ -12,7 +12,7 @@ import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
@@ -314,14 +314,14 @@ function Review() {
         title={t.discard.title(back() ?? 0)}
         description={t.discard.body(back() ?? 0)}
       >
-        <div class="flex justify-end gap-2 px-5 pt-2 pb-5">
+        <DialogFooter class="px-5 pt-2 pb-5">
           <Button variant="ghost" onClick={() => setAsking(false)}>
             {t.discard.cancel}
           </Button>
           <Button variant="primary" disabled={discarding()} onClick={discard}>
             {t.discard.confirm}
           </Button>
-        </div>
+        </DialogFooter>
       </Dialog>
     </>
   );

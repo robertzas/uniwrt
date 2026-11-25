@@ -7,7 +7,7 @@ import { saveSite } from "../../lib/site";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/Checkbox";
-import { Dialog } from "../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { FormField, INPUT, SELECT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
@@ -105,9 +105,9 @@ export function ForwardDialog(props: {
         fallback={
           <div class="flex flex-col gap-4 px-5 pb-5">
             <SavedRevision revision={saved() ?? 0} />
-            <div class="flex justify-end">
+            <DialogFooter>
               <Button onClick={() => props.onClose()}>{strings.security.close}</Button>
-            </div>
+            </DialogFooter>
           </div>
         }
       >
@@ -222,7 +222,7 @@ export function ForwardDialog(props: {
               </div>
             )}
           </Show>
-          <div class="flex flex-wrap items-center gap-2">
+          <DialogFooter>
             <Show when={props.forward && !deleting()}>
               <Button variant="ghost" onClick={() => setDeleting(true)} disabled={busy()}>
                 {t.delete}
@@ -235,7 +235,7 @@ export function ForwardDialog(props: {
             <Button type="submit" variant="primary" disabled={busy()}>
               {strings.security.save}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </Show>
     </Dialog>

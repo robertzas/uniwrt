@@ -11,6 +11,7 @@ import {
   flowOf,
   hitTest,
   type Insets,
+  revealCamera,
   toWorld,
   zoomAt,
 } from "./geometry";
@@ -76,6 +77,8 @@ export class TopologyRenderer {
   #draggable = false;
   #reducedMotion = false;
   #gesture: Gesture | undefined;
+  /** Where `reveal` moves the camera, a little each frame. */
+  #glide: Camera | undefined;
   #frame: number | undefined;
   #disposed = false;
   readonly #clock = performance.now();
@@ -183,6 +186,7 @@ export class TopologyRenderer {
 
   /** Fits the view to the scene, and keeps it fitted while the layout moves. */
   fit() {
+    this.#glide = undefined;
     this.#autoFit = true;
     this.#camera = fitCamera(
       this.#targets.values(),
@@ -193,7 +197,34 @@ export class TopologyRenderer {
     this.#request();
   }
 
+  /**
+   * Pans the camera, if need be, so a vertex shows above the bottom `covered` pixels of the view
+   * (a sheet over the map) and below its top inset; nothing for an id that isn't a vertex.
+   */
+  reveal(id: string, covered: number) {
+    const at = this.#targets.get(id) ?? this.#display.get(id);
+    const vertex = this.#scene?.byId.get(id);
+    if (!at || !vertex) return;
+    const glide = revealCamera(
+      this.#glide ?? this.#camera,
+      at,
+      vertex.radius,
+      this.#size.height,
+      covered,
+      this.#insets.top,
+    );
+    if (!glide) return;
+    this.#autoFit = false;
+    this.#glide = glide;
+    if (this.#reducedMotion) {
+      this.#camera = this.#glide;
+      this.#glide = undefined;
+    }
+    this.#request();
+  }
+
   zoom(factor: number) {
+    this.#glide = undefined;
     this.#autoFit = false;
     this.#camera = zoomAt(this.#camera, factor, {
       x: this.#size.width / 2,
@@ -249,6 +280,11 @@ export class TopologyRenderer {
       const eased = easeCamera(this.#camera, fit, ease);
       this.#camera = eased.camera;
       moving ||= eased.moving;
+    } else if (this.#glide && this.#gesture === undefined) {
+      const eased = easeCamera(this.#camera, this.#glide, ease);
+      this.#camera = eased.moving ? eased.camera : this.#glide;
+      if (!eased.moving) this.#glide = undefined;
+      moving ||= eased.moving;
     }
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -296,6 +332,7 @@ export class TopologyRenderer {
     const at = this.#point(event);
     this.#canvas.setPointerCapture?.(event.pointerId);
     this.#pointers.set(event.pointerId, at);
+    this.#glide = undefined;
     if (this.#pointers.size === 2) {
       const [a, b] = [...this.#pointers.values()] as [Point, Point];
       this.#gesture = {
@@ -403,6 +440,7 @@ export class TopologyRenderer {
     // A pinch on a trackpad arrives as a wheel with ctrlKey, in bigger steps.
     const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0015));
     this.#autoFit = false;
+    this.#glide = undefined;
     this.#camera = zoomAt(this.#camera, factor, this.#point(event));
     this.#request();
   }
@@ -410,6 +448,7 @@ export class TopologyRenderer {
   #key(event: KeyboardEvent) {
     const pan = (dx: number, dy: number) => {
       this.#autoFit = false;
+      this.#glide = undefined;
       this.#camera = { ...this.#camera, x: this.#camera.x + dx, y: this.#camera.y + dy };
       this.#request();
     };

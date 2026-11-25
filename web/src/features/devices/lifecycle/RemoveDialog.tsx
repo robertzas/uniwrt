@@ -8,7 +8,7 @@ import { LiveContext } from "../../../lib/live";
 import { strings } from "../../../lib/strings";
 import { Button } from "../../../ui/Button";
 import { Checkbox } from "../../../ui/Checkbox";
-import { Dialog } from "../../../ui/Dialog";
+import { Dialog, DialogFooter } from "../../../ui/Dialog";
 import { JobErrorNote, JobSuccessNote, RequestError } from "../../../ui/JobOutcome";
 import { JobSteps } from "../../../ui/JobSteps";
 import { RootPasswordReveal } from "../config/RootPasswordCard";
@@ -116,14 +116,14 @@ function Body(props: { node: Node; action: Removal; onClose: () => void }) {
               </Match>
             </Switch>
             <RequestError text={error()} />
-            <div class="flex flex-wrap justify-end gap-2">
+            <DialogFooter>
               <Button variant="ghost" onClick={() => props.onClose()}>
                 {l.cancel}
               </Button>
               <Button type="submit" variant="primary" disabled={pending()}>
                 {l[props.action].submit}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         }
       >
@@ -134,9 +134,9 @@ function Body(props: { node: Node; action: Removal; onClose: () => void }) {
               <JobSuccessNote text={l.reset.succeeded} />
             </Show>
             <Show when={job().error}>{(failure) => <JobErrorNote error={failure()} />}</Show>
-            <div class="flex justify-end">
+            <DialogFooter>
               <Button onClick={() => props.onClose()}>{l.close}</Button>
-            </div>
+            </DialogFooter>
           </>
         )}
       </Show>
