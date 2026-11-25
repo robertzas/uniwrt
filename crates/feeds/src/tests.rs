@@ -197,6 +197,56 @@ const FEED: &[(&str, &str, &str, &[u8])] = &[
 ];
 
 #[tokio::test]
+async fn an_apk_feed_round_trips_through_the_mirror() {
+    let h = harness().await;
+    let apk = "https://downloads.openwrt.org/releases/25.12.6/packages/x86_64/base";
+    let mut entries = Vec::new();
+    for (name, depends, data) in [("a", "b", &b"package a"[..]), ("b", "", b"package b")] {
+        let (file, hash) = crate::index::adb::package(name, "1-r1", data).unwrap();
+        entries.push(crate::index::Entry {
+            name: name.to_owned(),
+            version: "1-r1".to_owned(),
+            file: format!("{name}-1-r1.apk"),
+            size: file.len() as u64,
+            check: Some(crate::index::Check::ApkControl(hash)),
+            depends: (!depends.is_empty())
+                .then(|| vec![depends.to_owned()])
+                .into_iter()
+                .collect(),
+            provides: Vec::new(),
+        });
+        h.upstream.put(&format!("{apk}/{name}-1-r1.apk"), &file);
+    }
+    let index = crate::index::Index { entries };
+    h.upstream.put(
+        &format!("{apk}/packages.adb"),
+        &crate::index::adb::write(&index).unwrap(),
+    );
+    let mut plan = plan(&["a"]);
+    plan.sets[0].set.release = "25.12.6".to_owned();
+    plan.sets[0].set.manager = PackageManager::Apk;
+    plan.sets[0].feeds = vec![Feed::parse(&format!("{apk}/packages.adb")).unwrap()];
+    h.mirror.sync(plan, true).await.unwrap();
+    let status = h.mirror.status();
+    assert!(status.sync_error.is_none(), "{status:?}");
+    assert_eq!(
+        (status.sets[0].kept, status.sets[0].feeds[0].listed),
+        (2, 2)
+    );
+    let path = "downloads.openwrt.org/releases/25.12.6/packages/x86_64/base";
+    let mut served = h.mirror.serve(&format!("{path}/a-1-r1.apk")).await.unwrap();
+    let mut out = Vec::new();
+    served.file.read_to_end(&mut out).await.unwrap();
+    assert_eq!(out.len() as u64, index.entries[0].size);
+    assert!(
+        h.mirror
+            .serve(&format!("{path}/packages.adb"))
+            .await
+            .is_ok()
+    );
+}
+
+#[tokio::test]
 async fn a_sync_keeps_what_is_wanted_with_its_dependencies_and_serves_it() {
     let h = harness().await;
     h.upstream.publish(FEED, None);

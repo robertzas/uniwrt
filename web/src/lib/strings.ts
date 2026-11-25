@@ -316,6 +316,65 @@ export const strings = {
       saving: "Saving…",
       cancel: "Cancel",
     },
+    mirror: {
+      title: "Offline packages",
+      description:
+        "The controller keeps the packages your devices use, for each release and architecture they run or are offered, refreshes them while it is online and serves them, so adoption, changes and upgrades work without internet. Devices fall back to their own feeds when the controller can't be reached.",
+      loading: "Reading the mirror…",
+      refresh: "Refresh now",
+      refreshing: "Refreshing the mirror…",
+      refreshStarted: "Refresh started",
+      refreshFailed: "Couldn't start the refresh",
+      enabled: "Serve packages to devices",
+      enabledHint:
+        "Each install uniwrt runs fetches through the controller. Off: devices use their own feeds, and the copies kept stay on disk.",
+      whole: "Keep whole feeds",
+      wholeHint: "Every package of every feed, not only what the fleet uses: about 3 GB a release.",
+      saved: "Mirror settings saved",
+      saveFailed: "Couldn't save the mirror settings",
+      off: "Off: devices fetch packages from their own feeds.",
+      viewerOn: (whole: boolean) =>
+        whole ? "On, keeping whole feeds" : "On, keeping what the fleet uses",
+      kept: (bytes: string) => `${bytes} kept`,
+      synced: (at: string) => `Refreshed ${at}`,
+      neverSynced: "Not refreshed yet",
+      noSets: "No release to keep yet: the mirror plans its feeds from the adopted devices.",
+      set: {
+        offered: "Upgrade on offer",
+        running: "In use",
+        healthy: "Up to date",
+        failing: (n: number) => (n === 1 ? "1 feed failing" : `${n} feeds failing`),
+        packages: (kept: number, bytes: string) =>
+          `${kept} ${kept === 1 ? "package" : "packages"} · ${bytes}`,
+        missing: (names: string) => `Not in any feed: ${names}`,
+        failed: "Packages that couldn't be kept",
+      },
+      columns: {
+        feed: "Feed",
+        index: "Index",
+        packages: "Kept / listed",
+        size: "Size",
+        state: "State",
+      },
+      noIndex: "None yet",
+      ok: "OK",
+      error: "Failing",
+      images: {
+        title: "Official images kept",
+        name: "Image",
+        size: "Size",
+        state: "State",
+        kept: "Kept",
+        pending: "Not yet",
+      },
+      confirm: {
+        title: "Keep whole feeds?",
+        body: (sets: number) =>
+          `The controller downloads every package of every feed: about 3 GB for each of the ${sets} ${sets === 1 ? "release and architecture" : "releases and architectures"} it keeps, so make sure its disk has room. Turning it off again deletes what no device uses.`,
+        keep: "Keep whole feeds",
+        cancel: "Cancel",
+      },
+    },
     controller: {
       title: "Controller",
       description:

@@ -17,6 +17,9 @@ use flate2::read::DeflateDecoder;
 use super::{Check, Entry, Index, MAX_INFLATED};
 use crate::{Error, feed::valid_segment};
 
+mod write;
+pub use write::{package, write};
+
 const SCHEMA_INDEX: [u8; 4] = *b"indx";
 pub(crate) const SCHEMA_PACKAGE: [u8; 4] = *b"pckg";
 

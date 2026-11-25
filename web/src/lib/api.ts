@@ -39,6 +39,7 @@ import type { DriftTarget } from "../api/gen/DriftTarget";
 import type { EventCategory } from "../api/gen/EventCategory";
 import type { EventLevel } from "../api/gen/EventLevel";
 import type { EventPage } from "../api/gen/EventPage";
+import type { FeedsView } from "../api/gen/FeedsView";
 import type { FirmwareCatalog } from "../api/gen/FirmwareCatalog";
 import type { FirmwareProfile } from "../api/gen/FirmwareProfile";
 import type { FirmwareReleases } from "../api/gen/FirmwareReleases";
@@ -66,6 +67,7 @@ import type { LogSourceList } from "../api/gen/LogSourceList";
 import type { MaintenanceWindow } from "../api/gen/MaintenanceWindow";
 import type { Metric } from "../api/gen/Metric";
 import type { MetricsResponse } from "../api/gen/MetricsResponse";
+import type { MirrorSettings } from "../api/gen/MirrorSettings";
 import type { NeighborEntry } from "../api/gen/NeighborEntry";
 import type { Network } from "../api/gen/Network";
 import type { NewWindow } from "../api/gen/NewWindow";
@@ -876,6 +878,14 @@ export const api = {
     },
   },
   /** The controller's own update (D-123): the release on offer, its install, the automatic one. */
+  /** The feed mirror (D-147): its settings and what it holds; settings and refresh for admins. */
+  feeds: {
+    view: (signal?: AbortSignal) => request<FeedsView>("/feeds", { signal }),
+    settings: (body: MirrorSettings) =>
+      request<FeedsView>("/feeds/settings", { method: "PUT", body }),
+    /** Starts a refresh (409 while the mirror is off). */
+    refresh: () => request<FeedsView>("/feeds/refresh", { method: "POST" }),
+  },
   controller: {
     update: (signal?: AbortSignal) => request<ControllerUpdate>("/controller/update", { signal }),
     install: (body: InstallBody) =>

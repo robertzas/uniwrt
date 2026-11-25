@@ -319,6 +319,7 @@ The controller's package feed mirror (features/lifecycle.md, Offline packages; D
 - `src/images_tests.rs`: The official images kept for upgrades on offer: downloaded once, kept only when they match their release's SHA-256 and size, found by the upgrade, and swept once no plan names them.
 - `src/index.rs`: A feed's index, read the way the node's package manager reads it: opkg's `Packages.gz` ([`opkg`]) or apk's `packages.adb` ([`adb`]).
 - `src/index/adb.rs`: apk's binary database format (ADB, apk-tools 3), as far as the mirror reads it: a feed's index (`packages.adb`, schema `indx`) and a package's control block (schema `pckg`).
+- `src/index/adb/write.rs`: Writing ADB files, the reverse of [`super::parse`]: a feed's index (`indx`) and a package whose control block is a `pckg` database naming it. apk-tools would refuse both (they carry no signature block); they exist for demo mode's made-up apk feeds and for tests, so the mirror's apk path runs end to end without internet.
 - `src/index/opkg.rs`: opkg's index: `Packages.gz`, a gzipped list of stanzas (`Package:`, `Version:`, `Depends:`, `Provides:`, `Filename:`, `Size:`, `SHA256sum:`; a line starting with a space continues the field before it).
 - `src/index/tests.rs`: (no header comment)
 - `src/lib.rs`: The controller's package feed mirror (features/lifecycle.md, Offline packages; D-147).
@@ -1212,7 +1213,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/site/`: SchedulesCard.tsx, SiteTab.tsx
 - `features/settings/support/`: SupportTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
-- `features/updates/`: ControllerCard.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx
+- `features/updates/`: ControllerCard.tsx, MirrorCard.tsx, MirrorSet.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx, mirror.ts
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts
 - `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
 - `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, platform.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts

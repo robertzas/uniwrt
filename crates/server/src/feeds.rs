@@ -7,7 +7,10 @@ use anyhow::Context as _;
 use flate2::{Compression, write::GzEncoder};
 use sha2::{Digest as _, Sha256};
 use uniwrt_core::SystemClock;
-use uniwrt_feeds::{BoxFuture, Error, Fetched, HttpSource, Mirror, Source, Validators};
+use uniwrt_feeds::{
+    BoxFuture, Error, Fetched, HttpSource, Mirror, Source, Validators,
+    index::{Check, Entry, Index, adb},
+};
 use uniwrt_model::diag::tools::OptionalTool;
 
 use crate::build_info;
@@ -28,12 +31,15 @@ pub(crate) async fn open(state_dir: &Path, demo: bool) -> anyhow::Result<Mirror>
         .context("cannot open the feed mirror")
 }
 
-/// Demo mode's feeds: an opkg feed named `base` lists every package uniwrt installs (each a few
-/// KiB of made-up bytes, depending on `libc`), every other opkg feed is empty, and apk's
-/// binary indexes aren't made up: they are unreachable. Asked again, an index is unchanged.
+/// Demo mode's feeds: a feed named `base` lists every package uniwrt installs (each a few KiB of
+/// made-up bytes, depending on `libc`), every other feed is empty; opkg's `Packages.gz` or
+/// apk's `packages.adb` (written by [`adb::write`], its packages by [`adb::package`]).
+/// Asked again, an index is unchanged.
 pub(crate) struct DemoFeeds;
 
 const ETAG: &str = "\"demo\"";
+/// Every made-up package's version.
+const VERSION: &str = "1.0-r1";
 
 impl DemoFeeds {
     fn names() -> Vec<&'static str> {
@@ -44,13 +50,56 @@ impl DemoFeeds {
     }
 
     fn file(name: &str) -> String {
-        format!("{name}_1.0-r1_all.ipk")
+        format!("{name}_{VERSION}_all.ipk")
     }
 
-    /// A package's made-up bytes: 2 to 18 KiB, the same for the same file.
+    /// apk's package `name`, and its control block's hash.
+    fn apk(name: &str) -> Result<(Vec<u8>, [u8; 32]), Error> {
+        adb::package(
+            name,
+            VERSION,
+            &Self::package(&format!("{name}-{VERSION}.apk")),
+        )
+    }
+
+    fn apk_index(url: &str) -> Result<Vec<u8>, Error> {
+        let mut index = Index::default();
+        if url.ends_with("/base/packages.adb") {
+            for name in Self::names() {
+                let (file, hash) = Self::apk(name)?;
+                index.entries.push(Entry {
+                    name: name.to_owned(),
+                    version: VERSION.to_owned(),
+                    file: format!("{name}-{VERSION}.apk"),
+                    size: u64::try_from(file.len()).unwrap_or(u64::MAX),
+                    check: Some(Check::ApkControl(hash)),
+                    depends: if name == "libc" {
+                        Vec::new()
+                    } else {
+                        vec![vec!["libc".to_owned()]]
+                    },
+                    provides: Vec::new(),
+                });
+            }
+        }
+        adb::write(&index)
+    }
+
+    /// A package's made-up bytes: 2 to 18 KiB of noise (so apk's deflate keeps their size), the
+    /// same for the same file.
     fn package(file: &str) -> Vec<u8> {
         let size = 2048 + (file.len() * 997) % 16_384;
-        file.bytes().cycle().take(size).collect()
+        let mut state = file.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+        }) | 1;
+        (0..size)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state.to_le_bytes()[0]
+            })
+            .collect()
     }
 
     fn index(url: &str) -> Vec<u8> {
@@ -91,7 +140,9 @@ impl Source for DemoFeeds {
         _max: u64,
     ) -> BoxFuture<'a, Result<Fetched, Error>> {
         Box::pin(async move {
-            let index = url.ends_with("/Packages.gz") || url.ends_with("/Packages.sig");
+            let index = url.ends_with("/Packages.gz")
+                || url.ends_with("/Packages.sig")
+                || url.ends_with("/packages.adb");
             if index && validators.etag.as_deref() == Some(ETAG) {
                 return Ok(Fetched::NotModified);
             }
@@ -99,6 +150,14 @@ impl Source for DemoFeeds {
                 Self::index(url)
             } else if url.ends_with("/Packages.sig") {
                 b"demo signature\n".to_vec()
+            } else if url.ends_with("/packages.adb") {
+                Self::apk_index(url)?
+            } else if let Some(name) = url
+                .rsplit('/')
+                .next()
+                .and_then(|file| file.strip_suffix(&format!("-{VERSION}.apk")))
+            {
+                Self::apk(name)?.0
             } else if let Some(file) = url.rsplit('/').next().filter(|f| {
                 Path::new(f)
                     .extension()
@@ -108,7 +167,7 @@ impl Source for DemoFeeds {
             } else {
                 return Err(Error::Unreachable {
                     url: url.to_owned(),
-                    why: "demo mode makes up opkg feeds only".to_owned(),
+                    why: "demo mode makes up no such file".to_owned(),
                 });
             };
             tokio::fs::write(dest, &body)
@@ -166,7 +225,45 @@ mod tests {
         let body = std::fs::read(&file).unwrap();
         assert_eq!(u64::try_from(body.len()).unwrap(), entry.size);
         assert_eq!(uniwrt_feeds::verify::check(entry, &file), Ok(()));
-        let adb = format!("{base}/packages.adb");
-        assert!(DemoFeeds.fetch(&adb, &none, &file, u64::MAX).await.is_err());
+        let other = format!("{base}/other.bin");
+        assert!(
+            DemoFeeds
+                .fetch(&other, &none, &file, u64::MAX)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn the_demo_s_apk_base_feed_lists_packages_that_match_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("index");
+        let base = "https://downloads.openwrt.org/releases/25.12.6/packages/x86_64/base";
+        let none = Validators::default();
+        DemoFeeds
+            .fetch(&format!("{base}/packages.adb"), &none, &dest, u64::MAX)
+            .await
+            .unwrap();
+        let read = index::parse(PackageManager::Apk, &std::fs::read(&dest).unwrap()).unwrap();
+        let entry = read
+            .entries
+            .iter()
+            .find(|entry| entry.name == "kmod-batman-adv")
+            .unwrap();
+        assert_eq!(entry.file, "kmod-batman-adv-1.0-r1.apk");
+        assert_eq!(entry.depends, [["libc"]]);
+        let file = dir.path().join("package");
+        DemoFeeds
+            .fetch(&format!("{base}/{}", entry.file), &none, &file, u64::MAX)
+            .await
+            .unwrap();
+        assert_eq!(uniwrt_feeds::verify::check(entry, &file), Ok(()));
+        let core = "https://downloads.openwrt.org/releases/25.12.6/targets/x86/64/packages";
+        DemoFeeds
+            .fetch(&format!("{core}/packages.adb"), &none, &dest, u64::MAX)
+            .await
+            .unwrap();
+        let empty = index::parse(PackageManager::Apk, &std::fs::read(&dest).unwrap()).unwrap();
+        assert_eq!(empty, index::Index::default());
     }
 }

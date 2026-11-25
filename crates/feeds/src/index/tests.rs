@@ -67,6 +67,39 @@ fn a_provided_name_resolves_in_both_formats() {
 }
 
 #[test]
+fn the_writer_s_index_reads_back_as_it_was_given() {
+    let read = parse(PackageManager::Apk, APK).unwrap();
+    let written = super::adb::write(&read).unwrap();
+    assert!(written.starts_with(b"ADBd"));
+    assert_eq!(parse(PackageManager::Apk, &written).unwrap(), read);
+    let empty = super::adb::write(&super::Index::default()).unwrap();
+    assert_eq!(
+        parse(PackageManager::Apk, &empty).unwrap(),
+        super::Index::default()
+    );
+}
+
+#[test]
+fn a_written_package_matches_its_control_hash() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("demo-1.0-r1.apk");
+    let (file, hash) = super::adb::package("demo", "1.0-r1", &vec![7; 70_000]).unwrap();
+    std::fs::write(&path, &file).unwrap();
+    let entry = super::Entry {
+        name: "demo".to_owned(),
+        version: "1.0-r1".to_owned(),
+        file: "demo-1.0-r1.apk".to_owned(),
+        size: file.len() as u64,
+        check: Some(Check::ApkControl(hash)),
+        depends: Vec::new(),
+        provides: Vec::new(),
+    };
+    assert_eq!(crate::verify::check(&entry, &path), Ok(()));
+    let other = super::adb::package("demo", "1.0-r2", &vec![7; 70_000]).unwrap();
+    assert_ne!(other.1, hash, "the control block names the version");
+}
+
+#[test]
 fn damaged_indexes_are_errors_not_panics() {
     assert!(parse(PackageManager::Apk, b"").is_err());
     assert!(parse(PackageManager::Apk, b"ADBdgarbage").is_err());

@@ -19,6 +19,7 @@ import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
 import { type Column, Table } from "../../ui/Table";
 import { ControllerCard } from "./ControllerCard";
+import { MirrorCard } from "./MirrorCard";
 import { RolloutsCard } from "./RolloutsCard";
 import { SourceDialog, sourceLabel } from "./SourceDialog";
 import { SourcesCard } from "./SourcesCard";
@@ -45,7 +46,8 @@ const STATES: Record<FirmwareState, string> = {
  * with their release notes (OpenWrt's, or its GitHub repo's newest releases), and for admins the
  * upgrade prepared with the device's packages (ASU's image or the official one), a GitHub release
  * or an uploaded image; below, rolling upgrades of several devices, the site's sources and the
- * uploaded images. `?node=<id>` opens a
+ * uploaded images, and last the feed mirror that keeps packages for offline use (D-147).
+ * `?node=<id>` opens a
  * device's upgrade (its device page links here).
  */
 export function UpdatesPage() {
@@ -316,6 +318,7 @@ export function UpdatesPage() {
           <UploadsCard uploads={found().uploads} fits={fits} admin={admin()} onChange={reload} />
         )}
       </Show>
+      <MirrorCard admin={admin()} />
     </div>
   );
 }

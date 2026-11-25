@@ -11,6 +11,7 @@ import type { RolloutNode } from "../../api/gen/RolloutNode";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { createAppRouter } from "../../app/routes";
 import { controllerUpdate } from "../../test/controller";
+import { feedsView } from "../../test/feeds";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 
@@ -131,6 +132,7 @@ function stubApi(routes: Record<string, Route>) {
       }
       if (key === "GET /api/v1/firmware") return Response.json(catalog);
       if (key === "GET /api/v1/firmware/rollouts") return Response.json([]);
+      if (key === "GET /api/v1/feeds") return Response.json(feedsView());
       return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     }),
   );

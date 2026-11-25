@@ -12,6 +12,7 @@ import type { NodeFirmware } from "../../api/gen/NodeFirmware";
 import type { UpgradePlan } from "../../api/gen/UpgradePlan";
 import { createAppRouter } from "../../app/routes";
 import { controllerUpdate } from "../../test/controller";
+import { feedsView } from "../../test/feeds";
 import { summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
 
@@ -180,6 +181,7 @@ function stubApi(routes: Record<string, Route>) {
       return Response.json(controllerUpdate({ offer: null }));
     }
     if (key === "GET /api/v1/firmware/rollouts" && !route) return Response.json([]);
+    if (key === "GET /api/v1/feeds" && !route) return Response.json(feedsView());
     if (!route) return Response.json({ status: "ok", version: "1", commit: "x", built_at: "y" });
     const answer = route(body);
     return answer instanceof Response ? answer : Response.json(answer);
