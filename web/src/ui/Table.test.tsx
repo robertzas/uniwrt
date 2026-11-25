@@ -105,6 +105,46 @@ describe("Table", () => {
     expect(names()).toEqual(["ap-c", "ap-b", "ap-a"]);
   });
 
+  it("lays each row out as a card at phone width (D-148)", () => {
+    const placed: Column<Node>[] = [
+      { id: "name", header: "Name", cell: (n) => n.name },
+      { id: "status", header: "Status", cell: () => "Online", card: "aside" },
+      { id: "clients", header: "Clients", cell: (n) => n.clients, align: "end" },
+      { id: "cpu", header: "CPU", cell: () => "5 %", card: "hide" },
+    ];
+    render(() => <Table label="Devices" columns={placed} rows={nodes(1)} rowKey={(n) => n.id} />);
+    const [name, status, clients, cpu] = screen.getAllByRole("cell");
+    expect(name).toHaveClass("max-md:col-start-1", "max-md:row-start-1");
+    expect(name).not.toHaveClass("max-md:col-span-2");
+    expect(status).toHaveClass("max-md:col-start-2", "max-md:row-start-1");
+    expect(clients).toHaveClass("max-md:col-span-2", "max-md:flex");
+    expect(clients).toHaveAttribute("data-label", "Clients");
+    expect(cpu).toHaveClass("max-md:hidden");
+    // Nothing sorts, so the header row has nothing to show on a phone.
+    expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-md:sr-only");
+  });
+
+  it("titles the card with the named column, spanning the row without an aside", () => {
+    const titled: Column<Node>[] = [
+      {
+        id: "clients",
+        header: "Clients",
+        cell: (n) => n.clients,
+        sort: (a, b) => a.clients - b.clients,
+      },
+      { id: "name", header: "Name", cell: (n) => n.name, card: "title" },
+    ];
+    render(() => <Table label="Devices" columns={titled} rows={nodes(1)} rowKey={(n) => n.id} />);
+    const [clients, name] = screen.getAllByRole("cell");
+    expect(name).toHaveClass("max-md:row-start-1", "max-md:col-span-2");
+    expect(clients).toHaveClass("max-md:flex");
+    // The sortable column's header stays on a phone, as a sort control; the other is for readers.
+    const [byClients, byName] = screen.getAllByRole("columnheader");
+    expect(byClients).not.toHaveClass("max-md:sr-only");
+    expect(byName).toHaveClass("max-md:sr-only");
+    expect(screen.getAllByRole("rowgroup")[0]).toHaveClass("max-md:block");
+  });
+
   describe("virtualized", () => {
     // jsdom has no layout: give the scroll container a 400 px viewport.
     beforeEach(() => {

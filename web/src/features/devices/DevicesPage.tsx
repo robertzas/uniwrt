@@ -41,6 +41,7 @@ const columns: Column<NodeSummary>[] = [
   },
   {
     id: "status",
+    card: "aside",
     header: c.status,
     cell: (node) => (
       <span class="flex items-center gap-1.5">
@@ -57,9 +58,16 @@ const columns: Column<NodeSummary>[] = [
   },
   { id: "firmware", header: c.firmware, cell: (node) => node.version ?? NONE },
   { id: "clients", header: c.clients, cell: (node) => node.clients ?? NONE, align: "end" },
-  { id: "cpu", header: c.cpu, cell: (node) => formatPercent(node.cpu_percent), align: "end" },
+  {
+    id: "cpu",
+    card: "hide",
+    header: c.cpu,
+    cell: (node) => formatPercent(node.cpu_percent),
+    align: "end",
+  },
   {
     id: "memory",
+    card: "hide",
     header: c.memory,
     cell: (node) => formatPercent(node.memory_percent),
     align: "end",

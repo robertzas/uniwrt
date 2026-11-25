@@ -139,7 +139,7 @@ function Overview(props: {
   return (
     <div class="flex flex-col gap-4">
       <header class="flex flex-wrap items-start gap-x-4 gap-y-2">
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 flex-1 basis-56">
           <div class="flex flex-wrap items-center gap-2.5">
             <h1 class="truncate font-semibold text-2xl tracking-tight">{node().name}</h1>
             <StatusBadge status={status()} />

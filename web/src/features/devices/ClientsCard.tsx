@@ -82,6 +82,7 @@ const columns: Column<ClientRow>[] = [
   },
   {
     id: "rate",
+    card: "hide",
     header: t.columns.rate,
     // Directions are the node's: it transmits what the client downloads.
     cell: (row) =>
@@ -96,6 +97,7 @@ const columns: Column<ClientRow>[] = [
   },
   {
     id: "traffic",
+    card: "hide",
     header: t.columns.traffic,
     cell: (row) =>
       row.station.rx_bytes + row.station.tx_bytes > 0

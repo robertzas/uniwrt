@@ -101,6 +101,7 @@ export function clientColumns(context: {
     },
     {
       id: "traffic",
+      card: "hide",
       header: c.traffic,
       cell: (row) => {
         const traffic = row.client.online ? row.client.connection?.traffic : null;
@@ -113,6 +114,7 @@ export function clientColumns(context: {
     },
     {
       id: "since",
+      card: "hide",
       header: c.since,
       cell: (row) => sinceOf(row.client, context.now()),
       align: "end",

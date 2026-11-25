@@ -4,7 +4,8 @@ import { signIn, watchErrors } from "./support";
 /*
  * The phone-width sweep (D-148; the project `phone` runs at 390 × 844 with touch): the drawer
  * reaches every page, and every route fits the screen: no page-wide sideways scroll and nothing
- * past its right edge (a tab strip that scrolls aside). The pages that don't fit yet are listed in
+ * past its right edge (but a tab strip, or a chart too dense to shrink, marked
+ * `data-scrolls-sideways`, which scroll aside). The pages that don't fit yet are listed in
  * NEEDS_B with what reaches past the edge: M9.1b makes them fit and takes each off the list, and
  * this test fails for a page on the list that fits, so the list shrinks to empty.
  */
@@ -38,19 +39,7 @@ const ROUTES = [
 ];
 
 /** The routes that don't fit at 390 px yet, and what reaches past the edge (M9.1b). */
-const NEEDS_B: ReadonlyMap<string, string> = new Map([
-  ["/devices", "the Devices table"],
-  ["/devices/1", "the page scrolls sideways: the overview's tables"],
-  ["/clients", "the filter bar's segmented controls"],
-  ["/internet", "the connection quality's Latest round table"],
-  ["/security", "the firewall rules table"],
-  ["/insights/rf", "the page scrolls sideways: the Channels, plan and networks tables"],
-  ["/updates", "the Firmware table"],
-  [
-    "/settings?tab=revisions",
-    "the revisions' actions (Export, Import a file, Import from the devices)",
-  ],
-]);
+const NEEDS_B: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 /** What reaches past the screen's right edge: the page's own sideways scroll, and elements in main. */
 function overflow(page: Page): Promise<string[]> {
@@ -61,8 +50,8 @@ function overflow(page: Page): Promise<string[]> {
     if (root && root.scrollWidth > root.clientWidth)
       found.push(`the page scrolls to ${root.scrollWidth} px`);
     for (const element of document.querySelectorAll("main *")) {
-      // A tab strip scrolls sideways on purpose.
-      if (element.closest('[role="tablist"]')) continue;
+      // A tab strip, or a chart too dense to shrink, scrolls sideways on purpose.
+      if (element.closest('[role="tablist"], [data-scrolls-sideways]')) continue;
       const box = element.getBoundingClientRect();
       if (box.width === 0 || box.height === 0 || box.right <= width + 1) continue;
       // Name the outermost element only: its children are past the edge with it.

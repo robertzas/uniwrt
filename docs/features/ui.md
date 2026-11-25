@@ -49,6 +49,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 - Empty states give guided next steps, and every alert links to a fix.
 - First-run, ISP, adoption, mesh and RF optimization are wizards, each ending in a review step.
 - Forms validate client-side using the generated types and show the server's validation messages.
+- **Phone width (D-148):** below `md` the sidebar is a drawer and data tables become stacked cards: each `Table` row a card, one DOM with CSS only (explicit table roles keep the semantics). A column's `card` place is `title` (the first column unless one is named), `aside` (right of the title: a status, a row action), `hide`, or by default a line of its header and value; sortable headers become a sort bar. Card and page headers wrap their actions below the title. A chart too dense to shrink (the RF spectrum) scrolls sideways in its own scroller marked `data-scrolls-sideways`, which the phone sweep (`web/e2e/phone.spec.ts`) allows like a tab strip.
 
 ## Signature visualizations
 

@@ -20,6 +20,42 @@ export interface Column<T> {
   class?: string;
   /** Makes the column sortable from its header: the rows' ascending order. */
   sort?: (a: T, b: T) => number;
+  /**
+   * Its place in the card each row becomes below `md` (D-148): "title" heads the card (the first
+   * column unless one is named), "aside" sits right of the title (a status, a row action), "hide"
+   * leaves it out; the rest are lines of the header and the value.
+   */
+  card?: "title" | "aside" | "hide";
+}
+
+/** Where a column's cells go in a row's card. */
+type Place = "title" | "aside" | "hide" | "line";
+
+/**
+ * The phone layout's classes (`max-md:`; D-148): a row is a grid whose first line holds the title
+ * and the aside, and whose other lines each show a column's header (CSS generated content with
+ * empty alt text, as the cell's header names it already) and its value. Width classes of the
+ * columns give way, and long values wrap.
+ */
+const CARD_CELL =
+  "max-md:w-auto max-md:min-w-0 max-md:max-w-none max-md:whitespace-normal max-md:px-0 max-md:[overflow-wrap:anywhere]";
+const PLACE: Record<Place, string> = {
+  title: "max-md:col-start-1 max-md:row-start-1 max-md:block max-md:font-medium max-md:text-left",
+  aside: "max-md:col-start-2 max-md:row-start-1 max-md:block max-md:justify-self-end",
+  hide: "max-md:hidden",
+  line: "max-md:col-span-2 max-md:flex max-md:items-center max-md:justify-between max-md:gap-4 max-md:text-right max-md:before:shrink-0 max-md:before:text-left max-md:before:text-fg-subtle max-md:before:text-xs max-md:before:content-[attr(data-label)_/_'']",
+};
+
+/** Each column's place in the card, by column id. */
+function placesOf<T>(columns: readonly Column<T>[]): ReadonlyMap<string, Place> {
+  const title = (columns.find((column) => column.card === "title") ?? columns.find((c) => !c.card))
+    ?.id;
+  return new Map(
+    columns.map((column) => [
+      column.id,
+      column.id === title ? "title" : column.card === "title" ? "line" : (column.card ?? "line"),
+    ]),
+  );
 }
 
 /** The column the rows are sorted by, and which way. */
@@ -64,6 +100,11 @@ export function Table<T>(props: TableProps<T>) {
   };
   const toggle = (column: Column<T>) =>
     setOrder((by) => ({ column: column.id, desc: by?.column === column.id && !by.desc }));
+  const places = createMemo(() => placesOf(props.columns));
+  const aside = createMemo(() => [...places().values()].includes("aside"));
+  const sortable = createMemo(() => props.columns.some((column) => column.sort));
+  const layout = (): Layout => ({ places: places(), aside: aside() });
+  // Explicit roles keep the table's semantics where the phone layout changes its display.
   return (
     <div
       class={[
@@ -72,18 +113,33 @@ export function Table<T>(props: TableProps<T>) {
         props.class,
       ]}
     >
-      <table aria-label={props.label} class="w-full border-collapse text-sm">
-        <thead>
-          <tr>
+      <table
+        // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+        role="table"
+        aria-label={props.label}
+        class="w-full border-collapse text-sm max-md:block"
+      >
+        {/* biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it. */}
+        <thead role="rowgroup" class={sortable() ? "max-md:block" : "max-md:sr-only"}>
+          <tr
+            // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+            role="row"
+            class="max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-4 max-md:gap-y-1 max-md:border-edge max-md:border-b max-md:px-4 max-md:py-1"
+          >
             <For each={props.columns}>
               {(column) => (
                 <th
+                  // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+                  role="columnheader"
                   scope="col"
                   aria-sort={column.sort ? sorted(column) : undefined}
                   class={[
                     "sticky top-0 z-[1] h-8 whitespace-nowrap border-edge border-b bg-surface px-4 font-medium text-fg-subtle text-xs glass:backdrop-blur-panel",
                     column.align === "end" ? "text-right" : "text-left",
                     column.class,
+                    column.sort
+                      ? "max-md:static max-md:w-auto max-md:min-w-0 max-md:max-w-none max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:backdrop-blur-none"
+                      : "max-md:sr-only",
                   ]}
                 >
                   <Show when={column.sort} fallback={column.header}>
@@ -125,8 +181,11 @@ export function Table<T>(props: TableProps<T>) {
             </tbody>
           }
         >
-          <Show when={virtual()} fallback={<PlainBody table={props} rows={rows()} />}>
-            <VirtualBody table={props} rows={rows()} />
+          <Show
+            when={virtual()}
+            fallback={<PlainBody table={props} layout={layout()} rows={rows()} />}
+          >
+            <VirtualBody table={props} layout={layout()} rows={rows()} />
           </Show>
         </Show>
       </table>
@@ -134,17 +193,25 @@ export function Table<T>(props: TableProps<T>) {
   );
 }
 
+/** The columns' places in a row's card, and whether one sits aside the title. */
+interface Layout {
+  places: ReadonlyMap<string, Place>;
+  aside: boolean;
+}
+
 /** A body's rows, in the order shown, and the table they belong to. */
 interface BodyProps<T> {
   table: TableProps<T>;
+  layout: Layout;
   rows: readonly T[];
 }
 
 function PlainBody<T>(props: BodyProps<T>) {
   return (
-    <tbody>
+    // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+    <tbody role="rowgroup" class="max-md:block">
       <For each={props.rows} keyed={props.table.rowKey}>
-        {(row) => <Row table={props.table} row={row()} />}
+        {(row) => <Row table={props.table} layout={props.layout} row={row()} />}
       </For>
     </tbody>
   );
@@ -193,7 +260,8 @@ function VirtualBody<T>(props: BodyProps<T>) {
   const after = () => total() - (items().at(-1)?.end ?? 0);
 
   return (
-    <tbody ref={setBody}>
+    // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+    <tbody ref={setBody} role="rowgroup" class="max-md:block">
       <Show when={before() > 0}>
         {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a spacer row; Biome counts every tr as interactive. */}
         <tr aria-hidden="true" style={{ height: `${before()}px` }} />
@@ -204,6 +272,7 @@ function VirtualBody<T>(props: BodyProps<T>) {
             {(row) => (
               <Row
                 table={props.table}
+                layout={props.layout}
                 row={row()}
                 index={item().index}
                 ref={(el) => virtualizer.measureElement(el)}
@@ -222,6 +291,7 @@ function VirtualBody<T>(props: BodyProps<T>) {
 
 function Row<T>(props: {
   table: TableProps<T>;
+  layout: Layout;
   row: T;
   index?: number;
   ref?: (el: HTMLTableRowElement) => void;
@@ -234,6 +304,8 @@ function Row<T>(props: {
   };
   return (
     <tr
+      // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+      role="row"
       ref={props.ref}
       data-index={props.index}
       tabindex={props.table.onRowClick ? 0 : undefined}
@@ -241,6 +313,7 @@ function Row<T>(props: {
       onKeyDown={(event) => (props.table.onRowClick ? activate(event) : undefined)}
       class={[
         "group h-row border-edge border-b last:border-b-0",
+        "max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-1 max-md:px-4 max-md:py-3",
         {
           "cursor-pointer outline-none hover:bg-raised/60 focus-visible:bg-raised":
             props.table.onRowClick !== undefined,
@@ -248,17 +321,26 @@ function Row<T>(props: {
       ]}
     >
       <For each={props.table.columns}>
-        {(column) => (
-          <td
-            class={[
-              "whitespace-nowrap px-4",
-              column.align === "end" ? "text-right tabular-nums" : "text-left",
-              column.class,
-            ]}
-          >
-            {column.cell(props.row)}
-          </td>
-        )}
+        {(column) => {
+          const place = () => props.layout.places.get(column.id) ?? "line";
+          return (
+            <td
+              // biome-ignore lint/a11y/noRedundantRoles: kept where the phone layout's display drops it.
+              role="cell"
+              data-label={column.header}
+              class={[
+                "whitespace-nowrap px-4",
+                column.align === "end" ? "text-right tabular-nums" : "text-left",
+                column.class,
+                CARD_CELL,
+                PLACE[place()],
+                { "max-md:col-span-2": place() === "title" && !props.layout.aside },
+              ]}
+            >
+              {column.cell(props.row)}
+            </td>
+          );
+        }}
       </For>
     </tr>
   );

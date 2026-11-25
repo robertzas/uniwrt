@@ -111,15 +111,15 @@ export function RevisionsTab(props: {
     >
       {(list) => (
         <Card class="overflow-hidden" aria-label={t.listTitle}>
-          <div class="flex items-start gap-3 border-edge border-b px-4 py-2.5">
-            <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-start gap-x-3 gap-y-2 border-edge border-b px-4 py-2.5">
+            <div class="min-w-0 flex-1 basis-40">
               <h2 class="font-medium text-sm">{t.listTitle}</h2>
               <p role="status" class="text-fg-subtle text-xs tabular-nums">
                 {t.count(list().length, more())}
               </p>
               <p class="mt-1 text-fg-muted text-xs">{t.hint}</p>
             </div>
-            <div class="flex shrink-0 flex-wrap justify-end gap-2">
+            <div class="flex max-w-full flex-wrap gap-2">
               <Button
                 size="sm"
                 icon={FileDown}

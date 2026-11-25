@@ -80,7 +80,8 @@ export function Spectrum(props: {
 
   return (
     <div class="flex flex-col gap-2">
-      <div class="-mx-1 overflow-x-auto px-1">
+      {/* Too dense to shrink: a phone scrolls the chart sideways (the sweep allows it). */}
+      <div class="-mx-1 overflow-x-auto px-1" data-scrolls-sideways>
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           class="h-auto w-full min-w-[40rem] select-none"
