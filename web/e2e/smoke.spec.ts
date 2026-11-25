@@ -86,6 +86,12 @@ test("shows the network at a glance on the dashboard", async ({ page }) => {
   await expect(
     page.getByRole("region", { name: "Top clients" }).getByRole("listitem"),
   ).not.toHaveCount(0);
+  // The Get started checklist ticks what the demo has: its access points and Wi-Fi.
+  const started = page.getByRole("region", { name: "Get started" });
+  await expect(started.getByRole("listitem", { name: "Set up Wi-Fi: done" })).toBeVisible();
+  await expect(
+    started.getByRole("listitem", { name: "Adopt your access points: done" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: /Open the map/ }).click();
   await expect(page).toHaveURL(/\/topology$/);
   expect(errors).toEqual([]);

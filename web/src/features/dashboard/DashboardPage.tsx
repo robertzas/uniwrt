@@ -8,6 +8,7 @@ import { strings } from "../../lib/strings";
 import { EmptyState } from "../../ui/EmptyState";
 import { createLiveGraph } from "../../viz/topology/graph";
 import { ExperienceCard } from "./ExperienceCard";
+import { GetStarted } from "./GetStarted";
 import { HealthHeader } from "./HealthHeader";
 import { gatewayOf, internetHealth } from "./health";
 import { MiniMap } from "./MiniMap";
@@ -77,6 +78,9 @@ export function DashboardPage() {
       }
     >
       <div class="mx-auto flex max-w-7xl flex-col gap-4">
+        <Show when={session.user.role === "admin"}>
+          <GetStarted nodes={live.fleet.nodes} graph={graph()} />
+        </Show>
         <HealthHeader nodes={live.fleet.nodes} graph={graph()} clients={clients.clients} />
         <div class="grid gap-4 lg:grid-cols-5">
           <div class="grid min-w-0 lg:col-span-2">

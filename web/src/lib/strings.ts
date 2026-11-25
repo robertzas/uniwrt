@@ -3201,6 +3201,47 @@ export const strings = {
       adopt: "Adopt a device",
       adoptExisting: "Adopt an existing network",
     },
+    getStarted: {
+      title: "Get started",
+      allDone: "You're all set",
+      progress: (done: number, total: number) => `${done} of ${total} done`,
+      managed: (done: number, total: number) => `${done} of ${total} managed`,
+      dismiss: "Hide the checklist",
+      done: "done",
+      todo: "to do",
+      steps: {
+        aps: {
+          title: "Adopt your access points",
+          description: "Bring the routers that serve Wi-Fi around the home under the controller.",
+          action: "Adopt a device",
+        },
+        wifi: {
+          title: "Set up Wi-Fi",
+          description: "Name a network and its password; every access point broadcasts it.",
+          action: "Add a Wi-Fi network",
+        },
+        mesh: {
+          title: "Connect the access points",
+          description: "Turn on the mesh, or connect every access point by cable.",
+          action: "Set up the mesh",
+        },
+        manage: {
+          title: "Manage your devices",
+          description: "Devices start read-only; manage them so your settings reach them.",
+          action: "Open devices",
+        },
+        backups: {
+          title: "Back up the controller",
+          description: "Set a passphrase, and the controller backs itself up every night.",
+          action: "Set up backups",
+        },
+        notify: {
+          title: "Get notified",
+          description: "Get alerts by e-mail, a chat app or a webhook when something goes wrong.",
+          action: "Add a notifier",
+        },
+      },
+    },
     health: {
       label: "Network health",
       internet: "Internet",

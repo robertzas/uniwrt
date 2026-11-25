@@ -12,6 +12,8 @@ import { rfView } from "../../test/rf";
 import { edge, house } from "../../test/topology";
 
 let calls: string[] = [];
+/** What the Get started checklist reads. */
+let setup = { wlans: 0, passphrase: true, notifiers: 0 };
 
 function stubApi() {
   calls = [];
@@ -57,6 +59,18 @@ function stubApi() {
         suggestion: null,
       });
     }
+    if (key === "GET /api/v1/site") {
+      return Response.json({
+        revision: { id: 1 },
+        config: { wlans: Array(setup.wlans).fill({}), mesh: { enabled: false } },
+      });
+    }
+    if (key === "GET /api/v1/controller/backups") {
+      return Response.json({ passphrase_set: setup.passphrase });
+    }
+    if (key === "GET /api/v1/notifiers") {
+      return Response.json({ notifiers: Array(setup.notifiers).fill({}), placeholders: [] });
+    }
     if (key === "GET /api/v1/topology/layout") return Response.json([]);
     if (key === "GET /api/v1/logs/patterns") return Response.json({ patterns: [] });
     if (key === "GET /api/v1/topology/timeline") return Response.json({ start: 0, changes: [] });
@@ -78,13 +92,13 @@ function stubApi() {
 const fleet = [summary(1, "Gateway", { role: "gateway" }), summary(2, "Living room")];
 
 /** Renders `/` with the fleet, and sends the topology and clients once subscribed. */
-async function renderDashboard(nodes: NodeSummary[] = fleet) {
+async function renderDashboard(nodes: NodeSummary[] = fleet, role?: "viewer") {
   const { socket, ws } = openTestSocket();
   const history = memoryHistory("/");
   const Router = createAppRouter(history);
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
-      <SignedInProviders socket={socket}>
+      <SignedInProviders socket={socket} role={role}>
         <Router />
       </SignedInProviders>
     </QueryClientProvider>
@@ -298,5 +312,44 @@ describe("the dashboard", () => {
     const adopt = screen.getByRole("link", { name: "Adopt an existing network" });
     expect(adopt).toHaveAttribute("href", "/devices?adopt=1");
     expect(screen.getByText("Welcome to uniwrt")).toBeInTheDocument();
+  });
+});
+
+describe("the Get started checklist", () => {
+  beforeEach(() => {
+    stubApi();
+    localStorage.clear();
+    setup = { wlans: 0, passphrase: true, notifiers: 0 };
+  });
+
+  it("ticks its steps from live state and links to the rest", async () => {
+    await renderDashboard();
+    const card = await screen.findByRole("region", { name: "Get started" });
+    const step = (name: string) => within(card).getByRole("listitem", { name });
+    expect(step("Adopt your access points: done")).toBeInTheDocument();
+    expect(step("Back up the controller: done")).toBeInTheDocument();
+    const wifi = step("Set up Wi-Fi: to do");
+    expect(within(wifi).getByRole("link", { name: /Add a Wi-Fi network/ })).toHaveAttribute(
+      "href",
+      "/wifi",
+    );
+    expect(step("Manage your devices: to do")).toHaveTextContent("0 of 2 managed");
+    expect(step("Get notified: to do")).toBeInTheDocument();
+    expect(within(card).getByRole("progressbar")).toHaveAttribute("aria-valuemax", "6");
+  });
+
+  it("hides once dismissed, and stays hidden in this browser", async () => {
+    await renderDashboard();
+    const card = await screen.findByRole("region", { name: "Get started" });
+    fireEvent.click(within(card).getByRole("button", { name: "Hide the checklist" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Get started" })).toBeNull());
+    expect(localStorage.getItem("uniwrt.getStarted.dismissed")).toBe("1");
+  });
+
+  it("isn't shown to viewers, who can't take its steps", async () => {
+    await renderDashboard(fleet, "viewer");
+    await screen.findByRole("region", { name: "Network health" });
+    expect(screen.queryByRole("region", { name: "Get started" })).toBeNull();
+    expect(calls).not.toContain("GET /api/v1/notifiers");
   });
 });
