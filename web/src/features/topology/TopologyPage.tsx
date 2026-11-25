@@ -13,6 +13,7 @@ import {
 import { createEffect, createMemo, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -58,6 +59,7 @@ function backhaul(scene: Scene, link: SceneLink): boolean {
  */
 export function TopologyPage() {
   const live = useContext(LiveContext);
+  const next = useNextSteps();
   const [params, setParams] = useSearchParams<{ view?: string }>();
   const view = (): ViewKind => viewKinds.find((kind) => kind === params.view) ?? "tree";
   const liveGraph = createLiveGraph(live);
@@ -282,6 +284,7 @@ export function TopologyPage() {
                     icon={Network}
                     title={t.empty.title}
                     description={t.empty.description}
+                    actions={next.adoptFirst()}
                   />
                 </div>
               }

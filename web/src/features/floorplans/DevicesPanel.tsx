@@ -82,7 +82,17 @@ export function DevicesPanel(props: {
       <div class="flex flex-col gap-4 px-4 pb-4">
         <Show
           when={props.nodes.length > 0}
-          fallback={<p class="text-fg-muted text-sm">{t.none}</p>}
+          fallback={
+            <p class="text-fg-muted text-sm">
+              {t.none}
+              <Show when={props.admin}>
+                {" "}
+                <a href="/devices?adopt=1" class="font-medium text-accent hover:underline">
+                  {strings.page.next.adopt}
+                </a>
+              </Show>
+            </p>
+          }
         >
           <Show when={props.admin && props.floor.image === null}>
             <p class="text-fg-muted text-sm">{t.needsPlan}</p>

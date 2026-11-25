@@ -49,7 +49,14 @@ export function ClientPage() {
 }
 
 function NotFound() {
-  return <EmptyState icon={Users} title={d.notFound.title} description={d.notFound.description} />;
+  return (
+    <EmptyState
+      icon={Users}
+      title={d.notFound.title}
+      description={d.notFound.description}
+      actions={[{ label: strings.page.next.clients, href: "/clients" }]}
+    />
+  );
 }
 
 function LiveClient(props: { mac: string }) {

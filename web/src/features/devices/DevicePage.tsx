@@ -69,7 +69,14 @@ export function DevicePage() {
 }
 
 function NotFound() {
-  return <EmptyState icon={Router} title={d.notFound.title} description={d.notFound.description} />;
+  return (
+    <EmptyState
+      icon={Router}
+      title={d.notFound.title}
+      description={d.notFound.description}
+      actions={[{ label: strings.page.next.devices, href: "/devices" }]}
+    />
+  );
 }
 
 function LiveDevice(props: { id: number }) {

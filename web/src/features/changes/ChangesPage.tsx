@@ -280,14 +280,12 @@ function Review() {
                 </Card>
                 <Show when={managed() === 0}>
                   <Card>
-                    <EmptyState icon={Router} {...t.noneManaged}>
-                      <a
-                        href="/devices"
-                        class="mt-4 font-medium text-accent text-sm hover:underline"
-                      >
-                        {t.noneManaged.action}
-                      </a>
-                    </EmptyState>
+                    <EmptyState
+                      icon={Router}
+                      title={t.noneManaged.title}
+                      description={t.noneManaged.description}
+                      actions={[{ label: t.noneManaged.action, href: "/devices" }]}
+                    />
                   </Card>
                 </Show>
                 <Show when={tally()?.refused}>

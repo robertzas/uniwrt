@@ -7,6 +7,7 @@ import { createClientsView } from "../../lib/clientList";
 import { clientName } from "../../lib/clients";
 import { ipv4 } from "../../lib/ipv4";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
@@ -28,6 +29,7 @@ const t = strings.security;
 export function SecurityPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  const next = useNextSteps();
   const navigate = useNavigate();
   const admin = () => session.user.role === "admin";
   const clients = createClientsView(live);
@@ -81,6 +83,7 @@ export function SecurityPage() {
           icon={ShieldCheck}
           title={t.noGateway.title}
           description={t.noGateway.description}
+          actions={next.gateway()}
         />
       </Show>
       <Show when={unmanaged()}>

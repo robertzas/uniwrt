@@ -158,7 +158,10 @@ beforeEach(() => {
   );
 });
 
-async function renderInternet(mode: "managed" | "observe" = "managed"): Promise<FakeWebSocket> {
+async function renderInternet(
+  mode: "managed" | "observe" = "managed",
+  nodes = [summary(1, "gw", { role: "gateway", mode })],
+): Promise<FakeWebSocket> {
   const { socket, ws } = openTestSocket();
   const Router = createAppRouter(memoryHistory("/internet"));
   render(() => (
@@ -168,13 +171,26 @@ async function renderInternet(mode: "managed" | "observe" = "managed"): Promise<
       </SignedInProviders>
     </QueryClientProvider>
   ));
-  sendFleet(ws, [summary(1, "gw", { role: "gateway", mode })]);
+  sendFleet(ws, nodes);
   ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
   await screen.findByRole("heading", { name: "Internet", level: 1 });
   return ws;
 }
 
 describe("Internet", () => {
+  it("guides an admin to the gateway while there is none", async () => {
+    await renderInternet("managed", [summary(2, "ap", { role: "ap" })]);
+    expect(await screen.findByText("No gateway yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Adopt your gateway" })).toHaveAttribute(
+      "href",
+      "/devices?adopt=1",
+    );
+    expect(screen.getByRole("link", { name: "Set up a new router" })).toHaveAttribute(
+      "href",
+      "/setup",
+    );
+  });
+
   it("shows the connection in words", async () => {
     await renderInternet();
     const card = await screen.findByLabelText("Connection");

@@ -6,6 +6,7 @@ import { averageScore, createClientsView, scoresByNode } from "../../lib/clientL
 import { scoreTone } from "../../lib/clients";
 import { NONE } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
+import { SET_UP_WIFI, useNextSteps } from "../../lib/nextStep";
 import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Card, CardHeader } from "../../ui/Card";
@@ -45,6 +46,7 @@ function matches(row: ClientRow, filter: Filter, words: readonly string[]): bool
  */
 export function ClientsPage() {
   const live = useContext(LiveContext);
+  const next = useNextSteps();
   const navigate = useNavigate();
   const view = createClientsView(live);
   const now = createNow();
@@ -76,7 +78,12 @@ export function ClientsPage() {
       <Show
         when={view.clients.length > 0}
         fallback={
-          <EmptyState icon={Users} title={t.empty.title} description={t.empty.description} />
+          <EmptyState
+            icon={Users}
+            title={t.empty.title}
+            description={t.empty.description}
+            actions={next.adoptFirst(SET_UP_WIFI)}
+          />
         }
       >
         <div class="mx-auto flex max-w-7xl flex-col gap-4">

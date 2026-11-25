@@ -313,6 +313,12 @@ describe("the dashboard", () => {
     expect(adopt).toHaveAttribute("href", "/devices?adopt=1");
     expect(screen.getByText("Welcome to uniwrt")).toBeInTheDocument();
   });
+
+  it("welcomes a viewer without steps they can't take", async () => {
+    await renderDashboard([], "viewer");
+    await screen.findByText("Welcome to uniwrt");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });
 
 describe("the Get started checklist", () => {

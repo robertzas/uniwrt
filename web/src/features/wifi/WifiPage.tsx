@@ -134,7 +134,21 @@ export function WifiPage() {
             <Show
               when={view().config.wlans.length > 0}
               fallback={
-                <EmptyState icon={Wifi} title={t.empty.title} description={t.empty.description} />
+                <EmptyState
+                  icon={Wifi}
+                  title={t.empty.title}
+                  description={t.empty.description}
+                  actions={
+                    admin()
+                      ? [
+                          {
+                            label: t.add,
+                            onClick: () => setEditing({ wlan: undefined, view: view() }),
+                          },
+                        ]
+                      : []
+                  }
+                />
               }
             >
               <ul class="divide-y divide-edge border-edge border-t">

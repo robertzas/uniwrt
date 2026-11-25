@@ -7,6 +7,7 @@ import { createClientsView } from "../../lib/clientList";
 import { clientName } from "../../lib/clients";
 import { describeEvent, type Names } from "../../lib/events";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { strings } from "../../lib/strings";
 import { StatusDot } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -218,6 +219,7 @@ export function EventsPage() {
 }
 
 function Empty(props: { feed: EventFeed; filter: Filter; onClear: () => void }) {
+  const next = useNextSteps();
   return (
     <Show
       when={props.feed.status() !== "loading"}
@@ -243,6 +245,7 @@ function Empty(props: { feed: EventFeed; filter: Filter; onClear: () => void }) 
             icon={BellRing}
             title={t.empty.title}
             description={isFiltered(props.filter) ? t.empty.filtered : t.empty.live}
+            actions={isFiltered(props.filter) ? [] : next.adoptFirst()}
           />
           <Show when={isFiltered(props.filter)}>
             <div class="mt-2 flex justify-center">

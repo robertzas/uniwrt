@@ -1,5 +1,5 @@
 import { memoryHistory } from "@solidjs/router";
-import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,18 +37,23 @@ function stubApi() {
 }
 
 /** Renders the page, and sends the topology once the page has subscribed to it. */
-async function renderAt(path: string, topology: Topology = house()) {
+async function renderAt(
+  path: string,
+  topology: Topology = house(),
+  nodes = [summary(1, "Gateway", { role: "gateway" }), summary(2, "Living room")],
+  role?: "viewer",
+) {
   const { socket, ws } = openTestSocket();
   const history = memoryHistory(path);
   const Router = createAppRouter(history);
   render(() => (
     <QueryClientProvider client={new QueryClient()}>
-      <SignedInProviders socket={socket}>
+      <SignedInProviders socket={socket} role={role}>
         <Router />
       </SignedInProviders>
     </QueryClientProvider>
   ));
-  sendFleet(ws, [summary(1, "Gateway", { role: "gateway" }), summary(2, "Living room")]);
+  sendFleet(ws, nodes);
   await waitFor(() =>
     expect(ws.sent).toContainEqual({ sub: expect.arrayContaining(["topology"]) }),
   );
@@ -183,5 +188,20 @@ describe("the topology page", () => {
   it("guides to adoption while there is nothing to map", async () => {
     await renderAt("/topology", { at: 1, nodes: house().nodes.slice(0, 1), edges: [] });
     expect(await screen.findByText("Nothing to map yet")).toBeInTheDocument();
+    // Devices are adopted: the map is waiting for them, there is nothing to do.
+    expect(screen.queryByRole("link", { name: "Adopt a device" })).not.toBeInTheDocument();
+  });
+
+  it("links an admin to adoption while no device is adopted, and a viewer nowhere", async () => {
+    const empty = { at: 1, nodes: [], edges: [] };
+    await renderAt("/topology", empty, []);
+    expect(await screen.findByRole("link", { name: "Adopt a device" })).toHaveAttribute(
+      "href",
+      "/devices?adopt=1",
+    );
+    cleanup();
+    await renderAt("/topology", empty, [], "viewer");
+    await screen.findByText("Nothing to map yet");
+    expect(screen.queryByRole("link", { name: "Adopt a device" })).not.toBeInTheDocument();
   });
 });

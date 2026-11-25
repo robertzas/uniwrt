@@ -5,6 +5,7 @@ import type { SiteView } from "../../api/gen/SiteView";
 import type { WireGuard } from "../../api/gen/WireGuard";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { EmptyState } from "../../ui/EmptyState";
@@ -26,6 +27,7 @@ const t = strings.vpn;
 export function VpnPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  const next = useNextSteps();
   const admin = () => session.user.role === "admin";
   const gateway = () => live.fleet.nodes.find((node) => node.role === "gateway");
   const site = useQuery(() => ({
@@ -55,6 +57,7 @@ export function VpnPage() {
           icon={GlobeLock}
           title={t.noGateway.title}
           description={t.noGateway.description}
+          actions={next.gateway()}
         />
       </Show>
       <Show

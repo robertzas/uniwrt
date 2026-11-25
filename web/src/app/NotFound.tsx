@@ -9,13 +9,11 @@ export function NotFound() {
     document.title = `${text.title} · ${strings.appName}`;
   });
   return (
-    <EmptyState icon={SearchX} title={text.title} description={text.description}>
-      <a
-        href="/"
-        class="mt-6 inline-flex h-9 items-center rounded-lg bg-accent-fill px-4 font-medium text-on-accent text-sm hover:opacity-90"
-      >
-        {text.home}
-      </a>
-    </EmptyState>
+    <EmptyState
+      icon={SearchX}
+      title={text.title}
+      description={text.description}
+      actions={[{ label: text.home, href: "/" }]}
+    />
   );
 }

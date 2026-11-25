@@ -66,7 +66,12 @@ function createLatestSpeed(id: () => NodeId | undefined) {
  * The internet connection: its state and what it carries now (from the live topology), the
  * site's throughput over a range (stored series), and the gateway's WAN addresses.
  */
-export function WanCard(props: { gateway: NodeId | undefined; internet: InternetHealth }) {
+export function WanCard(props: {
+  gateway: NodeId | undefined;
+  internet: InternetHealth;
+  /** Admins get a link to adopt the gateway when there is none (D-148). */
+  admin: boolean;
+}) {
   const [range, setRange] = createSignal<Preset>("24h");
   const detail = createGatewayDetail(() => props.gateway);
   const speed = createLatestSpeed(() => props.gateway);
@@ -131,7 +136,17 @@ export function WanCard(props: { gateway: NodeId | undefined; internet: Internet
       />
       <Show
         when={props.gateway !== undefined}
-        fallback={<p class="px-4 pb-4 text-fg-subtle text-sm">{t.noGateway}</p>}
+        fallback={
+          <p class="px-4 pb-4 text-fg-subtle text-sm">
+            {t.noGateway}
+            <Show when={props.admin}>
+              {" "}
+              <a href="/devices?adopt=1" class="font-medium text-accent hover:underline">
+                {strings.page.next.adoptGateway}
+              </a>
+            </Show>
+          </p>
+        }
       >
         <div class="grid grid-cols-2 gap-3 px-4 pb-1">
           <Rate label={t.download} value={props.internet.down} class="text-ok" />

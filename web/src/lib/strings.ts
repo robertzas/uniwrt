@@ -111,6 +111,15 @@ export const strings = {
   },
   page: {
     soon: "Arrives in an upcoming release",
+    /** What empty pages offer as their next step (D-148). */
+    next: {
+      adopt: "Adopt a device",
+      adoptGateway: "Adopt your gateway",
+      setUpRouter: "Set up a new router",
+      wifi: "Set up Wi-Fi",
+      devices: "All devices",
+      clients: "All clients",
+    },
     error: {
       title: "This page hit a problem",
       description: "The rest of the app still works. Try again, or reload if it keeps happening.",

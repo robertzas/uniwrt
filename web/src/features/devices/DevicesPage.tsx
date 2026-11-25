@@ -141,9 +141,8 @@ export function DevicesPage() {
               icon={Router}
               title={strings.devices.empty.title}
               description={strings.devices.empty.description}
-            >
-              <div class="mt-6">{adoptButton()}</div>
-            </EmptyState>
+              actions={admin() ? [{ label: strings.adopt.open, onClick: () => openAdopt() }] : []}
+            />
           }
         >
           <Show when={stillDefaults()}>

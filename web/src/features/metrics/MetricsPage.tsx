@@ -7,6 +7,7 @@ import { api } from "../../lib/api";
 import { clientName } from "../../lib/clients";
 import { formatDateTime } from "../../lib/format";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
@@ -34,6 +35,7 @@ type Params = { entity?: string; metrics?: string; range?: string; from?: string
  */
 export function MetricsPage() {
   const live = useContext(LiveContext);
+  const next = useNextSteps();
   const [params, setParams] = useSearchParams<Params>();
   const [filter, setFilter] = createSignal("");
   const listing = createSeriesListing();
@@ -117,7 +119,12 @@ export function MetricsPage() {
         <Show
           when={(listing() ?? []).length > 0}
           fallback={
-            <EmptyState icon={Activity} title={m.empty.title} description={m.empty.description} />
+            <EmptyState
+              icon={Activity}
+              title={m.empty.title}
+              description={m.empty.description}
+              actions={next.adoptFirst()}
+            />
           }
         >
           <div class="grid items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">

@@ -4,6 +4,7 @@ import { Eye, Globe, TriangleAlert } from "lucide";
 import { createEffect, createSignal, For, Show, useContext } from "solid-js";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
@@ -28,6 +29,7 @@ const t = strings.internet;
 export function InternetPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  const next = useNextSteps();
   const navigate = useNavigate();
   const admin = () => session.user.role === "admin";
   const site = useQuery(() => ({
@@ -74,7 +76,12 @@ export function InternetPage() {
         <p class="mt-1 text-fg-muted text-sm">{t.description}</p>
       </header>
       <Show when={live.fleet.ready && !gateway()}>
-        <EmptyState icon={Globe} title={t.noGateway.title} description={t.noGateway.description} />
+        <EmptyState
+          icon={Globe}
+          title={t.noGateway.title}
+          description={t.noGateway.description}
+          actions={next.gateway()}
+        />
       </Show>
       <Show when={gateway()?.mode === "observe" ? gateway() : undefined}>
         {(node) => (

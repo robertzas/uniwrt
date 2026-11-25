@@ -3,6 +3,7 @@ import { RadioTower } from "lucide";
 import { createEffect, createMemo, createSignal, onSettled, Show, useContext } from "solid-js";
 import type { Band } from "../../api/gen/Band";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { BANDS, createRfView } from "../../lib/rf";
 import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
@@ -30,6 +31,7 @@ const t = strings.rf;
 export function RfPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  const next = useNextSteps();
   const [params, setParams] = useSearchParams<{ band?: string }>();
   const view = createRfView(live);
   const save = createRfSaver();
@@ -80,7 +82,12 @@ export function RfPage() {
         <Show
           when={report()}
           fallback={
-            <EmptyState icon={RadioTower} title={t.dashboard.empty} description={t.noBand} />
+            <EmptyState
+              icon={RadioTower}
+              title={t.dashboard.empty}
+              description={t.noBand}
+              actions={next.adoptFirst()}
+            />
           }
         >
           {(b) => (

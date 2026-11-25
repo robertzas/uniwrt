@@ -6,6 +6,7 @@ import type { LogRecord } from "../../api/gen/LogRecord";
 import type { LogSources } from "../../api/gen/LogSources";
 import { api } from "../../lib/api";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { strings } from "../../lib/strings";
 import { StatusDot } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -41,6 +42,7 @@ const t = strings.logs;
  */
 export function LogsPage() {
   const live = useContext(LiveContext);
+  const next = useNextSteps();
   const [params, setParams] = useSearchParams<LogParams>();
   const query = createMemo(() =>
     parseParams({
@@ -221,6 +223,7 @@ export function LogsPage() {
                     icon={ScrollText}
                     title={t.empty.title}
                     description={isFiltered(filter()) ? t.empty.filtered : t.empty.live}
+                    actions={isFiltered(filter()) ? [] : next.adoptFirst()}
                   />
                   <Show when={isFiltered(filter())}>
                     <div class="mt-2 flex justify-center">

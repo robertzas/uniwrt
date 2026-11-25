@@ -19,9 +19,6 @@ import { WanCard } from "./WanCard";
 
 const t = strings.dashboard;
 
-const PRIMARY_LINK =
-  "inline-flex h-8 items-center gap-2 rounded-control bg-accent-fill px-3 font-medium text-on-accent text-sm hover:brightness-110";
-
 /**
  * `/`: the network at a glance (features/observability.md, Dashboard): the health header, the
  * internet connection, the topology mini-map, the busiest clients, the Wi-Fi experience, the
@@ -56,25 +53,15 @@ export function DashboardPage() {
           icon={LayoutDashboard}
           title={t.welcome.title}
           description={t.welcome.description}
-        >
-          <div class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
-            <Show
-              when={session.user.role === "admin"}
-              fallback={
-                <a href="/devices?adopt=1" class={PRIMARY_LINK}>
-                  {t.welcome.adopt}
-                </a>
-              }
-            >
-              <a href="/setup" class={PRIMARY_LINK}>
-                {t.welcome.setup}
-              </a>
-              <a href="/devices?adopt=1" class="text-accent text-sm hover:underline">
-                {t.welcome.adoptExisting}
-              </a>
-            </Show>
-          </div>
-        </EmptyState>
+          actions={
+            session.user.role === "admin"
+              ? [
+                  { label: t.welcome.setup, href: "/setup" },
+                  { label: t.welcome.adoptExisting, href: "/devices?adopt=1" },
+                ]
+              : []
+          }
+        />
       }
     >
       <div class="mx-auto flex max-w-7xl flex-col gap-4">
@@ -84,7 +71,11 @@ export function DashboardPage() {
         <HealthHeader nodes={live.fleet.nodes} graph={graph()} clients={clients.clients} />
         <div class="grid gap-4 lg:grid-cols-5">
           <div class="grid min-w-0 lg:col-span-2">
-            <WanCard gateway={gatewayOf(live.fleet.nodes)?.id} internet={internet()} />
+            <WanCard
+              gateway={gatewayOf(live.fleet.nodes)?.id}
+              internet={internet()}
+              admin={session.user.role === "admin"}
+            />
           </div>
           <div class="grid min-w-0 lg:col-span-3">
             <MiniMap graph={graph()} nodes={live.fleet.nodes} />

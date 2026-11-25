@@ -7,6 +7,7 @@ import type { SiteView } from "../../api/gen/SiteView";
 import { api } from "../../lib/api";
 import { createClientsView } from "../../lib/clientList";
 import { LiveContext } from "../../lib/live";
+import { useNextSteps } from "../../lib/nextStep";
 import { SessionContext } from "../../lib/session";
 import { sortNetworks } from "../../lib/site";
 import { strings } from "../../lib/strings";
@@ -43,6 +44,7 @@ type Editing = { network: Network; isNew: boolean; view: SiteView };
 export function NetworksPage() {
   const live = useContext(LiveContext);
   const session = useContext(SessionContext);
+  const next = useNextSteps();
   const navigate = useNavigate();
   const admin = () => session.user.role === "admin";
   const clients = createClientsView(live);
@@ -87,7 +89,12 @@ export function NetworksPage() {
         <p class="mt-1 text-fg-muted text-sm">{t.description}</p>
       </header>
       <Show when={live.fleet.ready && !gateway()}>
-        <EmptyState icon={Layers} title={t.noGateway.title} description={t.noGateway.description} />
+        <EmptyState
+          icon={Layers}
+          title={t.noGateway.title}
+          description={t.noGateway.description}
+          actions={next.gateway()}
+        />
       </Show>
       <Show when={unmanaged()}>
         {(node) => (
