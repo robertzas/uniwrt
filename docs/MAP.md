@@ -1203,7 +1203,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/networks/`: DnsCard.tsx, Ipv4Fields.tsx, NetworkEditor.tsx, NetworkRow.tsx, NetworksPage.tsx, NewNetworkDialog.tsx, ReservationsField.tsx, dns.ts, draft.ts, summary.ts
 - `features/networks/services/`: BlockingCard.tsx, BlockingEditor.tsx, DdnsCard.tsx, DdnsEditor.tsx, DnsQueriesCard.tsx, DomainAction.tsx, NtpCard.tsx, QueryBars.tsx, QueryLog.tsx, blocking.ts, ddns.ts, dnsStats.ts
 - `features/networks/services/upstream/`: Editor.tsx, ResolverRow.tsx, Summary.tsx, UpstreamCard.tsx, check.ts, draft.ts, presets.ts
-- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Nightly.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, spectrum.ts
+- `features/rf/`: Channels.tsx, Matrix.tsx, Networks.tsx, Nightly.tsx, Plan.tsx, RadioCards.tsx, RfPage.tsx, Scanning.tsx, Spectrum.tsx, Utilization.tsx, planned.ts, settings.ts, spectrum.ts
 - `features/security/`: ForwardDialog.tsx, ForwardsCard.tsx, MatrixCard.tsx, SecurityPage.tsx, UpnpCard.tsx, forwards.ts, matrix.ts
 - `features/settings/`: SettingsPage.tsx
 - `features/settings/backups/`: BackupsTab.tsx, ControllerRestore.tsx, PassphraseCard.tsx

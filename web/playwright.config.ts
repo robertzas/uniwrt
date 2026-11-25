@@ -13,7 +13,23 @@ import { defineConfig } from "@playwright/test";
 const bin = process.env.UNIWRT_BIN ?? "../target/debug/uniwrt";
 const ci = Boolean(process.env.CI);
 /** The screens' specs (`e2e/<name>.spec.ts`), each a project with a controller of its own. */
-const screens = ["wifi", "networks", "vpn", "devices", "clients", "troubleshoot"];
+const screens = [
+  "wifi",
+  "networks",
+  "vpn",
+  "devices",
+  "clients",
+  "troubleshoot",
+  "updates",
+  "settings",
+  "floorplans",
+  "rf",
+  "phone",
+];
+/** What a screens' project uses beyond its controller: the phone sweep runs at a phone's width. */
+const devices: Record<string, object> = {
+  phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+};
 
 /** A controller of its own per project: `flags` after `serve`, HTTP on `http` and HTTPS on `https`. */
 function controller(flags: string, http: number, https: number) {
@@ -58,7 +74,7 @@ export default defineConfig({
     ...screens.map((name, i) => ({
       name,
       testMatch: `${name}.spec.ts`,
-      use: { baseURL: `https://127.0.0.1:${18446 + i}` },
+      use: { baseURL: `https://127.0.0.1:${18446 + i}`, ...devices[name] },
     })),
   ],
   webServer: [
