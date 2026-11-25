@@ -13,7 +13,7 @@ import { defineConfig } from "@playwright/test";
 const bin = process.env.UNIWRT_BIN ?? "../target/debug/uniwrt";
 const ci = Boolean(process.env.CI);
 /** The screens' specs (`e2e/<name>.spec.ts`), each a project with a controller of its own. */
-const screens = ["wifi", "networks", "vpn"];
+const screens = ["wifi", "networks", "vpn", "devices", "clients", "troubleshoot"];
 
 /** A controller of its own per project: `flags` after `serve`, HTTP on `http` and HTTPS on `https`. */
 function controller(flags: string, http: number, https: number) {

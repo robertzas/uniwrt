@@ -177,9 +177,9 @@ describe("UciTab", () => {
     const iface = await within(card).findByRole("article", { name: "wireless.default_radio0" });
     await userEvent.click(within(iface).getByRole("button", { name: "Edit" }));
     const form = within(iface).getByRole("form", { name: "Edit wireless.default_radio0" });
-    const values = within(form).getAllByRole("textbox", { name: "Value" });
-    await userEvent.clear(values[0] as HTMLElement);
-    await userEvent.type(values[0] as HTMLElement, "lab");
+    const ssid = within(form).getByRole("textbox", { name: "Value of ssid" });
+    await userEvent.clear(ssid);
+    await userEvent.type(ssid, "lab");
     const secret = within(form).getByPlaceholderText("Leave empty to keep it");
     await userEvent.type(secret, "new passphrase");
     await userEvent.click(within(form).getByRole("button", { name: "Save to the site" }));
@@ -228,7 +228,7 @@ describe("UciTab", () => {
     await userEvent.clear(within(form).getByLabelText("Name"));
     await userEvent.type(within(form).getByLabelText("Name"), "guest");
     await userEvent.type(within(form).getByRole("textbox", { name: "Option" }), "proto");
-    await userEvent.type(within(form).getByRole("textbox", { name: "Value" }), "dhcp");
+    await userEvent.type(within(form).getByRole("textbox", { name: "Value of proto" }), "dhcp");
     await userEvent.click(within(form).getByRole("button", { name: "Save to the site" }));
     await waitFor(() => expect(lastSave()).toBeDefined());
     expect(lastSave()?.config.nodes[0]?.raw).toEqual([

@@ -153,7 +153,7 @@ export function SectionEditor(props: {
                     <input
                       class={[INPUT, errors()[i] ? "border-crit" : "border-edge"]}
                       type={secret(draft()) ? "password" : "text"}
-                      aria-label={t.editor.value}
+                      aria-label={t.editor.valueOf(draft().name)}
                       placeholder={
                         secret(draft())
                           ? draft().read
@@ -172,7 +172,7 @@ export function SectionEditor(props: {
                 >
                   <textarea
                     class={[INPUT, "min-h-16", errors()[i] ? "border-crit" : "border-edge"]}
-                    aria-label={t.editor.value}
+                    aria-label={t.editor.valueOf(draft().name)}
                     placeholder={t.editor.listHint}
                     value={draft().text}
                     disabled={draft().deleted}
@@ -192,6 +192,7 @@ export function SectionEditor(props: {
               >
                 <input
                   type="checkbox"
+                  aria-label={t.editor.listOf(draft().name)}
                   checked={draft().list}
                   disabled={draft().deleted || secret(draft())}
                   onChange={(event) => change(i, { list: event.currentTarget.checked })}

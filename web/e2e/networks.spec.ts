@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expectSaved, region, saveDialog, signIn, watchErrors } from "./support";
+import { expectSaved, manage, region, saveDialog, signIn, watchErrors } from "./support";
 
 /*
  * The Networks page on the demo (features/network.md): a guest network from its purpose, the
@@ -56,23 +56,9 @@ test("applies filtering on the managed gateway and shows its queries", async ({ 
   const errors = watchErrors(page);
   await signIn(page);
 
-  // Manage the gateway, then apply what the first test saved.
-  await page
-    .getByRole("table", { name: "Devices" })
-    .getByRole("cell", { name: "gateway Gateway" })
-    .click();
-  await page.getByRole("tab", { name: "Config" }).click();
-  await page.getByRole("button", { name: "Turn management on" }).click();
-  await page
-    .getByRole("dialog", { name: "Turn management on for gateway?" })
-    .getByRole("button", { name: "Turn on" })
-    .click();
-  await expect(page.getByText("Management is on")).toBeVisible({ timeout: 30_000 });
-  // uniwrt owns only the packages chosen: DHCP & DNS carries the filter.
-  const config = page.getByRole("tabpanel", { name: "Config" });
-  await config.getByRole("checkbox", { name: "dhcp" }).check();
-  await config.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(config.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  // Manage the gateway, then apply what the first test saved. uniwrt owns only the packages
+  // chosen: DHCP & DNS carries the filter.
+  await manage(page, "gateway", ["dhcp"]);
   await page.goto("/changes");
   await page.getByRole("button", { name: /^Apply revision \d+$/ }).click();
   await expect(page.getByText(/^Revision \d+ is applied and confirmed\.$/)).toBeVisible({
