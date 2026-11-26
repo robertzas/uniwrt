@@ -27,7 +27,7 @@ pprof = { workspace = true, optional = true }
 uniwrt-bench = { workspace = true, optional = true }
 rcgen.workspace = true
 ring.workspace = true
-rustix = { workspace = true, features = ["termios"] }
+rustix = { workspace = true, features = ["termios", "thread"] }
 rustls.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }

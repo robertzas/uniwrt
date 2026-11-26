@@ -7,7 +7,8 @@
 #   scripts/perf.sh binary <bin>        the binary's size on disk
 #   scripts/perf.sh cold-start <bin>    `serve` on an empty data directory until `healthcheck` passes
 #   scripts/perf.sh idle <bin>          `serve --demo` with 10 access points and 200 clients, left
-#                                       alone: its peak RSS and its CPU over a minute
+#                                       alone: its peak RSS (heap and code shown apart) and its CPU
+#                                       over a minute
 #   scripts/perf.sh api <bin>           `serve --demo` with 50 access points and 1,000 clients: the
 #                                       p99 of the API's reads, one at a time over one connection
 #   scripts/perf.sh agent-rss <file>    the agent's RSS in bytes, as `just test-agent` wrote it
@@ -114,20 +115,22 @@ demo() {
 
 # The process's CPU time so far, in clock ticks (utime + stime; after the command's parentheses).
 cpu_ticks() { sed -E 's/^.*\) //' "/proc/$1/stat" | awk '{ print $12 + $13 }'; }
-rss_bytes() { awk '/^VmRSS:/ { print $2 * 1024 }' "/proc/$1/status"; }
+# VmRSS, then its heap (RssAnon) and code (RssFile: the binary's pages) parts, in bytes.
+rss_bytes() { awk '/^VmRSS:/ { r = $2 } /^RssAnon:/ { a = $2 } /^RssFile:/ { f = $2 } END { print r * 1024, a * 1024, f * 1024 }' "/proc/$1/status"; }
 
 idle() {
-  local window=${UNIWRT_PERF_WINDOW_S:-60} before after peak=0 rss hz status=0
+  local window=${UNIWRT_PERF_WINDOW_S:-60} before after peak=0 heap=0 code=0 rss anon file hz status=0
   demo "$1" 10 200
   hz=$(getconf CLK_TCK)
   before=$(cpu_ticks "$pid")
   for ((s = 0; s < window; s++)); do
-    rss=$(rss_bytes "$pid")
-    if ((rss > peak)); then peak=$rss; fi
+    read -r rss anon file <<<"$(rss_bytes "$pid")"
+    if ((rss > peak)); then peak=$rss heap=$anon code=$file; fi
     sleep 1
   done
   after=$(cpu_ticks "$pid")
-  report "Idle RSS (10 nodes, 200 clients)" idle_rss "$peak" || status=1
+  report "Idle RSS (10 nodes, 200 clients; heap $(human "$heap" bytes), code $(human "$code" bytes))" \
+    idle_rss "$peak" || status=1
   report "Idle CPU (10 nodes, 200 clients)" idle_cpu \
     "$(awk -v t=$((after - before)) -v hz="$hz" -v w="$window" 'BEGIN { printf "%.3f", 100 * t / hz / w }')" ||
     status=1

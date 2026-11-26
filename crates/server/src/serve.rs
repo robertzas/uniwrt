@@ -68,6 +68,19 @@ const BACKUPS: &str = "backups";
 const DEMO_USER: &str = "demo";
 const DEMO_PASSWORD: &str = "demo";
 
+/// At most this many async workers (D-149, M9.2d): each holds its own allocator pages, so one per
+/// core cost a 16-core host ~10 MB more at idle than 4 for the same work.
+const MAX_WORKERS: usize = 4;
+/// tokio's own override of the number of workers, which then applies uncapped.
+const WORKERS_ENV: &str = "TOKIO_WORKER_THREADS";
+
+/// One worker per core, at most [`MAX_WORKERS`].
+fn workers() -> usize {
+    std::thread::available_parallelism()
+        .map_or(1, std::num::NonZero::get)
+        .min(MAX_WORKERS)
+}
+
 /// One listener's server, running until its drain signal and its connections end.
 type Server = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
 
@@ -76,7 +89,11 @@ pub(crate) fn run(args: ServeArgs) -> anyhow::Result<u8> {
     logging::init(&args.log)?;
     #[cfg(feature = "profiling")]
     let profile = crate::profiling::start(args.profile_cpu.clone())?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let mut runtime = tokio::runtime::Builder::new_multi_thread();
+    if std::env::var_os(WORKERS_ENV).is_none() {
+        runtime.worker_threads(workers());
+    }
+    let runtime = runtime
         .enable_all()
         .build()
         .context("cannot start the async runtime")?;
