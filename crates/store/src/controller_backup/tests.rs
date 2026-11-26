@@ -4,7 +4,9 @@ use uniwrt_core::SystemClock;
 use uniwrt_model::controller_backup::{BackupManifest, KEEP, RestoreState};
 use zeroize::Zeroizing;
 
-use super::{ControllerBackups, DATABASE, MASTER_KEY, Staging, unpack, write_backup};
+use super::{
+    ControllerBackups, DATABASE, MASTER_KEY, Staging, stage::unpack_within, unpack, write_backup,
+};
 use crate::{Error, MasterKey, Store, Vault, VaultRepo as _, testing};
 
 const PASS: &[u8] = b"a long passphrase";
@@ -199,4 +201,34 @@ async fn rekeying_reseals_every_secret_and_node_backup() {
         Vault::open(&store, &MasterKey::generate().unwrap()).await,
         Err(Error::WrongMasterKey { .. })
     ));
+}
+
+#[tokio::test]
+async fn a_database_that_unpacks_far_past_the_backup_s_size_is_refused() {
+    let (dir, store, _) = testing::open().await;
+    let (key, _vault) = vault_with_a_secret(&store).await;
+    // 16 MiB of zeros: gzip packs them into a few KiB.
+    let snapshot = dir.path().join("zeros.db");
+    fs::File::create(&snapshot)
+        .unwrap()
+        .set_len(16 << 20)
+        .unwrap();
+    let manifest = BackupManifest {
+        format: 1,
+        version: "9".into(),
+        schema: 1,
+        taken_at: testing::START,
+    };
+    let bomb = dir.path().join("bomb");
+    write_backup(&bomb, &snapshot, &manifest, &key.to_text(), PASS, 4).unwrap();
+    assert!(fs::metadata(&bomb).unwrap().len() < 256 << 10);
+    let out = tempfile::tempdir().unwrap();
+    let refused = unpack_within(fs::File::open(&bomb).unwrap(), PASS, out.path(), 1 << 20);
+    assert!(
+        matches!(&refused, Err(Error::NotBackup(why)) if why.contains("far more")),
+        "{refused:?}"
+    );
+    drop(store);
+    // The same file within the real allowance unpacks.
+    unpack(fs::File::open(&bomb).unwrap(), PASS, out.path()).unwrap();
 }

@@ -7,6 +7,7 @@
 
 pub(crate) mod limit;
 pub(crate) mod password;
+pub(crate) mod roles;
 pub(crate) mod session;
 pub(crate) mod setup;
 

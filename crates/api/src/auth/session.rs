@@ -118,6 +118,10 @@ impl FromRequestParts<Api> for CurrentUser {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, api: &Api) -> Result<Self, Self::Rejection> {
+        // The roles layer found it already.
+        if let Some(user) = parts.extensions.get::<Self>() {
+            return Ok(user.clone());
+        }
         let unauthorized = || ApiError::Unauthorized("Log in first".to_owned());
         let token_sha256 = presented(&parts.headers).ok_or_else(unauthorized)?;
         current(api, token_sha256).await?.ok_or_else(unauthorized)

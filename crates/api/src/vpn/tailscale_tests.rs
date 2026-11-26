@@ -10,7 +10,7 @@ use uniwrt_model::{
     site::{SiteConfig, vpn::tailscale::Tailscale},
 };
 
-use super::report;
+use super::{is_login_url, report};
 use crate::testing::{Demo, json, request};
 
 fn site() -> SiteConfig {
@@ -117,4 +117,21 @@ async fn a_login_needs_tailscale_on_and_a_managed_gateway_running_it() {
     );
     let (status, body) = send(&demo, Method::POST, "/v1/vpn/tailscale/logout", None).await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
+}
+
+#[test]
+fn only_https_login_urls_are_linked() {
+    assert!(is_login_url("https://login.tailscale.com/a/1a2b3c4d"));
+    assert!(is_login_url("HTTPS://login.tailscale.com/a/1"));
+    for bad in [
+        "javascript:alert(1)",
+        "http://login.tailscale.com/a/1",
+        "https://",
+        "https://login.tailscale.com/a/1 onmouseover",
+        "https://x/\u{7}",
+        "data:text/html,<script>",
+    ] {
+        assert!(!is_login_url(bad), "{bad}");
+    }
+    assert!(!is_login_url(&format!("https://x/{}", "a".repeat(2048))));
 }

@@ -110,7 +110,9 @@
 //!   SameSite=Strict), stored as SHA-256, ending after 7 idle days or 30 in all. Setup, logins,
 //!   failed logins and logouts go to the audit log.
 //! - **Invariants:** state-changing requests need `X-Uniwrt-Csrf: 1` and, when they send one, our
-//!   `Origin` ([`security`]). API responses are never cached. Errors never leak internals: a 500
+//!   `Origin` ([`security`]); roles are enforced at the router (`auth::roles`): a session
+//!   everywhere but the public routes, admins for every write but shared view preferences and
+//!   for the reads that hold secrets. API responses are never cached. Errors never leak internals: a 500
 //!   says to read the log, which has the cause. Passwords and tokens are zeroized and never logged.
 //! - **Dependencies:** `uniwrt-core`, `uniwrt-model` (with `ts`), `uniwrt-store`, `uniwrt-engine`
 //!   (`Fleet`, its events, `Alerts`, `Notify`), `uniwrt-events` (the built-in alert rules),
@@ -355,6 +357,24 @@ pub fn router(api: Api) -> Router {
             "/v1/backhaul/failures/{node}/{port}/{peer}/{peer_port}",
             delete(backhaul::forget),
         )
+        .merge(topology_routes())
+        // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).
+        .route("/v1/ws", get(ws::upgrade).connect(ws::upgrade))
+        // Only on matched routes: an unknown path or method still gets its 404 or 405.
+        .route_layer(middleware::from_fn_with_state(
+            api.clone(),
+            auth::roles::check,
+        ))
+        .fallback(problem::not_found)
+        .method_not_allowed_fallback(problem::method_not_allowed)
+        .layer(middleware::from_fn(security::csrf))
+        .layer(middleware::map_response(security::no_store))
+        .with_state(api)
+}
+
+/// The topology, its replay and its pinned layout.
+fn topology_routes() -> Router<Api> {
+    Router::new()
         .route("/v1/topology", get(topology::get))
         .route("/v1/topology/timeline", get(topology::history::timeline))
         .route("/v1/topology/at/{ms}", get(topology::history::at))
@@ -366,17 +386,8 @@ pub fn router(api: Api) -> Router {
             "/v1/topology/layout/{vertex}",
             put(topology::layout::pin).delete(topology::layout::unpin),
         )
-        // Over HTTP/2, browsers open WebSockets with an extended CONNECT (RFC 8441).
-        .route("/v1/ws", get(ws::upgrade).connect(ws::upgrade))
-        .fallback(problem::not_found)
-        .method_not_allowed_fallback(problem::method_not_allowed)
-        .layer(middleware::from_fn(security::csrf))
-        .layer(middleware::map_response(security::no_store))
-        .with_state(api)
 }
 
-/// Adoption: probes, adoptions one at a time or in a batch, the first run's gateway and its
-/// root password, and discovery.
 /// DNS filtering's lists and the DNS query statistics.
 fn dns_routes() -> Router<Api> {
     Router::new()
@@ -402,6 +413,8 @@ fn node_routes() -> Router<Api> {
         .route("/v1/nodes/{id}/uci", get(uci::get))
 }
 
+/// Adoption: probes, adoptions one at a time or in a batch, the first run's gateway and its
+/// root password, and discovery.
 fn adoption_routes() -> Router<Api> {
     Router::new()
         .route("/v1/adopt/probe", post(adopt::probe))

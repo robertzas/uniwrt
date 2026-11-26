@@ -3,10 +3,12 @@
 //! `<data dir>/restore` until the next start puts it in place ([`Staging::ready`]).
 
 use std::{
+    cell::Cell,
     fs::{self, File},
     io::{self, Read},
     os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _},
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -21,12 +23,34 @@ use crate::{Error, MasterKey, Result, Store, Vault, age::Decryptor};
 
 /// The manifest's and the key's largest sizes.
 const MAX_SMALL: u64 = 64 * 1024;
+/// The most the database may unpack to per byte of the backup read so far, plus [`ALLOWANCE`]:
+/// gzip packs SQLite a few times over, so any real backup fits, while a crafted one (a gzip
+/// bomb packs zeros ~1,000×) can't fill the disk; while setup is open its upload needs no
+/// session (threat-model.md §1).
+const MAX_RATIO: u64 = 64;
+const ALLOWANCE: u64 = 64 << 20;
+/// The most zero padding read after the last entry (tar pads to 10 KiB records).
+const MAX_PADDING: u64 = 1 << 20;
 
 /// Decrypts a backup from `input` and writes its database and key into `dir` (which must exist),
 /// mode 0600; returns its manifest. It is read to its end, so a truncated or altered file fails
 /// here; a database newer than this uniwrt's fails with [`Error::TooNew`].
 pub fn unpack(input: impl Read, passphrase: &[u8], dir: &Path) -> Result<BackupManifest> {
+    unpack_within(input, passphrase, dir, ALLOWANCE)
+}
+
+pub(super) fn unpack_within(
+    input: impl Read,
+    passphrase: &[u8],
+    dir: &Path,
+    allowance: u64,
+) -> Result<BackupManifest> {
     let bad = |why: &str| Error::NotBackup(why.to_owned());
+    let read = Rc::new(Cell::new(0));
+    let input = Counted {
+        inner: input,
+        read: Rc::clone(&read),
+    };
     let mut gz = GzDecoder::new(Decryptor::new(input, passphrase)?);
     let read_err =
         |source: io::Error| match source.get_ref().and_then(|e| e.downcast_ref::<Error>()) {
@@ -65,7 +89,13 @@ pub fn unpack(input: impl Read, passphrase: &[u8], dir: &Path) -> Result<BackupM
                     .mode(0o600)
                     .open(&path)
                     .map_err(io_err(&path))?;
-                tar::read_data(&mut gz, size, &mut file).map_err(read_err)?;
+                let mut bounded = Bounded {
+                    out: &mut file,
+                    written: 0,
+                    read: &read,
+                    allowance,
+                };
+                tar::read_data(&mut gz, size, &mut bounded).map_err(read_err)?;
                 file.sync_all().map_err(io_err(&path))?;
                 database = true;
             }
@@ -75,7 +105,10 @@ pub fn unpack(input: impl Read, passphrase: &[u8], dir: &Path) -> Result<BackupM
     // The end-of-archive's zero blocks and the gzip stream's end, then the age file's: its last
     // chunk is checked only there.
     let mut padding = ZerosOnly(true);
-    io::copy(&mut gz, &mut padding).map_err(read_err)?;
+    let padded = io::copy(&mut (&mut gz).take(MAX_PADDING + 1), &mut padding).map_err(read_err)?;
+    if padded > MAX_PADDING {
+        return Err(bad("it goes on after its last entry"));
+    }
     let rest = io::copy(&mut gz.into_inner(), &mut io::sink()).map_err(read_err)?;
     let (Some(manifest), Some(key), true, true, 0) = (manifest, key, database, padding.0, rest)
     else {
@@ -109,6 +142,51 @@ pub fn unpack(input: impl Read, passphrase: &[u8], dir: &Path) -> Result<BackupM
     .map_err(io_err(&path))?;
     file.sync_all().map_err(io_err(&path))?;
     Ok(manifest)
+}
+
+/// A reader that counts what it reads.
+struct Counted<R> {
+    inner: R,
+    read: Rc<Cell<u64>>,
+}
+
+impl<R: Read> Read for Counted<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.read.set(self.read.get().saturating_add(n as u64));
+        Ok(n)
+    }
+}
+
+/// A writer that refuses to grow past [`MAX_RATIO`] times what was read, plus an allowance.
+struct Bounded<'a, W> {
+    out: &'a mut W,
+    written: u64,
+    read: &'a Cell<u64>,
+    allowance: u64,
+}
+
+impl<W: io::Write> io::Write for Bounded<'_, W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let limit = self
+            .read
+            .get()
+            .saturating_mul(MAX_RATIO)
+            .saturating_add(self.allowance);
+        if self.written.saturating_add(buf.len() as u64) > limit {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "its database unpacks to far more than the backup's size",
+            ));
+        }
+        let n = self.out.write(buf)?;
+        self.written += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.out.flush()
+    }
 }
 
 /// A sink that notes whether it was given anything but zeros.

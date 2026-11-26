@@ -63,6 +63,17 @@ pub struct TailscaleLogin {
     pub auth_url: Option<String>,
 }
 
+/// Whether a login URL is safe to link: https, at most 2 KiB, without spaces or control
+/// characters.
+pub(crate) fn is_login_url(url: &str) -> bool {
+    url.len() <= 2048
+        && url
+            .get(..8)
+            .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"))
+        && url.len() > 8
+        && !url.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
 impl From<TailscaleAnswer> for TailscaleLogin {
     fn from(answer: TailscaleAnswer) -> Self {
         Self {
@@ -135,6 +146,17 @@ pub(crate) async fn login(
     };
     let node = ready(&api).await?;
     let answer = call(&api, &node, Tailscale::new(TailscaleAction::Login, prefs)).await?;
+    // The UI links it: a node's answer is untrusted (threat-model.md §1, A3).
+    if answer
+        .auth_url
+        .as_deref()
+        .is_some_and(|url| !is_login_url(url))
+    {
+        return Err(ApiError::BadGateway(format!(
+            "{} answered a login URL that isn't an https link",
+            node.name
+        )));
+    }
     let detail = match answer.auth_url {
         Some(_) => format!("started a Tailscale login on {}", node.name),
         None => format!(
