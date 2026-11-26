@@ -7,7 +7,8 @@ import { signIn, watchErrors } from "./support";
  * entities), on a demo of its own sized past 300 devices and clients. The clients view draws every
  * client as its own vertex. A wheel event each frame zooms the map in and out for a few seconds, so
  * the renderer draws every frame; the frames it drew (its `clearRect` calls) per second must reach
- * the budget's minimum in scripts/perf/budgets.json.
+ * the budget's minimum in scripts/perf/budgets.json. It runs after every other project, alone
+ * (playwright.config.ts), so the runner's other work doesn't count against the frame rate.
  */
 const budget = (
   JSON.parse(

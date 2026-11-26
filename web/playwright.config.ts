@@ -31,6 +31,12 @@ const screens = [
 const demoFlags: Record<string, string> = {
   topology: "--demo-access-points 12 --demo-clients 320",
 };
+/**
+ * Projects that measure, run after all the others so that nothing else loads the runner: the
+ * topology's frame rate dropped to 54 fps beside 15 busy workers in CI (D-149). Locally,
+ * `--project topology --no-deps` runs it alone.
+ */
+const last = new Set(["topology"]);
 /** What a screens' project uses beyond its controller: the phone sweep runs at a phone's width. */
 const devices: Record<string, object> = {
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
@@ -80,6 +86,9 @@ export default defineConfig({
       name,
       testMatch: `${name}.spec.ts`,
       use: { baseURL: `https://127.0.0.1:${18446 + i}`, ...devices[name] },
+      ...(last.has(name) && {
+        dependencies: ["demo", "first-run", "port", ...screens.filter((other) => !last.has(other))],
+      }),
     })),
   ],
   webServer: [
