@@ -82,7 +82,7 @@ gen:
 
 # Web build plus a native release binary with the UI embedded (target/release/uniwrt)
 build: web-build
-    UNIWRT_WEB_DIST=web/dist cargo build --release --locked
+    UNIWRT_WEB_DIST=web/dist cargo build --release --locked -p uniwrt
 
 # The performance budgets (D-149, scripts/perf/budgets.json) on web/dist and a binary; CI checks a
 # release build's

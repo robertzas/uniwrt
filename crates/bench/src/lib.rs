@@ -14,7 +14,7 @@
 //! - **Invariants:** a dev-dependency, and the `profiling` feature's: nothing here reaches a
 //!   release build. pprof samples in process (a `SIGPROF` timer, every thread), so it needs
 //!   neither perf nor root, and sees user space only; it never unwinds inside libc, libgcc,
-//!   pthread or the vDSO, where unwinding from a signal can deadlock.
+//!   pthread or the vDSO, where unwinding from a signal can deadlock (pprof's 64-bit targets; elsewhere it unwinds everywhere).
 //! - **Dependencies:** criterion, pprof, inferno (the SVG; CDDL-1.0, deny.toml's exception).
 
 use std::{fs::File, io::BufWriter, path::Path};
@@ -24,6 +24,13 @@ use pprof::{ProfilerGuard, ProfilerGuardBuilder, Report};
 
 /// Samples per second: a prime, so that sampling doesn't run in step with periodic work.
 const FREQUENCY: i32 = 997;
+/// Where pprof can skip frames (its 64-bit targets); elsewhere it unwinds everywhere.
+#[cfg(any(
+    target_arch = "x86_64",
+    target_arch = "aarch64",
+    target_arch = "riscv64",
+    target_arch = "loongarch64"
+))]
 const BLOCKLIST: [&str; 4] = ["libc", "libgcc", "pthread", "vdso"];
 
 /// A failure to sample or to write the graph.
@@ -36,10 +43,15 @@ pub fn criterion() -> Criterion {
 
 /// Starts sampling the process's CPU; it stops when the guard drops.
 pub fn sample() -> Result<ProfilerGuard<'static>, Error> {
-    Ok(ProfilerGuardBuilder::default()
-        .frequency(FREQUENCY)
-        .blocklist(&BLOCKLIST)
-        .build()?)
+    let builder = ProfilerGuardBuilder::default().frequency(FREQUENCY);
+    #[cfg(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "riscv64",
+        target_arch = "loongarch64"
+    ))]
+    let builder = builder.blocklist(&BLOCKLIST);
+    Ok(builder.build()?)
 }
 
 /// Writes what `guard` sampled so far as a flamegraph (SVG) at `path`, creating its directory.

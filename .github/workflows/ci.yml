@@ -367,7 +367,7 @@ jobs:
           tool: cargo-zigbuild@0.24.1,cargo-auditable@0.7.7
       - name: Build
         # cargo-auditable embeds the dependency list, so the image SBOM and `cargo audit bin` see it.
-        run: SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) cargo auditable zigbuild --release --locked --target "$TARGET"
+        run: SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) cargo auditable zigbuild --release --locked -p uniwrt --target "$TARGET"
       - if: matrix.qemu
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:

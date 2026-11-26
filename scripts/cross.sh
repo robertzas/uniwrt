@@ -74,7 +74,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
     rustup --quiet target add "$@"
     targets=()
     for target; do targets+=(--target "$target"); done
-    cargo zigbuild --release --locked "${targets[@]}"
+    cargo zigbuild --release --locked -p uniwrt "${targets[@]}"
   ' cross "$@"
 
 for target; do
