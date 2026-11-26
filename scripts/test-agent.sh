@@ -4,6 +4,7 @@
 # crates/engine/tests/agent.rs and crates/jobs/tests/agent.rs against it, then
 # crates/node/tests/txn.rs one test at a time (transactions change the node), the boot test
 # last (it restarts the container), then crates/node/tests/ztp.rs (a zero-touch first boot).
+# The engine's agent test measures the agent's memory, which scripts/perf.sh checks (D-149).
 # Usage: scripts/test-agent.sh [image…]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,7 +16,11 @@ if ((${#images[@]} == 0)); then
 fi
 
 container=''
-cleanup() { if [[ -n $container ]]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi; }
+perf=$(mktemp -d)
+cleanup() {
+  if [[ -n $container ]]; then docker rm -f "$container" >/dev/null 2>&1 || true; fi
+  rm -rf "$perf"
+}
 trap cleanup EXIT
 
 # Runs as PID 1 before procd takes over: sets the root password ($0), and leaves a uci-defaults
@@ -55,8 +60,10 @@ for image in "${images[@]}"; do
   fi
   # dropbear drops a client's sixth concurrent unauthenticated connection (MAX_UNAUTH_PER_IP).
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" UNIWRT_NODE_RELEASE="${image##*-}" \
+    UNIWRT_PERF_AGENT_RSS="$perf/${image##*-}" \
     cargo nextest run --locked -p uniwrt-node -p uniwrt-engine -p uniwrt-jobs --test agent --run-ignored only --test-threads 2 \
     --status-level fail --hide-progress-bar
+  scripts/perf.sh agent-rss "$perf/${image##*-}"
   UNIWRT_NODE="127.0.0.1:$port" UNIWRT_NODE_PASSWORD="$password" \
     cargo nextest run --locked -p uniwrt-node --test leds --test tailscale --run-ignored only \
     --status-level fail --hide-progress-bar

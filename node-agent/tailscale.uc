@@ -38,9 +38,13 @@ const BACKGROUND_S = 60;
 // The most a task may take, with the CLI's own time.
 const TASK_MS = (RUNNING_S + 15) * 1000;
 
+// Lengths are checked apart: musl compiles a bounded repetition as that many copies, and
+// `{1,250}` alone took 21 MB at every agent start (D-149).
 const ROUTE = /^([0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]{1,2}$/;
-const HOSTNAME = /^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)?$/;
-const AUTH_KEY = /^tskey-[A-Za-z0-9_-]{1,250}$/;
+const HOSTNAME = /^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)?$/;
+const HOSTNAME_MAX = 63;
+const AUTH_KEY = /^tskey-[A-Za-z0-9_-]+$/;
+const AUTH_KEY_MAX = 256;
 const ACTIONS = { set: true, up: true, down: true, logout: true, login: true };
 
 function paths(binary, key) {
@@ -63,11 +67,12 @@ function parse(args) {
 		return { err: "prefs.routes must be up to 64 IPv4 prefixes" };
 	if (type(p.exit_node) != "bool")
 		return { err: "prefs.exit_node must be a boolean" };
-	if (type(p.hostname) != "string" || !match(p.hostname, HOSTNAME))
+	if (type(p.hostname) != "string" || length(p.hostname) > HOSTNAME_MAX || !match(p.hostname, HOSTNAME))
 		return { err: "prefs.hostname must be one DNS label, or empty" };
 	req.prefs = p;
 	if (args.auth_key != null) {
-		if (args.action != "login" || type(args.auth_key) != "string" || !match(args.auth_key, AUTH_KEY))
+		if (args.action != "login" || type(args.auth_key) != "string" ||
+		    length(args.auth_key) > AUTH_KEY_MAX || !match(args.auth_key, AUTH_KEY))
 			return { err: "auth_key must be a Tailscale auth key, for login" };
 		req.auth_key = args.auth_key;
 	}

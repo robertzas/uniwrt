@@ -137,6 +137,13 @@ pub(crate) struct ServeArgs {
     /// The simulation's seed: the same seed gives the same fleet and story.
     #[arg(long, env = "UNIWRT_DEMO_SEED", value_name = "SEED", default_value_t = SimConfig::DEFAULT_SEED, requires = "demo")]
     pub(crate) demo_seed: u64,
+    /// How many access points the simulated fleet has (3 by default); the last one waits to be
+    /// adopted. Sized fleets check the performance budgets (D-149).
+    #[arg(long, env = "UNIWRT_DEMO_ACCESS_POINTS", value_name = "N", requires = "demo", conflicts_with = "demo_factory", value_parser = clap::value_parser!(u16).range(1..=250))]
+    pub(crate) demo_access_points: Option<u16>,
+    /// How many clients the simulated fleet has (30 by default, 12 with `--demo-factory`).
+    #[arg(long, env = "UNIWRT_DEMO_CLIENTS", value_name = "N", requires = "demo", value_parser = clap::value_parser!(u16).range(0..=10_000))]
+    pub(crate) demo_clients: Option<u16>,
     /// Simulate a factory-default gateway alone (192.168.1.1, root without a password) with
     /// nothing adopted and no user, so that the first run happens as on a new network: create
     /// the admin, then set the router up in the wizard.
@@ -356,6 +363,23 @@ mod tests {
         let cli = Cli::try_parse_from(["uniwrt", "--demo", "--demo-factory"]).unwrap();
         assert!(cli.serve.demo_factory);
         assert!(Cli::try_parse_from(["uniwrt", "--demo-factory"]).is_err());
+        let cli = Cli::try_parse_from([
+            "uniwrt",
+            "--demo",
+            "--demo-access-points",
+            "10",
+            "--demo-clients",
+            "200",
+        ])
+        .unwrap();
+        assert_eq!(
+            (cli.serve.demo_access_points, cli.serve.demo_clients),
+            (Some(10), Some(200))
+        );
+        assert!(Cli::try_parse_from(["uniwrt", "--demo-clients", "5"]).is_err());
+        assert!(Cli::try_parse_from(["uniwrt", "--demo", "--demo-access-points", "0"]).is_err());
+        let factory = ["--demo", "--demo-factory", "--demo-access-points", "2"];
+        assert!(Cli::try_parse_from(std::iter::once("uniwrt").chain(factory)).is_err());
     }
 
     #[test]

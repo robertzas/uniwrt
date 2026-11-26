@@ -161,14 +161,14 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 
 | Area | Budget |
 |---|---|
-| Controller memory | idle RSS ≤ 60 MB with 10 nodes / 200 clients |
-| Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle |
+| Controller memory | idle RSS ≤ 103 MB with 10 nodes / 200 clients (98 MB in CI at M9.2a2, the demo's sim included; M9.2d shrinks it towards the 60 MB target, then resets the budget) |
+| Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle; CI checks ≤ 1% of a runner core (0.55% at M9.2a2, the sim included) |
 | Binary | ≤ 47 MB static (44.6 MB at v0.174.0; M9.2b shrinks it, then resets the budget); cold start < 1 s |
 | API | p99 < 50 ms; node event → UI < 300 ms |
 | UI | initial JS ≤ 200 kB gzip; 60 fps topology with 300 entities |
-| Node agent | RSS ≤ 4 MB; ≤ 1% CPU on an MT7621-class router at the 15 s base interval |
+| Node agent | peak RSS ≤ 4 MB (about 2 MB on 24.10 and 25.12); ≤ 1% CPU on an MT7621-class router at the 15 s base interval |
 
-CI enforces the budgets (D-149): `scripts/perf/budgets.json` holds the numbers, `scripts/perf.sh` checks them (`just perf` locally) and a breach fails the run. Checked so far: initial JS (job `ui`), the binary's size and its cold start (`build`).
+CI enforces the budgets (D-149): `scripts/perf/budgets.json` holds the numbers, `scripts/perf.sh` checks them (`just perf` locally) and a breach fails the run. Checked: initial JS (job `ui`); the binary's size and its cold start (`build`); idle RSS and CPU with `serve --demo --demo-access-points 10 --demo-clients 200`, and the API's p99 with 50 and 1,000 (`perf`); the agent's peak RSS under the engine on both releases (`agent`). Not yet: node event → UI, the topology's frame rate (M9.2c), the agent's CPU.
 
 ## Failure modes
 

@@ -412,7 +412,7 @@ async fn start_fleet(
     clock: &Arc<dyn Clock>,
 ) -> anyhow::Result<Fleet> {
     if args.demo {
-        let config = if args.demo_factory {
+        let mut config = if args.demo_factory {
             SimConfig::factory(args.demo_seed)
         } else {
             SimConfig {
@@ -422,6 +422,12 @@ async fn start_fleet(
                 ..SimConfig::default()
             }
         };
+        if let Some(access_points) = args.demo_access_points {
+            config.access_points = access_points.into();
+        }
+        if let Some(clients) = args.demo_clients {
+            config.clients = clients.into();
+        }
         info!(
             seed = config.seed,
             "demo mode: simulating {} access points and {} clients; its data is deleted at exit",

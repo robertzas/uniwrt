@@ -47,4 +47,19 @@ if perf binary "$tmp/bin" >/dev/null; then fail "binary over budget passed"; fi
 UNIWRT_PERF_BUDGETS=$tmp/budgets.json GITHUB_STEP_SUMMARY=$tmp/summary "$here/perf.sh" binary "$tmp/bin" >/dev/null || true
 grep -qx -- '- Binary (bin): 1.50 MB (budget 1.00 MB), OVER BUDGET' "$tmp/summary" || fail "summary: $(cat "$tmp/summary")"
 
+# The agent's RSS comes from a file named for its release.
+printf '{"agent_rss":{"max":%s,"unit":"bytes"}}' 4000000 >"$tmp/budgets.json"
+echo 2100000 >"$tmp/25.12.6"
+out=$(perf agent-rss "$tmp/25.12.6") || fail "agent-rss under budget failed: $out"
+[[ $out == "Agent RSS (25.12.6): 2.10 MB (budget 4.00 MB), ok" ]] || fail "agent-rss line: $out"
+echo 'peak 23 MB' >"$tmp/24.10.8"
+set +e; perf agent-rss "$tmp/24.10.8" >/dev/null 2>&1; status=$?; set -e
+((status == 2)) || fail "a file without a byte count should exit 2, got $status"
+
+# Budgets and values may have decimals (a CPU share in percent).
+printf '{"agent_rss":{"max":0.5,"unit":"percent"}}' >"$tmp/budgets.json"
+echo 1 >"$tmp/cpu"
+if out=$(perf agent-rss "$tmp/cpu"); then fail "a value over a decimal budget passed: $out"; fi
+[[ $out == "Agent RSS (cpu): 1.00 % (budget 0.50 %), OVER BUDGET" ]] || fail "percent line: $out"
+
 echo "perf.sh: all tests passed"

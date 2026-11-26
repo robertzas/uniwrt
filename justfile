@@ -91,6 +91,12 @@ perf bin="target/release/uniwrt":
     scripts/perf.sh binary {{ bin }}
     scripts/perf.sh cold-start {{ bin }}
 
+# The runtime budgets (D-149) on a release binary: sized demo fleets, idle and under the API's
+# reads (about 4 minutes; CI's `perf` job). The agent's memory is checked by `just test-agent`.
+perf-runtime bin="target/release/uniwrt":
+    scripts/perf.sh idle {{ bin }}
+    scripts/perf.sh api {{ bin }}
+
 # Static musl binaries built in the zigbuild container: dist/uniwrt-<arch> (default: all targets)
 cross *targets=release_targets: web-build
     scripts/cross.sh {{ targets }}
