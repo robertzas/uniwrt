@@ -5,7 +5,7 @@
     "unit": "bytes"
   },
   "binary": {
-    "max": 47000000,
+    "max": 41000000,
     "unit": "bytes"
   },
   "cold_start": {

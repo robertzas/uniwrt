@@ -128,7 +128,39 @@ lto = "fat"
 codegen-units = 1
 strip = true
 panic = "unwind" # one task's panic must not take down the server
-opt-level = 3    # vs "s": 13-25 % less CPU per request for 0.5 MB more binary (D-028)
+opt-level = 3    # hot crates: "s" everywhere costs 5-10 % API CPU per request (D-028, D-149)
+
+# Size over speed where speed doesn't show (D-149, M9.2b): the binary crate, whose opt-level also
+# drives fat LTO's pipeline, and the cold crates (the demo's sim, import, jobs and the configs they
+# render, firmware and feeds, the CLI, mail, certificates). Measured on x86_64: 45.0 → 39.1 MB with
+# mold's ICF (.cargo/config.toml), API CPU per request within noise. Hot crates stay at 3.
+[profile.release.package.uniwrt]
+opt-level = "s"
+strip = true # an override of the binary's own package drops the profile's `strip`
+[profile.release.package.uniwrt-sim]
+opt-level = "s"
+[profile.release.package.uniwrt-import]
+opt-level = "s"
+[profile.release.package.uniwrt-jobs]
+opt-level = "s"
+[profile.release.package.uniwrt-render]
+opt-level = "s"
+[profile.release.package.uniwrt-firmware]
+opt-level = "s"
+[profile.release.package.uniwrt-feeds]
+opt-level = "s"
+[profile.release.package.uniwrt-notify]
+opt-level = "s"
+[profile.release.package.clap_builder]
+opt-level = "s"
+[profile.release.package.lettre]
+opt-level = "s"
+[profile.release.package.x509-parser]
+opt-level = "s"
+[profile.release.package.rcgen]
+opt-level = "s"
+[profile.release.package.toml]
+opt-level = "s"
 
 # build.rs precompresses the UI; unoptimized compressors would take minutes.
 # Named packages take precedence over build-override, which defaults to opt-level 0.

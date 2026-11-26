@@ -15,12 +15,13 @@ linker = "scripts/cc-mold"
 
 # The release targets: mold links directly (ld flavour) against rustc's self-contained musl,
 # overriding cargo-zigbuild's zig linker; zig still compiles the C (ring, SQLite). `-m` names the
-# target's emulation.
+# target's emulation. `--icf=safe` folds identical functions whose address nothing takes
+# (D-149: 1.5 MB on x86_64, at no CPU cost).
 [target.x86_64-unknown-linux-musl]
-rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_x86_64"]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_x86_64", "-C", "link-arg=--icf=safe"]
 
 [target.i686-unknown-linux-musl]
-rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_i386"]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-melf_i386", "-C", "link-arg=--icf=safe"]
 
 # libmimalloc-sys asks for `-latomic` on 32-bit ARM, which rustc's musl lacks (zig's linker
 # answered it): .cargo/armv7/libatomic.a is an empty archive, as the atomics come from Rust's
@@ -28,9 +29,9 @@ rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-mel
 # workspace root, so the path is relative to it.)
 [target.armv7-unknown-linux-musleabihf]
 rustflags = [
-  "-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-marmelf_linux_eabi",
+  "-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-marmelf_linux_eabi", "-C", "link-arg=--icf=safe",
   "-L", "native=.cargo/armv7",
 ]
 
 [target.aarch64-unknown-linux-musl]
-rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-maarch64linux"]
+rustflags = ["-C", "linker=mold", "-C", "linker-flavor=ld", "-C", "link-arg=-maarch64linux", "-C", "link-arg=--icf=safe"]
