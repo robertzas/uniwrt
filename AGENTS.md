@@ -73,7 +73,7 @@ Keeping costs 0.05 × D per request, where D is the context the next work won't 
 | Product scope and capability catalog | `docs/PRODUCT.md` |
 | System design, crates, node protocol, persistence | `docs/ARCHITECTURE.md` |
 | Decisions and open options | `docs/DECISIONS.md` |
-| Feature specs | `docs/features/{adoption,wan,network,wifi,mesh,observability,lifecycle,ui,security}.md` |
+| Feature specs | `docs/features/{adoption,wan,network,wifi,mesh,observability,lifecycle,ui,security,threat-model}.md` |
 | Code conventions and the feature recipe | `docs/dev/CONVENTIONS.md` |
 | Build, CI/CD and release | `docs/dev/BUILD.md` |
 | Testing strategy | `docs/dev/TESTING.md` |

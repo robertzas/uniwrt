@@ -38,10 +38,20 @@ jobs:
           build-mode: none
           queries: security-extended
           config: |
-            paths-ignore:
+            paths-ignore: # generated code, tests and the simulator (demo mode's made-up fleet)
               - web/src/api/gen
               - web/dist
               - target
+              - crates/*/tests
+              - crates/**/tests.rs
+              - crates/**/*_tests.rs
+              - crates/**/tests/**
+              - crates/sim
+              - crates/system
+              - web/src/test
+              - web/e2e
+              - "web/src/**/*.test.ts"
+              - "web/src/**/*.test.tsx"
       - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           category: /language:${{ matrix.language }}

@@ -5,6 +5,8 @@ Milestones: M1.6 (TLS, vault), M1.6b (auth and sessions), M3.1 (vault for config
 
 ## Threat model (home LAN)
 
+The summary below; the full model (assets, adversaries, entry points, threats by surface and what M9.3 checks) is in [threat-model.md](threat-model.md).
+
 | Threat | Mitigation |
 |---|---|
 | A LAN attacker targets the controller UI/API | HTTPS; Argon2id passwords; login rate limiting and lockout; secure session cookies; CSRF defenses; no default credentials (first-run setup) |
