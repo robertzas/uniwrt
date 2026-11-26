@@ -11,8 +11,7 @@
 //!   still change), render's issues and a confidence score.
 //! - **Method:** the gateway gives the site-wide parts (site settings, networks with their DHCP
 //!   options and IPv6 modes, WAN, firewall, DNS with its upstream, the NTP server and DDNS),
-//!   every node its WLANs, radios, mesh and port
-//!   profiles, and the first node holding usteer the steering profile. Each node is then rendered with the result
+//!   every node its WLANs, radios, mesh, port profiles and SSH hardening ([`ssh`](mod@ssh)), and the first node holding usteer the steering profile. Each node is then rendered with the result
 //!   and its sections are paired with the rendered ones, by name or by their type's key
 //!   ([`uniwrt_render::raw::key`]), after the renames render's naming needs (`uw_<wlan>_<band>`,
 //!   `uw_mesh`, network ids, zones named by their network). A paired section is the model's:
@@ -49,6 +48,7 @@ mod ports;
 mod read;
 mod services;
 mod settings;
+mod ssh;
 mod steering;
 #[cfg(test)]
 mod tests;
@@ -149,8 +149,10 @@ pub fn import(
     steering::import(&mut site, sources);
     for source in sources {
         let ports = ports::import(&site, source);
+        let ssh = ssh::import(&site, source, &renames);
         let config = node_config(&mut site, source.node);
         config.ports = ports;
+        config.ssh = ssh;
         config.hostname = read::first(source.packages, "system", "system")
             .and_then(|s| s.option("hostname"))
             .filter(|name| *name != source.facts.board.hostname)

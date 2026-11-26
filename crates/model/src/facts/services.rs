@@ -26,6 +26,26 @@ pub struct ServiceFacts {
     /// The gateway's Tailscale (D-140); `None` where the package isn't installed.
     #[serde(default)]
     pub tailscale: Option<Box<super::TailscaleFacts>>,
+    /// dropbear's instances as procd runs them (D-150), on every node; `None` where procd has no
+    /// such service.
+    #[serde(default)]
+    pub ssh: Option<Vec<SshServerFacts>>,
+}
+
+/// One SSH server instance, as its command line says (OpenWrt's init script turns the
+/// `dropbear` options into flags; D-150).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct SshServerFacts {
+    pub running: bool,
+    /// Whether passwords log in (no `-s`).
+    pub password: bool,
+    /// Whether root logs in with a password (no `-g`).
+    pub root_password: bool,
+    /// The device it listens on alone (`-l`, from `DirectInterface`); `None` for any.
+    pub device: Option<String>,
+    /// What it listens on (each `-p`): a port, or an address and a port.
+    pub listen: Vec<String>,
 }
 
 /// The tunnel as `wg show vpn dump` reports it, without its private and preshared keys.

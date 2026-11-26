@@ -59,7 +59,7 @@ use self::{
 pub use self::secrets::{SecretSlot, check_secret};
 
 /// The schema version this uniwrt writes; [`migrate::upgrade`] brings older documents to it.
-pub const SCHEMA_VERSION: u32 = 20;
+pub const SCHEMA_VERSION: u32 = 21;
 
 /// The site's desired state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

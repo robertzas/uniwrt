@@ -6,7 +6,8 @@
 //!   holds now. It gives a [`Rendered`]: one [`Package`] per managed package (D-011), the
 //!   services to enable or disable, and warnings; or every [`Issue`] that keeps the node from
 //!   being rendered, and the feed packages it needs ([`Requirement`]). Packages render in the
-//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `usteer` (only with steering
+//!   order `system`, `network`, `wireless`, `dhcp`, `firewall`, `dropbear` (the node's own file
+//!   with its SSH hardening, [`dropbear`](mod@dropbear), D-150), `usteer` (only with steering
 //!   on and a steered WLAN on the node, or the node holding it), `sqm`, `mwan3`, `upnpd`,
 //!   `https-dns-proxy`, `ddns`, `mdns_repeater`, `stubby` (the last seven only on the gateway,
 //!   only with SQM, failover, UPnP, DoH, DDNS names, mDNS reflection or DoT on, or the node
@@ -68,6 +69,7 @@ mod ddns;
 mod dhcp;
 mod doh;
 mod dot;
+mod dropbear;
 pub mod explorer;
 mod ext;
 mod failover;
@@ -257,6 +259,7 @@ pub use self::{
         held_backhauls, meshes_over_radio,
     },
     blocking::BYPASS_PREFIX as DNS_BYPASS_PREFIX,
+    dropbear::SshServers,
     firewall::seeded,
     mesh::MESH_IFACE,
     peer_conf::{PeerKeys, peer_conf},
@@ -268,13 +271,15 @@ pub use self::{
     usteer::thresholds as steering_thresholds,
 };
 
-/// The packages render can write; the other [`ManagedPackage`]s get renderers in later work.
-pub const RENDERABLE: [ManagedPackage; 13] = [
+/// The packages render can write: every [`ManagedPackage`] since `dropbear` (D-150); a package
+/// added to the model before its renderer is an issue.
+pub const RENDERABLE: [ManagedPackage; 14] = [
     ManagedPackage::System,
     ManagedPackage::Network,
     ManagedPackage::Wireless,
     ManagedPackage::Dhcp,
     ManagedPackage::Firewall,
+    ManagedPackage::Dropbear,
     ManagedPackage::Usteer,
     ManagedPackage::Sqm,
     ManagedPackage::Mwan3,
@@ -376,17 +381,7 @@ pub fn render(
         .iter()
         .find(|n| n.node == target.node)
         .unwrap_or(&default_config);
-    let mut errors: Vec<Issue> = config
-        .managed
-        .iter()
-        .filter(|package| !RENDERABLE.contains(package))
-        .map(|package| {
-            Issue::new(
-                "node",
-                format!("uniwrt can't render the {} package yet", package.name()),
-            )
-        })
-        .collect();
+    let mut errors = unrenderable(config);
     let mut plan = match plan::Plan::new(site, secrets, config, target) {
         Ok(plan) => plan,
         Err(mut issues) => {
@@ -439,7 +434,13 @@ pub fn render(
                 }
                 rendered.package
             }
-            ManagedPackage::Dropbear => continue,
+            ManagedPackage::Dropbear => {
+                let Some(rendered) = dropbear::render(&mut plan, target.current.get("dropbear"))
+                else {
+                    continue;
+                };
+                rendered
+            }
         };
         let mut rendered = rendered;
         preserve::carry_over(&mut rendered, target.current);
@@ -467,6 +468,21 @@ pub fn render(
     } else {
         Err(errors)
     }
+}
+
+/// An issue for each managed package render has no renderer for.
+fn unrenderable(config: &NodeConfig) -> Vec<Issue> {
+    config
+        .managed
+        .iter()
+        .filter(|package| !RENDERABLE.contains(package))
+        .map(|package| {
+            Issue::new(
+                "node",
+                format!("uniwrt can't render the {} package yet", package.name()),
+            )
+        })
+        .collect()
 }
 
 /// The packages render didn't write that the node's raw sections patch: each the node's own

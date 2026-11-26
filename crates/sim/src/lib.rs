@@ -88,6 +88,7 @@ pub use link::SimLink;
 pub use render::{
     commands::ROOT_PASSWORD,
     config::{MESH_KEY, PASSPHRASE},
+    ssh::servers as ssh_servers,
     wifi::{MESH_ID, SSID},
 };
 

@@ -156,6 +156,14 @@ async fn collected_sets_parse_into_facts() {
     let blocklist = &facts.services.blocklist;
     assert_eq!(blocklist.sha256.as_deref(), Some(sha.as_str()));
     assert_eq!((blocklist.domains, blocklist.conf), (Some(1), false));
+    // OpenWrt's one dropbear, open to passwords on every network (D-150).
+    let ssh = facts.services.ssh.as_deref().expect("procd runs dropbear");
+    assert!(
+        ssh.iter()
+            .any(|s| s.running && s.password && s.root_password && s.device.is_none()),
+        "{ssh:?}"
+    );
+    assert!(ssh.iter().any(|s| s.listen == ["22"]), "{ssh:?}");
     run(&session, &["rm", "-rf", CONF_DIR]).await;
     link.shutdown().await;
 }

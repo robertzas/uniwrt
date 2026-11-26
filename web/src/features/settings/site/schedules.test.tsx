@@ -30,6 +30,7 @@ beforeEach(() => {
       raw: [],
       reboot: { kind: "own", days: ["sat"], at: 180 },
       led_schedule: false,
+      ssh: { key_only: false, management_only: false },
     },
   ];
   vi.stubGlobal(

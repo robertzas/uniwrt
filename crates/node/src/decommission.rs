@@ -25,7 +25,9 @@ else
 fi
 echo started"#;
 
-/// The wipe: `$1` the controller's `authorized_keys` line, `$2` `1` to run `firstboot`. Section
+/// The wipe: `$1` the controller's `authorized_keys` line, `$2` `1` to run `firstboot`. Where
+/// no key is left once the controller's goes, passwords log in again (SSH hardening, D-150), so
+/// a key-only node never ends up with no way in over SSH. Section
 /// names come from `uci show`, which prints only `[A-Za-z0-9_]` names, and the pattern keeps
 /// only those.
 const WIPE: &str = r#"trap '' HUP PIPE
@@ -52,6 +54,19 @@ if [ "$2" = 1 ]; then
 	sync
 	firstboot -y && reboot
 	exit
+fi
+if ! grep -qsv -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$f"; then
+	i=0
+	while uci -q get "dropbear.@dropbear[$i]" >/dev/null; do
+		uci -q set "dropbear.@dropbear[$i].PasswordAuth=on"
+		uci -q set "dropbear.@dropbear[$i].RootPasswordAuth=on"
+		i=$((i + 1))
+	done
+	if [ -n "$(uci -q changes dropbear)" ]; then
+		uci commit dropbear
+		/etc/init.d/dropbear reload
+		echo "passwords log in again"
+	fi
 fi
 changed=
 for s in $(uci -q show wireless | sed -n "s/^wireless\.\([A-Za-z0-9_]*\)\.mode='mesh'$/\1/p"); do
@@ -137,5 +152,53 @@ mod tests {
             fs::read_to_string(&file).unwrap(),
             format!("ssh-rsa BBBB admin\n{key} extra\n")
         );
+    }
+
+    /// With no key left (blank and comment lines aside), every `dropbear` section takes
+    /// passwords again; with one left, nothing changes. The script's part, run with a stub `uci`.
+    #[test]
+    fn passwords_come_back_only_where_no_key_is_left() {
+        let start = WIPE.find("if ! grep -qsv").unwrap();
+        let end = WIPE.find("changed=").unwrap();
+        let part = WIPE[start..end].replace("/etc/init.d/dropbear reload", "echo reload >>\"$1\"");
+        let run = |keys: &str| {
+            let dir = tempfile::tempdir().unwrap();
+            let log = dir.path().join("log");
+            let file = dir.path().join("authorized_keys");
+            fs::write(&file, keys).unwrap();
+            let stub = dir.path().join("uci");
+            fs::write(
+                &stub,
+                "#!/bin/sh\necho \"$*\" >>\"$LOG\"\ncase $2 in\n\
+                 get) [ \"$3\" = 'dropbear.@dropbear[0]' ] || [ \"$3\" = 'dropbear.@dropbear[1]' ] ;;\n\
+                 changes) echo change ;;\nesac\n",
+            )
+            .unwrap();
+            Command::new("chmod").arg("+x").arg(&stub).status().unwrap();
+            let path = format!(
+                "{}:{}",
+                dir.path().display(),
+                std::env::var("PATH").unwrap()
+            );
+            let output = Command::new("sh")
+                .args(["-c", &format!("f=\"$2\"\n{part}"), "sh"])
+                .arg(&log)
+                .arg(&file)
+                .env("PATH", path)
+                .env("LOG", &log)
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+            fs::read_to_string(&log).unwrap_or_default()
+        };
+        let restored = run("# no keys\n\n");
+        for i in [0, 1] {
+            assert!(restored.contains(&format!("-q set dropbear.@dropbear[{i}].PasswordAuth=on")));
+            assert!(restored.contains(&format!(
+                "-q set dropbear.@dropbear[{i}].RootPasswordAuth=on"
+            )));
+        }
+        assert!(restored.contains("commit dropbear") && restored.ends_with("reload\n"));
+        assert_eq!(run("ssh-rsa BBBB admin\n"), "");
     }
 }

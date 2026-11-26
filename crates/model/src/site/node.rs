@@ -33,6 +33,30 @@ pub struct NodeConfig {
     /// Whether the site's LEDs schedule turns its LEDs off (schema v16): on when left out.
     #[serde(default = "on")]
     pub led_schedule: bool,
+    /// How its SSH server is hardened (schema v21, D-150): nothing when left out.
+    #[serde(default)]
+    pub ssh: SshHardening,
+}
+
+/// The node's SSH hardening (features/security.md, Node hardening; D-150), opt-in per node.
+/// Render writes it into the node's own `dropbear` file, so the node manages `dropbear` while any
+/// of it is on, and keeps managing it to undo it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct SshHardening {
+    /// Passwords no longer log in over SSH (`PasswordAuth`, `RootPasswordAuth` off): only keys,
+    /// the controller's among them. LuCI and the console still take the root password.
+    pub key_only: bool,
+    /// dropbear listens only on the management network's device (`DirectInterface`), so no
+    /// other network reaches it, not even through the node's address there.
+    pub management_only: bool,
+}
+
+impl SshHardening {
+    /// Whether any of it is on.
+    pub const fn any(self) -> bool {
+        self.key_only || self.management_only
+    }
 }
 
 const fn on() -> bool {
@@ -51,6 +75,10 @@ impl NodeConfig {
             raw: Vec::new(),
             reboot: NodeReboot::Site,
             led_schedule: true,
+            ssh: SshHardening {
+                key_only: false,
+                management_only: false,
+            },
         }
     }
 }

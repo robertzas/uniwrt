@@ -18,6 +18,7 @@ mod phys;
 mod radios;
 pub mod scan;
 mod services;
+mod ssh;
 mod stations;
 mod system;
 mod tailscale;

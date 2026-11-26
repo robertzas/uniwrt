@@ -9,6 +9,7 @@ export const RENDERED: readonly ManagedPackage[] = [
   "wireless",
   "dhcp",
   "firewall",
+  "dropbear",
   "sqm",
   "mwan3",
   "upnpd",
@@ -63,6 +64,7 @@ export function withManaged(
           raw: [],
           reboot: { kind: "site" as const },
           led_schedule: true,
+          ssh: { key_only: false, management_only: false },
         },
       ];
   return { ...config, nodes };

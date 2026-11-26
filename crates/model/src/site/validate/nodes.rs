@@ -7,7 +7,7 @@ use uniwrt_core::NodeId;
 use super::{Issues, names, wireless::tx_power};
 use crate::site::{
     SiteConfig,
-    node::{NodeConfig, RawValue, is_secret_option},
+    node::{ManagedPackage, NodeConfig, RawValue, is_secret_option},
 };
 
 pub(super) fn nodes(config: &SiteConfig, adopted: &BTreeSet<NodeId>, issues: &mut Issues) {
@@ -29,8 +29,31 @@ pub(super) fn nodes(config: &SiteConfig, adopted: &BTreeSet<NodeId>, issues: &mu
             );
         }
         radios(node, &at, issues);
+        ssh(node, &at, issues);
         super::ports::ports(config, node, &at, issues);
         raw(node, &at, issues);
+    }
+}
+
+/// SSH hardening (D-150) lives in the node's `dropbear` file, so it waits for that package to be
+/// managed (brownfield import finds it on nodes that manage nothing yet); binding it needs the
+/// management network's interface as render writes it.
+fn ssh(node: &NodeConfig, at: &str, issues: &mut Issues) {
+    if !node.managed.contains(&ManagedPackage::Dropbear) {
+        if node.ssh.any() {
+            issues.warn(
+                format!("{at}/ssh"),
+                "SSH hardening takes effect once the dropbear package is managed",
+            );
+        }
+        return;
+    }
+    if node.ssh.management_only && !node.managed.contains(&ManagedPackage::Network) {
+        issues.error(
+            format!("{at}/ssh/management_only"),
+            "SSH on the management network alone needs that network's interface: manage the \
+             network package",
+        );
     }
 }
 

@@ -110,7 +110,7 @@ Future roles: `switch` (an OpenWrt managed switch) and secondary gateways (multi
 
 - **Identity** is the label MAC (from `board.json`; else the MAC of the device behind `lan`, else the lowest globally administered Ethernet MAC) plus the board name, so it survives IP changes. A node reset by the controller awaits its device by both (lifecycle.md, Factory reset & re-adopt): every path adopts it back into its record instead of failing with `already_adopted`. A host-key mismatch quarantines the node and raises an alert. The admin can re-trust it, for example after a reflash.
 - **Controller key:** ed25519, generated on first run and kept in the vault. A rotation job adds the new key → verifies it → removes the old one.
-- **Root password:** randomized per node when management starts, stored in the vault and viewable by an admin for emergencies. Optional hardening: key-only SSH and dropbear bound to the management network.
+- **Root password:** randomized per node when management starts, stored in the vault and viewable by an admin for emergencies. Optional hardening: key-only SSH and dropbear bound to the management network (security.md, Node hardening; D-150).
 - **Management addressing:** every node gets a DHCP reservation in the infrastructure range (10.0.0.2–10.0.0.31 by default). The controller keeps reservations in sync, so nodes have stable addresses without static configuration.
 
 ## Discovery (once the gateway is adopted)

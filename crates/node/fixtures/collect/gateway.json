@@ -16,6 +16,10 @@
            "endpoint": "198.51.100.7:40000", "handshake": "1763400500", "rx": "404", "tx": "92"}
         ]
       },
+      "ssh": [
+        {"running": true, "command": ["/usr/sbin/dropbear", "-F", "-P", "/var/run/dropbear.main.pid",
+          "-l", "br-lan", "-p", "22", "-s", "-g", "-K", "300", "-T", "3"]}
+      ],
       "tailscale": {
         "state": "Running", "version": "1.104.1-1 (OpenWrt)", "tailnet": "robin@example.com",
         "dns_suffix": "tail1234.ts.net",

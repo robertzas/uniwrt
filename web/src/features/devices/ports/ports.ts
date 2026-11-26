@@ -105,6 +105,7 @@ export function withPorts(config: SiteConfig, node: number, ports: PortConfig[])
     raw: [],
     reboot: { kind: "site" },
     led_schedule: true,
+    ssh: { key_only: false, management_only: false },
   };
   const nodes = known ? config.nodes : [...config.nodes, blank];
   return {

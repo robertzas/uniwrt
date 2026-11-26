@@ -23,6 +23,7 @@ export function entryOf(config: SiteConfig, node: number): NodeConfig {
       raw: [],
       reboot: { kind: "site" },
       led_schedule: true,
+      ssh: { key_only: false, management_only: false },
     }
   );
 }

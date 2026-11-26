@@ -252,13 +252,6 @@ fn what_keeps_a_node_from_rendering() {
             .map(|issue| issue.path)
             .collect()
     };
-    // A package without a renderer yet.
-    let mut site = defaults_site();
-    site.nodes[0].managed.insert(ManagedPackage::Dropbear);
-    assert_eq!(
-        errors(run(&site, GATEWAY, NodeRole::Gateway, &gateway_facts())),
-        ["node"]
-    );
     // The mesh without batman-adv or 802.11s.
     let mut facts = gateway_facts();
     facts.capabilities.software.remove(&Software::BatmanAdv);

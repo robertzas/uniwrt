@@ -93,6 +93,7 @@ function config(): SiteConfig {
         raw,
         reboot: { kind: "site" },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
     ],
   };

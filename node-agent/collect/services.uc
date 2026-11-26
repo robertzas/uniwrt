@@ -6,7 +6,9 @@
 // the DNS blocklist the controller pushed (D-133): the header line of its servers-file (only the
 // first bytes are read: the list may hold a million lines) and whether its conf file is there;
 // and the WireGuard tunnel `vpn` (D-140) as `wg show vpn dump` reports it, without its keys;
-// and Tailscale (D-140) as `tailscale status --json` reports it, without its login URL.
+// and Tailscale (D-140) as `tailscale status --json` reports it, without its login URL; and
+// dropbear's instances (D-150), each whether it runs and its command line, whose flags say how
+// its `dropbear` section hardened it (no passwords, the device it is bound to).
 
 import * as fs from "fs";
 import * as uci from "uci";
@@ -150,6 +152,19 @@ function tailscale() {
 	};
 }
 
+// dropbear's instances as procd runs them: whether each runs and its command line (no secrets:
+// options and file paths). Null where procd has no dropbear service.
+function ssh() {
+	let r = bus.call("service", "list", { name: "dropbear" });
+	let service = r.code ? null : r.ok?.dropbear;
+	if (service == null)
+		return null;
+	let list = [];
+	for (let id, instance in service.instances ?? {})
+		push(list, { running: instance.running == true, command: instance.command ?? [] });
+	return list;
+}
+
 function collect() {
 	let cursor = uci.cursor();
 	let rundir = cursor.get("ddns", "global", "ddns_rundir") ?? RUNDIR;
@@ -176,6 +191,7 @@ function collect() {
 		blocklist_conf: fs.access(BLOCKLIST_CONF) == true,
 		wireguard: wireguard(),
 		tailscale: tailscale(),
+		ssh: ssh(),
 	};
 }
 

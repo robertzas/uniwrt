@@ -91,6 +91,7 @@ export function facts(cpu: number): NodeFacts {
       dot_instances: null,
       wireguard: null,
       tailscale: null,
+      ssh: null,
       blocklist: { sha256: null, domains: null, conf: false },
     },
     config: {},

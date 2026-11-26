@@ -5,6 +5,7 @@ import type { NodeReboot } from "./NodeReboot";
 import type { PortConfig } from "./PortConfig";
 import type { RadioOverride } from "./RadioOverride";
 import type { RawSection } from "./RawSection";
+import type { SshHardening } from "./SshHardening";
 
 /**
  * One node's overrides.
@@ -29,4 +30,8 @@ reboot: NodeReboot,
 /**
  * Whether the site's LEDs schedule turns its LEDs off (schema v16): on when left out.
  */
-led_schedule: boolean, };
+led_schedule: boolean, 
+/**
+ * How its SSH server is hardened (schema v21, D-150): nothing when left out.
+ */
+ssh: SshHardening, };

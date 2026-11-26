@@ -269,7 +269,7 @@ pub(crate) fn defaults_site() -> SiteConfig {
     site
 }
 
-fn net(id: &str, name: &str, purpose: Purpose, vlan: u16, ipv6: Ipv6Mode) -> Network {
+pub(crate) fn net(id: &str, name: &str, purpose: Purpose, vlan: u16, ipv6: Ipv6Mode) -> Network {
     Network {
         id: id.to_owned(),
         name: name.to_owned(),

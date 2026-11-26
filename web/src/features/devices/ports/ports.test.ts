@@ -102,6 +102,7 @@ describe("port profiles", () => {
         raw: [],
         reboot: { kind: "site" },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
     ]);
     expect(withPorts(added, 3, []).nodes[0]?.ports).toEqual([]);

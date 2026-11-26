@@ -19,6 +19,7 @@ describe("managed packages", () => {
         raw: [],
         reboot: { kind: "site" },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
     ]);
     const named = {
@@ -36,6 +37,7 @@ describe("managed packages", () => {
         raw: [],
         reboot: { kind: "site" },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
     ]);
     expect(managedOf(again, 2)).toEqual(["system"]);

@@ -2,7 +2,7 @@
 //! update in seconds of uptime, whether the updater runs), https-dns-proxy's and stubby's
 //! running instances (D-146), with the node's clock and uptime, which place the update in time; and the DNS
 //! blocklist's header line and conf file (D-133); and the WireGuard tunnel's peers and
-//! [`Tailscale`](super::tailscale) (D-140).
+//! [`Tailscale`](super::tailscale) (D-140); and dropbear's instances ([`ssh`](super::ssh), D-150).
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -34,6 +34,9 @@ pub(super) struct Raw {
     wireguard: Option<Wireguard>,
     #[serde(default)]
     tailscale: Option<super::tailscale::Raw>,
+    /// dropbear's instances; null where procd has no such service.
+    #[serde(default)]
+    ssh: Option<Vec<super::ssh::Instance>>,
 }
 
 /// `wg show vpn dump`'s fields, as text.
@@ -108,6 +111,7 @@ pub(super) fn parse(raw: Raw) -> ServiceFacts {
         },
         wireguard: raw.wireguard.map(|wg| wireguard(wg, raw.now)),
         tailscale: raw.tailscale.map(|t| Box::new(super::tailscale::parse(t))),
+        ssh: raw.ssh.map(super::ssh::parse),
     }
 }
 

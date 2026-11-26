@@ -126,6 +126,7 @@ describe("Device › Config › Schedules", () => {
     expect(saved.config.nodes.find((n) => n.node === 1)).toMatchObject({
       reboot: { kind: "own", days: ["mon", "sun"], at: 240 },
       led_schedule: false,
+      ssh: { key_only: false, management_only: false },
     });
     expect(saved.message).toBe("Edit gw's schedules");
     expect(await card.findByText(/without an apply/)).toBeInTheDocument();

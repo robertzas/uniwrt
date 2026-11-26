@@ -35,6 +35,7 @@ pub(crate) mod order;
 pub(crate) mod plan;
 mod round;
 mod run;
+mod ssh;
 pub(crate) mod survey;
 #[cfg(test)]
 pub(crate) mod tests;

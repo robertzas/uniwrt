@@ -986,6 +986,17 @@
         "accept_routes": false,
         "netfilter_off": true
       }
-    }
+    },
+    "ssh": [
+      {
+        "running": true,
+        "password": false,
+        "root_password": false,
+        "device": "br-lan",
+        "listen": [
+          "22"
+        ]
+      }
+    ]
   }
 }

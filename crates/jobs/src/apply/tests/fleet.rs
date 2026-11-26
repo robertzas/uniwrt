@@ -255,6 +255,9 @@ impl Remote for FakeRemote {
                 });
             }
             let mut collected = collected(self.0.role);
+            // Its dropbear runs as its file says (D-150).
+            collected["sets"]["services"]["ssh"] =
+                uniwrt_sim::ssh_servers(&self.0.tool.lock().unwrap().files);
             if let Some(hook) = &*self.0.collect_hook.lock().unwrap() {
                 hook(&self.0.tool.lock().unwrap(), &mut collected);
             }

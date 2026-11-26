@@ -13,3 +13,4 @@ mod jobs;
 pub(crate) mod radios;
 mod roaming;
 mod rounds;
+mod ssh;

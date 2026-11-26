@@ -147,6 +147,7 @@ function factsFrom(patch: FactsPatch): NodeFacts | undefined {
       dot_instances: null,
       wireguard: null,
       tailscale: null,
+      ssh: null,
       blocklist: { sha256: null, domains: null, conf: false },
     },
     board,

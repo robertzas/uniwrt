@@ -92,6 +92,37 @@ fn the_defaults_import_exactly() {
 }
 
 #[test]
+fn ssh_hardening_imports_exactly() {
+    use uniwrt_model::site::node::{ManagedPackage, SshHardening};
+    for ssh in [
+        SshHardening {
+            key_only: true,
+            management_only: true,
+        },
+        SshHardening {
+            key_only: true,
+            management_only: false,
+        },
+    ] {
+        let mut site = defaults_site();
+        for node in &mut site.nodes {
+            node.managed.insert(ManagedPackage::Dropbear);
+            node.ssh = ssh;
+        }
+        let import = round_trip(
+            &site,
+            &[
+                (GATEWAY, NodeRole::Gateway, gateway_facts()),
+                (AP, NodeRole::Ap, gateway_facts()),
+            ],
+        );
+        for node in &import.site.nodes {
+            assert_eq!(node.ssh, ssh, "node {}", node.node);
+        }
+    }
+}
+
+#[test]
 fn the_home_site_imports_exactly() {
     round_trip(
         &home_site(),

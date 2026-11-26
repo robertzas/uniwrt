@@ -65,6 +65,7 @@ describe("SQM and failover forms", () => {
         raw: [],
         reboot: { kind: "site" as const },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
     ];
     config.wan.sqm = { download_kbps: 1000, upload_kbps: 1000, overhead: null, autotune: false };

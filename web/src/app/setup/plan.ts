@@ -196,6 +196,7 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
           raw: [],
           reboot: { kind: "site" as const },
           led_schedule: true,
+          ssh: { key_only: false, management_only: false },
         },
       ];
   return {

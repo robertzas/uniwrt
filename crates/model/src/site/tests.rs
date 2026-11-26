@@ -38,6 +38,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v18.json"),
     include_str!("../../fixtures/site/v19.json"),
     include_str!("../../fixtures/site/v20.json"),
+    include_str!("../../fixtures/site/v21.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -68,6 +69,40 @@ fn issues_after(edit: impl FnOnce(&mut SiteConfig)) -> Vec<(String, Severity)> {
 
 fn has(issues: &[(String, Severity)], path: &str, severity: Severity) -> bool {
     issues.iter().any(|(p, s)| p == path && *s == severity)
+}
+
+#[test]
+fn ssh_hardening_needs_dropbear_and_its_binding_the_network() {
+    use crate::site::node::ManagedPackage;
+    let at = format!("nodes/{}/ssh", sample().nodes[0].node);
+    let issues = issues_after(|c| {
+        let node = &mut c.nodes[0];
+        node.ssh.key_only = true;
+        node.ssh.management_only = true;
+        node.managed.remove(&ManagedPackage::Dropbear);
+        node.managed.remove(&ManagedPackage::Network);
+    });
+    assert!(has(&issues, &at, Severity::Warning), "{issues:?}");
+    let issues = issues_after(|c| {
+        let node = &mut c.nodes[0];
+        node.ssh.management_only = true;
+        node.managed.insert(ManagedPackage::Dropbear);
+        node.managed.remove(&ManagedPackage::Network);
+    });
+    assert!(
+        has(&issues, &format!("{at}/management_only"), Severity::Error),
+        "{issues:?}"
+    );
+    let issues = issues_after(|c| {
+        let node = &mut c.nodes[0];
+        node.ssh.management_only = true;
+        node.managed
+            .extend([ManagedPackage::Dropbear, ManagedPackage::Network]);
+    });
+    assert!(
+        !issues.iter().any(|(path, _)| path.starts_with(&at)),
+        "{issues:?}"
+    );
 }
 
 #[test]

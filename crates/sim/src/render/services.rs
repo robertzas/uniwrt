@@ -5,7 +5,8 @@
 //! instance while that one is (D-146); and the DNS
 //! blocklist's files the controller uploaded to its `/tmp` since it booted (D-133); and the
 //! WireGuard tunnel its `network` file sets up ([`super::wireguard`], D-140), and Tailscale
-//! where its `firewall` file has the zone ([`super::tailscale`]).
+//! where its `firewall` file has the zone ([`super::tailscale`]); and dropbear's instances as its
+//! `dropbear` file sets them up ([`super::ssh`], D-150).
 
 use std::collections::BTreeMap;
 
@@ -63,6 +64,7 @@ pub(super) fn services(
     });
     let conf = tmp.file(node.booted_ms, BLOCKLIST_CONF).is_some();
     let network = parse("network");
+    let ssh = super::ssh::instances(files, network.as_ref());
     let wireguard = super::wireguard::wireguard(network.as_ref(), now, uptime);
     let tailscale = super::tailscale::tailscale(
         parse("firewall").as_ref(),
@@ -73,6 +75,6 @@ pub(super) fn services(
     json!({
         "now": now, "uptime": uptime, "ddns": ddns, "doh": doh, "dot": dot,
         "blocklist": head, "blocklist_conf": conf, "wireguard": wireguard,
-        "tailscale": tailscale,
+        "tailscale": tailscale, "ssh": ssh,
     })
 }

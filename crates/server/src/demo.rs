@@ -138,9 +138,10 @@ impl Dial for DemoDial {
             let (accepted, method) = match credential {
                 // An empty one is the login without a password, which only a factory-default
                 // root accepts.
-                Credential::Password(password) => {
-                    (node.link.root_password_is(password), "password")
-                }
+                Credential::Password(password) => (
+                    node.link.takes_passwords() && node.link.root_password_is(password),
+                    "password",
+                ),
                 Credential::Key(key) => (node.link.trusts(&key.authorized_key()?), "publickey"),
             };
             if !accepted {

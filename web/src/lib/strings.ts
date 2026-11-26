@@ -1634,6 +1634,32 @@ export const strings = {
         "The controller follows it from now on, without an apply: nothing changes in the device's configuration.",
       message: (name: string) => `Edit ${name}'s schedules`,
     },
+    ssh: {
+      title: "SSH hardening",
+      description:
+        "How the device's SSH server lets people in. uniwrt logs in with its own key either way, and an apply that would shut it out rolls back.",
+      observed: "It takes effect once the device is managed: it is in observe mode.",
+      keyOnly: "Keys only",
+      keyOnlyHint:
+        "Passwords no longer log in over SSH: only keys in authorized_keys, uniwrt's among them. The root password still opens LuCI and the console.",
+      managementOnly: (network: string) => `SSH on ${network} only`,
+      managementOnlyHint: (network: string) =>
+        `The server listens on ${network}'s interface alone, so no other network reaches it, not even through the device's address there.`,
+      gatewayHint: (network: string) =>
+        `uniwrt must log in to the gateway from ${network}: the apply refuses otherwise.`,
+      needsNetwork: "Manage the network package first: the binding names its interface.",
+      unmanaged:
+        "dropbear isn't managed on this device, so this waits: saving manages it. Unchecking it in Packages leaves the device as it is.",
+      now: (passwords: boolean, devices: string[]) =>
+        `Now: ${passwords ? "passwords log in" : "keys only"}, ${
+          devices.length === 0 ? "on every network" : `bound to ${devices.join(", ")}`
+        }.`,
+      save: "Save",
+      cancel: "Cancel",
+      saved:
+        "Review and apply it to take effect: the apply checks a new login before it keeps the change.",
+      message: (name: string) => `Harden SSH on ${name}`,
+    },
     role: {
       title: "Role",
       what: {

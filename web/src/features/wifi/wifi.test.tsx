@@ -39,6 +39,7 @@ beforeEach(() => {
     raw: [],
     reboot: { kind: "site" as const },
     led_schedule: true,
+    ssh: { key_only: false, management_only: false },
   }));
   vi.stubGlobal(
     "fetch",

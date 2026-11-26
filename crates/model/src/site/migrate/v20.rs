@@ -56,3 +56,21 @@ pub(super) fn v19_to_v20(value: &mut Value) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// v21 (M9.3a2b2, D-150): nodes gain SSH hardening, off; none manages `dropbear` yet (render
+/// writes it only for nodes that opt in).
+pub(super) fn v20_to_v21(value: &mut Value) -> Result<(), String> {
+    let nodes = value
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no nodes")?;
+    for node in nodes {
+        node.as_object_mut()
+            .ok_or("a node is not an object")?
+            .insert(
+                "ssh".to_owned(),
+                json!({ "key_only": false, "management_only": false }),
+            );
+    }
+    Ok(())
+}

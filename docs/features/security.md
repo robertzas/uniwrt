@@ -68,8 +68,11 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 
 ## Node hardening (opt-in per node; recommended in managed mode)
 
-- a random root password (in the vault) and key-only SSH
-- dropbear bound to the management network
+- a random root password (in the vault), given at adoption to a root that had none (adoption.md)
+- **SSH hardening** (M9.3a2b2, D-150), per node on its Config tab (*SSH hardening*), saved as a revision and applied like any change; the node's `ssh` (`key_only`, `management_only`) is written into its own `dropbear` file (`uniwrt_render`'s `dropbear`), so turning it on manages `dropbear`, and the package stays managed so turning it off undoes it. Render owns three options of every `dropbear` section; ports, banners and other instances stay the node's:
+  - **keys only:** `PasswordAuth` and `RootPasswordAuth` `off` (else OpenWrt's `on`). The controller always logs in with its key, so it is in place and working before passwords go; the root password still opens LuCI and the console.
+  - **SSH on the management network only:** `DirectInterface` is the management network's interface (the `mgmt` network, else the default one), so dropbear binds that device (`-l`): no other network reaches it, not even through the node's address there. It needs `network` managed (the interface is render's). The gateway is bound only while this controller logs in to it from inside that network's subnet (its `SSH_CONNECTION`), else the apply refuses it with the address it came from; an access point holds an address only on that network, so any route reaches it there.
+  - **Never locked out:** a transaction that rewrites `dropbear` restarts its servers while the logins it was applied over live on, so the verify step checks the servers procd runs against the file (`services` set's `ssh`: each instance's flags) and then logs in anew before it confirms; otherwise everything rolls back (or the node does at its deadline). Brownfield import reads a node's own hardening back into `ssh`. Decommissioning turns passwords back on where no other key is left in `authorized_keys`, so the node isn't left without a way in.
 - WAN-side SSH and LuCI blocked (the OpenWrt default)
 - LuCI optional; remove it on small devices
 - a controller key rotation job: add the new key → verify → remove the old one

@@ -86,6 +86,12 @@ impl SimLink {
         lock(&self.shared.nodes[self.node].disk).root_password == password
     }
 
+    /// Whether its SSH servers let root in with a password (D-150): not where its `dropbear`
+    /// file turned passwords off.
+    pub fn takes_passwords(&self) -> bool {
+        crate::render::ssh::passwords(&lock(&self.shared.nodes[self.node].disk).tool.files)
+    }
+
     /// The addresses the node answers at: its own and, on the gateway, every address of its
     /// `lan` (two while a renumbering bridges the old subnet and the new, D-081).
     /// The bench device answers at its lease only, while it holds one; a node that is down

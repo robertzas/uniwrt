@@ -1,7 +1,8 @@
 //! The verify phase of an apply (features/lifecycle.md, Render → diff → apply, step 4): every
 //! node at once over a new login at the address it moves to; it applied and reloaded, its
-//! timer is extended, the bridging gateway sees this controller come from the new subnet
-//! (D-081), and its health holds against the baseline. The first failure stops the others
+//! timer is extended, its SSH servers run as applied and take a new login where it rewrote them
+//! ([`ssh`](super::ssh), D-150), the bridging gateway sees this controller come from the new
+//! subnet (D-081), and its health holds against the baseline. The first failure stops the others
 //! and rolls everything back.
 
 use std::{
@@ -23,7 +24,7 @@ use super::{
 use crate::{errors::chain, progress::Progress, runner::Shared};
 
 /// Why a node stopped verifying: another one failed.
-const STOPPED: &str = "stopped: another node failed";
+pub(super) const STOPPED: &str = "stopped: another node failed";
 
 impl Run<'_> {
     /// Verifies every node at once; the first failure stops the others.
@@ -179,6 +180,7 @@ async fn check(
             .map_err(|err| format!("Cannot extend its timer: {}", chain(&err)))?;
         live.deadline = Some(Instant::now() + timeout);
     }
+    super::ssh::check(shared, live, &candidates, until, stop).await?;
 
     // The bridge holds until this controller comes from the new subnet: a new login each time,
     // since it is the controller's own address that changes.

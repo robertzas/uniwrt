@@ -242,10 +242,10 @@ describe("Device › Config", () => {
     const user = userEvent.setup();
     await renderConfig();
     const network = await screen.findByRole("checkbox", { name: "network" });
-    // The gateway's features are choosable on the gateway; dropbear comes later.
+    // The gateway's features are choosable on the gateway, and dropbear (D-150).
     expect(screen.getByRole("checkbox", { name: "sqm" })).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "upnpd" })).toBeEnabled();
-    expect(screen.getByRole("checkbox", { name: "dropbear" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "dropbear" })).toBeEnabled();
     const save = screen.getByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
     await user.click(network);
@@ -267,7 +267,33 @@ describe("Device › Config", () => {
         raw: [],
         reboot: { kind: "site" },
         led_schedule: true,
+        ssh: { key_only: false, management_only: false },
       },
+    ]);
+  });
+
+  it("saves SSH hardening, which manages dropbear (D-150)", async () => {
+    const user = userEvent.setup();
+    await renderConfig();
+    const card = within(
+      await screen.findByRole("region", { name: "SSH hardening" }, { timeout: 3000 }),
+    );
+    const keys = await card.findByRole("checkbox", { name: "Keys only" });
+    // The binding names the management network's interface, which only a managed network has.
+    expect(card.getByRole("checkbox", { name: /^SSH on .* only$/ })).toBeDisabled();
+    expect(card.getByText(/Manage the network package first/)).toBeVisible();
+    await user.click(keys);
+    await user.click(card.getByRole("button", { name: "Save" }));
+    expect(await card.findByText(/^Saved as revision 3\./)).toBeInTheDocument();
+    const put = calls.find((call) => call.method === "PUT" && call.url === "/api/v1/site");
+    const sent = put?.body as SiteSave;
+    expect(sent.message).toBe("Harden SSH on gw");
+    expect(sent.config.nodes).toEqual([
+      expect.objectContaining({
+        node: 1,
+        managed: ["dropbear"],
+        ssh: { key_only: true, management_only: false },
+      }),
     ]);
   });
 

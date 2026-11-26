@@ -17,7 +17,7 @@ use std::{
 use openwrt::{adopt, run};
 use serde::de::DeserializeOwned;
 use uniwrt_node::{
-    Error, Session,
+    Credential, Error, Session, SshConfig,
     txn::{self, Command, Footprint, OpenState, Outcome, Reason, Status, TxnId, code},
 };
 
@@ -41,7 +41,12 @@ async fn status(session: &Session) -> Status {
 
 /// Logs in with the footprint installed and nothing open.
 async fn managed() -> Session {
-    let (session, _) = adopt().await;
+    managed_node().await.0
+}
+
+/// [`managed`], with what logs in to the node anew.
+async fn managed_node() -> (Session, openwrt::Node) {
+    let (session, node) = adopt().await;
     let start = Instant::now();
     while let Some(open) = exec(&session, &txn::status())
         .await
@@ -56,7 +61,7 @@ async fn managed() -> Session {
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
     exec(&session, &Footprint::get().install()).await.unwrap();
-    session
+    (session, node)
 }
 
 async fn wait_state(session: &Session, want: OpenState) {
@@ -607,4 +612,113 @@ async fn the_guard_rolls_back_an_open_transaction_at_boot() {
         );
         std::thread::sleep(Duration::from_millis(250));
     }
+}
+
+/// dropbear as render writes a stock node's file hardened (D-150), bound to `iface`.
+fn hardened_dropbear(iface: &str) -> String {
+    format!(
+        "\nconfig dropbear 'main'\n\toption enable '1'\n\toption PasswordAuth 'off'\n\
+         \toption RootPasswordAuth 'off'\n\toption Port '22'\n\toption DirectInterface '{iface}'\n\n"
+    )
+}
+
+/// procd's dropbear instances, as the agent's `services` set reads them.
+const DROPBEAR: &str = r#"ubus call service list '{"name":"dropbear"}'"#;
+
+async fn login(node: &openwrt::Node, credential: &Credential) -> Result<Session, Error> {
+    Session::connect(
+        &node.target,
+        None,
+        &node.host_key,
+        credential,
+        &SshConfig::default(),
+    )
+    .await
+}
+
+/// A new login with the key, within 15 s (the server restarts after the reload).
+async fn key_login(node: &openwrt::Node) -> Session {
+    let start = Instant::now();
+    loop {
+        match login(node, &Credential::Key(node.key.clone())).await {
+            Ok(session) => return session,
+            Err(err) => assert!(start.elapsed() < Duration::from_secs(15), "{err}"),
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+fn password() -> Credential {
+    Credential::Password(zeroize::Zeroizing::new(
+        env::var("UNIWRT_NODE_PASSWORD").expect("UNIWRT_NODE_PASSWORD"),
+    ))
+}
+
+/// Applies `dropbear` as transaction `id` and waits for its servers to run with `flags`.
+async fn apply_dropbear(session: &Session, id: &TxnId, text: String, flags: &str) {
+    exec(session, &txn::stage(id, []).unwrap()).await.unwrap();
+    exec(session, &txn::put(id, "dropbear", text).unwrap())
+        .await
+        .unwrap();
+    exec(session, &txn::check(id)).await.unwrap();
+    exec(session, &txn::apply(id, Duration::from_secs(300)))
+        .await
+        .unwrap();
+    wait_state(session, OpenState::Applied).await;
+    wait_until(
+        session,
+        "dropbear runs as applied",
+        &format!("{DROPBEAR} | tr -d ' \\t\\n' | grep -q '{flags}'"),
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn hardened_ssh_takes_keys_alone_and_a_lockout_rolls_back() {
+    let (session, node) = managed_node().await;
+    let before = run(&session, &["cat", "/etc/config/dropbear"]).await;
+
+    // Keys only, on lan's bridge alone: the key logs in anew, a password doesn't.
+    let id = TxnId::new("hardened").unwrap();
+    apply_dropbear(&session, &id, hardened_dropbear("lan"), r#""-l","br-lan""#).await;
+    let ps = run(&session, &["sh", "-c", DROPBEAR]).await;
+    assert!(ps.contains(r#""-s""#) && ps.contains(r#""-g""#), "{ps}");
+    let fresh = key_login(&node).await;
+    assert_eq!(run(&fresh, &["echo", "in"]).await, "in\n");
+    let refused = login(&node, &password()).await;
+    assert!(
+        matches!(refused, Err(Error::AuthRejected { .. })),
+        "{refused:?}"
+    );
+    // The login the transaction ran over outlived the restart, and rolls it back.
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    wait_until(
+        &session,
+        "dropbear takes passwords again",
+        &format!("! {DROPBEAR} | grep -q '\"-s\"'"),
+    )
+    .await;
+    assert_eq!(
+        run(&session, &["cat", "/etc/config/dropbear"]).await,
+        before
+    );
+    let start = Instant::now();
+    while let Err(err) = login(&node, &password()).await {
+        assert!(start.elapsed() < Duration::from_secs(15), "{err}");
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    // Bound where this controller doesn't come from: no new login gets in, and the old one
+    // rolls it back (as the apply's verify would, or the deadline).
+    let id = TxnId::new("locked-out").unwrap();
+    apply_dropbear(&session, &id, hardened_dropbear("loopback"), r#""-l","lo""#).await;
+    for _ in 0..3 {
+        let shut = login(&node, &Credential::Key(node.key.clone())).await;
+        assert!(shut.is_err(), "a login got in through lo");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    exec(&session, &txn::rollback(&id)).await.unwrap();
+    let back = key_login(&node).await;
+    assert_eq!(run(&back, &["cat", "/etc/config/dropbear"]).await, before);
 }

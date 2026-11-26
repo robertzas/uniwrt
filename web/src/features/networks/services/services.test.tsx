@@ -25,6 +25,7 @@ let services: ServiceFacts = {
   blocklist: NO_BLOCKLIST,
   wireguard: null,
   tailscale: null,
+  ssh: null,
 };
 let issues: { path: string; severity: "warning"; message: string }[] = [];
 /** A refusal the next save answers with, once. */
@@ -51,6 +52,7 @@ beforeEach(() => {
     blocklist: NO_BLOCKLIST,
     wireguard: null,
     tailscale: null,
+    ssh: null,
   };
   issues = [];
   refusal = undefined;
@@ -127,6 +129,7 @@ describe("Network services", () => {
       dot_instances: 1,
       wireguard: null,
       tailscale: null,
+      ssh: null,
       blocklist: NO_BLOCKLIST,
     };
     issues = [
