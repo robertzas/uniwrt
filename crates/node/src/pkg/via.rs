@@ -57,7 +57,7 @@ real=$(command -v "$m")
 if [ -n "$keep" ]; then
 	d=$keep/.mirror
 else
-	d=$(mktemp -d /var/run/uniwrt-pkg.XXXXXX) || exec "$@"
+	d=$(mktemp -d /tmp/uniwrt-pkg.XXXXXX) || exec "$@"
 	trap 'rm -rf "$d"' EXIT
 	trap 'exit 129' HUP
 	trap 'exit 130' INT
