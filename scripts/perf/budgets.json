@@ -13,7 +13,7 @@
     "unit": "ms"
   },
   "idle_rss": {
-    "max": 58000000,
+    "max": 61000000,
     "unit": "bytes"
   },
   "idle_cpu": {

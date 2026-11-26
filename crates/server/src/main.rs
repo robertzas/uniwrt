@@ -68,7 +68,7 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> ExitCode {
     // No transparent huge pages (D-149, M9.2d): mimalloc madvises its arenas for them, which
-    // doubled the heap's RSS (66 → 29 MB idle in CI, 207 → 150 MB under the API's reads) for no
+    // doubled the heap's RSS (69 → 31 MB idle in CI, 217–242 → 153–175 MB under the API's reads) for no
     // measurable CPU. Process-wide, from here on, and kept across the launcher's exec; an old
     // kernel without the prctl keeps the system's setting.
     let _ = rustix::thread::disable_transparent_huge_pages(true);
