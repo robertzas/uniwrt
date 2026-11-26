@@ -167,8 +167,22 @@ fn plan_radio(
         node,
         radio: radio.name.clone(),
         band: radio.band,
-        channels: phy.map_or_default(|p| p.channels.clone()),
-        widths: phy.map_or_default(|p| p.widths.clone()),
+        // What a node reports is untrusted: a channel or width its band hasn't would make the
+        // whole plan invalid, for every node (threat-model.md, §4).
+        channels: phy.map_or_default(|p| {
+            p.channels
+                .iter()
+                .filter(|c| radio.band.has_channel(c.number))
+                .copied()
+                .collect()
+        }),
+        widths: phy.map_or_default(|p| {
+            p.widths
+                .iter()
+                .copied()
+                .filter(|w| radio.band.has_width(*w))
+                .collect()
+        }),
         current,
         pin: None,
         pin_width: None,

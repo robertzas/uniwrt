@@ -1,6 +1,7 @@
 //! The recorder over a store, an engine with one node (its link never connects) and syslog
 //! fed by hand: the agent follows the log, resumes after what is stored, gives way to syslog
-//! and takes over again when syslog goes quiet or closes; other hosts are stored by name.
+//! and takes over again when syslog goes quiet or closes; other hosts are stored by name (never a
+//! node's: a name proves nothing).
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
@@ -208,9 +209,9 @@ async fn syslog_takes_over_from_the_agent_and_hands_back() {
             .collect::<Vec<_>>(),
         ["new"]
     );
-    // Over TCP (the node found by its host name), until the connection closes.
+    // Over TCP, until the connection closes.
     h.syslog
-        .send(syslog([192, 0, 2, 1], Some("Gateway"), true, "t1"))
+        .send(syslog(GATEWAY, Some("Gateway"), true, "t1"))
         .await
         .unwrap();
     h.logged().await;
@@ -239,12 +240,24 @@ async fn other_hosts_are_stored_by_name_or_address() {
         .send(syslog([192, 0, 2, 9], None, false, "y"))
         .await
         .unwrap();
+    // A sender that names itself as a node is neither that node nor stored under its name.
+    h.syslog
+        .send(syslog([192, 0, 2, 9], Some("GATEWAY"), false, "z"))
+        .await
+        .unwrap();
     let mut logged = h.logged().await;
-    if logged.len() < 2 {
+    while logged.len() < 3 {
         logged.extend(h.logged().await);
     }
     let hosts: Vec<_> = logged.iter().map(|r| (r.node, r.host.as_deref())).collect();
-    assert_eq!(hosts, [(None, Some("switch")), (None, Some("192.0.2.9"))]);
+    assert_eq!(
+        hosts,
+        [
+            (None, Some("switch")),
+            (None, Some("192.0.2.9")),
+            (None, Some("192.0.2.9"))
+        ]
+    );
     // The node's agent keeps following.
     assert_eq!(h.engine.interests(NODE).unwrap().logs, 1);
     h.recorder.stop().await;

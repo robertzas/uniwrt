@@ -4,7 +4,6 @@
 use std::{collections::BTreeSet, time::Duration};
 
 use tokio::time::Instant;
-use uniwrt_core::Timestamp;
 use uniwrt_model::{
     facts::{NodeFacts, PackageManager},
     firmware::FirmwareImage,
@@ -20,7 +19,7 @@ use uniwrt_node::{
 
 use super::{
     Baseline, UpgradeRequest,
-    before::{SETS, error_patterns},
+    before::{SETS, error_patterns, read_log},
     packages::after_image,
 };
 use crate::{
@@ -44,24 +43,19 @@ fn failed(message: impl Into<String>) -> JobError {
 }
 
 /// The steps after the reboot, over `remote`, a login to the node back.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the job's state, passed along once"
-)]
 pub(crate) async fn after(
     shared: &Shared,
     node: &Node,
     request: &UpgradeRequest,
     image: &FirmwareImage,
     baseline: &Baseline,
-    flashed_at: Timestamp,
     remote: Box<dyn Remote>,
     progress: &mut Progress,
 ) -> Result<(), JobError> {
     let mut remote = install(shared, node, request, remote, progress).await?;
     let result = async {
         let facts = verify(shared, request, baseline, remote.as_ref(), progress).await?;
-        soak(shared, node, baseline, flashed_at, &mut remote, progress).await?;
+        soak(shared, node, baseline, &mut remote, progress).await?;
         record(shared, node, image, &facts, remote.as_ref(), progress).await
     }
     .await;
@@ -275,13 +269,12 @@ async fn tool(remote: &dyn Remote) -> Result<bool, JobError> {
 }
 
 /// Watches the node for `timing.soak`: reachable (logging in again once if the login drops) and
-/// as healthy as before; then no new error patterns in its log since the flash. Fewer clients
-/// than before is only noted: they come and go.
+/// as healthy as before; then no new error patterns in its log since the flash, read over the
+/// login (never syslog's, which can be forged). Fewer clients than before is only noted.
 async fn soak(
     shared: &Shared,
     node: &Node,
     baseline: &Baseline,
-    flashed_at: Timestamp,
     remote: &mut Box<dyn Remote>,
     progress: &mut Progress,
 ) -> Result<(), JobError> {
@@ -312,9 +305,8 @@ async fn soak(
             break;
         }
     }
-    let now = shared.clock.now();
-    let new: BTreeSet<String> = error_patterns(shared, node.id, flashed_at, now)
-        .await
+    // logd's buffer is in RAM: after the reboot it holds only what the new firmware logged.
+    let new: BTreeSet<String> = error_patterns(read_log(remote.as_ref(), node.id).await.iter())
         .difference(&baseline.patterns)
         .cloned()
         .collect();

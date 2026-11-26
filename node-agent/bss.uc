@@ -12,7 +12,7 @@ import { BAD_REQUEST, NOT_FOUND, FAILED } from "./proto.uc";
 
 const RUN = "/var/run";
 // The filtered configs: they hold the keys, as netifd's do, so only root reads them.
-const DIR = "/tmp/uniwrt/hostapd";
+const DIR = "/var/run/uniwrt/hostapd";
 
 // netifd's hostapd configs of `phy`, one per radio of a multi-radio phy: [{ name, radio }].
 function configs(phy) {
@@ -69,7 +69,7 @@ function bss(args, done) {
 			return done(null, FAILED, `${path}: ${fs.error()}`);
 		let r = without(text, off);
 		if (length(r.dropped)) {
-			fs.mkdir("/tmp/uniwrt", 448);
+			fs.mkdir("/var/run/uniwrt", 448);
 			fs.mkdir(DIR, 448);
 			path = `${DIR}/${c.name}`;
 			if (!fs.writefile(path, r.text))

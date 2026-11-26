@@ -13,7 +13,7 @@ use ring::digest::{SHA256, digest};
 use crate::{Result, Session, exec::ExecRequest};
 
 /// Where the agent lives on a node.
-pub(crate) const DIR: &str = "/tmp/uniwrt/agent";
+pub(crate) const DIR: &str = "/var/run/uniwrt/agent";
 
 /// A file of `node-agent/`, by its path there.
 macro_rules! file {
@@ -63,12 +63,12 @@ const FILES: [(&str, &str); 33] = [
 /// Installs the bundle from stdin: extracts it beside the current one, checks every file
 /// against SHA256SUMS, then swaps it in, unless the node holds that version already (another
 /// session's install got there first while this one waited for the lock): replacing the
-/// directory then would pull the files from under an agent starting from it. `/tmp/uniwrt` is
+/// directory then would pull the files from under an agent starting from it. `/var/run/uniwrt` is
 /// made root's and private first, so no other user on the node can touch the agent, and installs
 /// take turns (`flock`, which BusyBox has in OpenWrt's default build). A constant: nothing is
 /// interpolated.
-const INSTALL: &str = "set -e; umask 077; mkdir -p /tmp/uniwrt; chown 0:0 /tmp/uniwrt; \
-    chmod 700 /tmp/uniwrt; cd /tmp/uniwrt; \
+const INSTALL: &str = "set -e; umask 077; mkdir -p /var/run/uniwrt; chown 0:0 /var/run/uniwrt; \
+    chmod 700 /var/run/uniwrt; cd /var/run/uniwrt; \
     if command -v flock >/dev/null; then exec 9>.lock; flock 9; fi; \
     rm -rf .new; mkdir .new; cd .new; tar xf -; sha256sum -c -s SHA256SUMS; cd ..; \
     if [ -f agent/VERSION ] && [ \"$(cat .new/VERSION)\" = \"$(cat agent/VERSION)\" ]; \

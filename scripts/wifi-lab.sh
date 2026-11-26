@@ -189,9 +189,9 @@ declare -A KERNEL=([25.12.6]=6.12.58 [24.10.8]=6.6.110)
 
 # Installs the working tree's agent, as version "capture".
 install_agent() {
-  docker exec "$1" sh -c 'rm -rf /tmp/uniwrt/agent && mkdir -p /tmp/uniwrt/agent'
-  docker cp -q node-agent/. "$1:/tmp/uniwrt/agent/"
-  docker exec "$1" sh -c 'echo capture >/tmp/uniwrt/agent/VERSION'
+  docker exec "$1" sh -c 'rm -rf /var/run/uniwrt/agent && mkdir -p /var/run/uniwrt/agent'
+  docker cp -q node-agent/. "$1:/var/run/uniwrt/agent/"
+  docker exec "$1" sh -c 'echo capture >/var/run/uniwrt/agent/VERSION'
 }
 
 # Runs the working tree's agent on each node and saves its answer to collecting every set,
@@ -204,7 +204,7 @@ capture() {
     container=uniwrt-wifi-$role
     install_agent "$container"
     echo '{"id":1,"op":"collect","args":{}}' |
-      docker exec -i "$container" ucode /tmp/uniwrt/agent/main.uc --sync | tail -n 1 |
+      docker exec -i "$container" ucode /var/run/uniwrt/agent/main.uc --sync | tail -n 1 |
       python3 -c '
 import json, sys
 names = list(zip(sys.argv[1::2], sys.argv[2::2]))
@@ -233,9 +233,9 @@ print(dump(clean(json.loads(sys.stdin.read())["ok"])))' "$(uname -r)" "${KERNEL[
   # The neighbors set without rtnetlink, as on images without Wi-Fi, right after the set with it,
   # so a test can check that both describe the same caches.
   local query='{"id":1,"op":"collect","args":{"sets":["neighbors"]}}' rtnl proc
-  rtnl=$(echo "$query" | docker exec -i uniwrt-wifi-a ucode /tmp/uniwrt/agent/main.uc --sync | tail -n 1)
+  rtnl=$(echo "$query" | docker exec -i uniwrt-wifi-a ucode /var/run/uniwrt/agent/main.uc --sync | tail -n 1)
   docker exec uniwrt-wifi-a mv /usr/lib/ucode/rtnl.so /usr/lib/ucode/rtnl.so.hidden
-  proc=$(echo "$query" | docker exec -i uniwrt-wifi-a ucode /tmp/uniwrt/agent/main.uc --sync | tail -n 1)
+  proc=$(echo "$query" | docker exec -i uniwrt-wifi-a ucode /var/run/uniwrt/agent/main.uc --sync | tail -n 1)
   docker exec uniwrt-wifi-a mv /usr/lib/ucode/rtnl.so.hidden /usr/lib/ucode/rtnl.so
   printf '{"rtnl":%s,"proc":%s}' "$rtnl" "$proc" | python3 -c '
 import json, sys
@@ -269,7 +269,7 @@ capture_events() {
     sleep 2
     a wifi up radio0
     sleep 12
-  } | docker exec -i uniwrt-wifi-a ucode /tmp/uniwrt/agent/main.uc |
+  } | docker exec -i uniwrt-wifi-a ucode /var/run/uniwrt/agent/main.uc |
     sed "s/$(docker inspect -f '{{.Config.Hostname}}' uniwrt-wifi-c)/lab-client/g" \
       >"crates/node/fixtures/events/hwsim-a-$release.jsonl"
 }

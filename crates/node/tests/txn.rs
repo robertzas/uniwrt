@@ -234,9 +234,9 @@ async fn a_rollback_restores_the_snapshot_and_the_services() {
 #[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
 async fn a_live_apply_reloads_nothing_and_its_rollback_restarts_the_radios() {
     let session = managed().await;
-    let stub = "[ -x /sbin/wifi ] || { printf '#!/bin/sh\\necho \"$*\" >>/tmp/uniwrt-wifi.log\\n' \
-        >/sbin/wifi && chmod 755 /sbin/wifi && touch /tmp/uniwrt-wifi.stub; }; \
-        rm -f /tmp/uniwrt-wifi.log; reload_config";
+    let stub = "[ -x /sbin/wifi ] || { printf '#!/bin/sh\\necho \"$*\" >>/var/run/uniwrt-wifi.log\\n' \
+        >/sbin/wifi && chmod 755 /sbin/wifi && touch /var/run/uniwrt-wifi.stub; }; \
+        rm -f /var/run/uniwrt-wifi.log; reload_config";
     assert!(shell_ok(&session, stub).await);
     let id = TxnId::new("live").unwrap();
     let system = run(&session, &["cat", "/etc/config/system"]).await;
@@ -258,13 +258,13 @@ async fn a_live_apply_reloads_nothing_and_its_rollback_restarts_the_radios() {
 
     exec(&session, &txn::rollback(&id)).await.unwrap();
     assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
-    if shell_ok(&session, "[ -f /tmp/uniwrt-wifi.stub ]").await {
-        let log = run(&session, &["cat", "/tmp/uniwrt-wifi.log"]).await;
+    if shell_ok(&session, "[ -f /var/run/uniwrt-wifi.stub ]").await {
+        let log = run(&session, &["cat", "/var/run/uniwrt-wifi.log"]).await;
         assert_eq!(log, "down radio0\nup radio0\n");
         assert!(
             shell_ok(
                 &session,
-                "rm -f /sbin/wifi /tmp/uniwrt-wifi.stub /tmp/uniwrt-wifi.log"
+                "rm -f /sbin/wifi /var/run/uniwrt-wifi.stub /var/run/uniwrt-wifi.log"
             )
             .await
         );
@@ -474,6 +474,92 @@ async fn invalid_transactions_are_refused_before_anything_changes() {
     assert_eq!(txn_code(short), code::BAD_REQUEST);
     assert_eq!(status(&session).await.open, None);
     assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
+}
+
+/// Waits until transaction `id` rolled back, and says why.
+async fn wait_rolled_back(session: &Session, id: &TxnId, within: Duration) -> Reason {
+    let start = Instant::now();
+    loop {
+        if let Some(reason) = rolled_back(&status(session).await, id) {
+            return reason;
+        }
+        assert!(start.elapsed() < within, "not rolled back");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn an_apply_whose_journal_cannot_be_written_changes_nothing() {
+    let session = managed().await;
+    let system = run(&session, &["cat", "/etc/config/system"]).await;
+    let id = TxnId::new("nojournal").unwrap();
+    exec(&session, &txn::stage(&id, [("dnsmasq", false)]).unwrap())
+        .await
+        .unwrap();
+    let marked = format!("{system}\nconfig uniwrt_test 'probe'\n\toption mark '{id}'\n");
+    exec(&session, &txn::put(&id, "system", marked).unwrap())
+        .await
+        .unwrap();
+    exec(&session, &txn::check(&id)).await.unwrap();
+    // A directory where the journal's last write goes fails it, as a full flash would.
+    run(
+        &session,
+        &["mkdir", "-p", "/etc/uniwrt/journal/current.tmp"],
+    )
+    .await;
+    let apply = exec(&session, &txn::apply(&id, Duration::from_secs(60))).await;
+    run(&session, &["rmdir", "/etc/uniwrt/journal/current.tmp"]).await;
+    assert_eq!(txn_code(apply), code::FAILED);
+    assert_eq!(status(&session).await.open, None);
+    assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
+    assert!(!shell_ok(&session, "[ -e /etc/uniwrt/journal/nojournal ]").await);
+    wait_until(&session, "dnsmasq still runs", DNSMASQ_ON).await;
+}
+
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn a_corrupt_deadline_rolls_back_at_once() {
+    let session = managed().await;
+    let id = TxnId::new("corrupt").unwrap();
+    let system = begin(&session, &id, Duration::from_secs(600)).await;
+    wait_state(&session, OpenState::Applied).await;
+    run(
+        &session,
+        &[
+            "sh",
+            "-c",
+            "echo garbage >/etc/uniwrt/journal/corrupt/deadline",
+        ],
+    )
+    .await;
+    let reason = wait_rolled_back(&session, &id, Duration::from_secs(30)).await;
+    assert_eq!(reason, Reason::Timeout);
+    assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
+    wait_until(&session, "dnsmasq runs again", DNSMASQ_ON).await;
+}
+
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn a_rollback_that_cannot_restore_keeps_its_snapshot_and_tries_again() {
+    let session = managed().await;
+    let id = TxnId::new("restore").unwrap();
+    let system = begin(&session, &id, Duration::from_secs(600)).await;
+    wait_state(&session, OpenState::Applied).await;
+    // A directory where the restore writes `system` fails it, as a full flash would.
+    run(&session, &["mkdir", "-p", "/etc/config/system.uniwrt/x"]).await;
+    let rollback = exec(&session, &txn::rollback(&id)).await;
+    let open = status(&session).await.open;
+    let kept = shell_ok(&session, "[ -f /etc/uniwrt/journal/restore/config/system ]").await;
+    run(&session, &["rm", "-rf", "/etc/config/system.uniwrt"]).await;
+    assert_eq!(txn_code(rollback), code::FAILED);
+    assert_eq!(open.map(|open| open.state), Some(OpenState::RollingBack));
+    assert!(kept, "the snapshot is kept");
+    // The timer tries again, for the same reason.
+    let reason = wait_rolled_back(&session, &id, Duration::from_secs(40)).await;
+    assert_eq!(reason, Reason::Requested);
+    assert_eq!(run(&session, &["cat", "/etc/config/system"]).await, system);
+    wait_until(&session, "dnsmasq runs again", DNSMASQ_ON).await;
 }
 
 /// Last: it restarts the container, after which only `docker exec` reaches it.

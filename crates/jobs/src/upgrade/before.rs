@@ -1,25 +1,24 @@
 //! The upgrade's steps before anything changes (D-124): the checks, with the health baseline,
 //! and the backup.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, time::Duration};
 
 use tracing::warn;
-use uniwrt_core::{NodeId, Timestamp};
+use uniwrt_core::NodeId;
 use uniwrt_model::{
     facts::NodeFacts,
     firmware::FirmwareImage,
     inventory::BackupReason,
     job::{JobError, JobErrorCode, StepName},
-    log::{LogFilter, Severity},
+    log::{LogEntry, Severity},
     node::Node,
 };
-use uniwrt_node::{ExecRequest, proto::ops::Set};
-use uniwrt_store::LogRepo as _;
+use uniwrt_node::{ExecRequest, logread, proto::ops::Set};
+use uniwrt_syslog::Patterns;
 
 use super::{
     Baseline, UpgradeRequest,
     image::{self, Boot},
-    log_window,
 };
 use crate::{
     Remote,
@@ -43,8 +42,8 @@ pub(crate) const REQUIRED: [Set; 2] = [Set::Board, Set::System];
 /// Room left in `/tmp` beside the image: sysupgrade's own files and the running services'.
 const TMP_MARGIN: u64 = 16 << 20;
 
-/// The most log entries read for the baseline's patterns.
-const MAX_LOGS: usize = 500;
+/// How far back the baseline's log reaches, from the node's newest entry (its own clock).
+const BASELINE_LOG: Duration = Duration::from_secs(3600);
 
 fn refused(message: impl Into<String>) -> JobError {
     JobError {
@@ -98,12 +97,15 @@ pub(crate) async fn check(
             ))
         })?;
     tmp_room(&facts, &image)?;
-    let now = shared.clock.now();
+    let logged = read_log(remote, node.id).await;
+    let since = logged
+        .last()
+        .map(|newest| newest.time.saturating_sub(BASELINE_LOG));
     let baseline = Baseline {
         role: node.role,
         health: Health::measure(node.role, &facts, survey::dns(remote, node.role).await),
         clients: facts.stations.len(),
-        patterns: error_patterns(shared, node.id, log_window(now), now).await,
+        patterns: error_patterns(logged.iter().filter(|entry| Some(entry.time) >= since)),
         release,
     };
     progress
@@ -147,28 +149,31 @@ async fn boot(remote: &dyn Remote) -> Boot {
     Boot { efi, filesystem }
 }
 
-/// The log patterns of errors or worse the node matched from `from` to `to`.
-pub(crate) async fn error_patterns(
-    shared: &Shared,
-    node: NodeId,
-    from: Timestamp,
-    to: Timestamp,
-) -> BTreeSet<String> {
-    let filter = LogFilter {
-        nodes: vec![node],
-        min: Some(Severity::Error),
-        annotated: true,
-        from: Some(from),
-        to: Some(to),
-        ..LogFilter::default()
-    };
-    match shared.store.logs(filter, None, MAX_LOGS).await {
-        Ok(logs) => logs.into_iter().filter_map(|log| log.pattern).collect(),
+/// The node's newest log entries, read over `remote` (`logread`), never from the store: syslog
+/// feeds that, and any host on the LAN can forge a line (D-150). Empty when it can't be read.
+pub(crate) async fn read_log(remote: &dyn Remote, node: NodeId) -> Vec<LogEntry> {
+    match remote.exec(logread::request()).await {
+        Ok(output) if output.status.success() => logread::parse(&output),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!(%node, stderr = %stderr.trim(), "cannot read the node's log");
+            Vec::new()
+        }
         Err(err) => {
             warn!(%node, %err, "cannot read the node's log");
-            BTreeSet::new()
+            Vec::new()
         }
     }
+}
+
+/// The log patterns of errors or worse that `entries` match.
+pub(crate) fn error_patterns<'a>(entries: impl Iterator<Item = &'a LogEntry>) -> BTreeSet<String> {
+    let patterns = Patterns::embedded();
+    entries
+        .filter(|entry| entry.severity <= Severity::Error)
+        .filter_map(|entry| patterns.annotate(entry))
+        .map(|pattern| pattern.id.clone())
+        .collect()
 }
 
 /// Takes the configuration's backup and keeps it, sealed.

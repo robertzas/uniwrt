@@ -37,7 +37,7 @@ fn rtts(slot: i64, key: &str, base: f64, count: u64) -> Vec<f64> {
         .collect()
 }
 
-/// `ucode /tmp/uniwrt/agent/probe.uc <spec>` on the gateway, whose WAN is `up` or not.
+/// `ucode /var/run/uniwrt/agent/probe.uc <spec>` on the gateway, whose WAN is `up` or not.
 pub(crate) fn round(spec: &str, up: bool, now_ms: i64) -> ExecOutput {
     let spec: Value = serde_json::from_str(spec).unwrap_or(Value::Null);
     let slot = now_ms / SLOT_MS;

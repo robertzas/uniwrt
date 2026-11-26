@@ -1,6 +1,6 @@
 // The uniwrt node agent: serves the controller's requests from stdin and answers on stdout, one
 // JSON object per line (proto.uc), until stdin closes. The controller installs it under
-// /tmp/uniwrt/agent and runs `ucode /tmp/uniwrt/agent/main.uc` (ARCHITECTURE.md, Node protocol).
+// /var/run/uniwrt/agent and runs `ucode /var/run/uniwrt/agent/main.uc` (ARCHITECTURE.md, Node protocol).
 //
 // With ucode-mod-uloop, a reader task feeds requests into an event loop and each command runs in
 // a task of its own, so a slow command holds up nothing else, and the agent pushes events and
@@ -107,7 +107,7 @@ if (loop && !input) {
 	warn(`cannot reopen stdin (${fs.error()}); serving one request at a time`);
 	loop = null;
 }
-fs.mkdir("/tmp/uniwrt", 0o700);
+fs.mkdir("/var/run/uniwrt", 0o700);
 fs.mkdir(RUN, 0o700);
 
 send({

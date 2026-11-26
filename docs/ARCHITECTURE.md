@@ -92,11 +92,11 @@ Rules:
 **Transport.** A russh client with an ed25519 controller key. The node's host key is pinned at adoption: `probe` reads it, the user confirms the fingerprint, and every connection checks the pin (D-032). Keepalive every 15 s, and 3 unanswered ones end the session; on disconnect, reconnect with jittered exponential backoff (1 s → 60 s). One connection per node carries multiplexed channels: the agent, ad-hoc exec, uploads and the browser terminal. Each channel is drained by its own task, so a slow reader cannot stall the others. Commands are argv arrays, quoted for the node's shell.
 
 **Bootstrap on every connection** (`crates/node/src/bundle.rs`):
-1. Run `cat /tmp/uniwrt/agent/VERSION`. If it isn't the embedded bundle's hash (the SHA-256 of its SHA256SUMS), stream the bundle, an uncompressed tar, through stdin into a fixed install script. The script makes `/tmp/uniwrt` root's and private, takes a `flock`, extracts into `.new`, checks every file with `sha256sum -c` and swaps the result in. Nothing depends on sftp or scp.
-2. Open a long-lived channel running `ucode /tmp/uniwrt/agent/main.uc`.
+1. Run `cat /var/run/uniwrt/agent/VERSION`. If it isn't the embedded bundle's hash (the SHA-256 of its SHA256SUMS), stream the bundle, an uncompressed tar, through stdin into a fixed install script. The script makes `/var/run/uniwrt` root's and private, takes a `flock`, extracts into `.new`, checks every file with `sha256sum -c` and swaps the result in. Nothing depends on sftp or scp.
+2. Open a long-lived channel running `ucode /var/run/uniwrt/agent/main.uc`.
 3. The agent's first line is `{"hello":{"proto":1,"agent":"<hash>","release":"25.12.6","caps":{"events":true,"ops":[…],"sets":[…]}}}`. A hash other than the bundle's fails the start.
 
-**Agent runtime (D-034).** With ucode-mod-uloop (in 25.12 images, and in Wi-Fi images since 23.05 through hostapd), a forked reader task feeds requests into an event loop, and each command runs in a task of its own. Without it, requests are served one at a time and the agent pushes no events. A command's output goes to files under `/tmp/uniwrt/run`, never to the agent's stdout. Collect sets return raw sources (ubus replies, sysfs text, `/proc` files), and the `node` crate parses them into `model::facts`. Under the event loop the agent also pushes (D-036): the ubus notifications of subscribed topics, its log in batches, and ticks of sets collected on a schedule, which `node::events` parses. Pushes end with the agent, so the engine asks for them again after each hello.
+**Agent runtime (D-034).** With ucode-mod-uloop (in 25.12 images, and in Wi-Fi images since 23.05 through hostapd), a forked reader task feeds requests into an event loop, and each command runs in a task of its own. Without it, requests are served one at a time and the agent pushes no events. A command's output goes to files under `/var/run/uniwrt/run`, never to the agent's stdout. Collect sets return raw sources (ubus replies, sysfs text, `/proc` files), and the `node` crate parses them into `model::facts`. Under the event loop the agent also pushes (D-036): the ubus notifications of subscribed topics, its log in batches, and ticks of sets collected on a schedule, which `node::events` parses. Pushes end with the agent, so the engine asks for them again after each hello.
 
 **Messages** are newline-delimited JSON:
 
@@ -126,7 +126,7 @@ Rules:
 | Decommissioned | Nothing of uniwrt: the wipe removes the key, `/etc/uniwrt`, the guard and the ZTP hello, and leaves the mesh (or runs `firstboot`; D-131). |
 | Managed | Adds `/etc/uniwrt/` (the transaction tool `txn` and its `VERSION`; `journal/` with the open transaction's snapshot and the last outcome, ≤ 100 KB), `/etc/init.d/uniwrt-guard` (START=13: rolls back an unconfirmed transaction at boot; runs the open one's dead-man timer and reload as procd instances), `/etc/hotplug.d/iface/90-uniwrt` (the interface hook: restarts `mdns-repeater` when one of its devices comes up, D-136), `/lib/upgrade/keep.d/uniwrt` (keeps them across sysupgrade), and the managed UCI packages (D-069). |
 
-Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
+Everything else is ephemeral, under `/var/run/uniwrt` (RAM): `/var/run` is `/tmp/run`, root's, where no other user can make a file first, unlike `/tmp` itself (D-150).
 
 ## Data flows
 

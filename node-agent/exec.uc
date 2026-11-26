@@ -6,7 +6,7 @@ import * as fs from "fs";
 import { mono_ms } from "./util.uc";
 import { TIMEOUT, TOO_LARGE, FAILED } from "./proto.uc";
 
-const RUN = "/tmp/uniwrt/run";
+const RUN = "/var/run/uniwrt/run";
 const DEFAULT_TIMEOUT_MS = 10000;
 const MAX_TIMEOUT_MS = 600000;
 const DEFAULT_MAX_OUTPUT = 1048576;

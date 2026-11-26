@@ -414,7 +414,7 @@ fn wan_probe(
         .ipv4()
     };
     match argv {
-        ["ucode", "/tmp/uniwrt/agent/probe.uc", spec] => {
+        ["ucode", "/var/run/uniwrt/agent/probe.uc", spec] => {
             Some(super::probe::round(spec, up(), now_ms))
         }
         ["traceroute", .., "--", host] => Some(super::probe::traceroute(host, up())),

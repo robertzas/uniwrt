@@ -23,6 +23,7 @@ uniwrt-node.workspace = true
 uniwrt-render.workspace = true
 uniwrt-rf.workspace = true
 uniwrt-store.workspace = true
+uniwrt-syslog.workspace = true
 uniwrt-topo.workspace = true
 uniwrt-uci.workspace = true
 zeroize.workspace = true

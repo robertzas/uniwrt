@@ -398,11 +398,11 @@ macro_rules! file {
 /// The footprint's files; a test keeps the list in step with the directory.
 const FILES: [(&str, &str); 3] = [file!("txn"), file!("uniwrt-guard"), file!("uniwrt-hotplug")];
 
-/// Extracts the footprint from stdin into `/tmp/uniwrt/footprint`, checks every file against
+/// Extracts the footprint from stdin into `/var/run/uniwrt/footprint`, checks every file against
 /// SHA256SUMS, and has the new tool install itself and the guard. A constant: nothing is
 /// interpolated.
-const INSTALL: &str = "set -e; umask 077; mkdir -p /tmp/uniwrt; chown 0:0 /tmp/uniwrt; \
-    chmod 700 /tmp/uniwrt; cd /tmp/uniwrt; rm -rf footprint; mkdir footprint; cd footprint; \
+const INSTALL: &str = "set -e; umask 077; mkdir -p /var/run/uniwrt; chown 0:0 /var/run/uniwrt; \
+    chmod 700 /var/run/uniwrt; cd /var/run/uniwrt; rm -rf footprint; mkdir footprint; cd footprint; \
     tar xf -; sha256sum -c -s SHA256SUMS; set +e; sh ./txn install \"$PWD\"; status=$?; \
     cd ..; rm -rf footprint; exit $status";
 

@@ -15,6 +15,8 @@ mod steer_tests;
 mod tests;
 pub(crate) mod usteer;
 
+pub(crate) use self::log::line as logread_line;
+
 use serde::{Deserialize, de::DeserializeOwned};
 use uniwrt_model::{event::NodeEvent, log::LogEntry};
 

@@ -2,7 +2,7 @@
 //! goes to the container that holds the target's address now, as SSH would reach it, and must
 //! find the host key the container's dropbear presents. Commands run as their argv, never
 //! through a shell string; collect and the agent's other ops (`Remote::call`) run the working
-//! tree's agent (`/tmp/uniwrt/agent`, which scripts/test-system.sh installs). A container can
+//! tree's agent (`/var/run/uniwrt/agent`, which scripts/test-system.sh installs). A container can
 //! be lost once the transaction tool applied on it: from then on it answers no login and no
 //! command, as a node cut off by its change.
 
@@ -296,7 +296,7 @@ impl Remote for DockerRemote {
                 return Err(disconnected(op));
             }
             let call = format!(r#"{{"id":1,"op":"{op}","args":{}}}"#, args.get());
-            let request = ExecRequest::new(["ucode", "/tmp/uniwrt/agent/main.uc", "--sync"])
+            let request = ExecRequest::new(["ucode", "/var/run/uniwrt/agent/main.uc", "--sync"])
                 .stdin(call.into_bytes())
                 .timeout(timeout);
             let output = exec(&self.container, &request).await?.check(op)?;

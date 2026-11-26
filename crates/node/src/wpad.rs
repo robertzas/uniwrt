@@ -20,7 +20,7 @@ use uniwrt_model::facts::PackageManager;
 use crate::pkg::via::{KEPT, Via};
 
 /// Where the packages, the swap's log and its result go, in RAM.
-pub const DIR: &str = "/tmp/uniwrt-wpad";
+pub const DIR: &str = "/var/run/uniwrt-wpad";
 /// The flash the swap needs free, in KiB: the full wpad installs ~800 KiB more than the basic
 /// one (25.12, x86-64), and the package database grows.
 pub const FLASH_KIB: u64 = 1536;

@@ -70,8 +70,8 @@ Limitation: one factory-default device at a time, because they all answer at 192
 For a device already running OpenWrt (M5.4 b2, D-103). Devices › Set up a device › One-liner (`POST /api/v1/ztp/one-liners` with a role, access point or bridge, and an optional name; admins, audited) shows a command to paste into the device's shell:
 
 ```sh
-uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh 'https://<controller>:<port>/b/<token>' \
-  && echo '<sha256>  /tmp/uniwrt.sh' | sha256sum -cs && sh /tmp/uniwrt.sh
+uclient-fetch -4 --no-check-certificate -qO /var/run/uniwrt.sh 'https://<controller>:<port>/b/<token>' \
+  && echo '<sha256>  /var/run/uniwrt.sh' | sha256sum -cs && sh /var/run/uniwrt.sh
 ```
 
 - **Integrity (D-103, the owner's choice):** OpenWrt can't check the controller's certificate (D-102), so the command runs the script only if its SHA-256 matches the one written in it: nobody on the network can swap what root runs. The token stays hidden from passive listeners (HTTPS).

@@ -144,9 +144,9 @@ up() {
   docker exec uniwrt-system-isp /bin/sh -c '/etc/init.d/firewall stop; /etc/init.d/odhcpd stop
     /etc/init.d/pppoe-server start' >/dev/null 2>&1
   for role in gw ap fac; do
-    docker exec "uniwrt-system-$role" sh -c 'rm -rf /tmp/uniwrt/agent && mkdir -p /tmp/uniwrt/agent'
-    docker cp -q node-agent/. "uniwrt-system-$role:/tmp/uniwrt/agent/"
-    docker exec "uniwrt-system-$role" sh -c 'echo system >/tmp/uniwrt/agent/VERSION'
+    docker exec "uniwrt-system-$role" sh -c 'rm -rf /var/run/uniwrt/agent && mkdir -p /var/run/uniwrt/agent'
+    docker cp -q node-agent/. "uniwrt-system-$role:/var/run/uniwrt/agent/"
+    docker exec "uniwrt-system-$role" sh -c 'echo system >/var/run/uniwrt/agent/VERSION'
   done
   nftables
   echo "the topology is up on $release ($ENV_FILE)"

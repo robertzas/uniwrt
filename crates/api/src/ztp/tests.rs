@@ -302,9 +302,9 @@ async fn a_one_liner_serves_its_script_once_and_its_hello_adopts() {
     assert_eq!(
         made["command"],
         format!(
-            "uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh \
-             'https://uniwrt.lan:8443/b/{token}' && echo '{sha256}  /tmp/uniwrt.sh' \
-             | sha256sum -cs && sh /tmp/uniwrt.sh"
+            "uclient-fetch -4 --no-check-certificate -qO /var/run/uniwrt.sh \
+             'https://uniwrt.lan:8443/b/{token}' && echo '{sha256}  /var/run/uniwrt.sh' \
+             | sha256sum -cs && sh /var/run/uniwrt.sh"
         )
     );
 

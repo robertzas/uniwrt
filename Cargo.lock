@@ -3838,6 +3838,7 @@ dependencies = [
  "uniwrt-rf",
  "uniwrt-sim",
  "uniwrt-store",
+ "uniwrt-syslog",
  "uniwrt-topo",
  "uniwrt-uci",
  "zeroize",

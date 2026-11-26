@@ -129,9 +129,9 @@ fn play(setup: &Setup, plays: Plays) {
                     }));
                 }
                 Some(outcome) => ok(outcome),
-                None => {
-                    failed("cat: can't open '/tmp/uniwrt-wpad/state': No such file or directory")
-                }
+                None => failed(
+                    "cat: can't open '/var/run/uniwrt-wpad/state': No such file or directory",
+                ),
             },
             ["cat", path] if *path == log_path => ok(plays.log),
             _ => return None,

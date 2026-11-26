@@ -1,5 +1,5 @@
 // The WAN quality monitor's round (D-144), run on the gateway over exec rather than by the
-// agent, which a slow round must not hold up: `ucode /tmp/uniwrt/agent/probe.uc <spec>`, the
+// agent, which a slow round must not hold up: `ucode /var/run/uniwrt/agent/probe.uc <spec>`, the
 // spec one JSON argument:
 //   {"count":10,"icmp":[{"key":"first-hop","host":null},{"key":"cloudflare","host":"1.1.1.1"}],
 //    "dns":[{"key":"resolver","server":null,"name":"openwrt.org"},
@@ -184,7 +184,7 @@ if (type(spec) != "object") {
 	warn("usage: probe.uc <spec as JSON>\n");
 	exit(2);
 }
-fs.mkdir("/tmp/uniwrt", 0o700);
+fs.mkdir("/var/run/uniwrt", 0o700);
 fs.mkdir(RUN, 0o700);
 let out = routes();
 let started = start_pings(spec, out.first_hop);

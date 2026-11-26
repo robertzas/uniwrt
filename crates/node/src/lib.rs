@@ -11,7 +11,7 @@
 //!   [`Session::upload`]; [`Agent`] (the RPC multiplexer over a running
 //!   agent's stdio, see [`proto`]); [`proto::ops`] (the typed ops, sent with
 //!   [`NodeLink::request`]); [`Bundle`] (`node-agent/`, installed by hash into
-//!   `/tmp/uniwrt/agent`); [`facts`] (collect sets parsed into `model::facts`); [`events`] (the
+//!   `/var/run/uniwrt/agent`); [`facts`] (collect sets parsed into `model::facts`); [`events`] (the
 //!   agent's pushes, from [`NodeLink::events`], parsed into ticks, `model::event`s and log
 //!   entries); [`SshLink`] (a
 //!   supervised connection that reconnects with jittered backoff, installs and restarts the
@@ -20,7 +20,8 @@
 //!   a node's packages and services); [`archive`] (the `sysupgrade -b` tarball read and written
 //!   in memory, and its content digest, D-126); [`pkg`] (opkg's and apk's commands and the installed
 //!   packages' parser, D-100); [`probe`] (the WAN quality monitor's round, `probe.uc` over exec,
-//!   and its traceroute; D-144); [`support`] (the support bundle's snapshot of a node, one fixed
+//!   and its traceroute; D-144); [`logread`] (its log over the session, which syslog can't forge;
+//!   D-150); [`support`] (the support bundle's snapshot of a node, one fixed
 //!   script, JSON masked; D-144); [`wpad`] (the commands that swap a node's basic wpad for
 //!   the full one, D-089); [`wol`] (Wake-on-LAN from the gateway: `etherwake` and the devices
 //!   to send on, D-137); [`decommission`] (the detached wipe that takes a node out of the
@@ -68,6 +69,7 @@ pub mod iperf3;
 mod key;
 mod lines;
 mod link;
+pub mod logread;
 pub mod pkg;
 pub mod probe;
 pub mod proto;

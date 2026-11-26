@@ -8,8 +8,8 @@
 //! transaction tool is removed before, by `txn uninstall` ([`crate::txn::uninstall`]), which
 //! refuses while a transaction is open.
 
-/// Where the wipe's log goes, in RAM (outside `/tmp/uniwrt`, which it removes).
-pub const LOG: &str = "/tmp/uniwrt-decommission.log";
+/// Where the wipe's log goes, in RAM (outside `/var/run/uniwrt`, which it removes).
+pub const LOG: &str = "/var/run/uniwrt-decommission.log";
 
 /// Starts [`WIPE`] in its own session where `setsid` exists, hangups ignored, its output to
 /// `$2`; answers `started`.
@@ -40,7 +40,7 @@ for s in "$hello" "$guard"; do
 done
 rm -f "$hello" "$guard" /usr/sbin/uniwrt-hello /lib/upgrade/keep.d/uniwrt \
 	/etc/hotplug.d/iface/90-uniwrt
-rm -rf /etc/uniwrt /tmp/uniwrt /tmp/uniwrt.sh /var/run/uniwrt-lend
+rm -rf /etc/uniwrt /var/run/uniwrt /var/run/uniwrt.sh /var/run/uniwrt-lend /tmp/uniwrt /tmp/uniwrt.sh
 f=/etc/dropbear/authorized_keys
 if [ -f "$f" ]; then
 	grep -vxF "$1" "$f" >"$f.uniwrt"

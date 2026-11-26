@@ -36,7 +36,7 @@ const oneLiner: ZtpOneLiner = {
   role: "bridge",
   name: "Attic",
   command:
-    "uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh 'https://10.0.0.5:8443/b/Xk3abc' && …",
+    "uclient-fetch -4 --no-check-certificate -qO /var/run/uniwrt.sh 'https://10.0.0.5:8443/b/Xk3abc' && …",
   sha256: "ab08",
   created_at: NOW,
   expires_at: NOW + 15 * 60_000,

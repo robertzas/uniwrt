@@ -111,7 +111,7 @@ pub fn first_boot(
 }
 
 /// Where the one-liner leaves the script before checking it.
-const ONE_LINER_FILE: &str = "/tmp/uniwrt.sh";
+const ONE_LINER_FILE: &str = "/var/run/uniwrt.sh";
 
 /// The one-liner (Path D) that fetches `script` from `endpoint` with `token`: over HTTPS that
 /// OpenWrt can't check (D-102), so it runs the script only when its SHA-256 matches the one
@@ -228,9 +228,9 @@ mod tests {
         assert_eq!(
             command,
             format!(
-                "uclient-fetch -4 --no-check-certificate -qO /tmp/uniwrt.sh \
-                 'https://10.0.0.5:8443/b/Xk3' && echo '{sha256}  /tmp/uniwrt.sh' \
-                 | sha256sum -cs && sh /tmp/uniwrt.sh"
+                "uclient-fetch -4 --no-check-certificate -qO /var/run/uniwrt.sh \
+                 'https://10.0.0.5:8443/b/Xk3' && echo '{sha256}  /var/run/uniwrt.sh' \
+                 | sha256sum -cs && sh /var/run/uniwrt.sh"
             )
         );
         let (v6, _) = one_liner(&endpoint("fd00::5", 443), "Xk3", "");

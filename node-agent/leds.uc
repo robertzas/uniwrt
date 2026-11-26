@@ -13,7 +13,7 @@ import { BAD_REQUEST, FAILED } from "./proto.uc";
 
 // Swapped by the agent tests for a tree of plain files (`paths`).
 let root = "/sys/class/leds";
-let state_path = "/tmp/uniwrt/leds.json";
+let state_path = "/var/run/uniwrt/leds.json";
 
 // Entries of an LED's directory that aren't its trigger's settings.
 const SKIP = {

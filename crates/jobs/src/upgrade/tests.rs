@@ -4,18 +4,23 @@
 
 use std::{
     path::PathBuf,
-    sync::{Arc, atomic::Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
+use uniwrt_core::Clock as _;
 use uniwrt_core::NodeId;
 use uniwrt_model::{
     firmware::FirmwareImage,
     inventory::BackupReason,
     job::{Job, JobErrorCode, JobState, StepName, StepState},
+    log::{LogEntry, LogVia, NewLog, Severity},
 };
 use uniwrt_node::{ExecOutput, ExitStatus};
-use uniwrt_store::{BackupRepo as _, InventoryRepo as _, JobRepo as _};
+use uniwrt_store::{BackupRepo as _, InventoryRepo as _, JobRepo as _, LogRepo as _};
 
 use super::{FetchImage, STAGED, UpgradeRequest, UpgradeTiming};
 use crate::{
@@ -37,6 +42,8 @@ pub(crate) struct Flash {
     release: &'static str,
     /// The transaction tool survives the flash.
     keeps_tool: bool,
+    /// The new firmware logs an error the old one didn't.
+    new_error: bool,
 }
 
 pub(crate) const GOOD: Flash = Flash {
@@ -44,7 +51,13 @@ pub(crate) const GOOD: Flash = Flash {
     down: 3,
     release: "25.12.6",
     keeps_tool: true,
+    new_error: false,
 };
+
+/// The node's log before the flash (`logread -t`): an error the soak must not count as new.
+const LOG_BEFORE: &str = "Thu Oct 29 03:40:30 2026 [1793245230.849] kern.err kernel: [ 12.5] mt7915e 0000:01:00.0: firmware crashed\n";
+/// The error a new firmware may bring.
+const LOG_NEW_ERROR: &str = "Thu Oct 29 04:40:30 2026 [1793248830.849] kern.err kernel: [ 9.5] mt7915e 0000:01:00.0: Message 00 (seq 3) timeout\n";
 
 fn ok(stdout: &[u8]) -> ExecOutput {
     ExecOutput {
@@ -64,9 +77,14 @@ fn failed(stderr: &[u8]) -> ExecOutput {
 
 pub(crate) fn play(node: &Arc<FakeNode>, flash: Flash) {
     let this = Arc::clone(node);
+    let flashed = Arc::new(AtomicBool::new(false));
     *node.script.lock().unwrap() = Some(Box::new(move |argv| {
         let staged = |path: &str| this.files.lock().unwrap().get(path).cloned();
         Some(Ok(match argv {
+            ["logread", "-t", "-l", _] if flashed.load(Ordering::SeqCst) && flash.new_error => {
+                ok(format!("{LOG_BEFORE}{LOG_NEW_ERROR}").as_bytes())
+            }
+            ["logread", "-t", "-l", _] => ok(LOG_BEFORE.as_bytes()),
             ["sha256sum", path] => match staged(path) {
                 Some(data) if data == IMAGE => ok(format!("{SHA256}  {path}\n").as_bytes()),
                 Some(_) => ok(format!("{}  {path}\n", "0".repeat(64)).as_bytes()),
@@ -75,6 +93,7 @@ pub(crate) fn play(node: &Arc<FakeNode>, flash: Flash) {
             ["sysupgrade", "-T", path] if staged(path).is_some() && !flash.refuse => ok(b""),
             ["sysupgrade", "-T", _] => failed(b"Device container not supported by this image"),
             ["sysupgrade", path] if staged(path).is_some() => {
+                flashed.store(true, Ordering::SeqCst);
                 this.files.lock().unwrap().clear();
                 this.down.store(flash.down, Ordering::SeqCst);
                 *this.collected.lock().unwrap() = Some(COLLECTED.replace("24.10.8", flash.release));
@@ -338,4 +357,67 @@ async fn nothing_happens_on_another_release_an_observed_node_or_without_the_imag
     assert_eq!(error.code, JobErrorCode::Refused);
     assert!(error.message.contains("404"), "{error:?}");
     assert!(!ran(&setup, &["sysupgrade", "-T", STAGED]));
+}
+
+#[tokio::test]
+async fn a_new_error_in_the_node_s_own_log_fails_the_soak() {
+    let (_setup, job, _dir) = upgrade(
+        Flash {
+            new_error: true,
+            ..GOOD
+        },
+        &[],
+    )
+    .await;
+    assert_eq!(job.state, JobState::Failed, "{job:#?}");
+    let (state, _) = step(&job, StepName::Soak);
+    assert_eq!(state, StepState::Failed);
+    let error = job.error.unwrap();
+    assert!(
+        error
+            .message
+            .contains("errors it didn't have before: wifi-firmware-timeout"),
+        "{}",
+        error.message
+    );
+    assert!(error.message.contains("The new firmware is installed"));
+}
+
+/// Syslog can be forged by any host on the LAN: what the store holds never fails the soak.
+#[tokio::test]
+async fn a_forged_line_in_the_store_doesnt_fail_the_soak() {
+    let setup = setup_timed(true, timing()).await;
+    let id = managed(&setup).await;
+    play(&setup.node, GOOD);
+    let entry = LogEntry {
+        seq: None,
+        time: setup.clock.now(),
+        facility: 0,
+        severity: Severity::Critical,
+        program: Some("kernel".to_owned()),
+        pid: None,
+        message: "Out of memory: Killed process 42 (dnsmasq)".to_owned(),
+    };
+    setup
+        .store
+        .record_logs(vec![NewLog {
+            received: setup.clock.now(),
+            node: Some(id),
+            host: None,
+            via: LogVia::Syslog,
+            pattern: Some("oom".to_owned()),
+            entry,
+        }])
+        .await
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let image = dir.path().join("image.img");
+    std::fs::write(&image, IMAGE).unwrap();
+    let job = setup
+        .jobs
+        .upgrade(request(id, Some(image), &[]), None)
+        .await
+        .unwrap();
+    let job = finished(&setup, job).await;
+    assert_eq!(job.state, JobState::Succeeded, "{job:#?}");
 }

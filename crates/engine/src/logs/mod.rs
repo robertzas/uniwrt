@@ -11,7 +11,7 @@ mod dns;
 mod source;
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     net::IpAddr,
     sync::Arc,
     time::Duration,
@@ -265,10 +265,15 @@ impl<L: NodeLink> Intake<L> {
                 let now = Instant::now();
                 let node = self
                     .peers
-                    .node(&self.engine, peer, message.hostname.as_deref())
+                    .node(&self.engine, peer)
                     .filter(|node| self.nodes.contains_key(node));
                 let Some(node) = node else {
-                    let host = message.hostname.unwrap_or_else(|| peer.to_string());
+                    // Kept apart, by the name it gives unless that is an adopted node's: a line
+                    // proves nothing about its sender, so a name never makes it a node's.
+                    let host = message
+                        .hostname
+                        .filter(|name| !self.peers.is_node_name(name))
+                        .unwrap_or_else(|| peer.to_string());
                     self.pending
                         .push(annotated_at(None, Some(host), at, message.entry));
                     return;
@@ -289,7 +294,7 @@ impl<L: NodeLink> Intake<L> {
                 }
             }
             Received::Closed { peer } => {
-                let Some(node) = self.peers.node(&self.engine, peer, None) else {
+                let Some(node) = self.peers.node(&self.engine, peer) else {
                     return;
                 };
                 if let Some(log) = self.nodes.get_mut(&node)
@@ -357,36 +362,30 @@ fn annotated_at(
     annotated(node, host, LogVia::Syslog, at, entry)
 }
 
-/// Which node a syslog sender is: by its address among the nodes' interface addresses, else
-/// by the host name its messages give. Loopback addresses (every node has 127.0.0.1) and
-/// addresses or names that several nodes share (`OpenWrt`, an unconfigured default) name none.
+/// Which node a syslog sender is: by its address among the nodes' interface addresses, never by
+/// the host name its messages give, which any sender can claim (threat-model.md, §3). Loopback
+/// addresses (every node has 127.0.0.1) and addresses that several nodes share name none.
 #[derive(Default)]
 struct Peers {
     /// `None` where several nodes claim it.
     addresses: HashMap<IpAddr, Option<NodeId>>,
-    hostnames: HashMap<String, Option<NodeId>>,
+    /// The nodes' host names, lowercase: another sender's lines never carry one.
+    hostnames: HashSet<String>,
     stale: bool,
     built: bool,
 }
 
 impl Peers {
-    fn node<L: NodeLink>(
-        &mut self,
-        engine: &Engine<L>,
-        peer: IpAddr,
-        hostname: Option<&str>,
-    ) -> Option<NodeId> {
+    fn node<L: NodeLink>(&mut self, engine: &Engine<L>, peer: IpAddr) -> Option<NodeId> {
         if self.stale || !self.built {
             self.rebuild(engine);
         }
-        self.addresses.get(&peer).copied().flatten().or_else(|| {
-            hostname.and_then(|name| {
-                self.hostnames
-                    .get(&name.to_ascii_lowercase())
-                    .copied()
-                    .flatten()
-            })
-        })
+        self.addresses.get(&peer).copied().flatten()
+    }
+
+    /// Whether `name` is an adopted node's host name (as of the last rebuild).
+    fn is_node_name(&self, name: &str) -> bool {
+        self.hostnames.contains(&name.to_ascii_lowercase())
     }
 
     fn rebuild<L: NodeLink>(&mut self, engine: &Engine<L>) {
@@ -404,11 +403,8 @@ impl Peers {
                 }
             }
             if !facts.board.hostname.is_empty() {
-                claim(
-                    &mut self.hostnames,
-                    facts.board.hostname.to_ascii_lowercase(),
-                    node,
-                );
+                self.hostnames
+                    .insert(facts.board.hostname.to_ascii_lowercase());
             }
         }
         self.stale = false;

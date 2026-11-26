@@ -112,7 +112,7 @@ async fn stdin_round_trips_and_streams_are_interactive() {
 async fn uploads_land_atomically_with_their_mode() {
     let (session, node) = adopt().await;
     let dir = format!(
-        "/tmp/uniwrt-test-{}",
+        "/var/run/uniwrt-test-{}",
         node.key.fingerprint()[7..15].replace('/', "_")
     );
     run(&session, &["mkdir", "-p", &dir]).await;

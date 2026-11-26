@@ -28,7 +28,7 @@ pub(crate) mod tests;
 use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
 
 use tracing::{info, warn};
-use uniwrt_core::{NodeId, Timestamp, UserId};
+use uniwrt_core::{NodeId, UserId};
 use uniwrt_model::{
     firmware::FirmwareImage,
     job::{JobError, JobErrorCode, JobKind, NewJob, StepName},
@@ -104,7 +104,7 @@ const STEPS: [StepName; 11] = [
 ];
 
 /// Where the image is staged on the node.
-pub(crate) const STAGED: &str = "/tmp/uniwrt-upgrade.img";
+pub(crate) const STAGED: &str = "/var/run/uniwrt-upgrade.img";
 
 /// What the node was like before: what must hold again after.
 pub(crate) struct Baseline {
@@ -112,7 +112,7 @@ pub(crate) struct Baseline {
     pub(crate) release: String,
     pub(crate) health: Health,
     pub(crate) clients: usize,
-    /// The log patterns (error or worse) the node matched in the hour before.
+    /// The log patterns (error or worse) the node matched in the hour before, read over the login.
     pub(crate) patterns: BTreeSet<String>,
 }
 
@@ -164,17 +164,13 @@ async fn upgrade(
             return Err(err);
         }
     };
-    let flashed_at = shared.clock.now();
     let flashing = tokio::time::Instant::now();
     let started = flash::flash(remote.as_ref(), progress).await;
     remote.close().await;
     started?;
     let timing = &shared.timing.upgrade;
     let remote = flash::reboot(shared, node, &baseline.release, flashing, timing, progress).await?;
-    let outcome = after::after(
-        shared, node, request, &image, &baseline, flashed_at, remote, progress,
-    )
-    .await;
+    let outcome = after::after(shared, node, request, &image, &baseline, remote, progress).await;
     outcome.map_err(|err| flashed(node, err))
 }
 
@@ -211,9 +207,4 @@ fn flashed(node: &Node, err: JobError) -> JobError {
             message, node.name
         ),
     }
-}
-
-/// When the job looked at the node's log from: an hour before `now`.
-pub(crate) fn log_window(now: Timestamp) -> Timestamp {
-    now.saturating_sub(Duration::from_secs(3600))
 }

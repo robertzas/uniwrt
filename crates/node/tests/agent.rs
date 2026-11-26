@@ -59,15 +59,15 @@ async fn the_bundle_installs_by_hash_and_its_agent_says_hello() {
     let bundle = Bundle::get();
     bundle.ensure(&session).await.unwrap();
     assert!(!bundle.ensure(&session).await.unwrap(), "installed already");
-    let version = run(&session, &["cat", "/tmp/uniwrt/agent/VERSION"]).await;
+    let version = run(&session, &["cat", "/var/run/uniwrt/agent/VERSION"]).await;
     assert_eq!(version.trim(), bundle.hash());
-    let mode = run(&session, &["ls", "-ld", "/tmp/uniwrt"]).await;
+    let mode = run(&session, &["ls", "-ld", "/var/run/uniwrt"]).await;
     assert!(mode.starts_with("drwx------"), "{mode}");
 
     // Another version on the node is replaced.
     run(
         &session,
-        &["sh", "-c", "echo stale >/tmp/uniwrt/agent/VERSION"],
+        &["sh", "-c", "echo stale >/var/run/uniwrt/agent/VERSION"],
     )
     .await;
     assert!(bundle.ensure(&session).await.unwrap());
@@ -246,10 +246,10 @@ async fn installing_the_same_version_again_keeps_the_node_s_copy() {
     let bundle = Bundle::get();
     bundle.ensure(&session).await.unwrap();
     // A file the bundle lacks survives only if the directory isn't replaced.
-    run(&session, &["touch", "/tmp/uniwrt/agent/.kept"]).await;
+    run(&session, &["touch", "/var/run/uniwrt/agent/.kept"]).await;
     bundle.install(&session).await.unwrap();
-    run(&session, &["test", "-f", "/tmp/uniwrt/agent/.kept"]).await;
-    run(&session, &["rm", "/tmp/uniwrt/agent/.kept"]).await;
+    run(&session, &["test", "-f", "/var/run/uniwrt/agent/.kept"]).await;
+    run(&session, &["rm", "/var/run/uniwrt/agent/.kept"]).await;
 }
 
 #[tokio::test]

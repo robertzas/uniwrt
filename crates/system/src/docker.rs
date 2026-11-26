@@ -130,7 +130,7 @@ impl Node {
     /// The node's facts, from the working tree's agent (installed by scripts/test-system.sh).
     pub fn facts(&self) -> NodeFacts {
         let request = br#"{"id":1,"op":"collect","args":{}}"#;
-        let run = self.run("ucode /tmp/uniwrt/agent/main.uc --sync", &[], request);
+        let run = self.run("ucode /var/run/uniwrt/agent/main.uc --sync", &[], request);
         assert!(run.ok, "{}: collect failed: {}", self.container, run.stderr);
         let line = run.stdout.lines().last().expect("the agent answers");
         let answer: Value = serde_json::from_str(line).expect("a JSON answer");
@@ -148,7 +148,7 @@ impl Node {
     pub fn agent(&self, op: &str, args: &Value) -> Result<Value, Value> {
         let request = format!("{}\n", json!({"id": 1, "op": op, "args": args}));
         let run = self.run(
-            "ucode /tmp/uniwrt/agent/main.uc --sync",
+            "ucode /var/run/uniwrt/agent/main.uc --sync",
             &[],
             request.as_bytes(),
         );

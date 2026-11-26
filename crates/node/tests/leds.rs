@@ -21,16 +21,16 @@ use uniwrt_node::{
 };
 
 const LONG: Duration = Duration::from_secs(20);
-const SCRIPT_PATH: &str = "/tmp/uniwrt-leds-test.uc";
+const SCRIPT_PATH: &str = "/var/run/uniwrt-leds-test.uc";
 
 /// Builds the tree, then runs `off`, relights one LED, `off` again, resets the settings as a
 /// trigger change would, and `on`; prints what each step left.
 const SCRIPT: &str = r#"
 import * as fs from "fs";
-import { leds, state, paths } from "/tmp/uniwrt/agent/leds.uc";
+import { leds, state, paths } from "/var/run/uniwrt/agent/leds.uc";
 
-const root = "/tmp/uniwrt-leds";
-const saved = "/tmp/uniwrt-leds.json";
+const root = "/var/run/uniwrt-leds";
+const saved = "/var/run/uniwrt-leds.json";
 system(`rm -rf ${root} ${saved}`);
 for (let dir in [root, `${root}/wan`, `${root}/power`, `${root}/usb`, `${root}/usb/ports`])
 	fs.mkdir(dir);

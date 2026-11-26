@@ -14,7 +14,7 @@
 set -u
 phase=$1 dev=$2 count=$3 streams=$4 bypass=$5 url=$6 target=$7
 stats=/sys/class/net/$dev/statistics
-work=/tmp/uniwrt-speedtest
+work=/var/run/uniwrt-speedtest
 loops=""
 
 [ -r "$stats/rx_bytes" ] || { echo '{"err":"no_device"}'; exit 1; }

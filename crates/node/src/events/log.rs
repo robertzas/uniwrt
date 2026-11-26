@@ -60,7 +60,7 @@ fn entry(raw: Entry) -> LogEntry {
 }
 
 /// `Thu Oct 29 03:40:30 2026 [1793245230.849] daemon.info hostapd: phy3-ap0: …`.
-fn line(text: &str) -> Option<LogEntry> {
+pub(crate) fn line(text: &str) -> Option<LogEntry> {
     let (_, rest) = text.split_once(" [")?;
     let (stamp, rest) = rest.split_once("] ")?;
     let (secs, ms) = stamp.split_once('.')?;

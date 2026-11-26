@@ -24,7 +24,7 @@ import { BAD_REQUEST, NOT_FOUND, FAILED } from "./proto.uc";
 
 // Swapped by the agent tests for a fake CLI (`paths`).
 let cli = "/usr/sbin/tailscale";
-let key_path = "/tmp/uniwrt/tailscale.key";
+let key_path = "/var/run/uniwrt/tailscale.key";
 
 // How long `set`, `down` and `logout` (which tells the coordination server) may take.
 const COMMAND_MS = 30000;

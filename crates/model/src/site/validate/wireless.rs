@@ -270,22 +270,12 @@ pub(super) fn tx_power(power: TxPower, at: &str, issues: &mut Issues) {
     }
 }
 
-/// Whether `channel` is a 20 MHz channel number of `band`.
 fn channel_fits(band: Band, channel: u16) -> bool {
-    match band {
-        Band::G2 => (1..=14).contains(&channel),
-        Band::G5 => (32..=177).contains(&channel),
-        Band::G6 => (1..=233).contains(&channel) && channel % 4 == 1,
-        Band::G60 => (1..=6).contains(&channel),
-    }
+    band.has_channel(channel)
 }
 
 fn width_fits(band: Band, width: ChannelWidth) -> bool {
-    match band {
-        Band::G2 => width <= ChannelWidth::Mhz40,
-        Band::G5 => width <= ChannelWidth::Mhz160,
-        Band::G6 | Band::G60 => true,
-    }
+    band.has_width(width)
 }
 
 fn band_name(band: Band) -> &'static str {

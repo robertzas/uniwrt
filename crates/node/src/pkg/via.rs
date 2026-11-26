@@ -57,7 +57,7 @@ real=$(command -v "$m")
 if [ -n "$keep" ]; then
 	d=$keep/.mirror
 else
-	d=$(mktemp -d /tmp/uniwrt-pkg.XXXXXX) || exec "$@"
+	d=$(mktemp -d /var/run/uniwrt-pkg.XXXXXX) || exec "$@"
 	trap 'rm -rf "$d"' EXIT
 	trap 'exit 129' HUP
 	trap 'exit 130' INT
@@ -209,10 +209,10 @@ mod tests {
         let wrapped = via.wrap(update.clone());
         assert_eq!(wrapped[..2], ["sh", "-c"]);
         assert_eq!(unwrap(&wrapped), Some((8443, "", update.as_slice())));
-        let kept = via.wrap_in("/tmp/uniwrt-wpad", update.clone());
+        let kept = via.wrap_in("/var/run/uniwrt-wpad", update.clone());
         assert_eq!(
             unwrap(&kept),
-            Some((8443, "/tmp/uniwrt-wpad", update.as_slice()))
+            Some((8443, "/var/run/uniwrt-wpad", update.as_slice()))
         );
 
         via.set(false);

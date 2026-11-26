@@ -133,7 +133,7 @@ fn steered(node: &Node, iface: &str) -> Vec<SteerEvent> {
   sleep 6
   ubus call usteer update_config '{"min_snr":0}' >/dev/null
   sleep 1
-} | ucode /tmp/uniwrt/agent/main.uc"#;
+} | ucode /var/run/uniwrt/agent/main.uc"#;
     let request = serde_json::json!({
         "addr": CLIENT, "dialog_token": 1, "validity_period": 100, "neighbors": [],
         "mbo_reason": 0, "cell_pref": 255, "reassoc_delay": 0

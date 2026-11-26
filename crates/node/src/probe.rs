@@ -119,7 +119,10 @@ mod tests {
     #[test]
     fn a_round_passes_its_spec_as_one_argument() {
         let request = round(&WanMonitorSettings::default());
-        assert_eq!(request.argv[..2], ["ucode", "/tmp/uniwrt/agent/probe.uc"]);
+        assert_eq!(
+            request.argv[..2],
+            ["ucode", "/var/run/uniwrt/agent/probe.uc"]
+        );
         let spec: Value = serde_json::from_str(&request.argv[2]).unwrap();
         assert_eq!(spec["count"], 10);
         assert_eq!(

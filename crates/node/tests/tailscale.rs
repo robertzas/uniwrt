@@ -24,12 +24,12 @@ use uniwrt_node::{
 };
 
 const LONG: Duration = Duration::from_secs(20);
-const SCRIPT_PATH: &str = "/tmp/uniwrt-tailscale-test.uc";
+const SCRIPT_PATH: &str = "/var/run/uniwrt-tailscale-test.uc";
 
 /// The fake CLI: logs each call's argv (and a key file's mode and content) to `calls`, answers
 /// `status --json` from `state`, and plays tailscaled's part in a login.
 const CLI: &str = r#"#!/bin/sh
-dir=/tmp/uniwrt-ts
+dir=/var/run/uniwrt-ts
 echo "$*" >>"$dir/calls"
 case "$1" in
 status) cat "$dir/state" ;;
@@ -58,12 +58,12 @@ esac
 /// Runs the ops in turn and prints what each answered, with the CLI's calls.
 const SCRIPT: &str = r#"
 import * as fs from "fs";
-import { tailscale, paths } from "/tmp/uniwrt/agent/tailscale.uc";
+import { tailscale, paths } from "/var/run/uniwrt/agent/tailscale.uc";
 
-const dir = "/tmp/uniwrt-ts";
+const dir = "/var/run/uniwrt-ts";
 const key = dir + "/key";
 // The agent makes it when it starts; this script runs without it.
-fs.mkdir("/tmp/uniwrt/run", 0o700);
+fs.mkdir("/var/run/uniwrt/run", 0o700);
 paths(dir + "/tailscale", key);
 let state = (s) => fs.writefile(dir + "/state", sprintf("%J", { BackendState: s, AuthURL: "" }));
 let answer = (args) => {
@@ -112,15 +112,15 @@ async fn a_stock_node_lists_the_op_and_lacks_the_package() {
 async fn the_op_drives_the_cli_with_the_prefs_and_keeps_the_key_out_of_argv() {
     let (session, _node) = adopt().await;
     Bundle::get().ensure(&session).await.unwrap();
-    let write = "rm -rf /tmp/uniwrt-ts && mkdir /tmp/uniwrt-ts && printf %s \"$1\" \
-        >/tmp/uniwrt-ts/tailscale && chmod 755 /tmp/uniwrt-ts/tailscale && printf %s \"$2\" >\"$3\"";
+    let write = "rm -rf /var/run/uniwrt-ts && mkdir /var/run/uniwrt-ts && printf %s \"$1\" \
+        >/var/run/uniwrt-ts/tailscale && chmod 755 /var/run/uniwrt-ts/tailscale && printf %s \"$2\" >\"$3\"";
     run(
         &session,
         &["sh", "-c", write, "sh", CLI, SCRIPT, SCRIPT_PATH],
     )
     .await;
     let out: Value = serde_json::from_str(&run(&session, &["ucode", SCRIPT_PATH]).await).unwrap();
-    run(&session, &["rm", "-rf", SCRIPT_PATH, "/tmp/uniwrt-ts"]).await;
+    run(&session, &["rm", "-rf", SCRIPT_PATH, "/var/run/uniwrt-ts"]).await;
 
     assert_eq!(out["bad_route"]["code"], "bad_request");
     assert_eq!(out["bad_key"]["code"], "bad_request");
@@ -160,7 +160,7 @@ async fn the_op_drives_the_cli_with_the_prefs_and_keeps_the_key_out_of_argv() {
     assert_eq!(calls[0], format!("set {flags}"));
     assert_eq!(
         calls[1],
-        format!("login --auth-key=file:/tmp/uniwrt-ts/key --timeout=30s {flags}")
+        format!("login --auth-key=file:/var/run/uniwrt-ts/key --timeout=30s {flags}")
     );
     // Root's alone, the key in the file only.
     assert_eq!(calls[2], "-rw-------");

@@ -82,7 +82,7 @@ async fn changed_since_mark(session: &Session) -> String {
         "-prune",
         "-o",
         "-newer",
-        "/tmp/uniwrt-adoption-mark",
+        "/var/run/uniwrt-adoption-mark",
         "-print",
     ]);
     run(session, &argv).await
@@ -140,7 +140,7 @@ async fn adoption_changes_only_authorized_keys() {
     let session = Session::connect(&target, None, &host_key, &root, &SshConfig::default())
         .await
         .unwrap();
-    run(&session, &["touch", "/tmp/uniwrt-adoption-mark"]).await;
+    run(&session, &["touch", "/var/run/uniwrt-adoption-mark"]).await;
     // Modification times have one-second resolution on some file systems.
     tokio::time::sleep(Duration::from_millis(1100)).await;
 

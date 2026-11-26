@@ -26,7 +26,7 @@ umask 077
 
 DIR=/etc/uniwrt
 JOURNAL=$DIR/journal
-RUN=/tmp/uniwrt
+RUN=/var/run/uniwrt
 STAGE=$RUN/txn
 LOCK=$RUN/txn.lock
 GUARD=/etc/init.d/uniwrt-guard
@@ -122,10 +122,27 @@ wait_due() {
 	ucode -e "sleep($((left * 10)))" 2>/dev/null || sleep $(((left + 99) / 100))
 }
 
-# Writes $2 into file $1 atomically.
+# Writes $2 into file $1 atomically; fails (leaving $1 as it was) when it can't, e.g. on full flash.
 put_file() {
-	printf '%s\n' "$2" >"$1.tmp" && mv "$1.tmp" "$1"
+	printf '%s\n' "$2" >"$1.tmp" && mv "$1.tmp" "$1" && return 0
+	rm -f "$1.tmp"
+	return 1
 }
+
+# Gives up on an apply whose journal $1 can't be written, before anything changes.
+no_journal() {
+	rm -rf "$1"
+	fail failed "cannot write the journal in $JOURNAL (is the flash full?)"
+}
+
+# The deadline (uptime in seconds) in file $1; a missing or corrupt one is due now.
+deadline_in() {
+	d=$(cat "$1" 2>/dev/null)
+	case $d in '' | *[!0-9]*) echo 0 ;; *) echo "$d" ;; esac
+}
+
+# How long the timer waits before trying a rollback that failed again.
+RETRY_S=10
 
 lock() {
 	mkdir -p "$RUN" || fail failed "cannot create $RUN"
@@ -207,8 +224,9 @@ restart_radios() {
 	done <"$1/radios"
 }
 
-# Rolls the open transaction $1 back, for reason $2; the lock is held. At boot the services
-# are about to start, so nothing reloads.
+# Rolls the open transaction $1 back, for reason $2; the lock is held. At boot ($3 `at_boot`)
+# the services are about to start, so nothing reloads. A package it can't restore (full flash, say) keeps
+# the transaction open, rolling back and due, with its snapshot: the timer tries again.
 roll_back() {
 	j=$JOURNAL/$1
 	put_file "$j/state" rolling_back
@@ -216,8 +234,12 @@ roll_back() {
 		service "$name" stop
 		service "$name" disable
 	done
+	restored=yes
 	for file in "$j"/config/*; do
-		[ -f "$file" ] && install_package "${file##*/}" "$file"
+		[ -f "$file" ] || continue
+		install_package "${file##*/}" "$file" && continue
+		restored=
+		logger -t uniwrt-txn "transaction $1: cannot restore ${file##*/}: trying again"
 	done
 	if [ -f "$j/absent" ]; then
 		while read -r name; do rm -f "/etc/config/$name"; done <"$j/absent"
@@ -226,7 +248,7 @@ roll_back() {
 		service "$name" enable
 	done
 	sync
-	if [ "$2" != boot ]; then
+	if [ "${3:-}" != at_boot ]; then
 		reload_all
 		rebounce "$j/bounce"
 		restart_radios "$j"
@@ -236,6 +258,12 @@ roll_back() {
 	for name in $(services_in "$j/before" on); do
 		grep -qx "$name off" "$j/services" 2>/dev/null && service "$name" start
 	done
+	if [ -z "$restored" ]; then
+		put_file "$j/reason" "$2"
+		put_file "$j/deadline" 0
+		sync
+		return 1
+	fi
 	# Ended only now: a reboot before this point rolls back again, from the same snapshot.
 	finished "$1" rolled_back "\"$2\""
 	rm -f "$JOURNAL/current"
@@ -259,7 +287,7 @@ guard() {
 
 # Rolls back the transaction $1 that apply could not finish, and fails with code $2.
 abort() {
-	roll_back "$1" invalid
+	roll_back "$1" invalid || set -- "$1" "$2" "$3 (its rollback is retried)"
 	guard
 	fail "$2" "$3"
 }
@@ -346,29 +374,33 @@ cmd_apply() {
 	[ -x "$GUARD" ] || fail unsupported "the guard is not installed"
 	j=$JOURNAL/$id
 	rm -rf "$j"
-	mkdir -p "$j/config" || fail failed "cannot create the journal"
-	[ $# -eq 0 ] || printf '%s\n' "$@" >"$j/radios"
+	mkdir -p "$j/config" || no_journal "$j"
+	# Every journal write is checked: nothing may change that the guard couldn't roll back.
+	[ $# -eq 0 ] || printf '%s\n' "$@" >"$j/radios" || no_journal "$j"
 	# The countdown counts from the command's start, as the controller's does from sending it.
-	[ -z "$wait_ms" ] || echo $((start + wait_ms / 10)) >"$j/due"
+	[ -z "$wait_ms" ] || put_file "$j/due" $((start + wait_ms / 10)) || no_journal "$j"
 	# The snapshot: the packages it replaces and the services it switches.
+	absent=
 	for file in "$dir"/config/*; do
 		[ -f "$file" ] || continue
 		name=${file##*/}
 		if [ -f "/etc/config/$name" ]; then
-			cp -p "/etc/config/$name" "$j/config/$name" || fail failed "cannot snapshot $name"
+			cp -p "/etc/config/$name" "$j/config/$name" || no_journal "$j"
 		else
-			echo "$name" >>"$j/absent"
+			absent="$absent$name "
 		fi
 	done
-	cp "$dir/services" "$j/services"
-	: >"$j/before"
-	while read -r name want; do
+	# shellcheck disable=SC2086 # package names, checked by valid
+	[ -z "$absent" ] || printf '%s\n' $absent >"$j/absent" || no_journal "$j"
+	cp "$dir/services" "$j/services" || no_journal "$j"
+	before=$(while read -r name want; do
 		[ -x "/etc/init.d/$name" ] || continue
-		if service "$name" enabled; then echo "$name on"; else echo "$name off"; fi >>"$j/before"
-	done <"$dir/services"
-	put_file "$j/deadline" $(($(uptime_s) + secs + (${wait_ms:-0} + 999) / 1000))
-	put_file "$j/state" applying
-	put_file "$JOURNAL/current" "$id"
+		if service "$name" enabled; then echo "$name on"; else echo "$name off"; fi
+	done <"$dir/services")
+	put_file "$j/before" "$before" || no_journal "$j"
+	put_file "$j/deadline" $(($(uptime_s) + secs + (${wait_ms:-0} + 999) / 1000)) || no_journal "$j"
+	put_file "$j/state" applying || no_journal "$j"
+	put_file "$JOURNAL/current" "$id" || no_journal "$j"
 	sync
 	guard
 	# Services that go off stop first: a stopped one has no reload triggers left. A scheduled
@@ -433,7 +465,8 @@ cmd_extend() {
 	seconds "${2:-}" || fail bad_request "the timeout is $MIN_S to $MAX_S seconds"
 	lock
 	require_open "$1"
-	put_file "$JOURNAL/$1/deadline" $(($(uptime_s) + $2))
+	put_file "$JOURNAL/$1/deadline" $(($(uptime_s) + $2)) ||
+		fail failed "cannot write the journal in $JOURNAL (is the flash full?)"
 	ok "{\"timeout_s\":$2}"
 }
 
@@ -456,7 +489,10 @@ cmd_rollback() {
 	valid "${1:-}" || fail bad_request "bad transaction id"
 	lock
 	require_open "$1"
-	roll_back "$1" requested
+	if ! roll_back "$1" requested; then
+		guard
+		fail failed "cannot restore the snapshot of transaction $1: the guard tries again"
+	fi
 	guard
 	ok
 }
@@ -466,7 +502,7 @@ cmd_status() {
 	open=null
 	id=$(open_id)
 	if [ -n "$id" ]; then
-		deadline=$(cat "$JOURNAL/$id/deadline" 2>/dev/null || echo 0)
+		deadline=$(deadline_in "$JOURNAL/$id/deadline")
 		left=$((deadline - $(uptime_s)))
 		[ $left -ge 0 ] || left=0
 		open="{\"id\":\"$id\",\"state\":\"$(state_of "$id")\",\"remaining_s\":$left}"
@@ -487,16 +523,23 @@ cmd_pending() {
 cmd_wait() {
 	valid "${1:-}" || exit 1
 	while [ "$(open_id)" = "$1" ]; do
-		deadline=$(cat "$JOURNAL/$1/deadline" 2>/dev/null) || exit 1
+		deadline=$(deadline_in "$JOURNAL/$1/deadline")
 		left=$((deadline - $(uptime_s)))
 		if [ $left -le 0 ]; then
 			lock
-			deadline=$(cat "$JOURNAL/$1/deadline" 2>/dev/null) || exit 0
+			deadline=$(deadline_in "$JOURNAL/$1/deadline")
 			if [ "$(open_id)" = "$1" ] && [ "$(uptime_s)" -ge "$deadline" ]; then
-				logger -t uniwrt-txn "transaction $1 was not confirmed in time: rolling back"
-				roll_back "$1" timeout
-				guard
-				exit 0
+				# A rollback that failed before keeps its reason.
+				reason=$(cat "$JOURNAL/$1/reason" 2>/dev/null)
+				case $reason in boot | requested | invalid) ;; *) reason=timeout ;; esac
+				[ "$reason" != timeout ] || logger -t uniwrt-txn "transaction $1 was not confirmed in time: rolling back"
+				if roll_back "$1" "$reason"; then
+					guard
+					exit 0
+				fi
+				exec 9>&-
+				sleep $RETRY_S
+				continue
 			fi
 			exec 9>&-
 			continue
@@ -534,7 +577,7 @@ cmd_boot() {
 		exit 0
 	fi
 	logger -t uniwrt-txn "transaction $id was open at boot: rolling back"
-	roll_back "$id" boot
+	roll_back "$id" boot at_boot
 }
 
 # Installs the tool, the guard and the interface hook from a checked copy of the footprint in $1.

@@ -35,7 +35,7 @@ These apply to humans and agents alike. Read only the section you need.
 
 - Target the ucode in OpenWrt 24.10 and later. Feature-detect modules (`require` inside `try`) and fall back to CLI tools.
 - stdout carries exactly one JSON object per line and nothing else. Debug output goes to stderr.
-- Write persistently only in the transaction and guard paths (`/etc/uniwrt`). Everything else goes under `/tmp/uniwrt`.
+- Write persistently only in the transaction and guard paths (`/etc/uniwrt`). Everything else goes under `/var/run/uniwrt` (or `/var/run/uniwrt-*`), never straight into `/tmp`, which anyone on the node may write (D-150).
 - Each collector is its own file exporting `collect(ctx)`, registered in `collect/index.uc`.
 
 ## Feature recipe (the cheap, repeatable path)

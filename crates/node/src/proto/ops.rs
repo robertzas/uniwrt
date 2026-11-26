@@ -191,7 +191,7 @@ impl Op for Ubus {
     type Output = Box<RawValue>;
 }
 
-/// `exec`: runs a command on the node. Its output goes to files in `/tmp/uniwrt/run`, never to
+/// `exec`: runs a command on the node. Its output goes to files in `/var/run/uniwrt/run`, never to
 /// the agent's stdout; a command that outlives `timeout_ms` is killed ([`code::TIMEOUT`]), and
 /// one that writes more than `max_output` bytes to stdout or stderr fails with
 /// [`code::TOO_LARGE`].

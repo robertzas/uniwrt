@@ -239,3 +239,31 @@ fn an_observed_radio_keeps_what_it_runs_in_the_plan() {
         (36, ChannelWidth::Mhz80)
     );
 }
+
+/// A node's facts are untrusted: a channel or width its band hasn't would make the whole plan
+/// invalid for every node (threat-model.md, §4).
+#[test]
+fn channels_and_widths_the_band_hasn_t_are_left_out() {
+    let site = site(&[ONE, TWO]);
+    let mut hostile = facts(1);
+    for band in hostile
+        .phys
+        .iter_mut()
+        .flat_map(|phy| phy.bands.iter_mut())
+        .filter(|band| band.band == Band::G5)
+    {
+        let mut bogus = band.channels[0];
+        bogus.number = 999;
+        band.channels.push(bogus);
+        band.widths.insert(ChannelWidth::Mhz320);
+    }
+    let gathered = run(
+        &site,
+        &[(hostile, NodeMode::Managed), (facts(2), NodeMode::Managed)],
+    );
+    let one = &gathered.radios[0];
+    assert_eq!(one.node, ONE);
+    assert_eq!(one.channels.len(), 6);
+    assert!(one.channels.iter().all(|c| c.number != 999));
+    assert!(!one.widths.contains(&ChannelWidth::Mhz320));
+}

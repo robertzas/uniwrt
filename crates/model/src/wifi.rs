@@ -18,6 +18,25 @@ pub enum Band {
 }
 
 impl Band {
+    /// Whether `channel` is a 20 MHz channel number of this band.
+    pub fn has_channel(self, channel: u16) -> bool {
+        match self {
+            Self::G2 => (1..=14).contains(&channel),
+            Self::G5 => (32..=177).contains(&channel),
+            Self::G6 => (1..=233).contains(&channel) && channel % 4 == 1,
+            Self::G60 => (1..=6).contains(&channel),
+        }
+    }
+
+    /// Whether this band has channels `width` wide.
+    pub fn has_width(self, width: ChannelWidth) -> bool {
+        match self {
+            Self::G2 => width <= ChannelWidth::Mhz40,
+            Self::G5 => width <= ChannelWidth::Mhz160,
+            Self::G6 | Self::G60 => true,
+        }
+    }
+
     /// The band a frequency lies in.
     pub const fn of_frequency(mhz: u32) -> Option<Self> {
         match mhz {
