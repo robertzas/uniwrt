@@ -61,14 +61,18 @@ const FILES: [(&str, &str); 33] = [
 ];
 
 /// Installs the bundle from stdin: extracts it beside the current one, checks every file
-/// against SHA256SUMS, then swaps it in. `/tmp/uniwrt` is made root's and private first, so no
-/// other user on the node can touch the agent, and installs take turns (`flock`, which BusyBox
-/// has in OpenWrt's default build). A constant: nothing is interpolated.
+/// against SHA256SUMS, then swaps it in, unless the node holds that version already (another
+/// session's install got there first while this one waited for the lock): replacing the
+/// directory then would pull the files from under an agent starting from it. `/tmp/uniwrt` is
+/// made root's and private first, so no other user on the node can touch the agent, and installs
+/// take turns (`flock`, which BusyBox has in OpenWrt's default build). A constant: nothing is
+/// interpolated.
 const INSTALL: &str = "set -e; umask 077; mkdir -p /tmp/uniwrt; chown 0:0 /tmp/uniwrt; \
     chmod 700 /tmp/uniwrt; cd /tmp/uniwrt; \
     if command -v flock >/dev/null; then exec 9>.lock; flock 9; fi; \
     rm -rf .new; mkdir .new; cd .new; tar xf -; sha256sum -c -s SHA256SUMS; cd ..; \
-    rm -rf agent; mv .new agent";
+    if [ -f agent/VERSION ] && [ \"$(cat .new/VERSION)\" = \"$(cat agent/VERSION)\" ]; \
+    then rm -rf .new; else rm -rf agent; mv .new agent; fi";
 
 static BUNDLE: LazyLock<Bundle> = LazyLock::new(Bundle::build);
 
@@ -102,12 +106,18 @@ impl Bundle {
         if current.status.success() && current.stdout.trim_ascii() == self.hash.as_bytes() {
             return Ok(false);
         }
+        self.install(session).await?;
+        Ok(true)
+    }
+
+    /// Installs the bundle whatever the node holds; a node that has this version keeps its copy.
+    pub async fn install(&self, session: &Session) -> Result<()> {
         let install = ExecRequest::new(["sh", "-c", INSTALL]).stdin(self.tar.clone());
         session
             .exec(&install)
             .await?
             .check("installing the agent")?;
-        Ok(true)
+        Ok(())
     }
 
     fn build() -> Self {

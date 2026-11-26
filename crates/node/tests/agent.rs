@@ -236,6 +236,22 @@ async fn ops_answer_or_fail_with_a_code() {
     link.shutdown().await;
 }
 
+/// Installing the version a node holds leaves its copy in place, so an agent starting from it
+/// (another session's) never finds a file missing mid-swap: the tests share one container, and
+/// two of them installing at once once failed `the_synchronous_mode_serves_the_same_ops`.
+#[tokio::test]
+#[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
+async fn installing_the_same_version_again_keeps_the_node_s_copy() {
+    let (session, _node) = adopt().await;
+    let bundle = Bundle::get();
+    bundle.ensure(&session).await.unwrap();
+    // A file the bundle lacks survives only if the directory isn't replaced.
+    run(&session, &["touch", "/tmp/uniwrt/agent/.kept"]).await;
+    bundle.install(&session).await.unwrap();
+    run(&session, &["test", "-f", "/tmp/uniwrt/agent/.kept"]).await;
+    run(&session, &["rm", "/tmp/uniwrt/agent/.kept"]).await;
+}
+
 #[tokio::test]
 #[ignore = "needs an OpenWrt container booted with procd: just test-agent"]
 async fn the_synchronous_mode_serves_the_same_ops() {
