@@ -6,7 +6,7 @@
 //!   Every flag has a `UNIWRT_*` environment equivalent (`cli`). Only `serve` starts a runtime.
 //! - **Modules:** `serve` (runtime, database, listeners, graceful shutdown) → `http` (router: `/api`,
 //!   security headers; `http::plain` redirects plain HTTP) → `ui` (embedded assets, content
-//!   negotiation, SPA fallback). `master_key` opens the vault, `controller_key` keeps the SSH
+//!   negotiation, SPA fallback). `private` keeps every file it writes its user's (umask 077); `master_key` opens the vault, `controller_key` keeps the SSH
 //!   key in it, and `tls` keeps the local CA and the HTTPS certificate there and serves them
 //!   (D-039). `build_info` and the build script in `build/` provide the version, commit and the
 //!   embedded UI.
@@ -39,6 +39,7 @@ mod launcher;
 mod logging;
 mod master_key;
 mod nightly;
+mod private;
 #[cfg(feature = "profiling")]
 mod profiling;
 mod recollect;
@@ -72,6 +73,7 @@ fn main() -> ExitCode {
     // measurable CPU. Process-wide, from here on, and kept across the launcher's exec; an old
     // kernel without the prctl keeps the system's setting.
     let _ = rustix::thread::disable_transparent_huge_pages(true);
+    private::restrict_new_files();
     let cli = Cli::parse();
     let result = match cli.command {
         None => launcher::run(cli.serve),

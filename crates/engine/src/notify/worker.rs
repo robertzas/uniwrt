@@ -78,7 +78,7 @@ async fn run<R: NotifierRepo>(
         }
         let message = Message::new(items, link_url.as_deref(), shared.clock.now());
         let outcome = deliver(&spec, &secrets, &message, &shared).await;
-        let error = outcome.err().map(|err| err.to_string());
+        let error = outcome.err().map(|err| err.recorded());
         if let Err(err) = shared
             .repo
             .record_delivery(id, shared.clock.now(), error)

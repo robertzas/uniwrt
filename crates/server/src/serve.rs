@@ -114,10 +114,7 @@ pub(crate) fn run(args: ServeArgs) -> anyhow::Result<u8> {
 
 /// Serves until a stop request; true when it was an install's restart.
 async fn serve(args: ServeArgs) -> anyhow::Result<bool> {
-    let data_dir = std::path::absolute(&args.data_dir)?;
-    tokio::fs::create_dir_all(&data_dir)
-        .await
-        .with_context(|| format!("cannot create the data directory {}", data_dir.display()))?;
+    let data_dir = crate::private::data_dir(&args.data_dir).await?;
     // Registered before binding, so an early signal is not lost.
     let (stopping, stop) = mpsc::channel(2);
     forward_signals(stopping.clone()).context("cannot install signal handlers")?;

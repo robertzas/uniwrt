@@ -162,6 +162,7 @@ async fn failures_say_what_and_whether_to_retry() {
         err.to_string(),
         "the server answered HTTP 500: database down"
     );
+    assert_eq!(err.recorded(), "the server answered HTTP 500");
     assert!(err.retryable());
 
     let (addr, server) = http_server(None, "404 Not Found", "").await;

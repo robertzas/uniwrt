@@ -88,6 +88,16 @@ impl SendError {
             Self::Invalid(_) | Self::Render(_) => false,
         }
     }
+
+    /// What a delivery's record keeps (viewers read it): the error without the server's
+    /// answer, which holds whatever the host at an admin's URL serves, perhaps a LAN service's
+    /// data (threat-model.md §6). The admin's test and the log still say it.
+    pub fn recorded(&self) -> String {
+        match self {
+            Self::Status { status, .. } => format!("the server answered HTTP {status}"),
+            other => other.to_string(),
+        }
+    }
 }
 
 /// Delivers messages. Clones share its HTTP connections.

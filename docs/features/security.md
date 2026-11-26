@@ -58,7 +58,7 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 ## Secrets vault
 
 - Each secret is sealed with XChaCha20-Poly1305 under an HKDF-SHA256 subkey of the master key (`uniwrt vault v1`), with a random 192-bit nonce and the secret's name as associated data, so a sealed value cannot be moved to another name (`crates/store/src/vault/`).
-- **The master key** is 32 random bytes, kept as 64 hexadecimal digits: in `UNIWRT_MASTER_KEY`, or in a file, by default `/data/master.key` (mode 0600, created on the first run; a warning if others can read it). `--master-key-file` (`UNIWRT_MASTER_KEY_FILE`) puts the file elsewhere, such as a Docker secret, so that a copy of the data volume alone does not open the vault. Back the key up apart from the database: without it the secrets are lost.
+- **The master key** is 32 random bytes, kept as 64 hexadecimal digits: in `UNIWRT_MASTER_KEY` (the process's environment is readable by its UID and root only, but `docker inspect` shows it to anyone with Docker access: prefer the file or a Docker secret), or in a file, by default `/data/master.key` (mode 0600, created on the first run; a warning if others can read it). `--master-key-file` (`UNIWRT_MASTER_KEY_FILE`) puts the file elsewhere, such as a Docker secret, so that a copy of the data volume alone does not open the vault. Back the key up apart from the database: without it the secrets are lost.
 - **Opening** the vault tries the key on every sealed row and refuses to start if any does not open, so a wrong key fails at once. A missing key file is replaced by a new key only while nothing is sealed. Opening also reseals the rows that the M1.2 stub stored unencrypted (`alg = 'plain'`, D-032). Demo mode's key exists only in memory.
 - The first secrets are the controller's SSH key (`controller/ssh_key`), the local CA (`tls/ca`) and the HTTPS certificate (`tls/leaf`); the roaming key (`controller/roaming_key`, 32 random bytes) is made the first time a WLAN fast-roams, and each WLAN's 802.11r key is derived from it (features/wifi.md, Roaming; D-085); adoption adds a node's root password (`node/<id>/root_password`) when the user asks to keep it, and always the random one it gives a node that had none (sealed under `adopt/<mac>/root_password` before `passwd` runs, moved once the node is recorded; D-080). Admins can see it: `POST /api/v1/nodes/{id}/root-password/reveal` (audited).
 - **Controller backups** (D-129) hold the master key with the database, so they are encrypted under a passphrase (age, scrypt) that an admin sets; the passphrase is sealed in the vault (`controller/backup_passphrase`). A restore onto a host that keeps its own key reseals every secret and node backup under that key.
@@ -79,7 +79,7 @@ The controller is its own small CA (D-039, `crates/server/src/tls/`):
 
 ## Container
 
-Runs as UID/GID 65532 and works with a read-only root filesystem (it writes only to `/data`). The image contains no shell or tools and needs no extra capabilities unless it binds ports below 1024.
+Runs as UID/GID 65532 and works with a read-only root filesystem (it writes only to `/data`, 0700 in the image). Every command sets a 077 umask first, so each file the controller writes is 0600 and each directory 0700, in the container or on a host (`--data-dir`); serve warns when the data directory lets other users in (D-150). The image contains no shell or tools and needs no extra capabilities unless it binds ports below 1024.
 
 ## Supply chain & releases
 
