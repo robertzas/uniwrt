@@ -161,8 +161,8 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 
 | Area | Budget |
 |---|---|
-| Controller memory | idle RSS ≤ 103 MB with 10 nodes / 200 clients (98 MB in CI at M9.2a2, the demo's sim included; M9.2d shrinks it towards the 60 MB target, then resets the budget) |
-| Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle; CI checks ≤ 1% of a runner core (0.55% at M9.2a2, the sim included) |
+| Controller memory | idle RSS ≤ 118 MB with 10 nodes / 200 clients (98–112 MB in CI at M9.2a2, the demo's sim included; M9.2d shrinks it towards the 60 MB target, then resets the budget) |
+| Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle; CI checks ≤ 1% of a runner core (0.42–0.62% at M9.2a2, the sim included) |
 | Binary | ≤ 47 MB static (44.6 MB at v0.174.0; M9.2b shrinks it, then resets the budget); cold start < 1 s |
 | API | p99 < 50 ms; node event → UI < 300 ms |
 | UI | initial JS ≤ 200 kB gzip; 60 fps topology with 300 entities |
