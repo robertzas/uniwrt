@@ -84,6 +84,13 @@ gen:
 build: web-build
     UNIWRT_WEB_DIST=web/dist cargo build --release --locked
 
+# The performance budgets (D-149, scripts/perf/budgets.json) on web/dist and a binary; CI checks a
+# release build's
+perf bin="target/release/uniwrt":
+    scripts/perf.sh js web/dist
+    scripts/perf.sh binary {{ bin }}
+    scripts/perf.sh cold-start {{ bin }}
+
 # Static musl binaries built in the zigbuild container: dist/uniwrt-<arch> (default: all targets)
 cross *targets=release_targets: web-build
     scripts/cross.sh {{ targets }}

@@ -163,10 +163,12 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 |---|---|
 | Controller memory | idle RSS ≤ 60 MB with 10 nodes / 200 clients |
 | Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle |
-| Binary | ≤ 25 MB static; cold start < 1 s |
+| Binary | ≤ 47 MB static (44.6 MB at v0.174.0; M9.2b shrinks it, then resets the budget); cold start < 1 s |
 | API | p99 < 50 ms; node event → UI < 300 ms |
-| UI | initial JS ≤ 150 KB gzip; 60 fps topology with 300 entities |
+| UI | initial JS ≤ 200 kB gzip; 60 fps topology with 300 entities |
 | Node agent | RSS ≤ 4 MB; ≤ 1% CPU on an MT7621-class router at the 15 s base interval |
+
+CI enforces the budgets (D-149): `scripts/perf/budgets.json` holds the numbers, `scripts/perf.sh` checks them (`just perf` locally) and a breach fails the run. Checked so far: initial JS (job `ui`), the binary's size and its cold start (`build`).
 
 ## Failure modes
 

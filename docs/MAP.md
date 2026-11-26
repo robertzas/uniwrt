@@ -1239,6 +1239,9 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/next-version.sh`: Prints the next release version from the Conventional Commits since the last vX.Y.Z tag (D-008), or nothing when HEAD is already released.
 - `scripts/next-version.test.sh`: Tests scripts/next-version.sh against throwaway git repositories; `just check` and CI run it.
 - `scripts/oui.py`: (no header comment)
+- `scripts/perf.sh`: The performance budgets (D-149).
+- `scripts/perf.test.sh`: Tests for scripts/perf.sh (D-149): each check passes under its budget and fails over it.
+- `scripts/perf/budgets.json`: (no header comment)
 - `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts, mwan3, miniupnpd, https-dns-proxy, stubby, ddns-scripts and mdns-repeater (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM, failover (D-076), UPnP (D-079), DoH and DDNS (D-132), mDNS reflection (D-136), DoT (D-146), and batman-adv's user space, for the apply's wired backhaul (D-097; the kernel side is the host's).
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).

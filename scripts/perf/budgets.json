@@ -1,0 +1,6 @@
+{
+  "_doc": "Performance budgets (D-149), checked by scripts/perf.sh. Sizes in bytes (kB and MB are decimal), times in ms. docs/ARCHITECTURE.md explains each one.",
+  "initial_js_gzip": { "max": 200000, "unit": "bytes" },
+  "binary": { "max": 47000000, "unit": "bytes" },
+  "cold_start": { "max": 1000, "unit": "ms" }
+}

@@ -112,6 +112,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Build
         run: bun run build
+      - name: Initial JS budget (D-149)
+        run: ../scripts/perf.sh js dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-dist
@@ -147,6 +149,7 @@ jobs:
           shellcheck scripts/*.sh node-agent/speedtest.sh node-agent/txn/txn node-agent/txn/uniwrt-guard node-agent/ztp/first-boot.sh node-agent/ztp/uniwrt-hello node-agent/adoption/lend.sh
           scripts/next-version.test.sh
           scripts/arch-check.test.sh
+          scripts/perf.test.sh
       - name: Layering (arch-check)
         run: scripts/arch-check.sh
       - name: Clippy
@@ -383,6 +386,12 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{redirect_url}' http://127.0.0.1:18080/)" = https://127.0.0.1:18443/
           kill "$pid"
           wait "$pid" # graceful shutdown exits 0
+      - name: Binary budget (D-149)
+        run: scripts/perf.sh binary "target/$TARGET/release/uniwrt"
+      # Under qemu-user the start time would measure the emulator, not the binary.
+      - name: Cold start budget (D-149)
+        if: ${{ !matrix.qemu }}
+        run: scripts/perf.sh cold-start "target/$TARGET/release/uniwrt"
       - name: Package
         run: |
           name=uniwrt-$UNIWRT_VERSION-$TARGET
