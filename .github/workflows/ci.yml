@@ -181,6 +181,27 @@ jobs:
       - name: Scaffold (new-feature)
         run: (cd web && bun install --frozen-lockfile) && scripts/new-feature.test.sh
 
+  # Security scanners (D-150): zizmor over the workflows, osv-scanner over the web lockfile
+  # (cargo-deny covers the crates in the rust job). CodeQL runs in codeql.yml.
+  audit:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: zizmor@1.33.1,osv-scanner@2.7.1 # keep in line with `just setup`
+      - name: zizmor (workflows)
+        env:
+          GH_TOKEN: ${{ github.token }} # online audits: impostor commits, known-vulnerable actions
+        run: zizmor --format github .github/
+      - name: osv-scanner (web/bun.lock)
+        run: osv-scanner scan source --lockfile web/bun.lock
+
   # The transport against dropbear on real OpenWrt, in rootfs containers (TESTING.md, Transport).
   transport:
     runs-on: ubuntu-26.04
@@ -481,13 +502,13 @@ jobs:
         run: scripts/perf.sh api bin/uniwrt-amd64
 
   image:
-    needs: [version, web, rust, transport, agent, wifi, system, build, e2e, perf]
+    needs: [version, web, rust, audit, transport, agent, wifi, system, build, e2e, perf]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
-      packages: write
+      packages: write # pushes the image to GHCR
       id-token: write # cosign keyless signing
     env:
       IMAGE: ghcr.io/${{ github.repository }}
@@ -569,9 +590,9 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: write # creates the GitHub release
+      id-token: write # build provenance (Sigstore)
+      attestations: write # stores the attestation
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:

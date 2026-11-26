@@ -79,6 +79,6 @@ Runs as UID/GID 65532 and works with a read-only root filesystem (it writes only
 
 - `Cargo.lock` and `bun.lock` are committed.
 - npm dependencies are pinned to exact versions (`web/bunfig.toml`, D-027). Crates, npm packages, tools and actions are kept at their newest releases, with no cooldown (D-049); cargo-deny's advisory check and Dependabot's security updates catch known-bad versions.
-- cargo-deny (advisories, licenses, bans, sources) runs in CI.
+- cargo-deny (advisories, licenses, bans, sources) runs in CI, osv-scanner checks the web packages' lockfile, zizmor audits the workflows, and CodeQL analyzes the Rust and TypeScript code (D-150; dev/BUILD.md).
 - Dependabot covers cargo, the web packages (bun), GitHub Actions and the Dockerfile's base image, proposing releases as they come out; actions are pinned by commit SHA.
 - Images ship with SBOM and provenance attestations and cosign keyless signatures; binaries ship with SHA256SUMS and build provenance attestations, and embed their dependency list (cargo-auditable).

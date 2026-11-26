@@ -61,6 +61,17 @@ if need web bun bun --version; then
   step web '[0-9]+ passed' \
     bash -c 'cd web && bun install --frozen-lockfile && bun run check'
 fi
+# The security scanners of CI's audit job (D-150); osv-scanner is a Go binary that `just setup` doesn't install.
+if command -v zizmor >/dev/null; then
+  step zizmor '' zizmor --quiet --format plain .github/
+else
+  skip zizmor 'not installed: run "just setup"; CI runs it'
+fi
+if command -v osv-scanner >/dev/null; then
+  step osv-scanner '' osv-scanner scan source --lockfile web/bun.lock
+else
+  skip osv-scanner 'not installed; CI runs it'
+fi
 if command -v shellcheck >/dev/null; then
   step shellcheck '' shellcheck scripts/*.sh node-agent/speedtest.sh node-agent/txn/txn node-agent/txn/uniwrt-guard node-agent/ztp/first-boot.sh node-agent/ztp/uniwrt-hello
 else

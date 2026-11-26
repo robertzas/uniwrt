@@ -1,0 +1,5 @@
+# zizmor's configuration (D-150; features/security.md, Supply chain).
+rules:
+  # Updates are taken as soon as they are released, with no cooldown: the owner's choice (D-049).
+  dependabot-cooldown:
+    disable: true
