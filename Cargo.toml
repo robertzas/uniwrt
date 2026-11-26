@@ -12,6 +12,7 @@ publish = false
 
 [workspace.dependencies]
 uniwrt-api = { path = "crates/api" }
+uniwrt-bench = { path = "crates/bench" }
 uniwrt-clients = { path = "crates/clients" }
 uniwrt-core = { path = "crates/core" }
 uniwrt-dns = { path = "crates/dns" }
@@ -95,6 +96,12 @@ rustix = { version = "1.1.6", default-features = false, features = ["std", "proc
 # Golden files of rendered UCI (crates/render/tests); review changes with `cargo insta review`.
 insta = { version = "1.49.0", default-features = false }
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+# Benchmarks and flamegraphs (D-149, M9.2c): criterion without its charts, pprof's in-process sampler
+# (no perf, no root) and inferno's SVG writer (0.12: pprof's own flamegraph feature pins 0.11, whose
+# quick-xml has advisories). Benches and the server's `profiling` feature only: never in a release.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+inferno = { version = "0.12.8", default-features = false }
+pprof = { version = "0.15.0", default-features = false }
 tempfile = "3.27.0"
 # A WebSocket client for the API's tests: the version axum's ws feature brings.
 tokio-tungstenite = { version = "0.29.0", default-features = false }
@@ -177,3 +184,20 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.miniz_oxide]
 opt-level = 3
+
+# Benches (`cargo bench`, `just profile bench`; D-149): release's code, with symbols for the
+# flamegraphs, and thin LTO: a fat-LTO link of each bench binary would take minutes.
+[profile.bench]
+strip = false
+debug = "line-tables-only"
+lto = "thin"
+codegen-units = 16
+
+# `just profile serve` (D-149): the release build with its symbols, for the flamegraphs.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "line-tables-only"
+[profile.profiling.package.uniwrt]
+opt-level = "s"
+strip = false

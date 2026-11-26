@@ -129,6 +129,11 @@ pub(crate) struct ServeArgs {
         default_value = "info"
     )]
     pub(crate) log: String,
+    /// Sample the CPU from start to exit and write a flamegraph (SVG) to FILE: builds with the
+    /// `profiling` feature only (`just profile serve`, D-149).
+    #[cfg(feature = "profiling")]
+    #[arg(long, value_name = "FILE")]
+    pub(crate) profile_cpu: Option<PathBuf>,
     /// Run a simulated fleet (a gateway, 3 access points and 30 clients) instead of the adopted
     /// nodes. Its database lives in a temporary directory inside the data directory and is
     /// deleted at exit; the real data is never touched.

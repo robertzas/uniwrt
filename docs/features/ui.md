@@ -69,7 +69,7 @@ Professional, modern and fast: dense but calm. It should feel like a premium pro
 ## Performance budgets
 
 - Initial JS ≤ 200 kB gzip (D-149, checked in CI); routes lazy-loaded; Lighthouse score ≥ 95.
-- 60 fps topology with 300 entities; tables virtualized above 200 rows.
+- 60 fps topology with 300 entities (checked in CI: `web/e2e/topology.spec.ts`, D-149); tables virtualized above 200 rows.
 - CSS containment to avoid layout thrash; WebSocket deltas applied in batches once per animation frame.
 
 ## Accessibility & i18n

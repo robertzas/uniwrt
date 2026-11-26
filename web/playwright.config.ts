@@ -25,7 +25,12 @@ const screens = [
   "floorplans",
   "rf",
   "phone",
+  "topology",
 ];
+/** A screens' demo sized beyond the default: the topology's frame rate needs 300 entities (D-149). */
+const demoFlags: Record<string, string> = {
+  topology: "--demo-access-points 12 --demo-clients 320",
+};
 /** What a screens' project uses beyond its controller: the phone sweep runs at a phone's width. */
 const devices: Record<string, object> = {
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
@@ -81,6 +86,8 @@ export default defineConfig({
     controller("--demo --demo-seed 42", 18080, 18443),
     controller("--demo --demo-factory --demo-seed 42", 18081, 18444),
     controller("--demo --demo-seed 42", 18082, 18445),
-    ...screens.map((_, i) => controller("--demo --demo-seed 42", 18083 + i, 18446 + i)),
+    ...screens.map((name, i) =>
+      controller(`--demo --demo-seed 42 ${demoFlags[name] ?? ""}`.trim(), 18083 + i, 18446 + i),
+    ),
   ],
 });

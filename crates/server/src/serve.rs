@@ -74,12 +74,18 @@ type Server = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
 /// Serves; returns the exit code: 0, or [`launcher::RESTART`] when an install asked for it.
 pub(crate) fn run(args: ServeArgs) -> anyhow::Result<u8> {
     logging::init(&args.log)?;
+    #[cfg(feature = "profiling")]
+    let profile = crate::profiling::start(args.profile_cpu.clone())?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .context("cannot start the async runtime")?;
     let result = runtime.block_on(serve(args));
     runtime.shutdown_timeout(Duration::from_secs(1));
+    #[cfg(feature = "profiling")]
+    if let Some(profile) = profile {
+        profile.finish()?;
+    }
     result.map(|restart| {
         if restart {
             u8::try_from(launcher::RESTART).unwrap_or(1)

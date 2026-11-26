@@ -20,8 +20,14 @@ uniwrt-core.workspace = true
 uniwrt-model.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 proptest.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uniwrt-bench.workspace = true
+
+[[bench]]
+name = "logs"
+harness = false
 
 [lints]
 workspace = true

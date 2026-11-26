@@ -32,11 +32,18 @@ uniwrt-uci.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "test-util"] }
 # tests/agent.rs shares the node crate's OpenWrt helpers, which need it.
+uniwrt-bench.workspace = true
+uniwrt-sim.workspace = true
 zeroize.workspace = true
+
+[[bench]]
+name = "ingest"
+harness = false
 
 [lints]
 workspace = true

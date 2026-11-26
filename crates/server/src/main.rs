@@ -39,6 +39,8 @@ mod launcher;
 mod logging;
 mod master_key;
 mod nightly;
+#[cfg(feature = "profiling")]
+mod profiling;
 mod recollect;
 mod restore;
 mod scheduled_backups;

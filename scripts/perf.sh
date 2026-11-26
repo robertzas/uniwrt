@@ -14,7 +14,8 @@
 #                                       (crates/engine/tests/agent.rs); the file's name labels it
 #
 # UNIWRT_PERF_SETTLE_S (default 60) is how long a demo runs before it is measured, and
-# UNIWRT_PERF_WINDOW_S (default 60) how long `idle` measures.
+# UNIWRT_PERF_WINDOW_S (default 60) how long `idle` measures. scripts/profile.sh sources this file
+# for its demo and the API's reads.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -138,21 +139,35 @@ API_READS=(auth/me nodes nodes/1 clients topology events alerts site drift revis
   jobs rf logs "metrics/series?node=1" services/dns/stats floors)
 API_ROUNDS=${UNIWRT_PERF_API_ROUNDS:-20}
 
-api() {
-  local jar config times p99
-  demo "$1" 50 1000
-  jar=$(temp) config=$(temp) times=$(temp)
+# api_login: signs in to the demo, keeping the session's cookie in $jar.
+api_login() {
+  jar=$(temp)
   curl -fsSk -c "$jar" -H 'x-uniwrt-csrf: 1' -H 'content-type: application/json' \
     -d '{"username":"demo","password":"demo"}' "https://$https/api/v1/auth/login" >/dev/null ||
     die "cannot sign in to the demo"
+}
+
+# api_reads <file>: reads API_READS API_ROUNDS times over one connection (signed in by
+# api_login), each read's status and time in seconds as a line of <file>.
+api_reads() {
+  local config
+  config=$(temp)
   # One curl, one connection: each request's time without the TLS handshake.
   for ((r = 0; r < API_ROUNDS; r++)); do
     for path in "${API_READS[@]}"; do
       printf 'url = "https://%s/api/v1/%s"\noutput = "/dev/null"\n' "$https" "$path"
     done
   done >"$config"
-  curl -sSk -b "$jar" -K "$config" -w '%{http_code} %{time_total}\n' >"$times" ||
+  curl -sSk -b "$jar" -K "$config" -w '%{http_code} %{time_total}\n' >"$1" ||
     die "the API reads failed"
+}
+
+api() {
+  local times p99
+  demo "$1" 50 1000
+  times=$(temp)
+  api_login
+  api_reads "$times"
   if awk '$1 !~ /^2/ { bad = 1 } END { exit !bad }' "$times"; then
     die "some reads failed: $(awk '$1 !~ /^2/' "$times" | sort | uniq -c | head -3)"
   fi
@@ -168,6 +183,9 @@ agent_rss() {
   [[ $value =~ ^[0-9]+$ ]] || die "$1 holds no byte count"
   report "Agent RSS ($(basename "$1"))" agent_rss "$value"
 }
+
+# Sourced (scripts/profile.sh), it only defines the functions above.
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
 
 case ${1:-} in
   js) [[ $# -eq 2 ]] || die "usage: $0 js <dist>"; js "$2" ;;

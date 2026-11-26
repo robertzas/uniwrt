@@ -32,6 +32,12 @@ allow = [
 ]
 confidence-threshold = 0.93
 
+[[licenses.exceptions]]
+# Flamegraphs' SVG writer (D-149, M9.2c): the benches and the server's `profiling` feature only,
+# never in a release build. CDDL-1.0 is file-level copyleft, and inferno's files are used as is.
+crate = "inferno"
+allow = ["CDDL-1.0"]
+
 [licenses.private]
 # Workspace crates are `publish = false`.
 ignore = true

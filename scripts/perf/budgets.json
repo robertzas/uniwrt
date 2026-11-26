@@ -1,5 +1,5 @@
 {
-  "_doc": "Performance budgets (D-149), checked by scripts/perf.sh. Sizes in bytes (kB and MB are decimal), times in ms. docs/ARCHITECTURE.md explains each one.",
+  "_doc": "Performance budgets (D-149), checked by scripts/perf.sh (each a max) and, for the topology's frame rate (a min), by web/e2e/topology.spec.ts. Sizes in bytes (kB and MB are decimal), times in ms. docs/ARCHITECTURE.md explains each one.",
   "initial_js_gzip": {
     "max": 200000,
     "unit": "bytes"
@@ -27,5 +27,9 @@
   "agent_rss": {
     "max": 4000000,
     "unit": "bytes"
+  },
+  "topology_fps": {
+    "min": 55,
+    "unit": "fps"
   }
 }

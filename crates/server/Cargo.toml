@@ -22,6 +22,9 @@ clap.workspace = true
 flate2.workspace = true
 ipnet.workspace = true
 mimalloc.workspace = true
+# `serve --profile-cpu` (the `profiling` feature; `just profile serve`, D-149).
+pprof = { workspace = true, optional = true }
+uniwrt-bench = { workspace = true, optional = true }
 rcgen.workspace = true
 ring.workspace = true
 rustix = { workspace = true, features = ["termios"] }
@@ -58,6 +61,10 @@ uniwrt-store.workspace = true
 uniwrt-syslog.workspace = true
 uniwrt-uci.workspace = true
 zeroize.workspace = true
+
+[features]
+# CPU flamegraphs of a running controller (`just profile serve`, D-149); off in every release.
+profiling = ["dep:pprof", "dep:uniwrt-bench"]
 
 [build-dependencies]
 brotli.workspace = true

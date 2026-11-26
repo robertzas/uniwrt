@@ -152,6 +152,12 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/ztp/script.rs`: `GET /api/v1/ztp/script?role=ap|bridge|gateway` (admins; D-102): the first-boot script of a zero-touch image, for the OpenWrt Firmware Selector's "script to run on first boot" or an image builder's `/etc/uci-defaults`.
 - `src/ztp/tests.rs`: Zero-touch provisioning through the router, against the simulated fleet's API: hellos checked, kept, limited and answered; pre-approvals used once; adopting and dismissing from the inbox; the first-boot script.
 
+### `uniwrt-bench` (crates/bench)
+
+Benchmark support (docs/dev/TESTING.md, Performance; D-149): what the crates' criterion benches share, and the CPU sampler behind every flamegraph.
+
+- `src/lib.rs`: Benchmark support (docs/dev/TESTING.md, Performance; D-149): what the crates' criterion benches share, and the CPU sampler behind every flamegraph.
+
 ### `uniwrt-clients` (crates/clients)
 
 Clients (features/observability.md, Clients): the inventory of every device that connects through the adopted nodes, who each one is, where it was connected and how well.
@@ -198,6 +204,7 @@ DNS filtering's lists (features/network.md, Blocklists; D-133).
 
 The engine: an actor per node over its `NodeLink`, the live state of the fleet, its topology, the event bus, telemetry intervals that follow interest, snapshots, and each node's status.
 
+- `benches/ingest.rs`: The telemetry ingest (docs/dev/TESTING.md, Performance; D-149): what the engine does with its nodes' collect answers, a step at a time and as one whole tick, on the simulated fleets of the runtime budgets (10 access points with 200 clients, and 50 with 1,000).
 - `src/actor/jobs.rs`: The requests an actor sends its agent, one at a time so a node that serves requests one at a time is never asked twice at once: a queue of [`Job`]s, the one running, and its [`Outcome`].
 - `src/actor/mod.rs`: [`NodeActor`]: one task per node.
 - `src/actor/telemetry.rs`: What an actor does with telemetry: collected sets become the node's facts, pushed events are stamped and announced (and refresh the sets they touch), log batches are announced without the entries a restarted follow repeats. usteer's signal kicks name no client: the disconnect from the same access point that follows (usteer kicks right after notifying) names it.
@@ -779,6 +786,7 @@ Notifiers (features/observability.md, Notifications; D-061, D-063): alerts in wo
 
 Render (features/lifecycle.md, Render → diff → apply): a site's desired state and one node's facts become the UCI packages the controller owns on that node.
 
+- `benches/render.rs`: Render (docs/dev/TESTING.md, Performance; D-149): one node's packages from the site, as each apply's plan and each drift check render every managed node.
 - `src/adoption.rs`: The adoption port on the gateway (features/adoption.md, Path C; D-105): the port leaves the LAN for a bridge of its own, `br-adopt`, where the gateway holds a static address in factory-default OpenWrt's 192.168.1.0/24 with IPv6 off (a factory device's router advertisements stay out).
 - `src/backhaul.rs`: The wired backhaul (features/mesh.md, Wired backhaul; D-094): batman-adv over a cable between two nodes, on the site's backhaul VLAN (`<port>.<vid>`, MTU 1532).
 - `src/blocking.rs`: DNS filtering on the gateway (features/network.md, Blocklists; D-133).
@@ -895,6 +903,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/nightly/ctx.rs`: What the nightly optimizer works with: the store, the job runner, the engine (each node's facts), RF insight and the API (to tell its WebSocket clients of a saved revision).
 - `src/nightly/mod.rs`: The nightly RF optimizer (features/wifi.md, RF planner: Apply; M6.1 b3a, D-115): with `nightly` on in the `rf` settings, the site's window (03:30 local by default, for two hours) plans every band and applies the bands whose cost improves by 15 % or more ([`uniwrt_rf::plan::nightly`]): the plan is saved as a revision by the controller and applied with the usual transactions and rollback.
 - `src/nightly/tests.rs`: The nightly optimizer's decisions over a scripted site: a node meshing on 5 GHz, whose plan improves the band by 30 %, at 03:40 local in the window opening at 03:30; its radio1 catches up after a channel switch where the test says so.
+- `src/profiling.rs`: `serve --profile-cpu <FILE>` (the `profiling` feature; `just profile serve`, D-149): the whole process, every thread, sampled from the start of `serve` to its exit, and the flamegraph (SVG) written to FILE, as the benches are (`uniwrt-bench`: pprof in process, no perf, no root, user space only).
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
 - `src/restore.rs`: Restoring a controller backup (features/lifecycle.md, Backups; D-129): `uniwrt restore FILE` stages it as an upload in the UI does ([`run`]), and the next start puts it in place before the store opens ([`apply_staged`]).
 - `src/restore_tests.rs`: (no header comment)
@@ -1053,6 +1062,7 @@ SQLite persistence: one database in WAL mode, a batching writer thread, a read p
 
 Syslog: the RFC 3164/5424 parser, the UDP and TCP receiver, and the annotations that explain log entries (observability.md, Logs).
 
+- `benches/logs.rs`: Log ingest (docs/dev/TESTING.md, Performance; D-149): what the engine's `LogRecorder` does with each line that reaches the controller, by syslog or the agent's follow: `parse` it (RFC 3164, RFC 5424, logd's own timestamps) and `annotate` it with the embedded patterns.
 - `src/annotate.rs`: Annotations (observability.md, Logs): `data/log-patterns.toml` maps a regex over an entry's text, for some programs or all, to what it means ([`LogPattern`]).
 - `src/frame.rs`: Syslog over TCP (RFC 6587): each frame is octet-counted (`LEN SP MSG`) or ends with a line feed or a NUL (non-transparent framing; logd ends its messages with `\n`, or `\0` with `log_trailer_null`).
 - `src/lib.rs`: Syslog: the RFC 3164/5424 parser, the UDP and TCP receiver, and the annotations that explain log entries (observability.md, Logs).
@@ -1242,6 +1252,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/perf.sh`: The performance budgets (D-149).
 - `scripts/perf.test.sh`: Tests for scripts/perf.sh (D-149): each check passes under its budget and fails over it.
 - `scripts/perf/budgets.json`: (no header comment)
+- `scripts/profile.sh`: CPU flamegraphs (D-149, M9.2c; `just profile`), sampled in process by pprof: no perf, no root.
 - `scripts/system-node.Dockerfile`: An OpenWrt rootfs for the system harness (scripts/test-system.sh): the stock image plus `bridge`, to check the bridge's VLANs, a PPPoE server and client, for the ISP's end, and sqm-scripts, mwan3, miniupnpd, https-dns-proxy, stubby, ddns-scripts and mdns-repeater (off, as an install leaves them before a transaction turns them on), to check what render writes for SQM, failover (D-076), UPnP (D-079), DoH and DDNS (D-132), mDNS reflection (D-136), DoT (D-146), and batman-adv's user space, for the apply's wired backhaul (D-097; the kernel side is the host's).
 - `scripts/system/isp.uci`: (no header comment)
 - `scripts/system/pap-secrets`: The subscriber the harness dials in as (crates/system/src/site.rs).

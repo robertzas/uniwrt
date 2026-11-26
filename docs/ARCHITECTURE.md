@@ -76,6 +76,7 @@ flowchart TB
 | L3 interface | `api` | axum REST + WebSocket, DTOs (ts-rs), auth and sessions | L0–L2 |
 | L3 | `server` (bin `uniwrt`) | CLI, config, composition root, embedded UI, TLS | all |
 | test | `sim` | simulated fleet implementing `NodeLink`: a seeded world rendered in the agent's raw shapes, and the commands the jobs run (adoption's, and the transaction tool with `/etc/config` in `uniwrt_sim::txn`, which the jobs' tests drive too; each node's `/etc/config` starts as OpenWrt 25.12's stock packages configured by hand for the simulated network, also exported with each node's facts as `uniwrt_sim::brownfield` for import's tests); the ISP behind the gateway, which answers what its `network` asks for (D-075); a factory-default gateway (`SimConfig::factory`, `serve --demo --demo-factory`; D-082) whose LAN follows its `network` when its ports bounce; `serve --demo` and tests (D-038, D-048) | core, model, node, uci |
+| test | `bench` | criterion's shared configuration and the CPU sampler (pprof, with inferno's SVG) behind every flamegraph: the crates' benches (`crates/{engine,render,syslog}/benches`) and the server's `profiling` feature (`serve --profile-cpu`, `just profile`; D-149); never in a release build | — |
 | test | `system` | the system harness: rendered configs on OpenWrt containers through `docker exec` (the agent's facts, write and read back, netifd, the bridge); `tests/system.rs` on `scripts/test-system.sh`'s wired topology, and `tests/apply/` the apply job end to end there over a `docker exec` dial (M3.4a2b; jobs and store as dev-dependencies), `tests/wifi.rs` on the hwsim lab (M3.3b) | core, model, node, render, uci |
 
 Rules:
@@ -165,10 +166,10 @@ Everything else is ephemeral, under `/tmp/uniwrt` (RAM).
 | Controller CPU | ≤ 2% of one Raspberry Pi 4 core at idle; CI checks ≤ 1% of a runner core (0.42–0.62% at M9.2a2, the sim included) |
 | Binary | ≤ 41 MB static (38.8 MB on x86_64 after M9.2b, from 44.6 MB; D-149); cold start < 1 s |
 | API | p99 < 50 ms; node event → UI < 300 ms |
-| UI | initial JS ≤ 200 kB gzip; 60 fps topology with 300 entities |
+| UI | initial JS ≤ 200 kB gzip; 60 fps topology with 300 entities (CI: ≥ 55 fps while the map zooms every frame; 60 at M9.2c) |
 | Node agent | peak RSS ≤ 4 MB (about 2 MB on 24.10 and 25.12); ≤ 1% CPU on an MT7621-class router at the 15 s base interval |
 
-CI enforces the budgets (D-149): `scripts/perf/budgets.json` holds the numbers, `scripts/perf.sh` checks them (`just perf` locally) and a breach fails the run. Checked: initial JS (job `ui`); the binary's size and its cold start (`build`); idle RSS and CPU with `serve --demo --demo-access-points 10 --demo-clients 200`, and the API's p99 with 50 and 1,000 (`perf`); the agent's peak RSS under the engine on both releases (`agent`). Not yet: node event → UI, the topology's frame rate (M9.2c), the agent's CPU.
+CI enforces the budgets (D-149): `scripts/perf/budgets.json` holds the numbers, `scripts/perf.sh` checks them (`just perf` locally) and a breach fails the run. Checked: initial JS (job `ui`); the binary's size and its cold start (`build`); idle RSS and CPU with `serve --demo --demo-access-points 10 --demo-clients 200`, and the API's p99 with 50 and 1,000 (`perf`); the agent's peak RSS under the engine on both releases (`agent`); the topology's frame rate with 300 entities (`e2e`, `web/e2e/topology.spec.ts`, a minimum). Not yet: node event → UI, the agent's CPU. Profiling (M9.2c): criterion benches of the ingest, render and log paths, run once each in CI without a timing gate, and pprof flamegraphs of them and of a running demo (`just profile`; BUILD.md).
 
 ## Failure modes
 

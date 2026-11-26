@@ -1,0 +1,17 @@
+[package]
+name = "uniwrt-bench"
+description = "uniwrt benchmark support: criterion's shared configuration and a pprof flamegraph profiler for the crates' benches"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+criterion.workspace = true
+inferno.workspace = true
+pprof.workspace = true
+
+[lints]
+workspace = true

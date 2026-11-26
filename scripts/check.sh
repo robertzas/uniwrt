@@ -39,12 +39,16 @@ need() {
 }
 
 step rustfmt '' cargo fmt --all --check
-if ! step clippy '' cargo clippy --workspace --all-targets --locked -- -D warnings; then
+if ! step clippy '' bash -c 'cargo clippy --workspace --all-targets --locked -- -D warnings &&
+  cargo clippy --locked -p uniwrt --features profiling -- -D warnings'; then
   skip 'rust tests' 'clippy failed'
 elif need 'rust tests' cargo-nextest cargo nextest --version; then
   # Also refreshes web/src/api/gen (ts-rs), so it runs before the web step.
   step 'rust tests' '[0-9]+ passed, [0-9]+ skipped' \
     cargo nextest run --workspace --locked --status-level fail --final-status-level fail
+  # Each bench once (D-149): a panic or a broken fixture fails; the timings aren't checked.
+  step benches '' cargo test --locked -p uniwrt-engine --bench ingest -p uniwrt-render --bench render \
+    -p uniwrt-syslog --bench logs
 fi
 step 'code map' 'regenerated .*' scripts/gen-map.sh
 step 'arch check' '[0-9]+ crates, [0-9]+ web imports' scripts/arch-check.sh

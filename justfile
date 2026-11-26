@@ -97,6 +97,11 @@ perf-runtime bin="target/release/uniwrt":
     scripts/perf.sh idle {{ bin }}
     scripts/perf.sh api {{ bin }}
 
+# CPU flamegraphs (D-149, pprof in process): `bench [filter]` samples the criterion benches (ingest,
+# render, logs); `serve [bin]` the controller under the 50-node demo's API reads (scripts/profile.sh)
+profile what="bench" *args:
+    scripts/profile.sh {{ what }} {{ args }}
+
 # Static musl binaries built in the zigbuild container: dist/uniwrt-<arch> (default: all targets)
 cross *targets=release_targets: web-build
     scripts/cross.sh {{ targets }}

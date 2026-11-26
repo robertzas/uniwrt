@@ -154,8 +154,12 @@ jobs:
         run: scripts/arch-check.sh
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Clippy, the server's profiling feature (D-149)
+        run: cargo clippy --locked -p uniwrt --features profiling -- -D warnings
       - name: Test
         run: cargo nextest run --workspace --locked --no-fail-fast
+      - name: Benches, each run once (D-149; no timing gate)
+        run: cargo test --locked -p uniwrt-engine --bench ingest -p uniwrt-render --bench render -p uniwrt-syslog --bench logs
       - name: Generated TypeScript types are committed
         run: |
           if [[ -n $(git status --porcelain -- web/src/api/gen) ]]; then
