@@ -43,6 +43,7 @@ mod private;
 #[cfg(feature = "profiling")]
 mod profiling;
 mod recollect;
+mod reset_admin;
 mod restore;
 mod scheduled_backups;
 mod scheduled_reboots;
@@ -81,6 +82,7 @@ fn main() -> ExitCode {
         Some(Command::Healthcheck(args)) => healthcheck::run(&args).map(|()| 0),
         Some(Command::Version(args)) => version::run(&args).map(|()| 0),
         Some(Command::Restore(args)) => restore::run(&args).map(|()| 0),
+        Some(Command::ResetAdmin(args)) => reset_admin::run(&args).map(|()| 0),
     };
     match result {
         Ok(code) => ExitCode::from(code),

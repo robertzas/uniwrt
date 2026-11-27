@@ -4,9 +4,14 @@
 //! - `GET /api/v1/auth`: the setup state and the session's user, if any (public).
 //! - `POST /api/v1/auth/setup`: creates the admin while the window is open, and logs them in.
 //! - `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
+//! - `POST /api/v1/auth/password`: changes the session's own password ([`account`]).
+//!
+//! [`reset`] gives an admin a new password from the command line (`uniwrt reset-admin`).
 
+pub(crate) mod account;
 pub(crate) mod limit;
 pub(crate) mod password;
+pub mod reset;
 pub(crate) mod roles;
 pub(crate) mod session;
 pub(crate) mod setup;
@@ -50,7 +55,7 @@ pub(crate) struct UserInfo {
     pub(crate) role: UserRole,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub(crate) enum UserRole {
@@ -58,15 +63,30 @@ pub(crate) enum UserRole {
     Viewer,
 }
 
+impl From<UserRole> for Role {
+    fn from(role: UserRole) -> Self {
+        match role {
+            UserRole::Admin => Self::Admin,
+            UserRole::Viewer => Self::Viewer,
+        }
+    }
+}
+
+impl From<Role> for UserRole {
+    fn from(role: Role) -> Self {
+        match role {
+            Role::Admin => Self::Admin,
+            Role::Viewer => Self::Viewer,
+        }
+    }
+}
+
 impl From<&User> for UserInfo {
     fn from(user: &User) -> Self {
         Self {
             id: user.id.get(),
             username: user.username.clone(),
-            role: match user.role {
-                Role::Admin => UserRole::Admin,
-                Role::Viewer => UserRole::Viewer,
-            },
+            role: user.role.into(),
         }
     }
 }

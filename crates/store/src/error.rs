@@ -67,6 +67,8 @@ pub enum Error {
     UnknownSeal { name: String, alg: String },
     #[error("cannot seal secret {name}")]
     Seal { name: String },
+    #[error("{username} is the last admin")]
+    LastAdmin { username: String },
     #[error("revision {base} is no longer the latest: {head} is")]
     NotLatest { base: String, head: String },
     #[error("the document refers to secret {name}, which neither it nor its parent sets")]

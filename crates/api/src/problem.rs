@@ -162,6 +162,9 @@ impl From<uniwrt_store::Error> for ApiError {
                 "The site changed since revision {base}: revision {head} is the latest. Reload \
                  it and make your changes again"
             )),
+            uniwrt_store::Error::LastAdmin { username } => Self::Conflict(format!(
+                "{username} is the last admin: make another user an admin first"
+            )),
             uniwrt_store::Error::UnknownSecret { name } => Self::BadRequest(format!(
                 "The document refers to secret {name}, which the revision it was edited from \
                  does not have"

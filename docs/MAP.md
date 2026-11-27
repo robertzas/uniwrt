@@ -20,9 +20,12 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/alerts/rules.rs`: The alert rules, with a session (features/observability.md, Alerts):
 - `src/alerts/tests.rs`: The alerts routes over the demo's store and alert engine: alerts stored by hand, listed and acknowledged; the built-in rules edited, refused deletion and reset; a rule of the user's; maintenance windows.
 - `src/apply.rs`: Applying the site's configuration, with an admin's session (features/lifecycle.md, Render → diff → apply; D-069):
+- `src/auth/account.rs`: Changing your own password (features/security.md, Users; D-153): `POST /api/v1/auth/password` with the current password and the new one, for any role.
 - `src/auth/limit.rs`: Login throttling (features/security.md: login rate limiting and lockout), in memory:
 - `src/auth/mod.rs`: Authentication (features/security.md): first-run setup within its window, login with Argon2id passwords and throttling, sessions in a cookie, logout, and the audit of each.
 - `src/auth/password.rs`: Passwords: the policy for new ones, and Argon2id hashing and verification on the blocking pool, at most [`CONCURRENT`] at once so that a burst of logins cannot exhaust a small controller's memory (each takes [`PasswordCost::memory_kib`]).
+- `src/auth/reset.rs`: A forgotten admin password replaced from the controller's host (features/security.md, Users; D-153): `uniwrt reset-admin [USERNAME]` gives the admin a random password, which it prints once, and ends their sessions.
+- `src/auth/reset_tests.rs`: (no header comment)
 - `src/auth/roles.rs`: Roles at the router (features/security.md, Users; threat-model.md §1): every API route needs a session unless [`PUBLIC`] names it; a viewer's session reads, and every state-changing route is for admins unless [`VIEWER_WRITES`] names it; the reads in [`ADMIN_READS`] (secrets, archives, terminals, jobs' inputs) are for admins too.
 - `src/auth/roles_tests.rs`: The route table against the roles layer: every route the source declares is reached through it, a viewer is refused every write and admin read before the handler runs, and nothing but the public routes answers without a session.
 - `src/auth/session.rs`: Login sessions: a random 256-bit token in the `__Host-uniwrt-session` cookie (`HttpOnly`, Secure, SameSite=Strict, the whole site), stored only as its SHA-256.
@@ -121,6 +124,8 @@ uniwrt's HTTP API (ARCHITECTURE.md, API): the `/api` routes, RFC 9457 problem+js
 - `src/topology/mod.rs`: `GET /api/v1/topology`, with a session: the fleet's latest topology (features/observability.md, Topology), which the WS topic `topology` keeps current.
 - `src/uci.rs`: The UCI explorer's read (features/observability.md, Diagnostics toolkit › UCI explorer; D-141, D-143), with a session: `GET v1/nodes/{id}/uci` reads every package in the node's `/etc/config` live over the engine's link (any adopted node, observe mode included) and answers a [`NodeUci`]: each package parsed with secret options masked, who writes it, and the node's raw sections of the site's latest revision placed on the sections they find (`uniwrt_render::explorer`). 409 while the node is offline, 502 when the read fails.
 - `src/uci/tests.rs`: The UCI explorer's read on the demo, whose simulated nodes hold the stock `/etc/config` their brownfield import read.
+- `src/users.rs`: Users (features/security.md, Users; D-153), for admins: the list with each user's last activity, adding one with a role and a first password, changing a role or setting a new password, and deleting one.
+- `src/users_tests.rs`: Users through the router: admins add, list, change and delete them, keeping an admin; a change ends the user's sessions; everyone changes their own password with the current one.
 - `src/vpn.rs`: The WireGuard server's peers (features/network.md, VPN; D-140), with a session:
 - `src/vpn/keys.rs`: WireGuard keys (features/network.md, VPN; D-140), made by the controller as a save or an import gives the site its next revision ([`fill`]):
 - `src/vpn/stats.rs`: `GET /api/v1/vpn/wireguard/peers` ([`VpnStatus`]): each peer of the latest revision with what the gateway's tunnel reports of it (the `services` set's `wg show vpn dump`, matched by public key; D-140): its latest handshake, endpoint and traffic, and whether it is connected.
@@ -918,6 +923,7 @@ The `uniwrt` binary: CLI, configuration and composition root; serves the API and
 - `src/private.rs`: The controller's files are its own (threat-model.md §7, D-150): every file and directory it makes is the user's alone (a 077 umask, from the start of every command, kept across the launcher's exec), and serve warns when the data directory lets other users in.
 - `src/profiling.rs`: `serve --profile-cpu <FILE>` (the `profiling` feature; `just profile serve`, D-149): the whole process, every thread, sampled from the start of `serve` to its exit, and the flamegraph (SVG) written to FILE, as the benches are (`uniwrt-bench`: pprof in process, no perf, no root, user space only).
 - `src/recollect.rs`: Fresh facts after a wpad swap (D-089): the node's capabilities change, which the engine collects hourly, so the job's end has it collect every set again at once.
+- `src/reset_admin.rs`: `uniwrt reset-admin [USERNAME]` (features/security.md, Users; D-153): a forgotten admin password replaced by a random one, printed once.
 - `src/restore.rs`: Restoring a controller backup (features/lifecycle.md, Backups; D-129): `uniwrt restore FILE` stages it as an upload in the UI does ([`run`]), and the next start puts it in place before the store opens ([`apply_staged`]).
 - `src/restore_tests.rs`: (no header comment)
 - `src/scheduled_backups.rs`: Weekly node backups (features/lifecycle.md, Backups; D-126): in the nightly window (03:00 site time for half an hour, before the RF optimizer's and the rollouts'), Sundays back up every online node, and the other nights the online nodes whose newest backup is over [`LATE_S`] old (offline or busy on Sunday), as one backup job a night.
@@ -1196,7 +1202,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (559 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (563 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx

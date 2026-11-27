@@ -195,6 +195,7 @@ mod testing;
 mod tls;
 mod topology;
 mod uci;
+mod users;
 mod vpn;
 mod wan;
 mod wan_monitor;
@@ -219,7 +220,12 @@ pub use alerts::{
     rules::{RuleList, RuleView},
 };
 pub use apply::ApplyBody;
-pub use auth::{password::PasswordCost, session::CurrentUser, setup::SETUP_WINDOW};
+pub use auth::{
+    password::PasswordCost,
+    reset::{Reset, ResetError, reset_admin},
+    session::CurrentUser,
+    setup::SETUP_WINDOW,
+};
 pub use blocklists::BlocklistsView;
 pub use bootstrap::{FoundGateways, GatewayView};
 pub use client::Client;
@@ -286,6 +292,8 @@ pub fn router(api: Api) -> Router {
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/logout", post(auth::logout))
         .route("/v1/auth/me", get(auth::me))
+        .route("/v1/auth/password", post(auth::account::change_password))
+        .merge(users::routes())
         .route("/v1/jobs", get(jobs::list))
         .route("/v1/jobs/{id}", get(jobs::get))
         .route("/v1/clients", get(clients::list))

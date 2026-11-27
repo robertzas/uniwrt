@@ -410,6 +410,49 @@ pub trait UserRepo: Send + Sync {
         &self,
         username: &str,
     ) -> impl Future<Output = Result<Option<(User, String)>>> + Send;
+
+    /// Every user, by username, with the last use of their sessions.
+    fn users(&self) -> impl Future<Output = Result<Vec<UserActivity>>> + Send;
+
+    /// Adds a user; [`Error::Conflict`](crate::Error::Conflict) when the username is taken.
+    /// `username` must be lowercase.
+    fn create_user(
+        &self,
+        username: &str,
+        role: Role,
+        password_hash: &str,
+    ) -> impl Future<Output = Result<User>> + Send;
+
+    /// Changes a user's role or password. A change ends the user's sessions except the one
+    /// whose token hash is `keep`; asking for no change, or the role they have, changes
+    /// nothing. [`Error::LastAdmin`](crate::Error::LastAdmin) when it would leave no admin,
+    /// [`Error::NotFound`](crate::Error::NotFound) for an unknown user.
+    fn update_user(
+        &self,
+        id: UserId,
+        change: UserChange,
+        keep: Option<[u8; 32]>,
+    ) -> impl Future<Output = Result<User>> + Send;
+
+    /// Deletes a user and their sessions, returning who they were;
+    /// [`Error::LastAdmin`](crate::Error::LastAdmin) for the last admin,
+    /// [`Error::NotFound`](crate::Error::NotFound) for an unknown user.
+    fn delete_user(&self, id: UserId) -> impl Future<Output = Result<User>> + Send;
+}
+
+/// A user with the last request made with one of their sessions, while a session is kept.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserActivity {
+    pub user: User,
+    pub last_seen_at: Option<Timestamp>,
+}
+
+/// What [`UserRepo::update_user`] changes; `None` keeps it.
+#[derive(Debug, Clone, Default)]
+pub struct UserChange {
+    pub role: Option<Role>,
+    /// An Argon2id PHC string.
+    pub password_hash: Option<String>,
 }
 
 /// A new login session, keyed by the SHA-256 of its token.

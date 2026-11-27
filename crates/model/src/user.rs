@@ -17,7 +17,7 @@ pub struct User {
     pub updated_at: Timestamp,
 }
 
-/// What a user may do. Viewers arrive in M9; until then every user is an admin.
+/// What a user may do: admins everything, viewers read (features/security.md, Users).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
@@ -49,6 +49,15 @@ pub enum AuditAction {
     Login,
     LoginFailed,
     Logout,
+    /// A user changed their own password, or was refused for a wrong current one (the detail
+    /// says which; D-153).
+    Password,
+    /// An admin added a user, changed one's role or password, or deleted one (the detail says
+    /// which; D-153).
+    Users,
+    /// An admin's password was replaced from the controller's host (`uniwrt reset-admin`;
+    /// D-153).
+    ResetAdmin,
     /// A user started adopting a node (the detail names it and the job).
     Adopt,
     /// A user switched a node's management on or off (the detail says which, and the job).

@@ -45,9 +45,10 @@ pub(crate) const PUBLIC: &[(&str, &str)] = &[
     ("POST", "/v1/ztp/hello"),
 ];
 
-/// State-changing routes a viewer may call: shared view preferences (saved log searches, the
-/// topology's pinned layout), which change no node and reveal nothing.
+/// State-changing routes a viewer may call: their own password, and shared view preferences
+/// (saved log searches, the topology's pinned layout), which change no node and reveal nothing.
 pub(crate) const VIEWER_WRITES: &[(&str, &str)] = &[
+    ("POST", "/v1/auth/password"),
     ("POST", "/v1/logs/searches"),
     ("DELETE", "/v1/logs/searches/{id}"),
     ("DELETE", "/v1/topology/layout"),
@@ -65,6 +66,7 @@ pub(crate) const ADMIN_READS: &[&str] = &[
     "/v1/nodes/{id}/diag/capture",
     "/v1/nodes/{id}/terminal",
     "/v1/support/bundle",
+    "/v1/users",
     "/v1/ztp/builds/{hash}",
     "/v1/ztp/one-liners/{token}",
     "/v1/ztp/pending",

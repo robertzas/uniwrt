@@ -37,6 +37,9 @@ pub(crate) enum Command {
     /// Stage a controller backup (`uniwrt-backup-….tar.gz.age`) for the next start, which puts
     /// it in place. The passphrase comes from `UNIWRT_BACKUP_PASSPHRASE` or stdin.
     Restore(RestoreArgs),
+    /// Give an admin a new random password, printed once, for a forgotten one; their sessions
+    /// end. Runs beside a running controller (`docker exec uniwrt /uniwrt reset-admin`).
+    ResetAdmin(ResetAdminArgs),
 }
 
 #[derive(Debug, Args)]
@@ -222,6 +225,21 @@ pub(crate) struct RestoreArgs {
     #[arg(value_name = "FILE")]
     pub(crate) file: PathBuf,
     /// The data directory of the controller to restore into.
+    #[arg(
+        long,
+        env = "UNIWRT_DATA_DIR",
+        value_name = "DIR",
+        default_value = "./data"
+    )]
+    pub(crate) data_dir: PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ResetAdminArgs {
+    /// The admin's username; needed only when there are several admins.
+    #[arg(value_name = "USERNAME")]
+    pub(crate) username: Option<String>,
+    /// The controller's data directory.
     #[arg(
         long,
         env = "UNIWRT_DATA_DIR",

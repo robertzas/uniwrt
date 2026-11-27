@@ -79,7 +79,7 @@ pub use repo::{
     FactsRepo, FloorRepo, HostKeyRepo, InventoryRepo, JobRepo, Kept, LogRepo, LogsPrune,
     MetricsPrune, MetricsRepo, NewFloorImage, NewSession, NodeRepo, NotifierRepo, Pin,
     RevisionRepo, RfRepo, RolloutRepo, Secret, SessionRepo, SettingsRepo, SpeedTestRepo,
-    TopologyFrame, TopologyRepo, UserRepo, VaultRepo, ZtpRepo,
+    TopologyFrame, TopologyRepo, UserActivity, UserChange, UserRepo, VaultRepo, ZtpRepo,
 };
 pub use store::Store;
 pub use vault::{MasterKey, RoamingKey, SealedBackup, SealedSecret, Vault};
