@@ -4,6 +4,8 @@ When something on your network misbehaves, you can usually find out why without 
 
 ## Tools
 
+![A device's Tools tab, ready to run a test](https://robertzas.github.io/uniwrt/guide/images/device-tools.png)
+
 Open a device under **Devices** and pick its **Tools** tab. Tests run on the device itself, and their output streams to the page live. This works in observe mode too: none of these tools change the device's configuration.
 
 - Only admins run tests and capture packets. Viewers can follow runs and read the tables.

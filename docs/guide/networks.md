@@ -9,6 +9,8 @@ Only admins can change this page. Viewers see the same cards without the edit bu
 
 ## Networks
 
+![The Networks page: the site's networks and the services the gateway runs for them](https://robertzas.github.io/uniwrt/guide/images/networks.png)
+
 The **Networks** card lists each network with its purpose, its VLAN (or **Untagged**), its subnet and gateway address, its IPv6 mode and its reservations. On the right, a bar shows how full the DHCP pool is (for example, "37 of 150 leased") and how many clients are online in it. The bar turns amber at 75% and red at 90%. Warnings from the site's checks show under the network they concern.
 
 Each network has a purpose that sets its usual VLAN and, on the [Security](security-vpn.md) page, its firewall policy:

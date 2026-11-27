@@ -5,7 +5,9 @@
  * (`devices.md#discovered`) finds the same section here. Links between chapters become
  * `/help/<chapter>#<anchor>` and are checked: a missing chapter or section fails the build. Raw
  * HTML is escaped and nothing carries a `style` attribute (the CSP allows no inline styles).
- * Images stay text only: each becomes a link to the online copy (`PAGES_URL`).
+ * Images stay text only: each becomes a link to the online copy (`PAGES_URL`). The same renderer
+ * builds that online copy (`site.ts`, M9.4c) with a `Target` of its own: `id`s, `.html` links
+ * and the screenshots shown.
  */
 import { Marked, Renderer, type Tokens } from "marked";
 
@@ -32,6 +34,24 @@ export interface Chapter {
   html: string;
 }
 
+/** How the HTML refers to things, which differs between the in-app help and the Pages copy. */
+export interface Target {
+  /** The attribute that carries a heading's anchor. */
+  anchor: "data-anchor" | "id";
+  /** Where a link to a chapter (and a section in it) goes. */
+  link(chapter: string, anchor?: string): string;
+  /** An image's HTML; `url` is absolute (a relative `src` is read against `PAGES_URL`). */
+  image(url: string, alt: string, from: string): string;
+}
+
+/** The in-app help: `data-anchor`s, `/help/…` links and images as links to the online copy. */
+export const APP: Target = {
+  anchor: "data-anchor",
+  link: helpPath,
+  image: (url, alt) =>
+    `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(alt || url)}</a>`,
+};
+
 /** A link from one chapter to another (or to a section of itself), for the check. */
 export interface GuideLink {
   from: string;
@@ -47,7 +67,7 @@ const entities: Record<string, string> = {
   "&#39;": "'",
 };
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
@@ -90,7 +110,11 @@ export function helpPath(chapter: string, anchor?: string): string {
 /**
  * One chapter. `href`s are rewritten here; `renderGuide` checks the links it returns.
  */
-export function renderChapter(slug: string, markdown: string): Chapter & { links: GuideLink[] } {
+export function renderChapter(
+  slug: string,
+  markdown: string,
+  target: Target = APP,
+): Chapter & { links: GuideLink[] } {
   const slugger = createSlugger();
   const sections: Section[] = [];
   const links: GuideLink[] = [];
@@ -104,7 +128,7 @@ export function renderChapter(slug: string, markdown: string): Chapter & { links
         const anchor = slugger(text);
         if (depth === 1 && !title) title = text;
         else sections.push({ anchor, text, depth });
-        return `<h${depth} data-anchor="${anchor}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+        return `<h${depth} ${target.anchor}="${anchor}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
       },
       link({ href, tokens }) {
         const inner = this.parser.parseInline(tokens);
@@ -117,11 +141,11 @@ export function renderChapter(slug: string, markdown: string): Chapter & { links
         }
         const chapter = local[1] ? (local[1] === "README" ? INDEX : local[1]) : slug;
         links.push({ from: slug, chapter, ...(local[2] && { anchor: local[2] }) });
-        return `<a href="${helpPath(chapter, local[2])}">${inner}</a>`;
+        return `<a href="${target.link(chapter, local[2])}">${inner}</a>`;
       },
       image({ href, text }) {
         const url = /^https?:/i.test(href) ? href : new URL(href, PAGES_URL).href;
-        return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text || href)}</a>`;
+        return target.image(url, text, slug);
       },
       // Wide tables scroll inside a wrapper on a phone, keeping their table semantics.
       table(token) {
@@ -142,12 +166,15 @@ export function renderChapter(slug: string, markdown: string): Chapter & { links
  * Every chapter, in the order README.md first links them (the rest after, by name), with every
  * link between them checked. `files` maps file names (`devices.md`) to their Markdown.
  */
-export function renderGuide(files: Readonly<Record<string, string>>): Chapter[] {
+export function renderGuide(
+  files: Readonly<Record<string, string>>,
+  target: Target = APP,
+): Chapter[] {
   const rendered = Object.entries(files)
     .filter(([name]) => name.endsWith(".md"))
     .map(([name, markdown]) => {
       const base = name.slice(0, -3);
-      return renderChapter(base === "README" ? INDEX : base, markdown);
+      return renderChapter(base === "README" ? INDEX : base, markdown, target);
     });
   const bySlug = new Map(rendered.map((c) => [c.slug, c]));
   const broken = rendered.flatMap((c) =>

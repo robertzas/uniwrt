@@ -62,6 +62,15 @@ e2e: web-build
     UNIWRT_WEB_DIST=web/dist cargo build --locked
     cd web && node_modules/.bin/playwright test
 
+# The user guide's screenshots of demo mode (web/shots-out), as CI takes them for GitHub Pages
+shots: web-build
+    UNIWRT_WEB_DIST=web/dist cargo build --locked
+    cd web && rm -rf shots-out && node_modules/.bin/playwright test -c playwright.shots.config.ts
+
+# The user guide's site with those screenshots (web/site), as CI publishes it on GitHub Pages
+pages:
+    cd web && bun guide/build-site.ts --images shots-out --out site --version "$(git describe --tags --abbrev=0 | sed 's/^v//')"
+
 # The Wi-Fi and mesh tests in the hwsim lab (needs Docker; loads mac80211_hwsim and batman-adv)
 test-wifi *args:
     @scripts/wifi-lab.sh test {{ args }}

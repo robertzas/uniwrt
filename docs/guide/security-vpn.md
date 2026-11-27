@@ -8,6 +8,8 @@ Both pages need a gateway. Until you adopt one, they show **No gateway yet** (se
 
 ## Security
 
+![The Security page: traffic between networks, port forwards and UPnP](https://robertzas.github.io/uniwrt/guide/images/security.png)
+
 The page starts with a warning when uniwrt doesn't manage the gateway's **firewall** package: applying then leaves its firewall as it is. Select **Open its configuration** and choose the firewall package there first.
 
 ### Traffic between networks
@@ -87,6 +89,8 @@ If the gateway doesn't manage the **upnpd** package yet, the card says so. Choos
 **Open ports** lists the ports clients opened: **Protocol**, **Port**, **Client** (address and name), **Client port**, **For** and **Expires in**. It is read from the gateway every minute.
 
 ## VPN
+
+![The VPN page: the WireGuard server, its peers and Tailscale](https://robertzas.github.io/uniwrt/guide/images/vpn.png)
 
 The **VPN** page lets you reach your networks from anywhere: a WireGuard server on the gateway for phones, laptops and other sites' routers, and Tailscale.
 

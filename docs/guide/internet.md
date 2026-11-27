@@ -15,6 +15,8 @@ Before you start, check the notes at the top of the page:
 
 ## Connection
 
+![The Internet page: the gateway's connection, speed tests, smart queueing, failover and the connection's quality](https://robertzas.github.io/uniwrt/guide/images/internet.png)
+
 The **Connection** card shows the WAN as it is saved:
 
 - **ISP**: the preset it was last filled from, or **Custom settings**.

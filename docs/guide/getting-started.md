@@ -56,6 +56,8 @@ uniwrt then opens the first-run wizard, **Set up your internet router**.
 
 ## Set up your internet router
 
+![The first-run wizard, which has found a factory-default OpenWrt router at 192.168.1.1](https://robertzas.github.io/uniwrt/guide/images/first-run.png)
+
 The first-run wizard turns a factory-default OpenWrt router into your gateway: internet, addresses and Wi-Fi, reviewed before anything changes. It has five steps: **Router**, **Internet**, **Addresses**, **Wi-Fi** and **Review**.
 
 Leaving the wizard is safe at any step: nothing changes on the router before you apply. Press **Skip for now** to leave. To come back, use **Set up your internet router** on the dashboard (shown while no device is adopted), or open the command palette (Ctrl+K, or Cmd+K on a Mac) and run **Set up your internet router** (offered while no gateway is adopted).

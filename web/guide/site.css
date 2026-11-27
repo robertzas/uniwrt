@@ -1,0 +1,389 @@
+/* The user guide's online copy (site.ts): the app's Graphite pro tokens (src/ui/tokens.css). */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("fonts/inter.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: light dark;
+  --canvas: light-dark(oklch(0.985 0.002 265), oklch(0.155 0.006 265));
+  --surface: light-dark(oklch(1 0 0), oklch(0.185 0.007 265));
+  --raised: light-dark(oklch(0.965 0.003 265), oklch(0.225 0.008 265));
+  --edge: light-dark(oklch(0.91 0.004 265), oklch(0.28 0.008 265));
+  --fg: light-dark(oklch(0.21 0.01 265), oklch(0.96 0.003 265));
+  --muted: light-dark(oklch(0.44 0.012 265), oklch(0.76 0.01 265));
+  --subtle: light-dark(oklch(0.53 0.012 265), oklch(0.64 0.012 265));
+  --accent: light-dark(oklch(0.52 0.18 258), oklch(0.72 0.14 255));
+  --accent-fill: oklch(0.54 0.18 258);
+  --on-accent: oklch(0.99 0 0);
+  --shadow: light-dark(0 1px 2px oklch(0 0 0 / 0.06), 0 1px 2px oklch(0 0 0 / 0.4));
+  --top: 3.5rem;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  line-height: 1.65;
+  color: var(--fg);
+  background: var(--canvas);
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.skip {
+  position: absolute;
+  left: -100vw;
+}
+.skip:focus {
+  left: 1rem;
+  top: 0.75rem;
+  z-index: 20;
+  background: var(--surface);
+  padding: 0.25rem 0.5rem;
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: var(--top);
+  padding: 0 1.25rem;
+  background: color-mix(in oklch, var(--surface) 85%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--edge);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  color: var(--muted);
+  font-weight: 500;
+}
+.mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  fill: var(--on-accent);
+}
+.mark-bg {
+  fill: var(--accent-fill);
+}
+.mark-edge {
+  fill: none;
+  stroke: var(--on-accent);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.version {
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+}
+.repo {
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.repo:hover {
+  color: var(--fg);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr) 14rem;
+  gap: 2.5rem;
+  max-width: 88rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+.sidebar,
+.toc {
+  position: sticky;
+  top: var(--top);
+  align-self: start;
+  max-height: calc(100vh - var(--top));
+  overflow-y: auto;
+  padding: 1.75rem 0;
+}
+.chapters,
+.toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chapters a {
+  display: block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.chapters a:hover {
+  color: var(--fg);
+  background: var(--raised);
+}
+.chapters a[aria-current="page"] {
+  color: var(--fg);
+  background: var(--raised);
+  font-weight: 600;
+}
+.toc p {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+.toc a {
+  display: block;
+  padding: 0.2rem 0;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.toc a:hover {
+  color: var(--fg);
+}
+
+main {
+  min-width: 0;
+  padding: 2rem 0 3rem;
+}
+.mobile-nav {
+  display: none;
+}
+
+.guide {
+  max-width: 46rem;
+  font-size: 1rem;
+}
+.guide h1 {
+  font-size: 2.1rem;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  margin: 0 0 1rem;
+}
+.guide h2 {
+  font-size: 1.45rem;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  margin: 2.75rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--edge);
+}
+.guide h3 {
+  font-size: 1.1rem;
+  margin: 2rem 0 0.5rem;
+}
+.guide h4 {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+.guide :is(h2, h3, h4) {
+  scroll-margin-top: calc(var(--top) + 1rem);
+}
+.guide p,
+.guide ul,
+.guide ol {
+  margin: 0 0 1rem;
+}
+.guide li {
+  margin: 0.25rem 0;
+}
+.guide li > p {
+  margin: 0;
+}
+.guide code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.86em;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: 0.35rem;
+  padding: 0.05em 0.35em;
+}
+.guide pre {
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: 0.6rem;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+.guide pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.guide blockquote {
+  margin: 0 0 1rem;
+  padding: 0.6rem 1rem;
+  border-left: 3px solid var(--accent-fill);
+  background: var(--raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: var(--muted);
+}
+.guide blockquote > :last-child {
+  margin-bottom: 0;
+}
+.guide-table {
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.6rem;
+}
+.guide table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+}
+.guide th,
+.guide td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--edge);
+  vertical-align: top;
+}
+.guide th {
+  background: var(--raised);
+  font-weight: 600;
+}
+.guide tr:last-child td {
+  border-bottom: 0;
+}
+.guide hr {
+  border: 0;
+  border-top: 1px solid var(--edge);
+  margin: 2rem 0;
+}
+
+.shot {
+  display: block;
+  margin: 1.25rem 0 1.5rem;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--edge);
+  border-radius: 0.75rem;
+  box-shadow:
+    var(--shadow),
+    0 12px 32px -12px oklch(0 0 0 / 0.25);
+  background: var(--surface);
+}
+
+.pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 46rem;
+  margin-top: 3rem;
+}
+.pager a {
+  display: block;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--edge);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--fg);
+  font-weight: 500;
+}
+.pager a:hover {
+  border-color: var(--accent);
+}
+.pager span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--subtle);
+  font-weight: 400;
+}
+.pager .next {
+  text-align: right;
+  grid-column: 2;
+}
+
+.foot {
+  max-width: 46rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--edge);
+  font-size: 0.85rem;
+  color: var(--subtle);
+}
+
+@media (max-width: 80rem) {
+  .layout {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+  .toc {
+    display: none;
+  }
+}
+@media (max-width: 56rem) {
+  .layout {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
+  .brand-sub,
+  .repo {
+    display: none;
+  }
+  .mobile-nav {
+    display: block;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--edge);
+    border-radius: 0.75rem;
+    background: var(--surface);
+  }
+  .mobile-nav summary {
+    cursor: pointer;
+    padding: 0.6rem 1rem;
+    font-weight: 600;
+  }
+  .mobile-nav .chapters {
+    padding: 0 0.5rem 0.5rem;
+  }
+  main {
+    padding-top: 1.25rem;
+  }
+  .guide h1 {
+    font-size: 1.7rem;
+  }
+}

@@ -13,7 +13,7 @@
   },
   "overrides": [
     {
-      "includes": ["vite.config.ts", "playwright.config.ts"],
+      "includes": ["vite.config.ts", "playwright.config.ts", "playwright.shots.config.ts"],
       "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     }
   ],

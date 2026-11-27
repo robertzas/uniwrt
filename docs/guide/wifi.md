@@ -7,6 +7,8 @@ The **Wi-Fi** page holds the site's wireless networks (WLANs), the site's client
 
 ## Wi-Fi
 
+![The Wi-Fi page: the site's WLANs, client steering and the mesh backhaul](https://robertzas.github.io/uniwrt/guide/images/wifi.png)
+
 The top of the page lists every WLAN. Each row shows:
 
 - The name (SSID), an **Off** badge when it is disabled, its security mode and its bands in the band colors.

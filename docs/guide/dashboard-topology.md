@@ -4,6 +4,8 @@ The Dashboard shows the whole network at a glance, and the Topology page draws i
 
 ## Dashboard
 
+![The Dashboard: the Get started checklist, network health, the internet line, the topology mini-map, top clients and recent events](https://robertzas.github.io/uniwrt/guide/images/dashboard.png)
+
 The Dashboard is the first page after you sign in (**Dashboard** in the sidebar). Every card is live; only the internet throughput chart reads stored history.
 
 Before any device is adopted, the page shows **Welcome to uniwrt** instead. Admins get two ways in: **Set up your internet router** starts the setup wizard for a new router, and **Adopt an existing network** opens adoption on the Devices page. See [Getting started](getting-started.md) and [Devices and adoption](devices.md).
@@ -176,6 +178,8 @@ The help center, at `/help`, lists the **Chapters** on the left and, on a wide s
 The topology keys work while the map has focus: select the map or move to it with Tab. Screen reader and keyboard users can also reach every device, client and link through a hidden list of the map's contents: moving to an entry selects it and opens its details.
 
 ## Topology
+
+![The Topology page in its Tree view: the internet, the gateway, the access points, a switch and groups of clients](https://robertzas.github.io/uniwrt/guide/images/topology.png)
 
 The **Topology** page is a live map of the network: the internet, the gateway, the access points and bridges, mesh peers that aren't adopted, unmanaged switches that uniwrt infers from what the devices see, and the clients. It redraws itself within a second or two of a change.
 

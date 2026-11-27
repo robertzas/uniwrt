@@ -4,6 +4,8 @@ The **Devices** page lists every router and access point uniwrt manages, with li
 
 ## Devices
 
+![The Devices page: a gateway and two access points online in observe mode, and an access point discovered but not adopted](https://robertzas.github.io/uniwrt/guide/images/devices.png)
+
 The list shows each adopted device with its **Name**, **Status**, **Model**, **IP address**, **Firmware**, **Clients**, **CPU**, **Memory** and **Uptime**. Status is **Online**, **Degraded** or **Offline**; a device in observe mode also has an **Observe** badge. Click a row to open the device's page.
 
 Below the list, the **Discovered** card shows OpenWrt devices your adopted devices see, and admins get the **Waiting for adoption** card.
@@ -141,6 +143,8 @@ ASU keeps built images, so you can close the dialog and build again later. To us
 For an image you build yourself. Choose a **Role**, press **Download the script**, and add it as "Script to run on first boot (uci-defaults)" in the OpenWrt Firmware Selector, or as `files/etc/uci-defaults/99-uniwrt` in the Image Builder.
 
 ## Device page
+
+![The gateway's page on its Overview tab: its stats, radios, details and performance charts](https://robertzas.github.io/uniwrt/guide/images/device.png)
 
 A device's page shows its name, status, role, model and management address. **Events** and **Logs** open those pages filtered to this device. When something is wrong, a card under the header says why, such as **Its SSH host key changed. uniwrt stopped connecting until you confirm it.**
 

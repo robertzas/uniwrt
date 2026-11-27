@@ -6,6 +6,8 @@ Everyone can read the page. Only admins install, upgrade or change settings here
 
 ## Controller
 
+![The Updates page: the controller's release, the devices' firmware and the upgrades on offer](https://robertzas.github.io/uniwrt/guide/images/updates.png)
+
 The **Controller** card shows the version you run (**Running uniwrt …**) and, when there is one, the newest release for your platform (**uniwrt … is available**) with its date and release notes. Otherwise it says **This controller runs the newest release.**
 
 New releases come from uniwrt's GitHub releases. Before a release runs, the controller checks the download's size and SHA-256 against what GitHub records and verifies the build's signed attestation: the release must have been built by uniwrt's own CI workflow from its main branch, and logged in the public Sigstore transparency log. A download that fails any check is never run.

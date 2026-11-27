@@ -37,3 +37,7 @@ master.key
 # Playwright (web/e2e)
 /web/test-results/
 /web/playwright-report/
+
+# The guide's screenshots and site (just shots, just pages; CI publishes them on Pages)
+/web/shots-out/
+/web/site/

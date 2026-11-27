@@ -6,6 +6,8 @@ Everyone can open Settings. Only administrators change anything; viewers see the
 
 ## Site
 
+![The Settings page on its Site tab](https://robertzas.github.io/uniwrt/guide/images/settings.png)
+
 The **Site** tab has two cards: **Site**, with what the whole site shares, and **Schedules**.
 
 - **Name**: the site's name, 1 to 64 characters.

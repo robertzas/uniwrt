@@ -6,6 +6,8 @@ Every user can read these pages. Viewers can't change alert rules, maintenance w
 
 ## Logs
 
+![The Logs page: the devices' logs, searchable and live](https://robertzas.github.io/uniwrt/guide/images/logs.png)
+
 **Logs** shows the system log of every device in one list, newest on top, and adds new entries as they arrive. Entries that uniwrt recognizes carry a short explanation of what they mean. The filters and the time range are part of the page's address, so you can bookmark or share a view. A device's page links here with that device already selected.
 
 The uniwrt agent on each device reads its log, so nothing needs to be set up on the device. Other hosts, such as a switch or a NAS, can send syslog to the controller on port 5514 (UDP or TCP). Their entries appear under **Other hosts**. To move or turn off this receiver, start the controller with `--syslog-listen ADDR:PORT` or `--syslog-listen off` (or set `UNIWRT_SYSLOG_LISTEN`). Logs are kept for 14 days, up to about 1 GiB.
@@ -67,6 +69,8 @@ To use one, click **Saved** and pick it from the list. The button then shows its
 
 ## Events
 
+![The Events page: what happened across the network, newest first](https://robertzas.github.io/uniwrt/guide/images/events.png)
+
 **Events** lists what happened across the network, newest first, grouped by day (**Today**, **Yesterday**, then the date). Events cover devices going offline and coming back, reboots, internet outages, mesh links going down or weak, clients joining, leaving, roaming and being steered, channel changes and congestion, nightly channel plans, configuration changed on a device, and problems recognized in the logs. A problem that repeats within a few minutes is shown once, with a count such as **×3**. A condition that hasn't cleared yet, such as a device that is still offline, is marked **Ongoing**.
 
 Events are kept for 60 days. The filters are part of the page's address, and the device and client pages link here.
@@ -92,6 +96,8 @@ With a range button selected, the list is **Live** and new events appear at the 
    - **Only this device** or **Only this category** narrows the list.
 
 ## Alerts
+
+![The Alerts page on its Active tab](https://robertzas.github.io/uniwrt/guide/images/alerts.png)
 
 **Alerts** shows what needs attention. Rules watch the metrics and the events. When a rule matches, it opens an alert for each device, radio, link or client it matches, and the alert stays open until the problem clears. The page has four tabs: **Active**, **History**, **Rules** and **Maintenance**.
 
@@ -184,6 +190,8 @@ A window lasts at most 30 days and must start within a year. To stop a window ea
 
 ## Metrics
 
+![The Metrics page, charting the stored metrics](https://robertzas.github.io/uniwrt/guide/images/metrics.png)
+
 **Metrics** charts the stored history of any device, radio, interface, mesh link, client, WAN probe or the whole network. The list on the left, **Series**, groups everything that keeps history. Series appear a minute after a device first reports. History is kept as 15-second averages for two days, 1-minute averages for two weeks and hourly averages for about a year.
 
 ### To chart a metric
@@ -196,6 +204,8 @@ A window lasts at most 30 days and must start within a year. To stop a window ea
 To zoom in, drag across a chart. **Reset zoom** goes back to the range. **Open its page** opens the device's or client's own page. The address of the page holds your choice, so you can share it.
 
 ## RF
+
+![The RF page after a scan: the 5 GHz spectrum and each radio's channel](https://robertzas.github.io/uniwrt/guide/images/rf.png)
 
 **RF** shows what your radios hear, one band at a time: channel occupancy, interference from neighbors' networks, and how your devices hear each other. If your radios use more than one band, choose **2.4 GHz**, **5 GHz** or **6 GHz** at the top. The page opens on 5 GHz.
 

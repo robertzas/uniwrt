@@ -1,6 +1,6 @@
 # uniwrt user guide
 
-uniwrt runs your OpenWrt routers as one network: a gateway and its access points, adopted, configured, watched and upgraded from one web app. This guide is for the person running it. It walks through each page of the app in the order of its sidebar, and says how to do the common tasks on each one.
+uniwrt runs your OpenWrt routers as one network: a gateway and its access points, adopted, configured, watched and upgraded from one web app. This guide is for the person running it. It walks through each page of the app in the order of its sidebar, and says how to do the common tasks on each one. Its online copy, [robertzas.github.io/uniwrt/guide](https://robertzas.github.io/uniwrt/guide/), shows each page as the demo mode draws it.
 
 ## Start here
 

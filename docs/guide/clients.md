@@ -6,6 +6,8 @@ Clients you rename or block are kept even after 30 days away.
 
 ## Clients page
 
+![The Clients page, listing every client with its connection, signal and traffic](https://robertzas.github.io/uniwrt/guide/images/clients.png)
+
 Open **Clients** in the sidebar. Until a client connects, the page says **No clients yet** and suggests the next step (adopting a device, or setting up Wi-Fi).
 
 At the top, four tiles sum up who is online and how well:
@@ -43,6 +45,8 @@ Many phones and laptops use a different, random MAC address per network or over 
 On a phone, each row of the list becomes a card, and the traffic and connected time are left out.
 
 ## Client page
+
+![A client's page on its Overview tab, with its connection and experience](https://robertzas.github.io/uniwrt/guide/images/client.png)
 
 The client page shows one client, live. At the top: its name, **Online** or **Offline**, a **Private address** badge for a randomized address, and a **Blocked** badge for a blocked client (hover over it to see since when). The line below shows the vendor, the kind, the MAC address and the IP addresses.
 
