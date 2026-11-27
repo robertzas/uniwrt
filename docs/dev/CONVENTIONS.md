@@ -48,7 +48,7 @@ These apply to humans and agents alike. Read only the section you need.
 4. **Telemetry** (if needed): a collector in `node-agent/collect/<set>.uc`, listed in `crates/node/src/bundle.rs`, and its parser in `crates/node/src/facts/<set>.rs` with a fixture. Making it a collect set takes a variant of `proto::ops::Set`, its line in `node-agent/collect.uc`'s `SETS`, a `SetFacts` variant and the `NodeFacts` field it fills.
 5. **API:** routes in `crates/api/src/<area>` (a module per area, such as `auth/`, `nodes.rs`, `ws/`) with DTOs that derive `TS`, then run `just gen`. Live data goes out as a WS topic (`ws/topic.rs`, `ws/subs.rs`).
 6. **UI:** `web/src/features/<area>/` (page plus components) built from `ui/` primitives, with its lazy-loaded route registered in `app/routes.tsx` for a page in `app/nav.ts`, its client in `lib/api.ts` and its strings in `lib/strings.ts`.
-7. **Docs:** tick the WP in ROADMAP and update STATUS. `docs/MAP.md` regenerates automatically.
+7. **Docs:** update the page's chapter in the user guide (`docs/guide/`) where what a user sees or does changes, tick the WP in ROADMAP and update STATUS. `docs/MAP.md` regenerates automatically.
 
 ## Commits
 

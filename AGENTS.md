@@ -69,6 +69,7 @@ Keeping costs 0.05 × D per request, where D is the context the next work won't 
 | Need | Read |
 |---|---|
 | Where we are and what's next | `docs/STATUS.md` |
+| The user guide (for people running uniwrt; one chapter per page) | `docs/guide/` |
 | Work packages and acceptance criteria | `docs/ROADMAP.md` (one milestone section) |
 | Product scope and capability catalog | `docs/PRODUCT.md` |
 | System design, crates, node protocol, persistence | `docs/ARCHITECTURE.md` |

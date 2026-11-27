@@ -55,7 +55,7 @@ export const strings = {
     },
     wifi: {
       label: "Wi-Fi",
-      description: "Wireless networks, bands, roaming and per-device passwords.",
+      description: "Wireless networks, bands, roaming, steering and the mesh.",
     },
     networks: {
       label: "Networks",
@@ -106,7 +106,7 @@ export const strings = {
     },
     settings: {
       label: "Settings",
-      description: "Controller settings, users, backups and certificates.",
+      description: "The site, notifications, revisions, backups and support.",
     },
   },
   page: {
@@ -267,7 +267,7 @@ export const strings = {
   firmware: {
     title: "Firmware",
     description:
-      "The OpenWrt release on each device and the upgrades on offer. Upgrade images are built by OpenWrt's build service (ASU) with the packages each device runs.",
+      "The OpenWrt release on each device and the upgrades on offer: from OpenWrt's build service (ASU), its official images, a GitHub release or an uploaded image.",
     loading: "Reading the firmware catalog…",
     refresh: "Check again",
     columns: {
