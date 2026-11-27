@@ -7,6 +7,8 @@
 //!   decommission does) → record: a pre-approval of the node's MAC and board that never
 //!   expires ([`ZtpApproval::awaiting`]), so whichever path finds the device again adopts it
 //!   back into the record; the node is watched again meanwhile (it shows offline).
+//! - **Re-trust** (D-154): the adoption's steps with the node's own device at its address and
+//!   the new host key the admin confirmed ([`crate::adopt::Replace::retrust`]).
 
 use std::sync::Arc;
 
@@ -17,7 +19,9 @@ use uniwrt_model::{
     node::Node,
     ztp::ZtpApproval,
 };
+use uniwrt_node::HostKey;
 use uniwrt_store::ZtpRepo as _;
+use zeroize::Zeroizing;
 
 use super::{Author, DECOMMISSION, keys, watch_again, wipe};
 use crate::{
@@ -42,11 +46,53 @@ impl Jobs {
         request.replace = Some(Replace {
             node: node.id,
             by: by.clone(),
+            retrust: false,
         });
         let mut held = keys(&node);
         held.push(request.target.to_string().to_lowercase());
         let job = NewJob {
             kind: JobKind::Replace,
+            target: node.name.clone(),
+            node: Some(node.id),
+            revision: None,
+            created_by: by.map(|author| author.id),
+            steps: adopt::STEPS.to_vec(),
+            nodes: Vec::new(),
+        };
+        self.spawn(held, job, move |shared, progress| {
+            adopt::run(shared, request, progress)
+        })
+        .await
+    }
+
+    /// Starts re-trusting `node`'s device, whose host key changed (D-154), and returns the job
+    /// as it starts. The key pinned already may be trusted again: the link, quarantined when
+    /// another key answered, reconnects.
+    pub async fn retrust(&self, node: NodeId, retrust: Retrust, by: Option<Author>) -> Result<Job> {
+        if self.shared.dial.is_none() {
+            return Err(Error::Unavailable);
+        }
+        let node = self.held(node, false).await?;
+        let request = AdoptRequest {
+            target: uniwrt_node::Target::new(node.host.clone(), node.port),
+            host_key: retrust.host_key,
+            password: retrust.password,
+            remember_password: retrust.remember_password,
+            allow_unsupported_release: retrust.allow_unsupported_release,
+            name: None,
+            role: None,
+            ztp: None,
+            port: None,
+            replace: Some(Replace {
+                node: node.id,
+                by: by.clone(),
+                retrust: true,
+            }),
+        };
+        let mut held = keys(&node);
+        held.push(request.target.to_string().to_lowercase());
+        let job = NewJob {
+            kind: JobKind::Retrust,
             target: node.name.clone(),
             node: Some(node.id),
             revision: None,
@@ -81,6 +127,19 @@ impl Jobs {
         })
         .await
     }
+}
+
+/// What re-trusting a node's device takes from the admin (D-154): its address is the node's.
+pub struct Retrust {
+    /// The new host key the admin confirmed; the device must present it.
+    pub host_key: HostKey,
+    /// The root password, for a device that no longer trusts the controller's key; `None` tries
+    /// the key, then no password (factory defaults).
+    pub password: Option<Zeroizing<String>>,
+    /// Keep the password in the vault, for emergencies.
+    pub remember_password: bool,
+    /// Take the device even if its release is one adoption refuses (D-145).
+    pub allow_unsupported_release: bool,
 }
 
 async fn run(shared: Arc<Shared>, node: Node, by: Option<Author>, mut progress: Progress) {

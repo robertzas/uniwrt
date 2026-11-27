@@ -33,6 +33,10 @@ pub struct Replace {
     pub node: NodeId,
     /// Who asked, for the revision moving the node's settings.
     pub by: Option<Author>,
+    /// Re-trusting the node's own device after its host key changed (D-154): the device must
+    /// be the record's (its MAC and board), and one that still trusts the controller's key
+    /// keeps its record as it is ([`super::retrust`]).
+    pub retrust: bool,
 }
 
 /// The record the device (`mac`, `board`) is adopted into, if not a new one: the one its
@@ -50,8 +54,18 @@ pub(super) async fn into(
         if let Some(node) = found.filter(|node| node.id != replace.node) {
             return Err(already_adopted(Some(&node.name)));
         }
-        if !adopted.iter().any(|node| node.id == replace.node) {
+        let Some(record) = adopted.iter().find(|node| node.id == replace.node) else {
             return Err(internal("finding the node to replace", &"it is gone"));
+        };
+        if replace.retrust && (record.mac != mac || record.board_name != board) {
+            return Err(JobError {
+                code: JobErrorCode::IdentityMismatch,
+                message: format!(
+                    "This is not {}'s device: that was a {} with MAC address {}, this one is a \
+                     {board} with {mac}. Replace its device instead",
+                    record.name, record.board_name, record.mac
+                ),
+            });
         }
         return Ok(Some(replace.node));
     }

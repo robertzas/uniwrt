@@ -103,6 +103,7 @@ import type { ReplaceBody } from "../api/gen/ReplaceBody";
 import type { ReservationSuggestion } from "../api/gen/ReservationSuggestion";
 import type { RestoreBody } from "../api/gen/RestoreBody";
 import type { RestoreState } from "../api/gen/RestoreState";
+import type { RetrustBody } from "../api/gen/RetrustBody";
 import type { RevealedSecret } from "../api/gen/RevealedSecret";
 import type { RevealSecret } from "../api/gen/RevealSecret";
 import type { RevisionDiff } from "../api/gen/RevisionDiff";
@@ -439,6 +440,9 @@ export const api = {
     replace: (id: NodeId, body: ReplaceBody) =>
       request<Job>(`/nodes/${id}/replace`, { method: "POST", body }),
     reset: (id: NodeId) => request<Job>(`/nodes/${id}/reset`, { method: "POST" }),
+    /** Trusts a node's changed host key once its device is checked to be its own (D-154). */
+    retrust: (id: NodeId, body: RetrustBody) =>
+      request<Job>(`/nodes/${id}/host-key`, { method: "POST", body }),
     decommission: (id: NodeId, body: DecommissionBody) =>
       request<Job>(`/nodes/${id}/decommission`, { method: "POST", body }),
     forget: (id: NodeId) => request<Job>(`/nodes/${id}`, { method: "DELETE" }),

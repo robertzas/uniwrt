@@ -264,7 +264,7 @@ impl Dial for FakeDial {
                 Credential::Password(password) => {
                     password.as_str() == this.0.password.lock().unwrap().as_str()
                 }
-                Credential::Key(key) => self
+                Credential::Key(key) => this
                     .0
                     .authorized_keys
                     .lock()

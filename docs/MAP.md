@@ -434,6 +434,8 @@ Jobs (ARCHITECTURE.md, Job runner): what the controller does on nodes step by st
 - `src/adopt/port.rs`: The adopt job's path for a factory-default device on the gateway's adoption port (features/adoption.md, Path C; D-107).
 - `src/adopt/port_tests.rs`: The port path of the adopt job (Path C, D-107) over a fake gateway and the factory device behind it: staged through the tunnel, the port lent, confirmed at the lease, recorded managed; the port given back and the device rolled back when it fails.
 - `src/adopt/prepare.rs`: The port path's Prepare step (features/adoption.md, Path C, step 5; D-108).
+- `src/adopt/retrust.rs`: Re-trusting a node's changed SSH host key (features/adoption.md, Identity, credentials, trust; D-154).
+- `src/adopt/retrust_tests.rs`: Re-trusting a node's changed host key (D-154), over the scripted node of [`crate::testing`]: a device at the node's address that presents a new key.
 - `src/adopt/takeover.rs`: Adopting a device into a node's record that exists already (features/lifecycle.md, Replace / RMA / decommission; D-131): a replace names the record, and a node reset to its defaults awaits its device with a pre-approval of its MAC and board, which any adoption path finds here.
 - `src/adopt/takeover_tests.rs`: Replacing a node's device and re-adopting a reset one (D-131), over the scripted node of [`crate::testing`].
 - `src/adopt/tests.rs`: Adoptions over the scripted node of [`crate::testing`] and a temporary store.
@@ -1202,7 +1204,7 @@ ucode modules, embedded in the binary and installed on nodes by hash (`crates/no
 Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds the shared setup.
 
 - top level: index.css, main.tsx
-- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (563 files); never edit
+- `api/gen/`: TypeScript types generated from Rust DTOs by `just gen` (564 files); never edit
 - `app/`: AccountMenu.tsx, AlertsBell.tsx, App.tsx, AppearanceMenu.tsx, CommandPalette.tsx, DriftChip.tsx, HealthBadge.tsx, NotFound.tsx, PendingChanges.tsx, SectionPage.tsx, Shell.tsx, Sidebar.tsx, SkinPicker.tsx, ThemeToggle.tsx, TopBar.tsx, commands.ts, nav.ts, routes.tsx
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
@@ -1215,7 +1217,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, HostKey.tsx, address.ts
 - `features/devices/config/`: BackupsCard.tsx, ConfigTab.tsx, DriftCard.tsx, FirmwareCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, SchedulesCard.tsx, SshCard.tsx, WpadCard.tsx, backups.ts, packages.ts, schedules.ts, ssh.ts
-- `features/devices/lifecycle/`: AwaitingCard.tsx, LifecycleCard.tsx, RemoveDialog.tsx, Removed.tsx, ReplaceDialog.tsx
+- `features/devices/lifecycle/`: AwaitingCard.tsx, LifecycleCard.tsx, RemoveDialog.tsx, Removed.tsx, ReplaceDialog.tsx, RetrustDialog.tsx
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
 - `features/devices/ports/`: PortsTab.tsx, ports.ts
 - `features/devices/reboot/`: RebootDialog.tsx, reboot.ts

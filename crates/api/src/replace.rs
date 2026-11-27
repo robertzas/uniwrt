@@ -9,6 +9,12 @@
 //! - `POST v1/nodes/{id}/reset`: `firstboot` and a restart on the node; its record then awaits
 //!   the device, with a pre-approval of its MAC and board (`v1/ztp/pending` lists it, its
 //!   `node` set), so whichever path finds the device again adopts it back into the record.
+//! - `POST v1/nodes/{id}/host-key` with the new host key the admin confirmed (`POST
+//!   v1/adopt/probe` at the node's address reads it) and, for a device that no longer trusts
+//!   the controller's key, its root password (D-154): the device at the node's address must be
+//!   the node's own (MAC and board; `identity_mismatch` otherwise); one that still trusts the
+//!   controller's key gets its new key pinned and stays as it was, another is adopted back into
+//!   the record in observe mode.
 //!
 //! Refused (409) for a node an active rollout still has to upgrade and while an apply or
 //! another job for the node runs; a reset also for the gateway while other nodes are adopted.
@@ -24,7 +30,7 @@ use axum::{
 };
 use serde::Deserialize;
 use ts_rs::TS;
-use uniwrt_jobs::AdoptRequest;
+use uniwrt_jobs::{AdoptRequest, Retrust};
 use uniwrt_model::user::AuditAction;
 
 use crate::{
@@ -99,6 +105,56 @@ pub(crate) async fn replace(
     } else {
         format!("replaced with the device at {} the device of", body.host)
     };
+    audited(&api, &user, &client, job, AuditAction::Replace, &how).await
+}
+
+/// The new host key of a node's own device (D-154). Not `Debug`: it may hold a password.
+#[derive(Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct RetrustBody {
+    /// The host key the admin confirmed, as the probe returned it.
+    pub host_key: String,
+    /// The root password, for a device that no longer trusts the controller's key; left out
+    /// to try the key, then no password (factory defaults).
+    #[serde(default)]
+    #[ts(optional)]
+    pub password: Option<String>,
+    /// Keep the password in the vault, for emergencies.
+    #[serde(default)]
+    #[ts(optional)]
+    pub remember_password: Option<bool>,
+    /// Take the device even if its release is one adoption refuses (D-145).
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_unsupported_release: Option<bool>,
+}
+
+pub(crate) async fn retrust(
+    State(api): State<Api>,
+    user: CurrentUser,
+    client: Client,
+    id: Result<Path<i64>, PathRejection>,
+    body: Result<Json<RetrustBody>, JsonRejection>,
+) -> ApiResult<Response> {
+    let id = node_id(id)?;
+    let user = admin(user)?;
+    let Json(body) = body?;
+    let password = password(body.password)?;
+    let remember_password = remember(body.remember_password, password.as_ref())?;
+    let host_key = host_key(&body.host_key)?;
+    let how = format!("trusted the new host key {} of", host_key.fingerprint());
+    let retrust = Retrust {
+        host_key,
+        password,
+        remember_password,
+        allow_unsupported_release: body.allow_unsupported_release.unwrap_or(false),
+    };
+    let job = api
+        .jobs()
+        .retrust(id, retrust, Some(author(&user)))
+        .await
+        .map_err(jobs_error)?;
     audited(&api, &user, &client, job, AuditAction::Replace, &how).await
 }
 

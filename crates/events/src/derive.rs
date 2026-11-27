@@ -328,8 +328,8 @@ impl Deriver {
         events
     }
 
-    /// A job changed: an adoption, a decommission, a forget, a replace or a reset that succeeded
-    /// and a job that failed are events, once.
+    /// A job changed: an adoption, a decommission, a forget, a replace, a reset or a re-trust
+    /// that succeeded and a job that failed are events, once.
     pub fn job(&mut self, job: &Job, now: Timestamp) -> Option<NewEvent> {
         if job.state == JobState::Running || self.ended.contains(&job.id) {
             return None;
@@ -352,6 +352,7 @@ impl Deriver {
             }
             (JobState::Succeeded, JobKind::Replace) => NewEvent::new(at, EventKind::NodeReplaced),
             (JobState::Succeeded, JobKind::Reset) => NewEvent::new(at, EventKind::NodeReset),
+            (JobState::Succeeded, JobKind::Retrust) => NewEvent::new(at, EventKind::HostKeyTrusted),
             (JobState::Failed, kind) => NewEvent::new(
                 at,
                 EventKind::JobFailed {

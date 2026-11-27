@@ -16,6 +16,8 @@
 
 mod forget;
 mod replace;
+
+pub use replace::Retrust;
 #[cfg(test)]
 mod tests;
 

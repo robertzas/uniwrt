@@ -173,13 +173,15 @@ A device's status says why it isn't online: **Connecting**, **Unreachable** with
 
 The status says **Its SSH host key changed. uniwrt stopped connecting until you confirm it.** uniwrt pins each device's host key at adoption and refuses to talk to a device that presents another one, in case something is impersonating it.
 
-If you reset or reflashed the device yourself, take it over again with its new key:
+If you didn't touch the device, find out why its key changed first. If you reset or reflashed it yourself, trust its new key:
 
-1. Open the device and pick its **Config** tab.
-2. On the **Replace or remove** card, click **Replace…**.
-3. Give the device's address and root password, compare the fingerprint it shows with the device's own key, and click **It matches, replace**.
+1. Open the device. Admins see **Check the new key…** beside the status.
+2. uniwrt reads the key the device presents now and shows it under the pinned one. Compare it with the device's own key: run `dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key` on the device.
+3. Click **It matches, trust it**. uniwrt logs in with the new key and checks that it is the same device, by its MAC address and board, before it trusts the key.
 
-The device keeps its name, settings and history, and comes back in observe mode. If you didn't touch the device, find out why its key changed before you do this.
+If the device kept its settings, it reconnects as it was. If it was reset, uniwrt adopts it back into its record. A device at factory defaults needs nothing more. If root has a password, the dialog asks for it: give it and click **Adopt it back**. The device keeps its name, settings and history and comes back in observe mode: turn management on to apply its settings again.
+
+If another device answers at the address, uniwrt refuses it. To put new hardware in its place, use **Replace…** on the **Config** tab's **Replace or remove** card instead.
 
 ### A change rolled back
 

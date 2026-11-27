@@ -126,6 +126,10 @@ pub enum JobKind {
     /// Resetting a node to its image's defaults (`firstboot`), its record then awaiting the
     /// device's re-adoption (D-131).
     Reset,
+    /// Trusting a node's changed SSH host key, after a reset or a reflash (D-154): its device
+    /// checked to be the node's own (MAC and board), then the new key pinned; a device that no
+    /// longer trusts the controller's key is adopted back into its record, as after a reset.
+    Retrust,
     /// Restarting nodes one at a time, the gateway last, each back before the next goes down
     /// (features/network.md, Other services; D-137).
     Reboot,

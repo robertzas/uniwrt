@@ -146,7 +146,7 @@ For an image you build yourself. Choose a **Role**, press **Download the script*
 
 ![The gateway's page on its Overview tab: its stats, radios, details and performance charts](https://robertzas.github.io/uniwrt/guide/images/device.png)
 
-A device's page shows its name, status, role, model and management address. **Events** and **Logs** open those pages filtered to this device. When something is wrong, a card under the header says why, such as **Its SSH host key changed. uniwrt stopped connecting until you confirm it.**
+A device's page shows its name, status, role, model and management address. **Events** and **Logs** open those pages filtered to this device. When something is wrong, a card under the header says why, such as **Its SSH host key changed. uniwrt stopped connecting until you confirm it.** Admins can trust the new key from there: see [A device's SSH host key changed](troubleshooting.md#a-devices-ssh-host-key-changed).
 
 The page has seven tabs: **Overview**, **Ports**, **Mesh**, **Config**, **Tools**, **Terminal** and **UCI**.
 

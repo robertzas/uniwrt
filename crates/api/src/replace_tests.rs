@@ -173,3 +173,86 @@ async fn a_reset_node_s_hello_adopts_it_back_until_it_is_recorded() {
     assert_eq!(demo.store.awaiting_nodes().await.unwrap(), [node.id]);
     assert_eq!(say().await, "adopting");
 }
+
+#[tokio::test]
+async fn trusting_a_new_host_key_is_a_job_on_the_node_s_own_address() {
+    use uniwrt_store::HostKeyRepo as _;
+
+    let demo = Demo::start().await;
+    let ap = demo.ids[1];
+    let node = demo.store.node(ap).await.unwrap().unwrap();
+    let old = ControllerKey::generate().unwrap().authorized_key().unwrap();
+    let pin = uniwrt_node::HostKey::parse(&old)
+        .unwrap()
+        .pin(demo.api.now());
+    demo.store.pin_host_key(ap, pin.clone()).await.unwrap();
+    let pinned = demo.store.host_key(ap).await.unwrap().unwrap();
+    assert_eq!(pinned, pin);
+    let uri = format!("/v1/nodes/{ap}/host-key");
+    let send = |body: Value| {
+        let (demo, uri) = (&demo, &uri);
+        async move {
+            demo.send(request(Method::POST, uri, Some(&body), Some(&demo.cookie)))
+                .await
+                .status()
+        }
+    };
+    assert_eq!(
+        send(json!({ "host_key": "not a key" })).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        send(json!({ "host_key": pinned.public_key, "name": "x" })).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        demo.send(request(
+            Method::POST,
+            "/v1/nodes/999/host-key",
+            Some(&json!({ "host_key": pinned.public_key })),
+            Some(&demo.cookie)
+        ))
+        .await
+        .status(),
+        StatusCode::NOT_FOUND
+    );
+
+    let key = ControllerKey::generate().unwrap().authorized_key().unwrap();
+    let res = demo
+        .send(request(
+            Method::POST,
+            &uri,
+            Some(&json!({ "host_key": key })),
+            Some(&demo.cookie),
+        ))
+        .await;
+    assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let job = body(res).await;
+    assert_eq!(
+        (job["kind"].as_str(), job["node"].as_i64()),
+        (Some("retrust"), Some(ap.get()))
+    );
+    // No device at the node's address presents this key: nothing is pinned.
+    let failed = ended(&demo, &job).await;
+    assert_eq!(failed.state, JobState::Failed, "{failed:#?}");
+    assert_eq!(demo.store.host_key(ap).await.unwrap().unwrap(), pinned);
+
+    let fingerprint = uniwrt_node::HostKey::parse(&key)
+        .unwrap()
+        .fingerprint()
+        .to_owned();
+    let audit = demo.store.audit_log(10).await.unwrap();
+    assert!(
+        audit
+            .iter()
+            .any(|entry| entry.action == AuditAction::Replace
+                && entry
+                    .detail
+                    .as_deref()
+                    .is_some_and(|d| d.starts_with(&format!(
+                        "trusted the new host key {fingerprint} of {}",
+                        node.name
+                    )))),
+        "{audit:?}"
+    );
+}

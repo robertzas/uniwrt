@@ -143,6 +143,9 @@ pub enum EventKind {
     NodeReplaced,
     /// A node was reset to its image's defaults; its record awaits the device (D-131).
     NodeReset,
+    /// A node's changed SSH host key was trusted, its device checked to be the node's own
+    /// (D-154).
+    HostKeyTrusted,
     /// A node became unreachable (raises its `offline` condition).
     NodeOffline {
         reasons: Vec<StatusReason>,
@@ -408,6 +411,7 @@ impl EventKind {
             | Self::NodeRemoved { .. }
             | Self::NodeReplaced
             | Self::NodeReset
+            | Self::HostKeyTrusted
             | Self::LedScheduleOk
             | Self::TailscaleOk
             | Self::NodeOnline { .. }
@@ -457,6 +461,7 @@ impl EventKind {
             Self::NodeRemoved { .. } => "node_removed",
             Self::NodeReplaced => "node_replaced",
             Self::NodeReset => "node_reset",
+            Self::HostKeyTrusted => "host_key_trusted",
             Self::NodeOffline { .. } => "node_offline",
             Self::NodeOnline { .. } => "node_online",
             Self::NodeDegraded { .. } => "node_degraded",
@@ -713,6 +718,7 @@ mod tests {
             },
             EventKind::NodeReplaced,
             EventKind::NodeReset,
+            EventKind::HostKeyTrusted,
             EventKind::ScheduledRebootMissed {
                 why: super::RebootMissed::Busy,
             },

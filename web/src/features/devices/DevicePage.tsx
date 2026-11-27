@@ -34,6 +34,7 @@ import { ConfigTab } from "./config/ConfigTab";
 import { DeviceCharts } from "./DeviceCharts";
 import { AwaitingCard } from "./lifecycle/AwaitingCard";
 import { Removed } from "./lifecycle/Removed";
+import { RetrustAction } from "./lifecycle/RetrustDialog";
 import { MeshTab } from "./mesh/MeshTab";
 import { PortsTab } from "./ports/PortsTab";
 import { RadiosCard } from "./RadiosCard";
@@ -189,7 +190,14 @@ function Overview(props: {
               {(reason) => (
                 <li class="flex items-start gap-2">
                   <Icon icon={CircleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
-                  {describeReason(reason)}
+                  <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+                    <span>{describeReason(reason)}</span>
+                    <Show
+                      when={admin() && reason.kind === "host_key_mismatch" ? reason : undefined}
+                    >
+                      {(change) => <RetrustAction node={node()} change={change()} />}
+                    </Show>
+                  </div>
                 </li>
               )}
             </For>

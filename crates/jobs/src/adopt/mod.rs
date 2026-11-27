@@ -5,7 +5,8 @@
 //! agent runs from `/tmp`. A factory-default device on the gateway's adoption port takes
 //! [`port`]'s path instead (Path C): the same steps through the gateway, then staged, managed
 //! and confirmed at its lease on the LAN. A device may go into a record that exists already
-//! ([`takeover`]): a replace's, or a reset node's awaiting it (D-131).
+//! ([`takeover`]): a replace's, or a reset node's awaiting it (D-131), or its own device's
+//! after its host key changed ([`retrust`], D-154).
 
 pub(crate) mod check;
 mod login;
@@ -13,6 +14,9 @@ mod port;
 #[cfg(test)]
 mod port_tests;
 mod prepare;
+mod retrust;
+#[cfg(test)]
+mod retrust_tests;
 mod takeover;
 #[cfg(test)]
 mod takeover_tests;
@@ -109,7 +113,8 @@ pub struct ZtpClaim {
 pub(crate) async fn run(shared: Arc<Shared>, request: AdoptRequest, mut progress: Progress) {
     // Never closed.
     let _permit = shared.adoptions.acquire().await;
-    let result = adopt(&shared, &request, &mut progress).await;
+    // Boxed: the login, the check and the takeover make a large future.
+    let result = Box::pin(adopt(&shared, &request, &mut progress)).await;
     match &result {
         Ok(()) => info!("adopted"),
         Err(err) => info!(code = ?err.code, "adoption failed: {}", err.message),
@@ -138,7 +143,16 @@ async fn adopt(
     let Some(dial) = &shared.dial else {
         return Err(internal("no way to reach nodes", &"no dial"));
     };
-    let (found, remote) = on_node(shared, dial.as_ref(), request, progress).await?;
+    let reached = reach(shared, dial.as_ref(), request, progress).await?;
+    if request
+        .replace
+        .as_ref()
+        .is_some_and(|replace| replace.retrust)
+        && reached.login == Login::Key
+    {
+        return retrust::keep(shared, request, reached, progress).await;
+    }
+    let (found, remote) = finish_on_node(shared, dial.as_ref(), request, progress, reached).await?;
     remote.close().await;
     let host = request.target.host.clone();
     let facts = found.facts.clone();
@@ -293,17 +307,53 @@ async fn on_node(
     request: &AdoptRequest,
     progress: &mut Progress,
 ) -> Result<(Found, Box<dyn Remote>), JobError> {
+    let reached = reach(shared, dial, request, progress).await?;
+    finish_on_node(shared, dial, request, progress, reached).await
+}
+
+/// The first login and the check: nothing has changed on the node yet.
+struct Reached {
+    remote: Box<dyn Remote>,
+    login: Login,
+    checked: Checked,
+}
+
+/// Logs in and checks the node.
+async fn reach(
+    shared: &Shared,
+    dial: &dyn Dial,
+    request: &AdoptRequest,
+    progress: &mut Progress,
+) -> Result<Reached, JobError> {
     progress.start(StepName::Connect).await;
     let (first, login) = login::first(shared, dial, request).await?;
     progress.done(Some(login.detail().to_owned())).await;
-
-    let checked = match check(shared, request, progress, first.as_ref()).await {
-        Ok(checked) => checked,
+    match check(shared, request, progress, first.as_ref()).await {
+        Ok(checked) => Ok(Reached {
+            remote: first,
+            login,
+            checked,
+        }),
         Err(err) => {
             first.close().await;
-            return Err(err);
+            Err(err)
         }
-    };
+    }
+}
+
+/// The steps after the check, from installing the key to the backup; returns the login.
+async fn finish_on_node(
+    shared: &Shared,
+    dial: &dyn Dial,
+    request: &AdoptRequest,
+    progress: &mut Progress,
+    reached: Reached,
+) -> Result<(Found, Box<dyn Remote>), JobError> {
+    let Reached {
+        remote: first,
+        login,
+        checked,
+    } = reached;
     let remote = match key_login(shared, dial, request, progress, first.as_ref(), login).await {
         Ok(Some(second)) => {
             first.close().await;

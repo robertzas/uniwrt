@@ -29,6 +29,8 @@
 //!   alone ([`Author`], D-131; `decommission/`); [`Jobs::replace`] adopts a new device into a
 //!   node's record in place of its failed one ([`Replace`]), and [`Jobs::reset`] resets a node
 //!   to its defaults, its record awaiting the device's re-adoption by any path;
+//!   [`Jobs::retrust`] trusts a node's changed host key once its device is checked to be the
+//!   node's own ([`Retrust`], D-154);
 //!   [`Jobs::discover`] reports the unadopted OpenWrt devices the adopted nodes see;
 //!   [`Jobs::find_gateways`] looks for the factory-default router to set up at first run
 //!   ([`bootstrap`], D-080); [`Jobs::look_on_adoption_port`] looks for a factory-default
@@ -169,6 +171,7 @@ mod ztp;
 pub use adopt::{AdoptRequest, PortPath, Replace, ZtpClaim};
 pub use adoption_port::PortLook;
 pub use apply::ApplyTiming;
+pub use decommission::Retrust;
 pub use import::{ImportDraft, ImportScope};
 pub use reboot::RebootTiming;
 pub use remote::{BoxFuture, Dial, Remote, SshDial};

@@ -729,6 +729,7 @@ export const strings = {
       forget: (target: string) => `Forgetting ${target}`,
       replace: (target: string) => `Replacing ${target}'s device`,
       reset: (target: string) => `Resetting ${target} to its defaults`,
+      retrust: (target: string) => `Trusting ${target}'s new host key`,
       reboot: (target: string) => `Restarting ${target}`,
       packages: (target: string) => `Changing the packages of ${target}`,
     },
@@ -813,6 +814,7 @@ export const strings = {
       forget: { record: "Remove it from the controller" },
       replace: { record: "Move the device's record and settings to it" },
       reset: { wipe: "Reset it to its defaults", record: "Await the device" },
+      retrust: { record: "Pin its new host key" },
       upgrade: {
         check: "Check the device and pick its image",
         download: "Download the image",
@@ -861,8 +863,8 @@ export const strings = {
         action: "Close",
       },
       identity_mismatch: {
-        title: "This is not the device that called home",
-        hint: "Another board or MAC address answered at its address. Dismiss it from the inbox and let the device call home again.",
+        title: "This is not the expected device",
+        hint: "Another board or MAC address answered at its address. A device that called home: dismiss it from the inbox and let it call home again. A device whose key changed: replace its device instead.",
         action: "Close",
       },
       node_failed: {
@@ -1832,6 +1834,30 @@ export const strings = {
         submit: "Reset",
         succeeded: "Reset. Its record now waits for the device: this page says how it comes back.",
       },
+      retrust: {
+        action: "Check the new key…",
+        title: (name: string) => `Trust ${name}'s new host key?`,
+        reading: "Reading the key it presents now…",
+        description:
+          "If you reset or reflashed the device yourself, compare its new key with the device's own. uniwrt then checks that it is the same device, by its MAC address and board, before it trusts the key.",
+        untouched:
+          "If you didn't touch the device, find out why its key changed first: something may be impersonating it.",
+        pinned: "Pinned key, no longer presented",
+        changedAgain:
+          "This is not the key it presented when uniwrt stopped connecting. Compare it with the device's own before you go on.",
+        same: "The device presents its pinned key again. Trusting it reconnects.",
+        submit: "It matches, trust it",
+        password: {
+          title: "The device no longer trusts uniwrt",
+          description:
+            "It was reset, so uniwrt adopts it back into this record: give its root password. It comes back in observe mode with its name, settings and history; turn management on to apply its settings again.",
+          submit: "Adopt it back",
+        },
+        progress: (name: string) => `Trusting ${name}'s new host key`,
+        running: "You can close this window: the job continues.",
+        trusted: "Trusted. uniwrt reconnects with the new key, and the device stays as it was.",
+        readopted: "Adopted back in observe mode. Turn management on to apply its settings again.",
+      },
       decommission: {
         label: "Decommission",
         hint: "uniwrt removes itself from the device and the device leaves the mesh; then its record and history are deleted.",
@@ -2658,6 +2684,7 @@ export const strings = {
         wiped ? `${node} decommissioned` : `${node} forgotten`,
       nodeReplaced: (node: string) => `${node}'s device replaced`,
       nodeReset: (node: string) => `${node} reset to its defaults`,
+      hostKeyTrusted: (node: string) => `${node}'s new host key trusted`,
       nodeOffline: (node: string) => `${node} went offline`,
       nodeOnline: (node: string) => `${node} is back online`,
       nodeDegraded: (node: string) => `${node} is degraded`,
@@ -2792,6 +2819,7 @@ export const strings = {
         forget: "forgetting a device",
         replace: "replacing a device",
         reset: "resetting a device",
+        retrust: "trusting a device's new host key",
         reboot: "restarting devices",
         packages: "changing a device's packages",
       },
@@ -2973,6 +3001,7 @@ export const strings = {
       node_removed: "Device removed",
       node_replaced: "Device replaced",
       node_reset: "Device reset",
+      host_key_trusted: "Host key trusted",
       node_offline: "Device offline",
       node_online: "Device back online",
       node_degraded: "Device degraded",
