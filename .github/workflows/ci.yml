@@ -218,6 +218,8 @@ jobs:
           persist-credentials: false
       - name: Install the nightly toolchain scripts/fuzz.sh pins
         run: rustup toolchain install "$(scripts/fuzz.sh toolchain)" --profile minimal --component rust-src
+      - name: Install the mold linker (D-134; .cargo/config.toml links host builds with it)
+        run: scripts/mold.sh "$HOME/.local/bin" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: fuzz

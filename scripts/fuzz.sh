@@ -16,10 +16,12 @@ cd "$(dirname "$0")/.."
 
 toolchain=${UNIWRT_FUZZ_TOOLCHAIN:-nightly-2026-11-25}
 
+# The host's target, named: a cargo-fuzz built for musl (as CI installs it) defaults to musl.
 fuzz() {
-  local command=$1
+  local command=$1 host
   shift
-  cargo "+$toolchain" fuzz "$command" --fuzz-dir fuzz "$@"
+  host=$(rustc "+$toolchain" -vV | sed -n 's/^host: //p')
+  cargo "+$toolchain" fuzz "$command" --fuzz-dir fuzz --target "$host" "$@"
 }
 
 list() { sed -n 's/^name = "\(.*\)"$/\1/p' fuzz/Cargo.toml | grep -v '^uniwrt-fuzz$'; }
