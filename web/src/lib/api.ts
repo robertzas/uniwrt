@@ -1,3 +1,4 @@
+import type { Account } from "../api/gen/Account";
 import type { AdoptBody } from "../api/gen/AdoptBody";
 import type { AlertPage } from "../api/gen/AlertPage";
 import type { AlertRecord } from "../api/gen/AlertRecord";
@@ -70,6 +71,7 @@ import type { MetricsResponse } from "../api/gen/MetricsResponse";
 import type { MirrorSettings } from "../api/gen/MirrorSettings";
 import type { NeighborEntry } from "../api/gen/NeighborEntry";
 import type { Network } from "../api/gen/Network";
+import type { NewUser } from "../api/gen/NewUser";
 import type { NewWindow } from "../api/gen/NewWindow";
 import type { NodeDetail } from "../api/gen/NodeDetail";
 import type { NodeId } from "../api/gen/NodeId";
@@ -87,6 +89,7 @@ import type { OptionalToolStatus } from "../api/gen/OptionalToolStatus";
 import type { PackageCatalog } from "../api/gen/PackageCatalog";
 import type { PackageChanges } from "../api/gen/PackageChanges";
 import type { PassphraseBody } from "../api/gen/PassphraseBody";
+import type { PasswordChange } from "../api/gen/PasswordChange";
 import type { PinRequest } from "../api/gen/PinRequest";
 import type { Plan } from "../api/gen/Plan";
 import type { PlanBody } from "../api/gen/PlanBody";
@@ -139,6 +142,7 @@ import type { UpgradeBody } from "../api/gen/UpgradeBody";
 import type { UpgradeInstallBody } from "../api/gen/UpgradeInstallBody";
 import type { UpgradePlan } from "../api/gen/UpgradePlan";
 import type { UserInfo } from "../api/gen/UserInfo";
+import type { UserPatch } from "../api/gen/UserPatch";
 import type { VpnPeerConfig } from "../api/gen/VpnPeerConfig";
 import type { VpnStatus } from "../api/gen/VpnStatus";
 import type { WakeOutcome } from "../api/gen/WakeOutcome";
@@ -384,6 +388,18 @@ export const api = {
     login: (credentials: Credentials) =>
       request<UserInfo>("/auth/login", { method: "POST", body: credentials, session: false }),
     logout: () => request<void>("/auth/logout", { method: "POST", session: false }),
+    /** Changes the session's own password; the user's other sessions end (D-153). */
+    password: (change: PasswordChange) =>
+      request<void>("/auth/password", { method: "POST", body: change }),
+  },
+  /** The controller's users, for admins (security.md, Users; D-153). */
+  users: {
+    list: (signal?: AbortSignal) => request<Account[]>("/users", { signal }),
+    create: (user: NewUser) => request<UserInfo>("/users", { method: "POST", body: user }),
+    /** A new role or password ends the user's sessions. */
+    update: (id: number, patch: UserPatch) =>
+      request<UserInfo>(`/users/${id}`, { method: "PATCH", body: patch }),
+    remove: (id: number) => request<void>(`/users/${id}`, { method: "DELETE" }),
   },
   nodes: {
     list: (signal?: AbortSignal) => request<NodeSummary[]>("/nodes", { signal }),

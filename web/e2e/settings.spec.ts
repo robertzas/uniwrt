@@ -5,7 +5,7 @@ import { expectSaved, region, signIn, watchErrors } from "./support";
 /*
  * Settings on the demo (features/ui.md, Settings): the site renamed, its revision compared with
  * its parent and exported; the LEDs' schedule; an ntfy notifier; the backups' passphrase and a
- * backup taken now. Support's bundle is covered by troubleshoot.spec.ts. A retry meets its first
+ * backup taken now; a viewer added, signing in and changing their password, then deleted. Support's bundle is covered by troubleshoot.spec.ts. A retry meets its first
  * attempt's saves, so each test's values carry the retry's number.
  */
 test("renames the site, compares the revision and exports it", async ({ page }, info) => {
@@ -126,5 +126,56 @@ test("sets the backups' passphrase and backs up now", async ({ page }) => {
   await backups.getByRole("button", { name: "Back up now" }).click();
   await expect(backups.getByText("No backups yet.")).toBeHidden({ timeout: 90_000 });
   await expect(backups.getByRole("button", { name: "Back up now" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("adds a viewer, who changes their password, then deletes them", async ({
+  page,
+  browser,
+}, info) => {
+  const errors = watchErrors(page);
+  const name = `e2e-viewer-${info.retry}`;
+  const first = "the first password";
+  const second = "the viewer's own password";
+  await signIn(page);
+  await page.goto("/settings?tab=users");
+  await page.getByRole("button", { name: "Add user" }).click();
+  const add = page.getByRole("dialog", { name: "Add a user" });
+  await add.getByLabel("Username").fill(name);
+  await add.getByRole("radio", { name: /Viewer/ }).check();
+  await add.getByLabel("Password", { exact: true }).fill(first);
+  await add.getByRole("button", { name: "Add user" }).click();
+  const users = page.getByRole("table", { name: "Users" });
+  await expect(users.getByRole("row").filter({ hasText: name })).toContainText("Viewer");
+
+  // The viewer signs in elsewhere, sees no users and changes their password.
+  const other = await browser.newContext({
+    baseURL: info.project.use.baseURL,
+    ignoreHTTPSErrors: true,
+  });
+  const viewer = await other.newPage();
+  await viewer.goto("/settings?tab=users");
+  await viewer.getByLabel("Username").fill(name);
+  await viewer.getByLabel("Password", { exact: true }).fill(first);
+  await viewer.getByRole("button", { name: "Sign in" }).click();
+  await expect(viewer.getByText("Only administrators see and manage users.")).toBeVisible();
+  await viewer.getByRole("button", { name: "Account" }).click();
+  await viewer.getByRole("button", { name: "Change password…" }).click();
+  const change = viewer.getByRole("dialog", { name: "Change your password" });
+  await change.getByLabel("Current password").fill(first);
+  await change.getByLabel("New password", { exact: true }).fill(second);
+  await change.getByLabel("New password again").fill(second);
+  await change.getByRole("button", { name: "Change password" }).click();
+  await expect(change).toBeHidden();
+  await expect(viewer.getByText("Password changed")).toBeVisible();
+  await other.close();
+
+  // Deleted, after asking.
+  await users.getByRole("button", { name: `Delete ${name}` }).click();
+  await page
+    .getByRole("dialog", { name: `Delete ${name}?` })
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(users.getByRole("row").filter({ hasText: name })).toHaveCount(0);
   expect(errors).toEqual([]);
 });

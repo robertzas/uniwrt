@@ -148,7 +148,9 @@ After 5 wrong passwords in a row for one username, sign-in waits 1 minute, doubl
 
 ### The admin password is forgotten
 
-Run `reset-admin` on the controller's host. The controller can keep running:
+If another administrator can sign in, they set a new password for you in **Settings**, **Users**. A viewer who forgot theirs asks an administrator the same way.
+
+Otherwise, run `reset-admin` on the controller's host. The controller can keep running:
 
 ```sh
 docker exec uniwrt /uniwrt reset-admin
@@ -156,7 +158,7 @@ docker exec uniwrt /uniwrt reset-admin
 
 Without Docker, run `uniwrt reset-admin --data-dir <the controller's data directory>`. With several admins, name one: `reset-admin alice`.
 
-It prints a new random password once, such as `qde9k-fdxwk-gjpc9-3getq`, and signs that admin out everywhere. Sign in with it. If sign-in asks you to wait, earlier wrong attempts are still counted: wait as it says.
+It prints a new random password once, such as `qde9k-fdxwk-gjpc9-3getq`, and signs that admin out everywhere. Sign in with it, then change it from the **Account** menu. If sign-in asks you to wait, earlier wrong attempts are still counted: wait as it says.
 
 ### A device is offline or stuck connecting
 

@@ -1207,7 +1207,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
-- `features/auth/`: SignIn.tsx
+- `features/auth/`: ChangePasswordDialog.tsx, SignIn.tsx
 - `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/clients/doctor/`: DoctorChip.tsx, DoctorTab.tsx, describe.ts, query.ts
@@ -1246,6 +1246,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/revisions/`: ChangeList.tsx, ExportDialog.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
 - `features/settings/site/`: SchedulesCard.tsx, SiteTab.tsx
 - `features/settings/support/`: SupportTab.tsx
+- `features/settings/users/`: UserDialog.tsx, UsersTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `features/updates/`: ControllerCard.tsx, MirrorCard.tsx, MirrorSet.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx, mirror.ts
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts

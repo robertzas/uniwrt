@@ -104,6 +104,7 @@ const tabs: Readonly<Record<string, Readonly<Record<string, string>>>> = {
     notifications: "settings#notifications",
     revisions: "settings#revisions",
     backups: "settings#backups",
+    users: "settings#users",
     support: "settings#support",
   },
 };

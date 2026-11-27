@@ -9,11 +9,12 @@ import { NotificationsTab } from "./notifications/NotificationsTab";
 import { RevisionsTab } from "./revisions/RevisionsTab";
 import { SiteTab } from "./site/SiteTab";
 import { SupportTab } from "./support/SupportTab";
+import { UsersTab } from "./users/UsersTab";
 
 const t = strings.settings;
 
-/** The sections, in the URL as `?tab=`; more join as their features land (users, …). */
-const TABS = ["site", "notifications", "revisions", "backups", "support"] as const;
+/** The sections, in the URL as `?tab=`. */
+const TABS = ["site", "notifications", "revisions", "backups", "users", "support"] as const;
 type TabName = (typeof TABS)[number];
 
 /** `/settings` (features/ui.md): the controller's settings in tabs named in the URL. */
@@ -49,6 +50,7 @@ export function SettingsPage() {
           <Tab value="notifications">{t.tabs.notifications}</Tab>
           <Tab value="revisions">{t.tabs.revisions}</Tab>
           <Tab value="backups">{t.tabs.backups}</Tab>
+          <Tab value="users">{t.tabs.users}</Tab>
           <Tab value="support">{t.tabs.support}</Tab>
         </TabList>
         <TabPanel value="site">
@@ -62,6 +64,9 @@ export function SettingsPage() {
         </TabPanel>
         <TabPanel value="backups">
           <BackupsTab admin={admin()} />
+        </TabPanel>
+        <TabPanel value="users">
+          <UsersTab admin={admin()} />
         </TabPanel>
         <TabPanel value="support">
           <SupportTab admin={admin()} />

@@ -1,6 +1,6 @@
 # Settings
 
-The **Settings** page holds what the whole controller shares: the site's name, country and time zone, the schedules, where alerts are sent, the history of the site's configuration, the controller's own backups and the support bundle. It has five tabs: **Site**, **Notifications**, **Revisions**, **Backups** and **Support**. Two menus at the foot of the sidebar, **Appearance** and **Account**, complete it.
+The **Settings** page holds what the whole controller shares: the site's name, country and time zone, the schedules, where alerts are sent, the history of the site's configuration, the controller's own backups, who can sign in, and the support bundle. It has six tabs: **Site**, **Notifications**, **Revisions**, **Backups**, **Users** and **Support**. Two menus at the foot of the sidebar, **Appearance** and **Account**, complete it.
 
 Everyone can open Settings. Only administrators change anything; viewers see the same tabs read-only, and each tab says what they can't do.
 
@@ -251,6 +251,32 @@ A new controller can take on a backup before you create an account:
 
 You can also restore from the command line: `uniwrt restore FILE` stages the backup, taking the passphrase from `UNIWRT_BACKUP_PASSPHRASE` or from standard input. The next start puts it in place.
 
+## Users
+
+The **Users** tab lists who can sign in, with each user's role, when they were last active and when they were added. Only administrators see it; viewers get a note instead.
+
+**Last active** says **Now** within the last five minutes, and **Not signed in** for a user with no session kept.
+
+### To add a user
+
+1. Click **Add user**.
+2. Enter a **Username**: letters, digits, dots, underscores or hyphens. Case doesn't matter.
+3. Choose a **Role**: **Administrator** or **Viewer** (see [Account](#account)).
+4. Enter a **Password** of at least 12 characters, and give it to them yourself. They can change it from their **Account** menu.
+5. Click **Add user**.
+
+### To change a role or set a new password
+
+1. Click the pencil next to the user.
+2. Choose another **Role**, or enter a **New password**. Leave the password empty to keep it.
+3. Click **Save**. The user is signed out everywhere and signs in again.
+
+The only administrator stays one: to step down, first make another user an administrator. Your own password isn't set here: change it from the **Account** menu, which asks for the current one.
+
+### To delete a user
+
+Click the bin next to the user, then **Delete**. They are signed out everywhere and can't sign in again. The audit log keeps their name. You can't delete your own account; another administrator can.
+
 ## Support
 
 The **Support** tab makes a support bundle: one file to attach to a bug report. It holds:
@@ -280,6 +306,14 @@ You can also switch both from the command palette.
 
 The **Account** menu, at the foot of the sidebar under your initial, shows who is signed in and their role. Select **Sign out** to end your session.
 
+### To change your password
+
+1. Open the **Account** menu and select **Change password…**.
+2. Enter your **Current password**, then the **New password** twice. It needs at least 12 characters.
+3. Click **Change password**. Your sessions on other browsers and devices end; this one stays signed in.
+
+Forgot it? See [The admin password is forgotten](troubleshooting.md#the-admin-password-is-forgotten).
+
 There are two roles:
 
 - **Administrator**: manages everything. The first account, created at first start, is an administrator.
@@ -287,4 +321,4 @@ There are two roles:
 
 A session ends after 7 days without use, or after 30 days in all. uniwrt then asks you to sign in again.
 
-There is no page yet to add users or change a password.
+Administrators add users and change their roles in the [Users](#users) tab.
