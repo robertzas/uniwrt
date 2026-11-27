@@ -305,6 +305,13 @@ insert_before web/src/lib/api.ts '^export const api = \{' '^};$' "$(render <<'EO
 EOF
 )"
 insert_before web/src/lib/api.ts '' '^import ' "import type { $dto } from \"../api/gen/$dto\";"
+# The page's help (D-151): the guide's contents until its chapter has a section for it.
+grep -qF "\"$path\":" web/src/lib/help.ts ||
+  insert_before web/src/lib/help.ts '^const pages: ' '^};$' "$(render <<'EOF'
+  // TODO(new-feature): the page's section in its chapter of the user guide (docs/guide/).
+  "__path__": "index#pages",
+EOF
+)"
 insert_before web/src/lib/strings.ts '^export const strings = \{' '^\} as const;$' "$(render <<'EOF'
   __camel__: {
     loading: "Loading",
@@ -391,6 +398,7 @@ printf '%s\n' "${edited[@]}" | sort -u | sed 's/^/  /'
 cat <<EOF
 next
   - spec: the area's section in docs/features/<area>.md, and any decision in docs/DECISIONS.md
+  - guide: the page's chapter in docs/guide/, and its section in web/src/lib/help.ts (D-151)
   - render: skipped until crates/render exists (step 3 of the recipe)
 EOF
 if [[ -n $telemetry ]]; then
