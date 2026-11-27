@@ -107,6 +107,13 @@ perf-runtime bin="target/release/uniwrt":
     scripts/perf.sh idle {{ bin }}
     scripts/perf.sh api {{ bin }}
 
+# The compatibility job (D-152; CI's `compat`): older releases (default: the previous one and, from
+# 1.0, its major's first) write data through their API, which a debug build upgrades, restores and
+# imports (needs gh; about a minute per release)
+compat *tags:
+    cargo build --locked --quiet -p uniwrt
+    scripts/compat.sh run target/debug/uniwrt {{ tags }}
+
 # CPU flamegraphs (D-149, pprof in process): `bench [filter]` samples the criterion benches (ingest,
 # render, logs); `serve [bin]` the controller under the 50-node demo's API reads (scripts/profile.sh)
 profile what="bench" *args:

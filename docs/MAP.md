@@ -1259,6 +1259,11 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/arch-check.test.sh`: Tests scripts/arch-check.sh against a small fixture workspace, one violation per case; `just check` and CI run it.
 - `scripts/cc-mold`: rustc's linker for the host's builds (D-134): the system C compiler, linking with mold.
 - `scripts/check.sh`: Runs everything CI gates on, one line per step (`just check`).
+- `scripts/compat.sh`: The compatibility job (D-152; docs/features/lifecycle.md, Compatibility): older releases' binaries write a data directory, a controller backup and a site file through their API (scripts/compat/ write.sh, from each release's own tag once it has one), and this build's binary must upgrade, restore and import them (scripts/compat/check.sh).
+- `scripts/compat.test.sh`: Tests `scripts/compat.sh versions` against throwaway git repositories; `just check` and CI run it.
+- `scripts/compat/check.sh`: The compatibility job's check side (docs/features/lifecycle.md, Compatibility; D-152): this release's binary opens what an older one wrote (write.sh, of the older release's tag) and must find in it everything `written.json` lists:
+- `scripts/compat/lib.sh`: shellcheck shell=bash Helpers of the compatibility job's scripts (docs/features/lifecycle.md, Compatibility; D-152), sourced by write.sh and check.sh.
+- `scripts/compat/write.sh`: The compatibility job's write side (docs/features/lifecycle.md, Compatibility; D-152): a release's binary sets up a controller through its API, the data the promise keeps (the admin, a site revision with secrets, a notifier, the backup passphrase), then takes a controller backup and exports the site with its secrets.
 - `scripts/cross.sh`: Builds static musl binaries with cargo-zigbuild inside its container, so the host needs only Docker.
 - `scripts/fuzz.sh`: The fuzz targets (fuzz/; M9.3b, D-150): cargo-fuzz (libFuzzer, AddressSanitizer, debug assertions and overflow checks) on a pinned nightly, which only this script uses.
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
