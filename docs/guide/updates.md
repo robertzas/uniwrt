@@ -27,6 +27,8 @@ The new release first runs as a trial, with a copy of the database taken before.
 
 Each night, in that one-hour window and while no job runs, the controller installs the newest release that has been out for at least a day. It skips the night when it can't reach GitHub.
 
+From uniwrt 1.0 on, every 1.x release upgrades in place from any earlier 1.x, keeping your data, and site files and backups from 1.0 on restore on any later 1.x. Automatic installs stay within the major version you run: a 2.0 waits for you to install it.
+
 A controller can't install releases when it is a development build, runs in demo mode, or was started with `--self-upgrade off` (`UNIWRT_SELF_UPGRADE=off`). The card says which. Then update the container image instead (see [Install and first start](install.md)).
 
 ## Firmware

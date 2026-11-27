@@ -102,7 +102,7 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
 | build ×4 | all (after ui) | `cargo auditable zigbuild` with the embedded UI, version and commit → smoke test: the embedded dependency list, `version --json`, and `serve` answering `healthcheck` (arm under qemu-user) → the size budget, and the cold start budget on x86_64 and i686 (D-149) → the binary and a reproducible tarball as artifacts |
 | perf | all (after build) | The runtime budgets (D-149) on the x86_64 release binary: `scripts/perf.sh idle` (a demo of 10 access points and 200 clients: peak RSS and CPU over a minute) then `scripts/perf.sh api` (50 and 1,000: the p99 of 340 reads over one connection). The image waits for it. |
 | e2e | all (after build) | `web/e2e` with Playwright in the runner's Chrome against the x86_64 release binary serving `--demo --demo-seed 42` and, on a second controller, `--demo --demo-factory` (the first run); traces uploaded on failure. The image waits for it. |
-| image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version --json` from the registry, pulled by its own manifest digest (the runner's classic image store can't hold two platforms of one index digest), and must report its target and version |
+| image | pushes to `main` | buildx 4-platform image from the binaries → GHCR (`X.Y.Z`, `X.Y`, from 1.0 `X`, `latest`, `sha-<7>`) with SBOM and provenance attestations; cosign keyless signature; then every platform runs `version --json` from the registry, pulled by its own manifest digest (the runner's classic image store can't hold two platforms of one index digest), and must report its target and version |
 | release | pushes to `main` | SHA256SUMS and build provenance attestations for the tarballs; GitHub Release `vX.Y.Z` (creating the tag) with generated notes |
 | pages | after release; a manual run on `main` | The user guide on GitHub Pages (D-151): `web/shots` takes the screenshots with Playwright in the runner's Chrome against the x86_64 release binary's demo mode (1280×800 at 2×, and the first-run wizard on a `--demo-factory` controller), `web/guide/build-site.ts` renders `docs/guide` with them (named after the release, or the last tag on a manual run), and the site becomes the Pages artifact; `pages-deploy` (`pages: write`, `id-token: write`, the `github-pages` environment) publishes it at https://robertzas.github.io/uniwrt/guide/ |
 
@@ -123,7 +123,10 @@ The root `Dockerfile` builds the image from prebuilt binaries, so no stage runs 
   - breaking (`!` or `BREAKING CHANGE`) → major, but only minor while on 0.x
   - `feat` → minor
   - anything else → patch
+- `Release-As: X.Y.Z` alone on a line of a commit body asks for that version: it must be above the last tag and not below what the commits call for (the highest such line since the last tag wins).
+- From 1.0, a breaking change fails the version job (and so the run) unless a commit asks for the next major with `Release-As`: 1.x keeps the compatibility promise (D-152; features/lifecycle.md, Compatibility).
 - Release notes are GitHub's generated notes.
+- **Releasing 1.0** (after the owner's hardware run on the gateway and 3 APs, D-151): the docs say 1.0 where they say 0.x, `just check` is green, and the last release's CI run is green; then push a commit such as `chore(release): 1.0.0` whose body has `Release-As: 1.0.0`. CI releases it as any other: tag `v1.0.0`, the image's `1.0.0`, `1.0` and `1`, the tarballs, the guide on Pages.
 - `scripts/next-version.sh` starts from the highest `vX.Y.Z` tag reachable from HEAD (other tags don't count), and refuses a shallow clone. `scripts/next-version.test.sh` covers the rules.
 
 ## Local commands (justfile)

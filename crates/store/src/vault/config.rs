@@ -49,4 +49,17 @@ impl Vault {
             name,
         })
     }
+
+    /// Seals `secret` under `name`: a fixture's revision keeps the references its document holds.
+    #[cfg(test)]
+    pub(crate) fn seal_config_secret_as(
+        &self,
+        name: SecretRef,
+        secret: &[u8],
+    ) -> Result<SealedSecret> {
+        Ok(SealedSecret {
+            value: self.sealer.seal(name.name(), secret)?,
+            name,
+        })
+    }
 }

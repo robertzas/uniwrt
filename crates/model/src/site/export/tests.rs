@@ -8,8 +8,8 @@ use uniwrt_core::{MacAddr, NodeId, RevisionId, Timestamp};
 use zeroize::Zeroizing;
 
 use super::{
-    FileError, FileNode, Head, SecretSource, SiteFile, SiteImport, exported_secrets, fill_secret,
-    import::import,
+    FileError, FileNode, Head, SecretSource, SiteFile, SiteImport, VERSION, exported_secrets,
+    fill_secret, import::import,
 };
 use crate::{
     node::{Node, NodeMode, NodeRole},
@@ -441,4 +441,35 @@ fn missing_vpn_keys_are_made_on_accept() {
         "{:?}",
         imported.preview.issues
     );
+}
+
+/// The file of every format version, `FILES[n - 1]` for version n: frozen (D-152). A new format
+/// version adds its file here.
+const FILES: [&str; VERSION as usize] = [include_str!("../../../fixtures/site-file/v1.json")];
+
+/// Site files from 1.0 on import on every later 1.x (D-152): the file of every format version
+/// still imports onto the nodes it names.
+#[test]
+fn the_file_of_every_format_version_still_imports() {
+    let head = head();
+    let current = values();
+    for (version, text) in (1..).zip(FILES) {
+        let file = SiteFile::parse(serde_json::from_str(text).unwrap()).unwrap();
+        let at = Head {
+            config: &head,
+            values: &current,
+        };
+        let imported = import(file, None, at, &adopted())
+            .unwrap_or_else(|err| panic!("v{version} doesn't import: {err}"));
+        assert!(
+            !has_errors(&imported.preview.issues),
+            "v{version}: {:?}",
+            imported.preview.issues
+        );
+        assert_eq!(
+            imported.site.nodes.len(),
+            head.nodes.len(),
+            "v{version}'s nodes"
+        );
+    }
 }

@@ -146,8 +146,9 @@ pub(crate) async fn site_offset(store: &Store, now: Timestamp) -> i32 {
     }
 }
 
-/// The newest release for `target` newer than `current`, not `rejected`, and published at
-/// least [`SOAK_S`] before `now`.
+/// The newest release for `target` newer than `current`, not `rejected`, published at least
+/// [`SOAK_S`] before `now`, and, from 1.0 on, of `current`'s major version: the next major may
+/// break the compatibility promise (D-152), so only a person installs it.
 fn pick(
     releases: &Releases,
     target: &str,
@@ -158,6 +159,7 @@ fn pick(
     let soaked = now.saturating_sub(Duration::from_secs(SOAK_S));
     releases.controller_where(target, |release| {
         release.version > current
+            && (current.0 == 0 || release.version.0 == current.0)
             && !rejected.contains(&release.version)
             && release.published_at.is_some_and(|at| at <= soaked)
     })
@@ -200,5 +202,22 @@ mod tests {
             pick(&releases, TARGET, Version(1, 2, 5), &[], hours(25)),
             None
         );
+    }
+
+    #[tokio::test]
+    async fn from_1_0_the_next_major_is_left_to_a_person() {
+        let fake = FakeReleases::start().await;
+        fake.publish("1.0.0", TARGET, b"one");
+        fake.publish("1.4.0", TARGET, b"one later");
+        fake.publish("2.0.0", TARGET, b"two");
+        let github = GitHub::new(fake.url(), "uniwrt/test").unwrap();
+        let releases = github.releases(CONTROLLER_REPO, None).await.unwrap();
+        let later = Timestamp::parse_utc("2026-11-20T00:00:00Z").unwrap();
+        let picked = |current| pick(&releases, TARGET, current, &[], later).map(|r| r.version);
+        assert_eq!(picked(Version(1, 2, 0)), Some(Version(1, 4, 0)));
+        assert_eq!(picked(Version(1, 4, 0)), None);
+        assert_eq!(picked(Version(2, 0, 0)), None);
+        // 0.x has no promise to keep: it moves to the newest.
+        assert_eq!(picked(Version(0, 40, 0)), Some(Version(2, 0, 0)));
     }
 }

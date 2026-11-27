@@ -17,6 +17,14 @@ repo() {
   git config tag.gpgsign false
 }
 commit() { git commit -q --allow-empty -m "$1"; }
+fails() {
+  if "$script" 2>/dev/null; then
+    printf 'FAIL  %s: expected a failure\n' "$1"
+    failures=$((failures + 1))
+  else
+    printf 'ok    %s\n' "$1"
+  fi
+}
 expect() {
   local got
   got=$("$script")
@@ -50,9 +58,40 @@ git tag v1.4.9
 commit 'fix: f'
 expect 1.4.10 'the patch version has no digit limit'
 commit 'feat(api)!: g'
-expect 2.0.0 'a breaking change bumps the major version from 1.0'
+fails 'a breaking change from 1.0 fails without Release-As'
+commit $'chore: two\n\nRelease-As: 2.0.0'
+expect 2.0.0 'Release-As of the next major releases a breaking change from 1.0'
 git tag v2.0.0-rc.1
 expect 2.0.0 'tags other than vX.Y.Z are ignored'
+
+repo
+commit 'chore: start'
+git tag v0.40.2
+commit 'feat: a'
+commit $'chore(release): 1.0\n\nThe hardware run passed.\n\nRelease-As: 1.0.0'
+expect 1.0.0 'Release-As releases 1.0 from 0.x'
+git tag v1.0.0
+commit 'fix!: b'
+commit $'docs: c\n\nRelease-As: v2.0.0'
+expect 2.0.0 'Release-As takes a leading v'
+git tag v2.0.0
+commit $'fix: d\n\nRelease-As: 2.0.0'
+fails 'Release-As of the last version fails'
+git tag v2.0.1
+commit $'fix: e\n\nRelease-As: 1.9.0'
+fails 'Release-As below the last version fails'
+git tag v2.0.2
+commit 'feat: f'
+commit $'fix: g\n\nRelease-As: 2.0.3'
+fails 'Release-As below what the commits call for fails'
+commit $'fix: h\n\nRelease-As: 2.3.0'
+expect 2.3.0 'the highest Release-As wins'
+commit $'fix: i\n\n  Release-As: 9.0.0'
+expect 2.3.0 'Release-As counts only at the start of a line'
+
+repo
+commit $'feat: first\n\nRelease-As: 0.5.0'
+expect 0.5.0 'Release-As names the first release too'
 
 repo
 commit 'feat: shallow'

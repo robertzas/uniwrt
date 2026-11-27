@@ -58,6 +58,8 @@
 
 pub mod age;
 mod codec;
+#[cfg(test)]
+mod compat;
 mod connection;
 pub mod controller_backup;
 mod error;

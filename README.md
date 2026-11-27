@@ -77,7 +77,8 @@ To try it without a network of your own, add `-e UNIWRT_DEMO=1` (or run `uniwrt 
 | | Supported |
 |---|---|
 | Controller host | Any Linux container host: x86_64, x86 (i686), arm32 (armv7), arm64 |
-| Managed nodes | OpenWrt 25.12 (primary target) and 24.10 (best effort), on any CPU architecture |
+| Managed nodes | OpenWrt 25.12 (primary target) and 24.10 (best effort), on any CPU architecture; a release OpenWrt has ended may be dropped in a minor release, announced one minor ahead |
+| Upgrades | From 1.0, any 1.x upgrades in place from any earlier 1.x, and its site files and backups restore on any later 1.x; breaking changes wait for 2.0 ([details](docs/features/lifecycle.md#compatibility-1x-m94d-d-152)) |
 | Scale | Designed for 1–50 nodes and up to 1,000 clients; tuned on a gateway plus 3 APs |
 
 ## Documentation

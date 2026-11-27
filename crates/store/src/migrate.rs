@@ -49,13 +49,27 @@ const MIGRATIONS: &[Migration] = migrations![
     "0029_inventory_feeds",
 ];
 
-/// Applies the migrations the database lacks, each in its own transaction.
 /// The schema version this uniwrt migrates to.
 pub(crate) fn latest() -> usize {
     MIGRATIONS.len()
 }
 
+/// Each migration's name and SQL, in order: the frozen list's input (`compat`, D-152).
+#[cfg(test)]
+pub(crate) fn sources() -> impl Iterator<Item = (&'static str, &'static str)> {
+    MIGRATIONS
+        .iter()
+        .map(|migration| (migration.name, migration.sql))
+}
+
+/// Applies the migrations the database lacks, each in its own transaction.
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {
+    run_to(conn, MIGRATIONS.len())
+}
+
+/// Applies the migrations up to schema `target` that the database lacks: a fixture of an older
+/// schema is loaded at its own (`compat`).
+pub(crate) fn run_to(conn: &mut Connection, target: usize) -> Result<()> {
     let found: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     let applied = usize::try_from(found)
         .ok()
@@ -64,7 +78,7 @@ pub(crate) fn run(conn: &mut Connection) -> Result<()> {
             found,
             supported: MIGRATIONS.len(),
         })?;
-    for (version, migration) in (1_i64..).zip(MIGRATIONS).skip(applied) {
+    for (version, migration) in (1_i64..).zip(MIGRATIONS).take(target).skip(applied) {
         let failed = |source| Error::Migration {
             name: migration.name,
             source,

@@ -589,6 +589,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=v${{ env.VERSION }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ env.VERSION }}
+            # From 1.0, `X` follows the compatibility promise (D-152): every X.y.z upgrades in place.
+            type=semver,pattern={{major}},value=v${{ env.VERSION }},enable=${{ !startsWith(env.VERSION, '0.') }}
             type=raw,value=latest
             type=sha,format=short,prefix=sha-
           # GitHub detects only Apache-2.0 in the repository; the project is dual-licensed.
