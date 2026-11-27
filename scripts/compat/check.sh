@@ -65,7 +65,7 @@ check_notifiers() {
     jq -e --arg name "$name" --arg secret "$secret" \
       'any(.notifiers[]; .name == $name and (.secrets[$secret] == true))' <<<"$list" >/dev/null ||
       compat_fail "$1: notifier $name or its $secret is gone"
-  done < <(m '(.notifiers // [])[] | .name as $n | .secrets[] | [$n, .] | @tsv')
+  done < <(m '(.notifiers // [])[] | {name, secret: .secrets[]} | [.name, .secret] | @tsv')
   compat_log "ok    $1: notifiers"
 }
 
