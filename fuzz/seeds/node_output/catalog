@@ -1,0 +1,9 @@
+Package: dnsmasq
+Version: 2.90-r3
+Depends: libc, libubus
+Size: 123456
+Description: A lightweight DNS server
+
+Package: tcpdump
+Version: 4.99.5-r1
+

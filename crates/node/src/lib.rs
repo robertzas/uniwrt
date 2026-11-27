@@ -31,8 +31,10 @@
 //!   D-142); [`iperf3`] (a native iperf3 server: the controller's end of a node ↔ controller
 //!   throughput test, D-142); [`root_password`] (a random root password for a node
 //!   without one, and the `passwd` that sets it); [`ztp`] (the first-boot script of
-//!   zero-touch images, D-102); [`adoption_port`] (the gateway's segment and the device found
-//!   on it: the reads and their parsers, D-106); [`Error`]. A [`Credential::Password`] that is
+//!   zero-touch images, D-102, and [`ztp::pending`], the checks of the hello it sends);
+//!   [`adoption_port`] (the gateway's segment and the device found on it: the reads and their
+//!   parsers, D-106); [`Error`]. With the `fuzzing` feature, `fuzzing`: the entry points of the
+//!   fuzz targets (`fuzz/`, D-150) into parsers not exported otherwise. A [`Credential::Password`] that is
 //!   empty logs in with SSH's `none` method first, as factory-default OpenWrt lets root in.
 //! - **Invariants:** every connection checks the host key against its pin; a mismatch is
 //!   [`Error::HostKeyMismatch`] and quarantines the link ([`LinkState::Quarantined`]), never a
@@ -64,6 +66,8 @@ mod error;
 pub mod events;
 pub mod exec;
 pub mod facts;
+#[cfg(feature = "fuzzing")]
+pub mod fuzzing;
 mod host_key;
 pub mod iperf3;
 mod key;

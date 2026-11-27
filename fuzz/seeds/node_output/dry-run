@@ -1,0 +1,6 @@
+Installing tcpdump (4.99.5-r1) to root...
+Downloading https://downloads.openwrt.org/x/tcpdump.ipk
+(1/2) Installing libpcap1 (1.10.5-r1)
+OK: 12 MiB in 140 packages
+ERROR: unable to select packages:
+  nope (no such package)

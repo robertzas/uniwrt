@@ -1,0 +1,136 @@
+# Fuzzing for longer (D-150; docs/dev/TESTING.md, Fuzzing): each week every target fuzzes for
+# 30 minutes in a job of its own, from the corpus CI's fuzz job keeps; the corpora are minimized
+# and saved for both. A finding fails its job, uploads its input and opens an issue (one per
+# target while it stays open).
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "41 2 * * 0" # Sundays
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per target
+        default: "1800"
+
+concurrency:
+  group: ${{ github.workflow }}
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash # unlike the implicit default, this adds -o pipefail
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  targets:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: list
+        run: echo "targets=$(scripts/fuzz.sh list | jq -Rsc 'split("\n") | map(select(. != ""))')" >>"$GITHUB_OUTPUT"
+
+  fuzz:
+    needs: targets
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      issues: write # opens an issue for a finding
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.targets) }}
+    env:
+      TARGET: ${{ matrix.target }}
+      SECONDS_PER_TARGET: ${{ inputs.seconds || '1800' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the nightly toolchain scripts/fuzz.sh pins
+        run: rustup toolchain install "$(scripts/fuzz.sh toolchain)" --profile minimal --component rust-src
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: fuzz
+          shared-key: fuzz
+          save-if: false # CI's fuzz job saves it from main
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-fuzz@0.13.2 # keep in line with `just setup` and ci.yml
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+      - name: Fuzz
+        id: fuzz
+        run: scripts/fuzz.sh run "$SECONDS_PER_TARGET" "$TARGET"
+      - name: Minimize the corpus
+        run: scripts/fuzz.sh cmin "$TARGET" >/dev/null 2>&1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: corpus-${{ matrix.target }}
+          path: fuzz/corpus/${{ matrix.target }}
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ failure() && steps.fuzz.outcome == 'failure' }}
+        with:
+          name: finding-${{ matrix.target }}
+          path: |
+            fuzz/artifacts/${{ matrix.target }}
+            fuzz/logs/${{ matrix.target }}.log
+          retention-days: 90
+      - name: Open an issue for the finding
+        if: ${{ failure() && steps.fuzz.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Fuzzing: a finding in $TARGET"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq length)
+          if ((open > 0)); then exit 0; fi
+          {
+            echo "The weekly fuzz run found an input that \`$TARGET\` fails on: $RUN_URL"
+            echo
+            echo "Its input is the run's artifact \`finding-$TARGET\`. Reproduce it with \`scripts/fuzz.sh repro $TARGET <file>\`, fix the parser, and add the input to a unit test."
+            echo
+            echo '\`\`\`'
+            grep -vE '^(#[0-9]+|INFO:|MS:|base64:|0x)' "fuzz/logs/$TARGET.log" | tail -n 40
+            echo '\`\`\`'
+          } >body.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file body.md
+
+  # The minimized corpora, saved for this workflow and CI's fuzz job.
+  save:
+    needs: fuzz
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: corpus-*
+          path: corpora
+      - name: Lay the corpora out as fuzz/corpus/<target>
+        run: |
+          mkdir -p fuzz/corpus
+          for dir in corpora/corpus-*; do mv "$dir" "fuzz/corpus/${dir#corpora/corpus-}"; done
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}

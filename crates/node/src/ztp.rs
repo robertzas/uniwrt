@@ -4,9 +4,17 @@
 //! or an ASU build), with `node-agent/ztp/uniwrt-hello`, the call-home loop it installs. It
 //! holds no secrets: the controller's public key and its addresses. With a one-liner's token
 //! (Path D), it runs on a live device: the hello carries the token, and the changes take
-//! effect once the script has ended.
+//! effect once the script has ended. [`pending`] checks the hello the script sends.
 
-use uniwrt_model::node::NodeRole;
+use std::net::IpAddr;
+
+use uniwrt_core::Timestamp;
+use uniwrt_model::{
+    node::NodeRole,
+    ztp::{PendingDevice, PendingSource, ZtpHello},
+};
+
+use crate::HostKey;
 
 const TEMPLATE: &str = include_str!("../../../node-agent/ztp/first-boot.sh");
 /// The call-home loop the script installs as `/usr/sbin/uniwrt-hello`.
@@ -139,6 +147,49 @@ fn role_name(role: NodeRole) -> &'static str {
         NodeRole::Ap => "ap",
         NodeRole::Bridge => "bridge",
     }
+}
+
+/// The longest text field of a hello.
+const MAX_HELLO_TEXT: usize = 128;
+
+/// A ZTP device's hello (`POST /api/v1/ztp/hello`, features/adoption.md, Path B; D-102) as the
+/// inbox keeps it, from `address` at `now`, or why it is refused: a unicast MAC, an OpenSSH
+/// host key, and fields of at most 128 printable characters, trimmed (the board's name not
+/// empty).
+pub fn pending(hello: &ZtpHello, address: IpAddr, now: Timestamp) -> Result<PendingDevice, String> {
+    if hello.mac.is_multicast() || hello.mac.octets() == [0; 6] {
+        return Err(format!("{} is not a device's MAC address", hello.mac));
+    }
+    let host_key = HostKey::parse(hello.host_key.trim())
+        .map_err(|_| "The host key must be an OpenSSH public key".to_owned())?;
+    Ok(PendingDevice {
+        mac: hello.mac,
+        board_name: hello_text("board_name", &hello.board_name, false)?,
+        model: hello_text("model", &hello.model, true)?,
+        hostname: hello_text("hostname", &hello.hostname, true)?,
+        release: hello_text("release", &hello.release, true)?,
+        role: hello.role,
+        address,
+        source: PendingSource::Hello,
+        locked: false,
+        host_key: host_key.to_openssh().to_owned(),
+        fingerprint: host_key.fingerprint().to_owned(),
+        first_seen: now,
+        last_seen: now,
+        job: None,
+    })
+}
+
+/// A short printable field, trimmed; empty only where `may_be_empty`.
+fn hello_text(field: &str, value: &str, may_be_empty: bool) -> Result<String, String> {
+    let value = value.trim();
+    let fits = value.chars().count() <= MAX_HELLO_TEXT && !value.chars().any(char::is_control);
+    if !fits || (value.is_empty() && !may_be_empty) {
+        return Err(format!(
+            "{field} must be up to {MAX_HELLO_TEXT} printable characters"
+        ));
+    }
+    Ok(value.to_owned())
 }
 
 #[cfg(test)]

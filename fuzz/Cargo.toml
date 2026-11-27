@@ -1,0 +1,124 @@
+# The fuzz targets (M9.3b, D-150): cargo-fuzz (libFuzzer) on a nightly toolchain, outside the
+# workspace so the product stays on stable. `just fuzz` runs them (scripts/fuzz.sh), CI's `fuzz`
+# job briefly on every push, `.github/workflows/fuzz.yml` longer each week. Cargo.lock is the
+# workspace's, copied in before each build (gitignored here), so the targets fuzz the versions
+# that ship.
+[package]
+name = "uniwrt-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+serde_json = { version = "1", features = ["raw_value"] }
+uniwrt-core = { path = "../crates/core" }
+uniwrt-dns = { path = "../crates/dns" }
+uniwrt-feeds = { path = "../crates/feeds" }
+uniwrt-firmware = { path = "../crates/firmware", features = ["fuzzing"] }
+uniwrt-import = { path = "../crates/import" }
+uniwrt-model = { path = "../crates/model" }
+uniwrt-node = { path = "../crates/node", features = ["fuzzing"] }
+uniwrt-syslog = { path = "../crates/syslog" }
+uniwrt-uci = { path = "../crates/uci" }
+
+# Not a member of the repository's workspace.
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "syslog"
+path = "fuzz_targets/syslog.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dns_queries"
+path = "fuzz_targets/dns_queries.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "iperf3"
+path = "fuzz_targets/iperf3.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "agent_stream"
+path = "fuzz_targets/agent_stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "facts"
+path = "fuzz_targets/facts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "node_output"
+path = "fuzz_targets/node_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "archive"
+path = "fuzz_targets/archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "uci"
+path = "fuzz_targets/uci.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import"
+path = "fuzz_targets/import.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "feeds"
+path = "fuzz_targets/feeds.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blocklist"
+path = "fuzz_targets/blocklist.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "firmware"
+path = "fuzz_targets/firmware.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ztp_hello"
+path = "fuzz_targets/ztp_hello.rs"
+test = false
+doc = false
+bench = false

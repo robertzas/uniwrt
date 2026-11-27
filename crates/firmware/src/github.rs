@@ -339,7 +339,7 @@ struct RawAsset {
     state: Option<String>,
 }
 
-fn parse(repo: &str, body: &[u8]) -> Result<Releases, Error> {
+pub(crate) fn parse(repo: &str, body: &[u8]) -> Result<Releases, Error> {
     let raw: Vec<RawRelease> = serde_json::from_slice(body).map_err(|err| {
         Error::Invalid(format!("GitHub's releases of {repo} are unreadable: {err}"))
     })?;

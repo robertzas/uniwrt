@@ -142,6 +142,17 @@ struct Attestation<'a> {
     bundle: &'a RawValue,
 }
 
+/// The bundles of GitHub's answer about an artifact's attestations.
+pub(crate) fn bundles(body: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
+    let parsed: Attestations<'_> = serde_json::from_slice(body)
+        .map_err(|err| Error::Invalid(format!("GitHub's attestations are unreadable: {err}")))?;
+    Ok(parsed
+        .attestations
+        .iter()
+        .map(|attestation| attestation.bundle.get().as_bytes().to_vec())
+        .collect())
+}
+
 impl GitHub {
     /// The Sigstore bundles GitHub keeps for `sha256` (hex) in `repo` (each a JSON document).
     pub async fn attestations(
@@ -167,14 +178,7 @@ impl GitHub {
             404 => return Ok(Vec::new()),
             status => return Err(refusal(repo, token.is_some(), status, &answer)),
         }
-        let parsed: Attestations<'_> = serde_json::from_slice(&answer.body).map_err(|err| {
-            Error::Invalid(format!("GitHub's attestations are unreadable: {err}"))
-        })?;
-        Ok(parsed
-            .attestations
-            .iter()
-            .map(|attestation| attestation.bundle.get().as_bytes().to_vec())
-            .collect())
+        bundles(&answer.body)
     }
 
     /// Downloads `release`'s tarball for `target` into `dir`, checks it against GitHub's

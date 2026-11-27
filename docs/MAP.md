@@ -358,6 +358,7 @@ Firmware (features/adoption.md, Path B; features/lifecycle.md; D-022, D-104, D-1
 - `src/controller/tarball.rs`: One file out of a gzipped tarball (POSIX ustar or GNU, as CI's `tar` writes them; D-123): headers checked by their checksum, pax and long-name records skipped, nothing but the member asked for written.
 - `src/controller/tests.rs`: (no header comment)
 - `src/device.rs`: A target's devices in one release (pure; M7.1a1): the download server's `releases/<release>/targets/<target>/profiles.json`, kept compact (the target's defaults once, each device's own packages beside them), and the device a board is.
+- `src/fuzzing.rs`: Entry points of the fuzz targets (`fuzz/`; M9.3b, D-150), behind the `fuzzing` feature: the readers of what ASU, OpenWrt's download server and GitHub answer, and of an uploaded image's metadata, which the crate doesn't export.
 - `src/github.rs`: GitHub releases as a source of upgrade images (D-121, D-122): a repo's releases, read from GitHub's REST API (with a token for private repos and the higher rate limit) and kept ten minutes; per node, the newest five with an image for it ([`Releases::offers`]), each image with the SHA-256 GitHub records for it.
 - `src/github/fit.rs`: Which of a release's assets are images for a node (pure; D-122): a GitHub release names its images freely, so an asset fits when its name carries the node's profile or board as a whole word followed by its file system or `sysupgrade` (OpenWrt's own naming, `…-glinet_gl-mt6000-squashfs-sysupgrade.bin`), and is a sysupgrade image; an x86 image (which fits any board of its subtarget) when it carries the subtarget (`…-x86-64-…`) and is a `combined` disk image.
 - `src/github_tests.rs`: (no header comment)
@@ -711,7 +712,9 @@ The node transport: SSH to OpenWrt nodes (russh), the node agent (its protocol, 
 - `src/facts/tests/scan.rs`: (no header comment)
 - `src/facts/upnp.rs`: miniupnpd's lease file, which the `leases` set carries: a line per mapping, `<proto>:<external port>:<client>:<internal port>:<expiry>:<description>`, the description possibly holding colons; releases before 2.0 write no expiry.
 - `src/facts/wifi.rs`: nl80211's vocabulary, shared by the Wi-Fi parsers: bands, channel numbers, widths and powers.
+- `src/fuzzing.rs`: Entry points of the fuzz targets (`fuzz/`; M9.3b, D-150), behind the `fuzzing` feature: the parsers of what a node sends that the crate doesn't export.
 - `src/host_key.rs`: Host keys: what a node presents in the handshake, checked against the pin the controller keeps from adoption (trust on first use).
+- `src/iperf3/fuzz.rs`: The control channel's reads, for the fuzz target `iperf3` (the `fuzzing` feature).
 - `src/iperf3/mod.rs`: A native iperf3 server (D-142): the far end of a node ↔ controller throughput test, so that the controller needs no iperf3 of its own.
 - `src/iperf3/proto.rs`: iperf3's wire format: the state bytes, the cookie and JSON messages behind a 4-byte big-endian length (`JSON_write`), the client's parameters and the server's results.
 - `src/iperf3/server.rs`: One test on a listener: the handshake, the streams' tasks and the results.
@@ -1253,6 +1256,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `scripts/cc-mold`: rustc's linker for the host's builds (D-134): the system C compiler, linking with mold.
 - `scripts/check.sh`: Runs everything CI gates on, one line per step (`just check`).
 - `scripts/cross.sh`: Builds static musl binaries with cargo-zigbuild inside its container, so the host needs only Docker.
+- `scripts/fuzz.sh`: The fuzz targets (fuzz/; M9.3b, D-150): cargo-fuzz (libFuzzer, AddressSanitizer, debug assertions and overflow checks) on a pinned nightly, which only this script uses.
 - `scripts/gen-map.sh`: Regenerates docs/MAP.md, the code map: each Rust file with the first sentence of its `//!` header, the web UI's directories and the scripts.
 - `scripts/mold.sh`: Installs the pinned mold linker (D-134), its release build checked against its SHA-256, into <dir>/mold with <dir>/ld.mold beside it (what `cc -fuse-ld=mold` runs), unless it is there already.
 - `scripts/new-feature.sh`: Scaffolds a feature area along the feature recipe (CONVENTIONS.md), steps 2–6, wired in and compiling, with TODO(new-feature) markers where the real work goes (`just new-feature`):   model      crates/model/src/<mod>.rs, a type deriving TS behind the `ts` feature   api        crates/api/src/<mod>.rs, GET /api/v1/<area> answering a DTO that derives TS   web        web/src/features/<area>/<Pascal>Page.tsx and its test, the lazy route of a page              in app/nav.ts, the client in lib/api.ts and the strings in lib/strings.ts   telemetry  (--telemetry) node-agent/collect/<mod>.uc, its parser in crates/node/src/facts/              and a fixture; the steps that make it a collect set are printed Render (step 3) is skipped until crates/render exists.

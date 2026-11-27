@@ -1,0 +1,9 @@
+1 192.168.1.20/42593 query[A] Ads.Blocked.test from 192.168.1.20
+1 192.168.1.20/42593 config ads.blocked.test is NXDOMAIN
+2 10.0.0.2/1 query[AAAA] example.com from 10.0.0.2
+2 10.0.0.2/1 forwarded example.com to 9.9.9.9
+2 10.0.0.2/1 reply example.com is 93.184.216.34
+3 10.0.0.2/1 cached example.com is 93.184.216.34
+query[A] nope.lan from 192.168.1.20
+reply nope.lan is NXDOMAIN
+4 192.168.1.20/9 /etc/hosts gw.lan is 10.0.0.1

@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+# The entry points of the fuzz targets (`fuzz/`, D-150): parsers the crate doesn't export.
+fuzzing = []
+
 [dependencies]
 bytes.workspace = true
 data-encoding.workspace = true

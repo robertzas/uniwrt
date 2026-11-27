@@ -13,6 +13,8 @@
 //! handshake has a time limit, and the test's length is capped. Dropping the future ends the
 //! test and closes every socket.
 
+#[cfg(feature = "fuzzing")]
+pub(crate) mod fuzz;
 mod proto;
 mod server;
 #[cfg(test)]

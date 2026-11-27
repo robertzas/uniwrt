@@ -11,6 +11,8 @@ publish.workspace = true
 [features]
 # A fake ASU on loopback (`testing::FakeAsu`), for this crate's tests and the API's.
 testing = ["dep:axum", "tokio/net", "tokio/rt"]
+# The entry points of the fuzz targets (`fuzz/`, D-150): readers the crate doesn't export.
+fuzzing = []
 
 [dependencies]
 axum = { workspace = true, optional = true }

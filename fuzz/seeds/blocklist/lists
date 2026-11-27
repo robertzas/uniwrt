@@ -1,0 +1,12 @@
+# hosts
+0.0.0.0 ads.example.com
+127.0.0.1 localhost
+::1 tracker.example.net # comment
+||doubleclick.net^
+||sub.ads.test^$third-party
+server=/malware.test/
+address=/bad.test/#
+plain.example.org
+*.wild.example.org
+Mixed.Case.Example.
+xn--bcher-kva.example

@@ -1,0 +1,2 @@
+ipv4     2 tcp      6 7440 ESTABLISHED src=10.0.0.20 dst=1.1.1.1 sport=51000 dport=443 packets=10 bytes=1000 src=1.1.1.1 dst=203.0.113.7 sport=443 dport=51000 packets=9 bytes=900 [ASSURED] mark=0 zone=0 use=2
+ipv6     10 udp      17 30 src=fd00::20 dst=2001:db8::1 sport=5353 dport=53 [UNREPLIED] src=2001:db8::1 dst=fd00::20 sport=53 dport=5353 mark=0 use=1

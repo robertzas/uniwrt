@@ -38,9 +38,10 @@ need() {
   return 1
 }
 
-step rustfmt '' cargo fmt --all --check
+step rustfmt '' bash -c 'cargo fmt --all --check && rustfmt --check --edition 2024 fuzz/fuzz_targets/*.rs'
 if ! step clippy '' bash -c 'cargo clippy --workspace --all-targets --locked -- -D warnings &&
-  cargo clippy --locked -p uniwrt --features profiling -- -D warnings'; then
+  cargo clippy --locked -p uniwrt --features profiling -- -D warnings &&
+  cargo clippy --locked -p uniwrt-node -p uniwrt-firmware --features uniwrt-node/fuzzing,uniwrt-firmware/fuzzing -- -D warnings'; then
   skip 'rust tests' 'clippy failed'
 elif need 'rust tests' cargo-nextest cargo nextest --version; then
   # Also refreshes web/src/api/gen (ts-rs), so it runs before the web step.

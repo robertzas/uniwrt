@@ -35,7 +35,9 @@
 //!   written as [`binary_name`]), [`sigstore::verify`] (a bundle against [`sigstore::TrustedRoot`]
 //!   and an [`sigstore::Identity`]); [`Error`]. With the `testing` feature, `testing::FakeAsu`, an ASU and download server on
 //!   loopback, `testing::FakeGitHub`, GitHub's releases API, and `testing::FakeReleases`,
-//!   uniwrt's own releases with their tarballs and fake attestations.
+//!   uniwrt's own releases with their tarballs and fake attestations. With the `fuzzing`
+//!   feature, `fuzzing`: the entry points of the fuzz targets (`fuzz/`, D-150) into the readers
+//!   of ASU's, the download server's and GitHub's answers and of an image's metadata.
 //! - **Invariants:** nothing secret goes to ASU (D-022): the request holds the device, the
 //!   packages and the first-boot script, which holds only public data. Every value that
 //!   becomes part of a URL (release, target, profile, build hash, image name) is checked
@@ -65,6 +67,8 @@ mod cache;
 mod catalog;
 mod controller;
 mod device;
+#[cfg(feature = "fuzzing")]
+pub mod fuzzing;
 mod github;
 mod http;
 mod image;

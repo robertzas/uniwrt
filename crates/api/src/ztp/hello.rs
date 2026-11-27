@@ -22,12 +22,8 @@ use tracing::{info, warn};
 use uniwrt_model::{
     job::JobState,
     user::{AuditAction, AuditEntry},
-    ztp::{
-        HelloAnswer, HelloState, PendingDevice, PendingSource, ZtpApproval, ZtpHello, ZtpInbox,
-        ZtpOneLiner,
-    },
+    ztp::{HelloAnswer, HelloState, ZtpApproval, ZtpHello, ZtpInbox, ZtpOneLiner},
 };
-use uniwrt_node::HostKey;
 use uniwrt_store::{AuditRepo as _, NodeRepo as _, ZtpRepo as _};
 
 use crate::{Api, ApiError, ApiResult, Client};
@@ -35,7 +31,6 @@ use crate::{Api, ApiError, ApiResult, Client};
 pub(crate) const WINDOW: Duration = Duration::from_mins(10);
 pub(crate) const PER_WINDOW: usize = 20;
 const MAX_TRACKED: usize = 10_000;
-const MAX_TEXT: usize = 128;
 
 pub(crate) async fn hello(
     State(api): State<Api>,
@@ -46,7 +41,8 @@ pub(crate) async fn hello(
         return Err(ApiError::TooManyRequests(wait));
     }
     let Json(hello) = body?;
-    let device = checked(&hello, client.ip, &api)?;
+    let device =
+        uniwrt_node::ztp::pending(&hello, client.ip, api.now()).map_err(ApiError::BadRequest)?;
     let mac = device.mac;
     let answer = |state| Ok(Json(HelloAnswer { state }));
 
@@ -142,48 +138,6 @@ pub(crate) async fn hello(
 enum Grant {
     OneLiner(ZtpOneLiner),
     Approval(ZtpApproval),
-}
-
-/// The hello as the inbox keeps it, or why it is refused.
-fn checked(hello: &ZtpHello, address: IpAddr, api: &Api) -> ApiResult<PendingDevice> {
-    if hello.mac.is_multicast() || hello.mac.octets() == [0; 6] {
-        return Err(ApiError::BadRequest(format!(
-            "{} is not a device's MAC address",
-            hello.mac
-        )));
-    }
-    let host_key = HostKey::parse(hello.host_key.trim()).map_err(|_| {
-        ApiError::BadRequest("The host key must be an OpenSSH public key".to_owned())
-    })?;
-    let now = api.now();
-    Ok(PendingDevice {
-        mac: hello.mac,
-        board_name: text("board_name", &hello.board_name, false)?,
-        model: text("model", &hello.model, true)?,
-        hostname: text("hostname", &hello.hostname, true)?,
-        release: text("release", &hello.release, true)?,
-        role: hello.role,
-        address,
-        source: PendingSource::Hello,
-        locked: false,
-        host_key: host_key.to_openssh().to_owned(),
-        fingerprint: host_key.fingerprint().to_owned(),
-        first_seen: now,
-        last_seen: now,
-        job: None,
-    })
-}
-
-/// A short printable field, trimmed; empty only where `may_be_empty`.
-fn text(field: &str, value: &str, may_be_empty: bool) -> ApiResult<String> {
-    let value = value.trim();
-    let fits = value.chars().count() <= MAX_TEXT && !value.chars().any(char::is_control);
-    if !fits || (value.is_empty() && !may_be_empty) {
-        return Err(ApiError::BadRequest(format!(
-            "{field} must be up to {MAX_TEXT} printable characters"
-        )));
-    }
-    Ok(value.to_owned())
 }
 
 /// Hellos per client within [`WINDOW`], in memory and bounded; lost at restart, which only

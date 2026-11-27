@@ -69,6 +69,7 @@ test-wifi *args:
 # Format Rust and web code in place
 fmt:
     cargo fmt --all
+    rustfmt --edition 2024 fuzz/fuzz_targets/*.rs
     cd web && bun run fmt
 
 # Lint Rust (clippy) and web (Biome) code
@@ -127,6 +128,11 @@ test-new-feature:
 oui *dir:
     python3 scripts/oui.py {{dir}}
 
+# Fuzz every target (or the ones named) for some seconds each (D-150; TESTING.md, Fuzzing); a
+# finding's input lands in fuzz/artifacts/<target>/ (`scripts/fuzz.sh repro <target> <file>`)
+fuzz seconds="60" *targets:
+    @scripts/fuzz.sh run {{ seconds }} {{ targets }}
+
 # Regenerate docs/MAP.md
 map:
     @scripts/gen-map.sh
@@ -136,7 +142,8 @@ demo seed="": (dev "--demo" (if seed == "" { "" } else { "--demo-seed " + seed }
 
 # Install the cargo tools (the versions CI pins) and the web dependencies
 setup:
-    cargo install --locked cargo-nextest@0.9.152 cargo-deny@0.21.0 cargo-insta@1.49.0 zizmor@1.33.1
+    cargo install --locked cargo-nextest@0.9.152 cargo-deny@0.21.0 cargo-insta@1.49.0 zizmor@1.33.1 cargo-fuzz@0.13.2
+    rustup toolchain install "$(scripts/fuzz.sh toolchain)" --profile minimal --component rust-src
     scripts/mold.sh "$HOME/.local/bin"
     cd web && bun install --frozen-lockfile
 

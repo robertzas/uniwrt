@@ -1,6 +1,14 @@
 # Rust
 /target/
 
+# Fuzzing (scripts/fuzz.sh): the build, the corpora, findings, logs and the copied lockfile
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/coverage/
+/fuzz/logs/
+/fuzz/Cargo.lock
+
 # Web
 **/node_modules/
 /web/dist/

@@ -1,0 +1,1 @@
+{"release":"24.10.8","profiles":[{"id":"glinet_gl-mt6000","target":"mediatek/filogic","titles":[{"vendor":"GL.iNet","model":"GL-MT6000"}]},{"id":"generic","target":"x86/64","titles":[{"title":"Generic x86/64"}]}]}
