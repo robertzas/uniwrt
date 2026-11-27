@@ -27,6 +27,8 @@ uniwrt runs your OpenWrt routers as one network: a gateway and its access points
 
 When something doesn't work, see [Troubleshooting](troubleshooting.md).
 
+The app carries this guide too: **Help** in its top bar opens the page's section beside the page (see [Help](dashboard-topology.md#help)).
+
 ## Safety in one paragraph
 
 A device starts in **observe** mode: the controller reads it and changes nothing. Once you turn management on, every change you make is saved as a revision, shown as a per-device diff for review, and applied as a transaction. If a device loses contact with the controller after a change, it undoes the change by itself. Any earlier revision can be restored.

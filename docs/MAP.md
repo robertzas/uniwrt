@@ -1220,6 +1220,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts, walls.ts
 - `features/floorplans/walls/`: WallsLayer.tsx, WallsToolbar.tsx, createWalls.ts, materials.ts, snap.ts
 - `features/floorplans/walls/trace/`: lines.ts, morph.ts, read.ts, tidy.ts, trace.ts
+- `features/help/`: Article.tsx, ChapterStatus.tsx, HelpPage.tsx, HelpPanel.tsx, guide.ts, virtual.d.ts
 - `features/internet/`: FailoverCard.tsx, InternetPage.tsx, IspPicker.tsx, SpeedCard.tsx, SqmCard.tsx, TestPanel.tsx, TimelineCard.tsx, WanFields.tsx, WanSettings.tsx, WanWizard.tsx, check.ts, draft.ts, summary.ts, uplink.ts, wanForm.ts
 - `features/internet/monitor/`: MonitorCard.tsx, Outages.tsx, ProbeChart.tsx, TargetsDialog.tsx, monitor.ts, targets.ts
 - `features/logs/`: ContextDialog.tsx, Histogram.tsx, LogList.tsx, LogRow.tsx, LogsPage.tsx, Picker.tsx, SavedSearches.tsx, Toolbar.tsx, histogram.ts, match.ts, query.ts, severity.ts, tail.ts
@@ -1240,7 +1241,7 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/updates/`: ControllerCard.tsx, MirrorCard.tsx, MirrorSet.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx, mirror.ts
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts
 - `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, help.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobNodes.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, QrCode.tsx, RadioCards.tsx, SavedRevision.tsx, ScheduleField.tsx, Segmented.tsx, SheetHandle.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Weekdays.tsx, WeeklyTimeField.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/floorplan/`: Heatmap.tsx, PlanCanvas.tsx

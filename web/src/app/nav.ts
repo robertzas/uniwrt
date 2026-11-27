@@ -18,6 +18,7 @@ import {
   Siren,
   Wifi,
 } from "lucide";
+import { isHelpPath } from "../lib/help";
 import { strings } from "../lib/strings";
 import type { IconNode } from "../ui/Icon";
 
@@ -89,5 +90,6 @@ const otherPages: Readonly<Record<string, string>> = { "/changes": strings.chang
 /** The top bar's title for a path: its page's or section's label, if it has one. */
 export function pageTitle(pathname: string): string | undefined {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (isHelpPath(path)) return strings.help.center;
   return findNavItem(path)?.label ?? otherPages[path];
 }

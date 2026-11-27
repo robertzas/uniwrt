@@ -91,10 +91,11 @@ The top bar runs across every page. From left to right:
 - **Search**: opens the [command palette](#command-palette). It shows the shortcut, ⌘K on a Mac, iPhone or iPad and Ctrl K elsewhere. On a phone it is a magnifier icon.
 - **Drift** (admins, only when there is drift): how many managed packages were changed on the devices after uniwrt confirmed them. Select it for the list: each entry shows the device and the package, whether it was removed, and how long ago, and opens that device's **Config** tab. **Review & overwrite** opens the review page, where applying the latest revision writes your settings back. See [Changes](changes.md).
 - **Review changes** (admins, only when there is something to apply): a count of the managed devices that the latest revision hasn't reached yet. Select it to [review and apply](changes.md#review-changes). While an apply runs it reads **Applying…** with a spinner. If the apply ends while you are on another page, a message says whether it worked.
+- **Help**: opens [help](#help) for the page you are on, beside it. Not shown in the help center.
 - The alerts bell, described below.
 - The controller status: **Online** with the controller's version, **Connecting**, or **Unreachable** when the controller doesn't answer. Hover over it for the build's commit and date. This is the status of the controller itself, not of your network; the network's health is on the [Dashboard](#network-health).
 
-On a phone, **Drift** and **Review changes** shrink to icons with a count.
+On a phone, **Drift** and **Review changes** shrink to icons with a count, and the controller status leaves out the version.
 
 ### Alerts bell
 
@@ -141,14 +142,29 @@ The palette offers, in groups:
 - **Clients**: every client the controller knows, found by name, hostname, MAC address, IP address or vendor.
 - **Appearance**: **Use the Graphite pro skin** and the other skins, **Use the light theme** and the other themes.
 - **Account**: **Sign out**.
+- **Help**: **Help for this page** and **Open the help center**. Once you type, also every chapter and section of this guide, with its chapter beside it: running one opens it in the help panel.
 
 - Viewers don't get the commands that change the network (adopting, setup, reviewing changes).
+
+## Help
+
+This guide is built into the app, for the version you run, and works offline. It is text only: where the online copy has a picture, the app links to it.
+
+To get help for a page:
+
+1. Select **Help** (the question mark) in the top bar, or press ?.
+2. The help panel opens at the page's section, beside the page on a wide screen and from the bottom edge on a phone. On a device's page or in Settings it opens at the tab you are on, and it follows you to the next page.
+3. Links in the panel open other sections in the panel; **Back** returns. Select **Open in the help center** to read the section as a full page, or **Close help** (or press Esc) to close the panel.
+
+The help center, at `/help`, lists the **Chapters** on the left and, on a wide screen, the chapter's sections under **On this page** on the right. Its addresses can be bookmarked, such as `/help/devices#discovered`.
 
 ## Keyboard shortcuts
 
 | Where | Key | Does |
 |---|---|---|
 | Anywhere | ⌘K or Ctrl+K | Opens or closes the command palette |
+| Anywhere but a text field | ? | Opens or closes help for the page |
+| Help panel | Esc | Closes the panel |
 | Command palette | ↑ ↓, Home, End | Moves through the results |
 | Command palette | ↵ | Runs the selected entry |
 | Command palette | Esc | Closes the palette |

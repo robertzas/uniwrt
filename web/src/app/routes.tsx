@@ -75,6 +75,13 @@ export const routes: RouteDefinition[] = [
     path: SETUP_PATH,
     component: lazy(() => import("./setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))),
   },
+  // The help center (D-151): the guide's contents, or a chapter.
+  {
+    path: "/help/:chapter?",
+    component: lazy(() =>
+      import("../features/help/HelpPage").then((m) => ({ default: m.HelpPage })),
+    ),
+  },
   {
     path: "/changes",
     component: lazy(() =>

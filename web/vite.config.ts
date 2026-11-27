@@ -1,12 +1,19 @@
+import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import solid from "vite-plugin-solid";
 import { defineConfig } from "vitest/config";
+import { guide } from "./guide/plugin";
 
 /** The backend the dev server proxies `/api` to: `uniwrt serve` on its default port. */
 const api = process.env.UNIWRT_DEV_API ?? "http://127.0.0.1:8080";
 
 export default defineConfig({
-  plugins: [solid(), tailwindcss()],
+  // The user guide, embedded as offline help (D-151).
+  plugins: [
+    solid(),
+    tailwindcss(),
+    guide(fileURLToPath(new URL("../docs/guide", import.meta.url))),
+  ],
   server: {
     proxy: { "/api": { target: api, ws: true } },
   },
@@ -22,7 +29,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     // e2e/ is Playwright's (playwright.config.ts).
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "guide/**/*.test.ts"],
     setupFiles: ["./src/test/setup.ts"],
     testTimeout: 15_000,
     restoreMocks: true,

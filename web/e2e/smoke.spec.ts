@@ -319,3 +319,40 @@ test("watches the alerts, edits a rule and snoozes", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Alert history" })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("opens help beside a page and in the help center", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+
+  // The top bar's Help opens the guide beside the Devices page, at its section.
+  await page.getByRole("button", { name: "Help", exact: true }).click();
+  const panel = page.getByRole("complementary", { name: "Help" });
+  await expect(panel.locator("header").getByText("Devices and adoption")).toBeVisible();
+  await expect(
+    panel.getByRole("heading", { level: 2, name: "Devices", exact: true }),
+  ).toBeInViewport();
+  await expect(page.getByRole("table", { name: "Devices" })).toBeVisible();
+
+  // The device page's tabs have sections of their own: the panel follows the page.
+  await page.getByRole("table", { name: "Devices" }).locator("tbody tr").first().click();
+  await page.getByRole("tab", { name: "Config" }).click();
+  await expect(
+    panel.getByRole("heading", { level: 2, name: "Config", exact: true }),
+  ).toBeInViewport();
+
+  await panel.getByRole("link", { name: "Open in the help center" }).click();
+  await expect(page).toHaveURL(/\/help\/devices#config$/);
+  await expect(panel).toBeHidden();
+  await expect(page.getByRole("heading", { level: 1, name: "Devices and adoption" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Config", exact: true }),
+  ).toBeInViewport();
+
+  await page
+    .getByRole("navigation", { name: "Chapters" })
+    .getByRole("link", { name: "Wi-Fi and mesh" })
+    .click();
+  await expect(page).toHaveURL(/\/help\/wifi$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Wi-Fi and mesh" })).toBeVisible();
+  expect(errors).toEqual([]);
+});

@@ -47,6 +47,7 @@ Values must be at most 64 printable ASCII characters. While `web/dist` is missin
 ## Web build
 
 - `web/` uses bun for installs and scripts. `bun run check` runs what CI gates on: `biome ci`, `tsc` (TypeScript 7) for the app and for the Vite config, `vitest run` and `vite build`.
+- **The user guide (D-151):** `web/guide/plugin.ts`, a Vite plugin, renders `docs/guide/*.md` with marked at build time (`web/guide/render.ts`; the UI ships HTML, no Markdown parser): GitHub's heading anchors as `data-anchor`, links between chapters rewritten to `/help/…`, raw HTML escaped, images as links to the Pages copy. A link to a missing chapter or section, or one that is neither a chapter nor a web address, fails the build and the tests. The dev server reloads on a changed chapter.
 - Dependencies are pinned to exact versions (`exact` in `web/bunfig.toml`, D-027) and updated to the newest release, with no cooldown (D-049).
 - `bun run dev` serves the UI with live reload and proxies `/api`, WebSockets included, to `UNIWRT_DEV_API` (default `http://127.0.0.1:8080`, where `uniwrt serve` listens).
 - `cargo test` regenerates the TypeScript types of API DTOs in `web/src/api/gen/` (ts-rs; the export directory is set in `.cargo/config.toml`). Commit them together with the Rust change.

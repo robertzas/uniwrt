@@ -37,6 +37,9 @@ const ROUTES = [
   "/settings?tab=support",
   "/changes",
   "/settings/import",
+  // The help center (D-151): the contents and the chapter with the widest tables.
+  "/help",
+  "/help/networks",
 ];
 
 const WIDTH = 390;

@@ -48,13 +48,13 @@ function Badge(props: { state: State; version?: string; title?: string }) {
     <div
       role="status"
       title={props.title}
-      class="inline-flex h-7 items-center gap-2 rounded-full border border-edge bg-surface px-2.5 text-xs"
+      class="inline-flex h-7 items-center gap-2 whitespace-nowrap rounded-full border border-edge bg-surface px-2.5 text-xs"
     >
       <span class={["size-2 rounded-full", dot[props.state]]} aria-hidden="true" />
       <span class="font-medium">{strings.health[props.state]}</span>
       <Show when={props.version}>
         {(version) => (
-          <span class="font-mono text-fg-subtle tabular-nums">
+          <span class="font-mono text-fg-subtle tabular-nums max-sm:hidden">
             {strings.health.version(version())}
           </span>
         )}

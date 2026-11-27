@@ -21,6 +21,34 @@ describe("commands", () => {
     expect(filterCommands(commands, "nothing like this")).toEqual([]);
   });
 
+  it("offers help, and the guide's sections only once searched for", () => {
+    const openHelp = vi.fn();
+    const withHelp = appCommands({
+      navigate: vi.fn(),
+      openHelp,
+      guide: [
+        {
+          slug: "wifi",
+          title: "Wi-Fi and mesh",
+          sections: [
+            { anchor: "roaming", text: "Roaming", depth: 3 },
+            { anchor: "deep", text: "Deep", depth: 4 },
+          ],
+        },
+      ],
+    });
+    const shown = filterCommands(withHelp, "").map((c) => c.id);
+    expect(shown).toContain("help:page");
+    expect(shown).toContain("help:center");
+    expect(shown).not.toContain("help:wifi#roaming");
+    const found = filterCommands(withHelp, "roaming mesh").filter((c) => c.group === "Help");
+    expect(found.map((c) => c.id)).toEqual(["help:wifi#roaming"]);
+    expect(found[0]).toMatchObject({ hint: "Wi-Fi and mesh" });
+    found[0]?.run();
+    expect(openHelp).toHaveBeenCalledWith({ chapter: "wifi", anchor: "roaming" });
+    expect(filterCommands(withHelp, "deep")).toEqual([]);
+  });
+
   it("puts labels that start with the query first, keeping groups together", () => {
     const ids = filterCommands(commands, "dark").map((c) => c.id);
     expect(ids[0]).toBe("theme:dark");

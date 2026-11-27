@@ -1,4 +1,16 @@
-import { Laptop, LogOut, Moon, Palette, Plus, RadioTower, Router, Sun, Upload } from "lucide";
+import {
+  BookOpen,
+  CircleHelp,
+  Laptop,
+  LogOut,
+  Moon,
+  Palette,
+  Plus,
+  RadioTower,
+  Router,
+  Sun,
+  Upload,
+} from "lucide";
 import type { Client } from "../api/gen/Client";
 import type { NodeSummary } from "../api/gen/NodeSummary";
 import {
@@ -9,6 +21,7 @@ import {
   type ThemePreference,
 } from "../lib/appearance";
 import { clientName, kindIcons } from "../lib/clients";
+import { HELP_INDEX, HELP_PATH, type HelpChapter, type HelpTopic } from "../lib/help";
 import { strings } from "../lib/strings";
 import type { IconNode } from "../ui/Icon";
 import { navItems } from "./nav";
@@ -21,6 +34,10 @@ export interface Command {
   icon: IconNode;
   /** Extra words that should find it, e.g. the page's description. */
   keywords?: string;
+  /** Shown muted after the label, e.g. a guide section's chapter. */
+  hint?: string;
+  /** Listed only once the query finds it (the guide's sections), not in the empty palette. */
+  searchOnly?: boolean;
   run: () => void;
 }
 
@@ -36,11 +53,15 @@ export interface CommandContext {
   signOut?: () => void;
   /** Admins also get the commands that change the network. */
   admin?: boolean;
+  /** Opens the help panel, at the page's section or at `topic`. */
+  openHelp?: (topic?: HelpTopic) => void;
+  /** The guide's chapters; each chapter and section is found by its words and opens in the panel. */
+  guide?: readonly HelpChapter[];
 }
 
 /**
- * The app's commands: every page, adoption, the devices and clients, then the skins, themes and
- * account.
+ * The app's commands: every page, adoption, the devices and clients, then the skins, themes,
+ * account and help, and the guide's sections once searched for.
  */
 export function appCommands(context: CommandContext): Command[] {
   const p = strings.palette;
@@ -137,6 +158,58 @@ export function appCommands(context: CommandContext): Command[] {
           },
         ]
       : []),
+    ...(context.openHelp ? helpCommands(context, context.openHelp) : []),
+  ];
+}
+
+function helpCommands(context: CommandContext, open: (topic?: HelpTopic) => void): Command[] {
+  const h = strings.help;
+  const group = strings.palette.groups.help;
+  return [
+    {
+      id: "help:page",
+      group,
+      label: h.commands.open,
+      icon: CircleHelp,
+      keywords: h.commands.keywords,
+      run: () => open(),
+    },
+    {
+      id: "help:center",
+      group,
+      label: h.commands.center,
+      icon: BookOpen,
+      keywords: h.commands.keywords,
+      run: () => context.navigate(HELP_PATH),
+    },
+    ...(context.guide ?? []).flatMap((chapter) => [
+      ...(chapter.slug === HELP_INDEX
+        ? []
+        : [
+            {
+              id: `help:${chapter.slug}`,
+              group,
+              label: chapter.title,
+              hint: h.center,
+              icon: BookOpen,
+              keywords: "help guide chapter",
+              searchOnly: true,
+              run: () => open({ chapter: chapter.slug }),
+            },
+          ]),
+      ...chapter.sections
+        .filter((section) => section.depth <= 3)
+        .map((section) => ({
+          id: `help:${chapter.slug}#${section.anchor}`,
+          group,
+          label: section.text,
+          hint: chapter.slug === HELP_INDEX ? h.contents : chapter.title,
+          icon: BookOpen,
+          keywords: `help guide ${chapter.title}`,
+          searchOnly: true,
+          run: () => open({ chapter: chapter.slug, anchor: section.anchor }),
+        })),
+    ]),
   ];
 }
 
@@ -146,7 +219,7 @@ export function appCommands(context: CommandContext): Command[] {
  */
 export function filterCommands(commands: readonly Command[], query: string): Command[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [...commands];
+  if (words.length === 0) return commands.filter((c) => !c.searchOnly);
   const q = query.trim().toLowerCase();
   const ranked = commands
     .filter((c) => {

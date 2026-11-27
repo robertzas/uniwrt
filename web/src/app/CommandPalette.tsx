@@ -135,8 +135,21 @@ export function CommandPalette(props: CommandPaletteProps) {
                 >
                   <Icon icon={command.icon} class="size-4 shrink-0" />
                   <span class="truncate">{command.label}</span>
+                  <Show when={command.hint}>
+                    {(hint) => (
+                      <span class="ml-auto max-w-[40%] shrink-0 truncate pl-2 text-fg-subtle text-xs">
+                        {hint()}
+                      </span>
+                    )}
+                  </Show>
                   <Show when={active() === index()}>
-                    <Icon icon={CornerDownLeft} class="ml-auto size-3.5 text-fg-subtle" />
+                    <Icon
+                      icon={CornerDownLeft}
+                      class={[
+                        "size-3.5 shrink-0 text-fg-subtle",
+                        command.hint ? "ml-2" : "ml-auto",
+                      ]}
+                    />
                   </Show>
                 </div>
               </>

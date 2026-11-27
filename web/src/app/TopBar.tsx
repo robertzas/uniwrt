@@ -1,5 +1,7 @@
 import { useLocation } from "@solidjs/router";
-import { Menu, Search } from "lucide";
+import { CircleHelp, Menu, Search } from "lucide";
+import { Show } from "solid-js";
+import { isHelpPath } from "../lib/help";
 import { paletteShortcut } from "../lib/platform";
 import { strings } from "../lib/strings";
 import { Icon } from "../ui/Icon";
@@ -10,7 +12,12 @@ import { HealthBadge } from "./HealthBadge";
 import { pageTitle } from "./nav";
 import { PendingChanges } from "./PendingChanges";
 
-export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => void }) {
+export function TopBar(props: {
+  onOpenMenu: () => void;
+  onOpenPalette: () => void;
+  helpOpen: boolean;
+  onToggleHelp: () => void;
+}) {
   const location = useLocation();
   const title = () => pageTitle(location.pathname) ?? strings.page.notFound.title;
 
@@ -41,6 +48,21 @@ export function TopBar(props: { onOpenMenu: () => void; onOpenPalette: () => voi
         </button>
         <DriftChip />
         <PendingChanges />
+        {/* Help for this page (D-151); the help center is its own help. */}
+        <Show when={!isHelpPath(location.pathname)}>
+          <button
+            type="button"
+            data-help-button
+            onClick={() => props.onToggleHelp()}
+            aria-label={strings.help.open}
+            aria-expanded={props.helpOpen ? "true" : "false"}
+            aria-keyshortcuts="?"
+            title={`${strings.help.open} (?)`}
+            class="grid size-8 place-items-center rounded-control text-fg-muted hover:bg-raised hover:text-fg aria-expanded:bg-raised aria-expanded:text-fg"
+          >
+            <Icon icon={CircleHelp} class="size-[18px]" />
+          </button>
+        </Show>
         <AlertsBell />
         <HealthBadge />
       </div>
