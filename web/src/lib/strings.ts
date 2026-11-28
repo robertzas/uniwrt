@@ -152,6 +152,14 @@ export const strings = {
       submit: "Sign in",
       pending: "Signing in…",
     },
+    trust: {
+      link: "Trust this controller's certificate",
+      body: "Your browser warns because the controller signs its own certificate. Download its CA, check the fingerprint, and install it as a trusted root on this device: the warning is gone for good.",
+      download: "Download the CA",
+      fingerprint: "SHA-256 fingerprint",
+      loading: "Reading the fingerprint…",
+      failed: "The fingerprint could not be read.",
+    },
     setup: {
       title: "Create the admin account",
       description:
@@ -685,6 +693,8 @@ export const strings = {
       roleAuto: "Detect",
       roleAutoHint:
         "A gateway if it has a WAN uplink with the default route, otherwise an access point.",
+      roleBridgeHint:
+        "A wireless bridge: it joins the mesh and bridges its Ethernet ports, for wired devices far from a cable.",
       submit: "It matches, adopt",
       starting: "Starting…",
     },
@@ -3326,6 +3336,9 @@ export const strings = {
       progress: (done: number, total: number) => `${done} of ${total} done`,
       managed: (done: number, total: number) => `${done} of ${total} managed`,
       dismiss: "Hide the checklist",
+      show: "Show the Get started checklist",
+      showKeywords: "onboarding checklist steps setup dashboard",
+      hidden: "You hid the Get started checklist on this browser.",
       done: "done",
       todo: "to do",
       steps: {
@@ -3563,6 +3576,7 @@ export const strings = {
       at: (time: string, ago: string) => `${time} (${ago} ago)`,
       empty: "The history fills in as the network changes.",
       failed: "Cannot load the topology at that time",
+      retry: "Try again",
       replaying: "Replaying",
     },
     legend: {
@@ -3593,6 +3607,17 @@ export const strings = {
       removed: "removed",
       review: "Review & overwrite",
     },
+    viewer: {
+      title: "Pending changes",
+      description: (n: number) =>
+        `Revision ${n} hasn't reached these managed devices yet. An admin reviews and applies it.`,
+      none: {
+        title: "Nothing to apply",
+        description: "Every managed device runs the latest revision.",
+      },
+      never: "Not applied yet",
+      at: (revision: number) => `Runs revision ${revision}`,
+    },
     tray: {
       text: "Review changes",
       label: (count: number) =>
@@ -3601,10 +3626,6 @@ export const strings = {
       applyingLabel: "Changes are being applied: follow them",
     },
     command: "Review and apply changes",
-    adminOnly: {
-      title: "Only admins apply changes",
-      description: "An admin reviews what each device would change and applies it.",
-    },
     loading: "Reading every managed device",
     loadingHint:
       "uniwrt logs in to each to compare what it runs with what it would render. Nothing changes yet.",
@@ -4265,6 +4286,24 @@ export const strings = {
       timezoneHint: "The devices' clocks and logs, and the WLANs', restarts' and LEDs' schedules.",
       save: "Save",
       message: "Edit the site's settings",
+    },
+    certificate: {
+      title: "HTTPS certificate",
+      description:
+        "The controller signs its own certificate with a local CA. Trust the CA on each device you use, and the browser's warning is gone for good.",
+      loading: "Reading the certificate",
+      ca: "Local CA",
+      fingerprint: "CA fingerprint (SHA-256)",
+      fingerprintHint:
+        "Compare it with the downloaded file's before you trust it: openssl x509 -in uniwrt-ca.crt -noout -fingerprint -sha256",
+      caExpires: "CA expires",
+      names: "Names covered",
+      expires: "Certificate expires",
+      renews: "Renewed 30 days before.",
+      download: "Download the CA",
+      copy: "Copy the fingerprint",
+      copied: "Fingerprint copied",
+      howTo: "How to trust it",
     },
     schedules: {
       title: "Schedules",
@@ -6238,6 +6277,13 @@ export const strings = {
       dmzNone: "No DMZ host.",
       dmzHost: "Host address",
       dmzRemove: "Remove the DMZ host",
+      dmzConfirm: {
+        title: "Remove the DMZ host?",
+        body: (host: string) =>
+          `Connections from the internet that no forward claims stop reaching ${host}. Services it runs for the internet stop working once you apply.`,
+        confirm: "Remove",
+        cancel: "Cancel",
+      },
       dmzMessage: (host: string | null) => (host ? `DMZ host ${host}` : "DMZ host removed"),
     },
     forward: {

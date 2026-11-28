@@ -145,8 +145,8 @@ The CA is limited: it can sign only local names (`localhost`, and names under `l
 
 ### Download and check the CA
 
-1. Download it from `https://<host>:8443/api/v1/tls/ca.crt`.
-2. Compare its SHA-256 fingerprint with the one the controller prints. The log line `HTTPS certificate` at each start shows it as `ca_sha256`, and `https://<host>:8443/api/v1/tls` shows it too, with the names the certificate covers.
+1. Download it: on the sign-in page, select **Trust this controller's certificate**, then **Download the CA**. Once signed in, **Settings** › **Site** › **HTTPS certificate** has **Download the CA** too. The file is also at `https://<host>:8443/api/v1/tls/ca.crt`.
+2. Compare its SHA-256 fingerprint with the one the controller shows. Both places above show it (**CA fingerprint (SHA-256)** in Settings, with the names the certificate covers and when it expires). The log line `HTTPS certificate` at each start shows it as `ca_sha256`, and `https://<host>:8443/api/v1/tls` shows it too.
 3. On a computer, `openssl x509 -in ca.crt -noout -fingerprint -sha256` prints the fingerprint in the same format.
 
 ### Install it on your devices

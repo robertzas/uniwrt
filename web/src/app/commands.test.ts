@@ -119,6 +119,18 @@ describe("commands", () => {
     expect(navigate).toHaveBeenCalledWith("/setup");
   });
 
+  it("shows the Get started checklist again, for admins only", () => {
+    const navigate = vi.fn();
+    localStorage.setItem("uniwrt.getStarted.dismissed", "1");
+    const [command] = filterCommands(appCommands({ navigate, admin: true }), "get started");
+    expect(command?.id).toBe("help:get-started");
+    command?.run();
+    expect(localStorage.getItem("uniwrt.getStarted.dismissed")).toBeNull();
+    expect(navigate).toHaveBeenCalledWith("/");
+    const ids = appCommands({ navigate, admin: false }).map((c) => c.id);
+    expect(ids).not.toContain("help:get-started");
+  });
+
   it("signs out when the app gives a way to", () => {
     const signOut = vi.fn();
     expect(appCommands({ navigate: vi.fn() }).map((c) => c.id)).not.toContain("account:sign-out");

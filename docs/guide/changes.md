@@ -6,11 +6,11 @@ uniwrt keeps your whole network's configuration as one document on the controlle
 
 - **Every save is a revision.** When you save on any page, a toast says **Saved as revision N. Review and apply it to change the devices.** The devices keep running what they have.
 - **Only managed devices change.** A newly adopted device is in observe mode: uniwrt reads it but never writes to it. An apply changes a device only after an admin turns management on for it and chooses which packages uniwrt writes, on the device's **Config** tab (see [Devices and adoption](devices.md)).
-- **Pending changes show in the top bar.** While the latest revision has not reached every managed device, admins see a **Review changes** button with the number of devices to update. While an apply runs, it reads **Applying…**. The command palette also has **Review and apply changes**.
+- **Pending changes show in the top bar.** While the latest revision has not reached every managed device, everyone sees a **Review changes** button with the number of devices to update. While an apply runs, it reads **Applying…**. The command palette also has **Review and apply changes**.
 - **Applies are safe to try.** Each device applies the change as a transaction with a timer armed. A device that isn't confirmed in time puts its old configuration back by itself (see [Automatic rollback](#automatic-rollback)).
 - **The history is kept.** Every revision stays in **Settings** › **Revisions**, where you can compare any two and restore an older one (see [Revisions](#revisions)).
 
-Viewers can't save, review or apply changes; they see the history and can export the site.
+Viewers can't save, review or apply changes; they see the history and can export the site. For them, **Review changes** opens **Pending changes**: the managed devices the latest revision hasn't reached, each with the revision it runs (or **Not applied yet**), and an apply's progress while one runs. It shows no diffs, and **Nothing to apply** once every device is up to date.
 
 ## Review changes
 

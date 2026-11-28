@@ -10,9 +10,12 @@ import { openTestSocket, SignedInProviders, sendFleet } from "../../test/provide
 import { chain, house } from "../../test/topology";
 
 let calls: string[] = [];
+/** The history's reads fail while set. */
+let historyDown = false;
 
 function stubApi() {
   calls = [];
+  historyDown = false;
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? "GET"} ${url}`;
     calls.push(key);
@@ -21,6 +24,7 @@ function stubApi() {
     if (key === "GET /api/v1/topology/timeline")
       return Response.json({ start: 500, changes: [800] });
     if (key.startsWith("GET /api/v1/topology/at/")) {
+      if (historyDown) return Response.json({ message: "down" }, { status: 500 });
       const past: Topology = {
         ...house(),
         at: 700,
@@ -182,6 +186,30 @@ describe("the topology page", () => {
     expect(screen.queryByText("Replaying")).not.toBeInTheDocument();
     expect(
       screen.getByRole("img", { name: "Network map: 2 devices and 3 clients" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says when a time can't be replayed, shows the live map, and tries again", async () => {
+    const user = userEvent.setup();
+    await renderAt("/topology");
+    const slider = await screen.findByRole("slider", { name: "Replay the last 24 hours" });
+    historyDown = true;
+    fireEvent.input(slider, { target: { value: "700" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Cannot load the topology at that time",
+    );
+    expect(screen.queryByText("Replaying")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Network map: 2 devices and 3 clients" }),
+    ).toBeInTheDocument();
+    historyDown = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Replaying")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Cannot load the topology at that time")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("img", { name: "Network map: 2 devices and 0 clients" }),
     ).toBeInTheDocument();
   });
 

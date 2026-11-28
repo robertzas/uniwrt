@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TopoNode } from "../../api/gen/TopoNode";
-import { house } from "../../test/topology";
+import { edge, house, vertex } from "../../test/topology";
 import { applyTopology, type Graph, graphOf } from "./graph";
 import { buildScene, clusterId, sceneCounts, type ViewKind } from "./scene";
 
@@ -70,6 +70,16 @@ describe("scenes", () => {
     expect(cluster?.host).toBe("node:2");
     // One client is not a group.
     expect(scene.byId.has("client:aa:00:00:00:00:03")).toBe(true);
+  });
+
+  it("link a client in the tree even without an uplink, as one of an unreachable peer", () => {
+    const topology = house();
+    const peer = "peer:02:00:00:00:00:99";
+    const lone = "client:aa:00:00:00:00:09";
+    topology.nodes.push(vertex(lone, { mac: "aa:00:00:00:00:09", parent: peer }));
+    topology.edges.push(edge(peer, lone, { medium: "wifi", band: "5g" }));
+    const scene = buildScene(graphOf(topology), "tree", options(true));
+    expect(scene.links.map((l) => l.id)).toContain(`${peer}~${lone}`);
   });
 
   it("show the nodes, peers and every link between them in RF, without the internet or clients", () => {

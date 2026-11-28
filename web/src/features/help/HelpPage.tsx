@@ -1,14 +1,19 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
-import { ChevronLeft } from "lucide";
-import { createEffect, For, Show } from "solid-js";
+import { ChevronLeft, ListChecks } from "lucide";
+import { createEffect, For, Show, useContext } from "solid-js";
+import { dismissed, setDismissed } from "../../lib/checklist";
 import { HELP_INDEX, HELP_PATH, helpHref } from "../../lib/help";
+import { SessionContext } from "../../lib/session";
 import { strings } from "../../lib/strings";
+import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { Article } from "./Article";
 import { ChapterStatus } from "./ChapterStatus";
 import { createGuide } from "./guide";
 
 const t = strings.help;
+/** The chapter whose last section is the dashboard's checklist. */
+const GETTING_STARTED = "getting-started";
 
 /**
  * `/help` and `/help/:chapter` (D-151): the help center, the user guide of this version, offline.
@@ -18,6 +23,7 @@ export function HelpPage() {
   const params = useParams<{ chapter?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const session = useContext(SessionContext);
   const slug = () => params.chapter ?? HELP_INDEX;
   const guide = createGuide(slug);
   const sections = () =>
@@ -67,6 +73,24 @@ export function HelpPage() {
             <Icon icon={ChevronLeft} class="size-4" />
             {t.allChapters}
           </a>
+        </Show>
+        <Show when={slug() === GETTING_STARTED && session.user.role === "admin" && dismissed()}>
+          <div
+            role="status"
+            class="mb-6 flex flex-wrap items-center gap-3 rounded-card border border-edge bg-raised px-4 py-3 text-sm"
+          >
+            <Icon icon={ListChecks} class="size-4 shrink-0 text-accent" />
+            <p class="min-w-0 flex-1 text-fg-muted">{strings.dashboard.getStarted.hidden}</p>
+            <Button
+              size="sm"
+              onClick={() => {
+                setDismissed(false);
+                navigate("/");
+              }}
+            >
+              {strings.dashboard.getStarted.show}
+            </Button>
+          </div>
         </Show>
         <ChapterStatus guide={guide}>
           {(html) => (

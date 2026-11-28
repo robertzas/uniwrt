@@ -276,9 +276,36 @@ describe("Review & apply", () => {
     );
   });
 
-  it("keeps viewers out of the review and the tray", async () => {
-    await renderAt("/changes", "viewer");
-    expect(await screen.findByText("Only admins apply changes")).toBeVisible();
+  it("shows viewers the devices still to update, without the plan or its actions", async () => {
+    const user = userEvent.setup();
+    const { history } = await renderAt("/wifi", "viewer");
+    await user.click(
+      await screen.findByRole("link", { name: "Pending changes: 2 devices to update" }),
+    );
+    await waitFor(() => expect(history.get()).toBe("/changes"));
+    const card = await screen.findByRole("region", { name: "Pending changes" });
+    expect(card).toHaveTextContent("Revision 5 hasn't reached these managed devices yet");
+    const rows = within(card).getAllByRole("listitem");
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Gateway", "Attic AP"]);
+    expect(rows[0]).toHaveTextContent("Runs revision 4");
+    expect(screen.queryByRole("button", { name: /Apply revision/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(urls).not.toContain("/api/v1/apply/plan");
+  });
+
+  it("tells viewers when nothing is left to apply", async () => {
+    const { ws } = await renderAt("/changes", "viewer");
+    ws.receive({
+      type: "config",
+      topic: "config",
+      head: revisionMeta(5, { message: "Guest Wi-Fi" }),
+      applied: [
+        { node: 1, revision: 5, job: 4, at: 0 },
+        { node: 2, revision: 5, job: 4, at: 0 },
+      ],
+    });
+    expect(await screen.findByText("Nothing to apply")).toBeVisible();
     expect(screen.queryByRole("link", { name: /Pending changes/ })).toBeNull();
   });
 });

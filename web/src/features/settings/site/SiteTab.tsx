@@ -12,6 +12,7 @@ import { FormField, SELECT } from "../../../ui/FormField";
 import { RequestError } from "../../../ui/JobOutcome";
 import { SavedRevision } from "../../../ui/SavedRevision";
 import { TextField } from "../../../ui/TextField";
+import { CertificateCard } from "./CertificateCard";
 import { SchedulesCard } from "./SchedulesCard";
 
 const t = strings.settings.site;
@@ -32,8 +33,8 @@ export function zones(current: string): string[] {
 
 /**
  * Settings › Site (D-083): the site's name, its country (the radios' regulatory domain) and its
- * time zone (the devices' clocks, the schedules), then its schedules (D-138). A save is the site's
- * next revision.
+ * time zone (the devices' clocks, the schedules), then its schedules (D-138), then the controller's
+ * HTTPS certificate and local CA (M9.5d). A save is the site's next revision.
  */
 export function SiteTab(props: { admin: boolean }) {
   const live = useContext(LiveContext);
@@ -62,6 +63,7 @@ export function SiteTab(props: { admin: boolean }) {
         </Show>
       </Card>
       <Show when={site.data}>{(view) => <SchedulesCard view={view()} admin={props.admin} />}</Show>
+      <CertificateCard />
     </div>
   );
 }

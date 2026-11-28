@@ -93,7 +93,8 @@ async function renderBackups(options: { role?: "admin" | "viewer"; managed?: boo
       </SignedInProviders>
     </QueryClientProvider>
   ));
-  const topics = ["fleet", "alerts", "config", "node:1", ...(role === "admin" ? ["jobs"] : [])];
+  // The top bar's tray follows applies for every role (M9.5d).
+  const topics = ["fleet", "alerts", "config", "node:1", "jobs"];
   await waitFor(() => {
     const sent = ws.sent.at(-1) as { sub?: string[] } | undefined;
     expect(new Set(sent?.sub)).toEqual(new Set(topics));

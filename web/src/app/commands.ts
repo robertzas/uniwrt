@@ -2,6 +2,7 @@ import {
   BookOpen,
   CircleHelp,
   Laptop,
+  ListChecks,
   LogOut,
   Moon,
   Palette,
@@ -20,6 +21,7 @@ import {
   skins,
   type ThemePreference,
 } from "../lib/appearance";
+import { setDismissed } from "../lib/checklist";
 import { clientName, kindIcons } from "../lib/clients";
 import { HELP_INDEX, HELP_PATH, type HelpChapter, type HelpTopic } from "../lib/help";
 import { strings } from "../lib/strings";
@@ -155,6 +157,21 @@ export function appCommands(context: CommandContext): Command[] {
             icon: LogOut,
             keywords: "log out logout",
             run: context.signOut,
+          },
+        ]
+      : []),
+    ...(context.admin
+      ? [
+          {
+            id: "help:get-started",
+            group: p.groups.help,
+            label: strings.dashboard.getStarted.show,
+            icon: ListChecks,
+            keywords: strings.dashboard.getStarted.showKeywords,
+            run: () => {
+              setDismissed(false);
+              navigate("/");
+            },
           },
         ]
       : []),

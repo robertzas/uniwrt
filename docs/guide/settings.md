@@ -8,7 +8,7 @@ Everyone can open Settings. Only administrators change anything; viewers see the
 
 ![The Settings page on its Site tab](https://robertzas.github.io/uniwrt/guide/images/settings.png)
 
-The **Site** tab has two cards: **Site**, with what the whole site shares, and **Schedules**.
+The **Site** tab has three cards: **Site**, with what the whole site shares, **Schedules**, and **HTTPS certificate**.
 
 - **Name**: the site's name, 1 to 64 characters.
 - **Country**: sets the radios' regulatory domain, that is, the channels and transmit power they may use. Pick the country the devices are in: a wrong country is illegal on the air.
@@ -28,6 +28,10 @@ A save changes nothing on the devices by itself. The country and time zone reach
 The **Schedules** card sets when the managed devices restart and when their LEDs are off, for the whole site. The controller runs these schedules itself, in the site's time zone. They don't change the devices' configuration, so a save needs no apply: the controller follows them from the moment you save.
 
 Each schedule lists the devices that follow it under **Followed by**. A device can leave a schedule, or keep its own restart time, on its own page (see [Devices and adoption](devices.md)). Devices in observe mode never follow them.
+
+### HTTPS certificate
+
+This card shows the controller's local CA and the certificate it signs for the HTTPS listener: the **Local CA** name, the **CA fingerprint (SHA-256)** with a copy button, when the CA expires, the **Names covered** and when the certificate expires (it renews itself 30 days before). **Download the CA** saves `uniwrt-ca.crt`; **How to trust it** opens [Trust the controller's certificate](install.md#trust-the-controllers-certificate). Everyone sees it.
 
 ### To restart the devices on a schedule
 

@@ -68,24 +68,3 @@ export function getStarted(input: GetStartedInput): Step[] | undefined {
     { id: "notify", done: notifiers > 0, href: "/settings?tab=notifications" },
   ];
 }
-
-const KEY = "uniwrt.getStarted.dismissed";
-
-/** Whether this browser was told to hide the checklist. */
-export function dismissed(): boolean {
-  try {
-    return localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** Hides the checklist in this browser, or shows it again. */
-export function setDismissed(value: boolean): void {
-  try {
-    if (value) localStorage.setItem(KEY, "1");
-    else localStorage.removeItem(KEY);
-  } catch {
-    // Unavailable storage only means the choice is not remembered.
-  }
-}

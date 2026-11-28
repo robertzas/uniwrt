@@ -1,4 +1,4 @@
-import { Lock, RotateCw, Router, Undo2, Upload } from "lucide";
+import { RotateCw, Router, Undo2, Upload } from "lucide";
 import { createEffect, createMemo, createSignal, For, onSettled, Show, useContext } from "solid-js";
 import type { ApplyPlan } from "../../api/gen/ApplyPlan";
 import type { Job } from "../../api/gen/Job";
@@ -21,6 +21,7 @@ import { ApplyProgress } from "./ApplyProgress";
 import { ImpactCard } from "./ImpactCard";
 import { NodePlanCard } from "./NodePlanCard";
 import { counts, split } from "./plan";
+import { ViewerChanges } from "./ViewerChanges";
 
 const t = strings.changes;
 
@@ -28,7 +29,8 @@ const t = strings.changes;
  * `/changes` (features/lifecycle.md, Render → diff → apply; D-071): what applying the latest
  * revision does to each managed node, read from them just now (the impact, each node's diffs
  * with secrets masked, the nodes refused or left alone), then the apply followed live on the
- * `jobs` topic, and discarding the changes back to what the nodes hold. Admins only.
+ * `jobs` topic, and discarding the changes back to what the nodes hold. For admins; viewers see
+ * the devices still to update ([`ViewerChanges`]).
  */
 export function ChangesPage() {
   const session = useContext(SessionContext);
@@ -38,14 +40,7 @@ export function ChangesPage() {
         <h1 class="font-semibold text-2xl tracking-tight">{t.title}</h1>
         <p class="mt-1 text-fg-muted text-sm">{t.description}</p>
       </header>
-      <Show
-        when={session.user.role === "admin"}
-        fallback={
-          <Card>
-            <EmptyState icon={Lock} {...t.adminOnly} />
-          </Card>
-        }
-      >
+      <Show when={session.user.role === "admin"} fallback={<ViewerChanges />}>
         <Review />
       </Show>
     </div>

@@ -1209,8 +1209,8 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `app/setup/`: AddressStep.tsx, InternetStep.tsx, ReviewStep.tsx, RouterStep.tsx, SetupWizard.tsx, WifiStep.tsx, plan.ts
 - `dev/`: Gallery.tsx
 - `features/alerts/`: ActiveTab.tsx, AlertRow.tsx, AlertsPage.tsx, EventFields.tsx, HistoryTab.tsx, MaintenanceTab.tsx, MetricFields.tsx, RuleEditor.tsx, RulesTab.tsx, SnoozeMenu.tsx, history.ts, maintenance.ts, rules.ts, shared.tsx
-- `features/auth/`: ChangePasswordDialog.tsx, SignIn.tsx
-- `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, plan.ts
+- `features/auth/`: ChangePasswordDialog.tsx, SignIn.tsx, TrustCa.tsx
+- `features/changes/`: ApplyProgress.tsx, ChangesPage.tsx, ImpactCard.tsx, NodePlanCard.tsx, RawOverrides.tsx, ViewerChanges.tsx, plan.ts
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/clients/doctor/`: DoctorChip.tsx, DoctorTab.tsx, describe.ts, query.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, GetStarted.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, getStarted.ts, health.ts
@@ -1247,14 +1247,14 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/settings/import/`: FileImportPage.tsx, FileNodes.tsx, FilePick.tsx, FileSecrets.tsx, ImportPage.tsx, NodeImportCard.tsx, file.ts, parts.tsx, preview.ts
 - `features/settings/notifications/`: FilterFields.tsx, LinkAddress.tsx, NotificationsTab.tsx, NotifierEditor.tsx, NotifierRow.tsx, SecretField.tsx, TemplateEditor.tsx, WebhookFields.tsx, draft.ts, fields.tsx, template.ts, words.ts
 - `features/settings/revisions/`: ChangeList.tsx, ExportDialog.tsx, RestoreDialog.tsx, RevisionRow.tsx, RevisionsTab.tsx, changes.ts
-- `features/settings/site/`: SchedulesCard.tsx, SiteTab.tsx
+- `features/settings/site/`: CertificateCard.tsx, SchedulesCard.tsx, SiteTab.tsx
 - `features/settings/support/`: SupportTab.tsx
 - `features/settings/users/`: UserDialog.tsx, UsersTab.tsx
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `features/updates/`: ControllerCard.tsx, MirrorCard.tsx, MirrorSet.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx, mirror.ts
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts
 - `features/wifi/`: BandsCard.tsx, JoinDialog.tsx, MeshCard.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, bands.ts, draft.ts, mesh.ts, summary.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, help.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, radio.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, checklist.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, help.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, radio.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobNodes.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, QrCode.tsx, RadioCards.tsx, SavedRevision.tsx, ScheduleField.tsx, Segmented.tsx, SheetHandle.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Weekdays.tsx, WeeklyTimeField.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/floorplan/`: Heatmap.tsx, PlanCanvas.tsx

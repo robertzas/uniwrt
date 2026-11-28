@@ -10,6 +10,7 @@ import { Card } from "../../ui/Card";
 import { Icon } from "../../ui/Icon";
 import { TextField } from "../../ui/TextField";
 import { Wordmark } from "../../ui/Wordmark";
+import { TrustCa } from "./TrustCa";
 
 export interface SignInProps {
   state: AuthState;
@@ -28,7 +29,7 @@ export interface SignInProps {
  */
 export function SignIn(props: SignInProps) {
   return (
-    <AuthFrame>
+    <AuthFrame footer={<TrustCa />}>
       <Switch fallback={<LoginForm {...props} />}>
         <Match when={props.state.setup === "open"}>
           <SetupForm {...props} />
@@ -42,13 +43,14 @@ export function SignIn(props: SignInProps) {
 }
 
 /** A centered card under the wordmark, for the screens shown before the shell. */
-export function AuthFrame(props: { children: JSX.Element }) {
+export function AuthFrame(props: { children: JSX.Element; footer?: JSX.Element }) {
   return (
     <main class="flex min-h-dvh flex-col items-center justify-center bg-canvas px-4 py-10">
       <div class="mb-8">
         <Wordmark />
       </div>
       <Card class="w-full max-w-sm p-6 sm:p-8">{props.children}</Card>
+      {props.footer}
     </main>
   );
 }

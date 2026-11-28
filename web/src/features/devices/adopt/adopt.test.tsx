@@ -79,6 +79,29 @@ describe("Adoption", () => {
     stubApi({});
   });
 
+  it("adopts a device as a wireless bridge", async () => {
+    const user = userEvent.setup();
+    const posted: unknown[] = [];
+    stubApi({
+      "POST /api/v1/adopt/probe": () => probe,
+      "POST /api/v1/adopt": (body) => {
+        posted.push(body);
+        return adoptJob(5, "10.0.0.3", 0);
+      },
+    });
+    renderAt("/devices?adopt=1");
+    const dialog = await screen.findByRole("dialog", { name: "Adopt a device" });
+    await user.type(within(dialog).getByLabelText("Address"), "10.0.0.3");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await within(dialog).findByTestId("fingerprint");
+    await user.click(within(dialog).getByLabelText("Bridge"));
+    expect(dialog).toHaveTextContent("joins the mesh and bridges its Ethernet ports");
+    await user.click(within(dialog).getByRole("button", { name: "It matches, adopt" }));
+    await waitFor(() =>
+      expect(posted).toEqual([expect.objectContaining({ host: "10.0.0.3", role: "bridge" })]),
+    );
+  });
+
   it("probes, confirms the fingerprint, follows the job and opens the device", async () => {
     const user = userEvent.setup();
     const posted: unknown[] = [];

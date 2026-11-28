@@ -121,6 +121,18 @@ describe("in-app help", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No such chapter");
   });
 
+  it("offers to show a hidden Get started checklist again from its chapter", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("uniwrt.getStarted.dismissed", "1");
+    const history = renderAt("/help/getting-started");
+    expect(
+      await screen.findByText("You hid the Get started checklist on this browser."),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show the Get started checklist" }));
+    expect(localStorage.getItem("uniwrt.getStarted.dismissed")).toBeNull();
+    await waitFor(() => expect(history.get()).toBe("/"));
+  });
+
   it("shows the contents at /help", async () => {
     renderAt("/help");
     expect(

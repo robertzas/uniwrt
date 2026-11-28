@@ -258,6 +258,7 @@ const roles: { value: NodeRole | undefined; label: string }[] = [
   { value: undefined, label: s.confirm.roleAuto },
   { value: "gateway", label: strings.devices.role.gateway },
   { value: "ap", label: strings.devices.role.ap },
+  { value: "bridge", label: strings.devices.role.bridge },
 ];
 
 function Confirm(props: {
@@ -320,6 +321,9 @@ function Confirm(props: {
         </div>
         <Show when={props.role === undefined}>
           <p class="mt-1.5 text-fg-subtle text-xs">{s.confirm.roleAutoHint}</p>
+        </Show>
+        <Show when={props.role === "bridge"}>
+          <p class="mt-1.5 text-fg-subtle text-xs">{s.confirm.roleBridgeHint}</p>
         </Show>
       </fieldset>
       <Footer>

@@ -192,9 +192,9 @@ describe("Security", () => {
     });
   });
 
-  it("deletes a forward and sets the DMZ host", async () => {
+  it("deletes a forward, sets the DMZ host and removes it", async () => {
     const user = userEvent.setup();
-    await renderSecurity();
+    const ws = await renderSecurity();
     await user.click(await screen.findByRole("button", { name: "Edit NAS" }));
     const dialog = await screen.findByRole("dialog", { name: "Port forward NAS" });
     expect(within(dialog).getByLabelText("Host port")).toHaveValue("443");
@@ -229,6 +229,25 @@ describe("Security", () => {
     expect(await within(card).findByText(/Saved as revision 4/)).toBeVisible();
     expect(put().message).toBe("DMZ host 192.168.1.100");
     expect(put().config.firewall.dmz).toBe("192.168.1.100");
+
+    // The saved revision comes back on the config topic; removing it then asks first.
+    ws.receive({ type: "config", topic: "config", head: revisionMeta(head), applied: [] });
+    await user.click(await within(card).findByRole("button", { name: "Remove the DMZ host" }));
+    const ask = await screen.findByRole("dialog", { name: "Remove the DMZ host?" });
+    expect(ask).toHaveTextContent("stop reaching 192.168.1.100");
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(put().config.firewall.dmz).toBe("192.168.1.100");
+    await user.click(within(card).getByRole("button", { name: "Remove the DMZ host" }));
+    await user.click(
+      within(await screen.findByRole("dialog", { name: "Remove the DMZ host?" })).getByRole(
+        "button",
+        { name: "Remove" },
+      ),
+    );
+    expect(await within(card).findByText(/Saved as revision 5/)).toBeVisible();
+    expect(put().config.firewall.dmz).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("chooses UPnP's networks", async () => {

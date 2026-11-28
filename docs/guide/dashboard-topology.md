@@ -25,7 +25,7 @@ Admins see a **Get started** checklist at the top of the Dashboard. Each step ti
 
 The progress line reads "3 of 6 done", and the title changes to **You're all set** when every step is done.
 
-To hide the checklist, select the **×** button (**Hide the checklist**). It stays hidden in that browser.
+To hide the checklist, select the **×** button (**Hide the checklist**). It stays hidden in that browser. To show it again, run **Show the Get started checklist** from the command palette (Ctrl+K, or Cmd+K on a Mac), or select the same button at the top of the help center's [Getting started](getting-started.md) chapter.
 
 - Viewers don't see the checklist.
 - Once hidden, the checklist can't be shown again from the app.
@@ -282,6 +282,7 @@ The bar along the bottom of the map replays the last 24 hours, so you can see wh
 
 - The replay shows the map without traffic or CPU load, and no dots flow.
 - It moves in steps of 15 seconds and covers at most the last 24 hours. Until the network has changed, the bar says **The history fills in as the network changes.**
+- If a time can't be loaded, the bar says **Cannot load the topology at that time** and the map shows the live network (no **Replaying** badge). Select **Try again** (the arrow button) to load it again.
 
 ### On a phone
 

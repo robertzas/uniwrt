@@ -71,7 +71,7 @@ The **DMZ host** gets every connection from the internet that no forward claims.
 2. Type the **Host address** and select **Save**.
 3. Select **Review and apply**.
 
-To remove it, select the **Remove the DMZ host** button (bin icon) next to **Edit**, then review and apply.
+To remove it, select the **Remove the DMZ host** button (bin icon) next to **Edit**, confirm with **Remove** in **Remove the DMZ host?**, then review and apply.
 
 ### UPnP and NAT-PMP
 

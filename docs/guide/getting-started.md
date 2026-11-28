@@ -159,4 +159,4 @@ Admins see the **Get started** checklist at the top of the dashboard. Each step 
 - **Back up the controller**: done once the controller's backup passphrase is set.
 - **Get notified**: done once a notifier is set up.
 
-The header shows how many steps are done, and **You're all set** when all are. Press **Hide the checklist** (the X) to hide it. This is remembered in this browser only.
+The header shows how many steps are done, and **You're all set** when all are. Press **Hide the checklist** (the X) to hide it. This is remembered in this browser only. To bring it back, run **Show the Get started checklist** from the command palette, or select it at the top of this chapter in the help center.

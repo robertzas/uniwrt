@@ -9,6 +9,7 @@ import { strings } from "../../lib/strings";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
+import { Dialog, DialogFooter } from "../../ui/Dialog";
 import { INPUT } from "../../ui/FormField";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
@@ -128,6 +129,7 @@ function Dmz(props: {
   const [failure, setFailure] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
   const [saved, setSaved] = createSignal<number>();
+  const [asking, setAsking] = createSignal(false);
   const host = () => props.view.config.firewall.dmz;
 
   const store = async (next: string | null) => {
@@ -140,6 +142,7 @@ function Dmz(props: {
       );
       setSaved(view.revision.id);
       setDraft(undefined);
+      setAsking(false);
     } catch (err) {
       const issue =
         err instanceof ApiError ? err.issues.find((i) => i.path === "firewall/dmz") : undefined;
@@ -182,7 +185,7 @@ function Dmz(props: {
               icon={Trash2}
               aria-label={t.dmzRemove}
               disabled={busy()}
-              onClick={() => void store(null)}
+              onClick={() => setAsking(true)}
             />
           </Show>
         </Show>
@@ -236,8 +239,24 @@ function Dmz(props: {
           </Button>
         </form>
       </Show>
-      <RequestError text={failure()} />
+      <RequestError text={asking() ? undefined : failure()} />
       <Show when={saved()}>{(revision) => <SavedRevision revision={revision()} />}</Show>
+      <Dialog
+        open={asking()}
+        onOpenChange={setAsking}
+        title={t.dmzConfirm.title}
+        description={t.dmzConfirm.body(host() ?? "")}
+      >
+        <RequestError text={failure()} />
+        <DialogFooter class="px-5 pt-2 pb-5">
+          <Button variant="ghost" onClick={() => setAsking(false)}>
+            {t.dmzConfirm.cancel}
+          </Button>
+          <Button variant="primary" disabled={busy()} onClick={() => void store(null)}>
+            {t.dmzConfirm.confirm}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }

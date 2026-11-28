@@ -127,6 +127,10 @@ export function buildScene(graph: Graph, view: ViewKind, options: SceneOptions):
       host: null,
     });
   }
+  const uplinks = new Set<string>();
+  if (view === "tree") {
+    for (const node of graph.nodes.values()) if (node.uplink) uplinks.add(node.uplink);
+  }
   if (view !== "rf") {
     for (const [host, list] of byHost) {
       if (!byId.has(host)) continue;
@@ -149,6 +153,9 @@ export function buildScene(graph: Graph, view: ViewKind, options: SceneOptions):
         const node = graph.nodes.get(client);
         const link = clients.get(client);
         if (!node || !link) continue;
+        // A client has one link: drawn in the tree too when it has no uplink, as a client of
+        // a mesh peer the gateway can't reach has none, which would leave it floating.
+        uplinks.add(link.edge.id);
         add({
           id: node.id,
           kind: "client",
@@ -163,10 +170,6 @@ export function buildScene(graph: Graph, view: ViewKind, options: SceneOptions):
     }
   }
 
-  const uplinks = new Set<string>();
-  if (view === "tree") {
-    for (const node of graph.nodes.values()) if (node.uplink) uplinks.add(node.uplink);
-  }
   for (const edge of graph.edges.values()) {
     if (!byId.has(edge.a) || !byId.has(edge.b)) continue;
     if (view === "tree" && !uplinks.has(edge.id)) continue;

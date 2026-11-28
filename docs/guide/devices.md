@@ -23,7 +23,7 @@ Use this for a device that already runs OpenWrt and that the controller can reac
 3. Enter its **Root password**. Leave it empty if root has no password, or if the device trusts uniwrt's key already. Check **Keep the password in the vault** to let admins look it up later.
 4. Press **Continue**. uniwrt reads the device's SSH host key without logging in.
 5. Under **Confirm the device's identity**, compare the fingerprint with the device's own. To print it, run the command shown on the device.
-6. Optionally give a **Name** (the hostname is used otherwise) and a **Role**: **Detect**, **Gateway** or **Access point**. **Detect** makes it a gateway if it has a WAN uplink with the default route, otherwise an access point.
+6. Optionally give a **Name** (the hostname is used otherwise) and a **Role**: **Detect**, **Gateway**, **Access point** or **Bridge** (a wireless bridge that joins the mesh and bridges its Ethernet ports). **Detect** makes it a gateway if it has a WAN uplink with the default route, otherwise an access point.
 7. Press **It matches, adopt**, and follow the steps.
 
 uniwrt pins the host key you confirmed: it will only ever talk to a device that presents it. When adoption succeeds, press **Open the device** or **Adopt another**. You can close the dialog while it runs; the device appears in the list once it is recorded.

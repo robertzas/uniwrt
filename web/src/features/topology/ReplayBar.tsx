@@ -1,4 +1,4 @@
-import { History, Radio } from "lucide";
+import { History, Radio, RotateCw, TriangleAlert } from "lucide";
 import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { formatDuration, formatTime } from "../../lib/format";
 import { strings } from "../../lib/strings";
@@ -87,9 +87,17 @@ export function ReplayBar(props: { replay: Replay }) {
         </Button>
       </Show>
       <Show when={props.replay.failed()}>
-        <p role="alert" class="sr-only">
-          {r.failed}
+        <p role="alert" class="flex shrink-0 items-center gap-1.5 text-crit text-xs">
+          <Icon icon={TriangleAlert} class="size-3.5 shrink-0" />
+          <span class="max-sm:sr-only">{r.failed}</span>
         </p>
+        <Button
+          size="sm"
+          icon={RotateCw}
+          aria-label={r.retry}
+          title={r.retry}
+          onClick={() => props.replay.seek(props.replay.at())}
+        />
       </Show>
     </div>
   );

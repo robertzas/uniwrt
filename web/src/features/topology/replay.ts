@@ -9,7 +9,7 @@ export interface Replay {
   timeline: Accessor<TopologyTimeline | undefined>;
   /** The time shown, or `null` for live. */
   at: Accessor<number | null>;
-  /** The topology at that time, once loaded (the previous one until then). */
+  /** The topology at that time, once loaded (the previous one until then; none once it failed). */
   graph: Accessor<Graph | undefined>;
   failed: Accessor<boolean>;
   /** Shows the topology at `ms`, or live again with `null`. */
@@ -56,7 +56,9 @@ export function createReplay(): Replay {
         setFailed(false);
       },
       () => {
-        if (!controller.signal.aborted) setFailed(true);
+        if (controller.signal.aborted) return;
+        setGraph(undefined);
+        setFailed(true);
       },
     );
   };

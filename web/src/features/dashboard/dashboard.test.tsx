@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetricsResponse } from "../../api/gen/MetricsResponse";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { createAppRouter } from "../../app/routes";
+import { setDismissed } from "../../lib/checklist";
 import { client } from "../../test/clients";
 import { alertRecord, detail, facts, summary } from "../../test/fixtures";
 import { openTestSocket, SignedInProviders, sendFleet } from "../../test/providers";
@@ -350,6 +351,9 @@ describe("the Get started checklist", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Hide the checklist" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Get started" })).toBeNull());
     expect(localStorage.getItem("uniwrt.getStarted.dismissed")).toBe("1");
+    // The palette or the help center shows it again, on the open dashboard too.
+    setDismissed(false);
+    expect(await screen.findByRole("region", { name: "Get started" })).toBeInTheDocument();
   });
 
   it("isn't shown to viewers, who can't take its steps", async () => {

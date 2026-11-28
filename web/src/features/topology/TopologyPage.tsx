@@ -188,7 +188,8 @@ export function TopologyPage() {
     <div class="flex h-[calc(100dvh-6.5rem)] min-h-[28rem] flex-col gap-3">
       <header class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 class="font-semibold text-2xl tracking-tight">{t.title}</h1>
-        <Show when={replaying()}>
+        {/* A failed load shows the live map, and the bar says so. */}
+        <Show when={replaying() && !replay.failed()}>
           <Badge tone="info" icon={History}>
             {t.replay.replaying}
           </Badge>

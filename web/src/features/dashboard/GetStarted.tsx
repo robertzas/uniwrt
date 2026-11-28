@@ -1,26 +1,28 @@
 import { useQuery } from "@tanstack/solid-query";
 import { ArrowRight, Circle, CircleCheck, X } from "lucide";
-import { createMemo, createSignal, For, Show, useContext } from "solid-js";
+import { createMemo, For, Show, useContext } from "solid-js";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import { api } from "../../lib/api";
+import { dismissed, setDismissed } from "../../lib/checklist";
 import { LiveContext } from "../../lib/live";
 import { strings } from "../../lib/strings";
 import { Button } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { Icon } from "../../ui/Icon";
 import type { Graph } from "../../viz/topology/graph";
-import { dismissed, getStarted, setDismissed } from "./getStarted";
+import { getStarted } from "./getStarted";
 
 const t = strings.dashboard.getStarted;
 
 /**
  * The dashboard's *Get started* checklist (D-148; features/ui.md, Onboarding), for admins: each
- * step ticks itself from live state and links to where it is taken. Dismissed per browser; hidden
+ * step ticks itself from live state and links to where it is taken. Dismissed per browser (shown
+ * again from the command palette or the help center, lib/checklist.ts); hidden
  * until every step can be told, so it never flickers through a wrong state.
  */
 export function GetStarted(props: { nodes: readonly NodeSummary[]; graph: Graph | undefined }) {
   const live = useContext(LiveContext);
-  const [hidden, setHidden] = createSignal(dismissed());
+  const hidden = dismissed;
   const enabled = () => !hidden();
   const site = useQuery(() => ({
     queryKey: ["site", live.config.head?.id],
@@ -50,10 +52,7 @@ export function GetStarted(props: { nodes: readonly NodeSummary[]; graph: Graph 
     });
   });
   const done = () => steps()?.filter((step) => step.done).length ?? 0;
-  const dismiss = () => {
-    setDismissed(true);
-    setHidden(true);
-  };
+  const dismiss = () => setDismissed(true);
 
   return (
     <Show when={!hidden() && steps()}>

@@ -5,7 +5,6 @@ import type { JobId } from "../api/gen/JobId";
 import { pendingNodes } from "../lib/config";
 import { createJobsView } from "../lib/jobs";
 import { LiveContext } from "../lib/live";
-import { SessionContext } from "../lib/session";
 import { strings } from "../lib/strings";
 import { Icon } from "../ui/Icon";
 import { showToast } from "../ui/Toast";
@@ -13,20 +12,12 @@ import { showToast } from "../ui/Toast";
 const t = strings.changes;
 
 /**
- * The top bar's pending changes (ui.md, Interaction patterns; D-071), for admins: how many managed
- * devices the latest revision has yet to reach, or an apply running, linking to the review. An
- * apply that ends while another page is open says how it went in a toast.
+ * The top bar's pending changes (ui.md, Interaction patterns; D-071): how many managed devices the
+ * latest revision has yet to reach, or an apply running, linking to the review (for viewers, the
+ * list of those devices; M9.5d). An apply that ends while another page is open says how it went
+ * in a toast.
  */
 export function PendingChanges() {
-  const session = useContext(SessionContext);
-  return (
-    <Show when={session.user.role === "admin"}>
-      <Tray />
-    </Show>
-  );
-}
-
-function Tray() {
   const live = useContext(LiveContext);
   const location = useLocation();
   const [jobs] = createJobsView(live);

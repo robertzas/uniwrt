@@ -136,6 +136,7 @@ import type { SpeedTestBody } from "../api/gen/SpeedTestBody";
 import type { SpeedTests } from "../api/gen/SpeedTests";
 import type { TailscaleLogin } from "../api/gen/TailscaleLogin";
 import type { TailscaleStatus } from "../api/gen/TailscaleStatus";
+import type { TlsInfo } from "../api/gen/TlsInfo";
 import type { Topology } from "../api/gen/Topology";
 import type { TopologyPin } from "../api/gen/TopologyPin";
 import type { TopologyTimeline } from "../api/gen/TopologyTimeline";
@@ -380,8 +381,13 @@ export function alertParams(filter: AlertFilter): URLSearchParams {
 }
 
 /** The typed API client; components reach the server only through this (CONVENTIONS.md). */
+/** The local CA's certificate, as a plain link downloads it (public: needed before a login). */
+export const CA_URL = "/api/v1/tls/ca.crt";
+
 export const api = {
   health: (signal?: AbortSignal) => request<Health>("/health", { signal }),
+  /** What the HTTPS certificate covers and the local CA's fingerprint (public). */
+  tls: (signal?: AbortSignal) => request<TlsInfo>("/tls", { signal, session: false }),
   auth: {
     state: (signal?: AbortSignal) => request<AuthState>("/auth", { signal, session: false }),
     setup: (credentials: Credentials) =>
