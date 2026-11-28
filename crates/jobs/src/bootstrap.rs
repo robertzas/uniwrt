@@ -147,8 +147,8 @@ async fn read(remote: &dyn Remote, found: &mut FoundGateway) {
         let output = output.check(argv[0]).ok()?;
         String::from_utf8(output.stdout).ok()
     };
-    if let Some(release) = text(&["cat", "/etc/openwrt_release"]).await {
-        match check::release(&release) {
+    if let Ok(sources) = crate::adopt::read_release(remote).await {
+        match check::release(&sources) {
             Ok(release) => found.release = Some(release),
             Err(refused) => {
                 found.release = Some(refused.release);

@@ -122,7 +122,6 @@ export function installBody(
     : undefined;
 }
 
-/** How an OpenWrt release is planned first: as the node's source says (ASU unless official). */
 /** The oldest OpenWrt release adoption accepts without an override (D-145). */
 const MIN_RELEASE: readonly [number, number] = [24, 10];
 
@@ -141,6 +140,28 @@ export function releaseSupported(distribution: string, version: string): boolean
   return major > MIN_RELEASE[0] || (major === MIN_RELEASE[0] && minor >= MIN_RELEASE[1]);
 }
 
+/**
+ * Each OpenWrt release's default kernel, newest first, as adoption infers a release from it for a
+ * node that names none (D-157; `KERNELS` in the jobs crate's `adopt/check.rs`).
+ */
+const KERNELS: readonly [readonly [number, number], string][] = [
+  [[6, 12], "25.12"],
+  [[6, 6], "24.10"],
+  [[5, 15], "23.05"],
+  [[5, 10], "22.03"],
+  [[5, 4], "21.02"],
+  [[4, 14], "19.07"],
+];
+
+/** The release branch a kernel such as `6.6.93` is the default of; `undefined` if none. */
+export function inferredRelease(kernel: string): string | undefined {
+  const [major, minor] = kernel.trim().split(/[.-]/).map(Number);
+  if (major === undefined || minor === undefined || Number.isNaN(major) || Number.isNaN(minor))
+    return undefined;
+  return KERNELS.find(([[a, b]]) => major > a || (major === a && minor >= b))?.[1];
+}
+
+/** How an OpenWrt release is planned first: as the node's source says (ASU unless official). */
 export function openwrtSource(source: NodeSource): "asu" | "official" {
   return source.kind === "official" ? "official" : "asu";
 }

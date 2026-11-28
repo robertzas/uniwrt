@@ -20,6 +20,13 @@ test("adds a guest WLAN, edits roaming, shows the join code and saves steering",
   const dialog = page.getByRole("dialog", { name: "New WLAN" });
   await dialog.getByRole("button", { name: "Guest" }).click();
   await expect(dialog.getByLabel("Security mode")).toHaveValue(/.+/);
+  // Taller than the window, the editor scrolls under the wheel: the dialog's scroll lock lets
+  // only its own content scroll (D-157).
+  const box = await dialog.boundingBox();
+  if (!box) throw new Error("the editor has no box");
+  await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height, 300) / 2);
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await dialog.getByLabel("Name (SSID)").fill("e2e-guests");
   await saveDialog(page);
   const guests = wlans.getByRole("listitem", { name: "e2e-guests" });

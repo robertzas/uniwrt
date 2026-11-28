@@ -61,12 +61,18 @@ pub(crate) const STEPS: [StepName; 9] = [
 ];
 
 /// Appends the controller's key (`$1`) to dropbear's `authorized_keys` unless it is there,
-/// keeping the file's last line intact; prints `present` or `added`.
-pub(crate) const INSTALL_KEY: &str = r#"f=/etc/dropbear/authorized_keys
-if [ -f "$f" ] && grep -qxF "$1" "$f"; then echo present; exit 0; fi
+/// keeping the file's last line intact, then gives the file and `/etc/dropbear` root's modes
+/// (0600, 0700; D-157): dropbear refuses keys from a file or directory others can write, as after
+/// a hand-made file or a restored backup; prints `present` or `added`.
+pub(crate) const INSTALL_KEY: &str = r#"d=/etc/dropbear f=/etc/dropbear/authorized_keys
 umask 077
+mkdir -p "$d" || exit 1
+if [ -f "$f" ] && grep -qxF "$1" "$f"; then r=present; else
 if [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ]; then echo >>"$f"; fi
-printf '%s\n' "$1" >>"$f" && echo added"#;
+printf '%s\n' "$1" >>"$f" || exit 1
+r=added; fi
+chown 0:0 "$d" "$f" && chmod 700 "$d" && chmod 600 "$f" || exit 1
+echo "$r""#;
 
 /// `sysupgrade -b` tarballs are tens of KiB; a node with large files in its backup list may
 /// reach a few MiB.
@@ -406,13 +412,10 @@ async fn check(
     remote: &dyn Remote,
 ) -> Result<Checked, JobError> {
     progress.start(StepName::Check).await;
-    let release = text(
-        remote,
-        ["cat", "/etc/openwrt_release"],
-        "Cannot read the release",
-    )
-    .await?;
-    let (release, overridden) = match check::release(&release) {
+    let sources = read_release(remote)
+        .await
+        .map_err(|err| node_error(&err, "Cannot read the release"))?;
+    let (release, overridden) = match check::release(&sources) {
         Ok(release) => (release, None),
         Err(refused) if request.allow_unsupported_release => (refused.release, Some(refused.why)),
         Err(refused) => {
@@ -617,6 +620,31 @@ async fn inspect(
         inventory,
         backup,
     })
+}
+
+/// Reads what the node says of its release ([`check::ReleaseSources`]), each source only when
+/// the ones before it name none; a file that can't be read stays `None`, a lost login fails.
+pub(crate) async fn read_release(
+    remote: &dyn Remote,
+) -> Result<check::ReleaseSources, uniwrt_node::Error> {
+    let read = async |argv: [&str; 2]| -> Result<Option<String>, uniwrt_node::Error> {
+        let output = remote.exec(ExecRequest::new(argv)).await?;
+        Ok(output
+            .check(argv[0])
+            .ok()
+            .and_then(|output| String::from_utf8(output.stdout).ok()))
+    };
+    let mut sources = check::ReleaseSources {
+        openwrt_release: read(["cat", "/etc/openwrt_release"]).await?,
+        ..check::ReleaseSources::default()
+    };
+    if sources.named().is_none() {
+        sources.os_release = read(["cat", "/usr/lib/os-release"]).await?;
+    }
+    if sources.named().is_none() {
+        sources.kernel = read(["uname", "-r"]).await?;
+    }
+    Ok(sources)
 }
 
 /// Runs a command that must succeed and returns its output as text.

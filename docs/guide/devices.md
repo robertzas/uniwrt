@@ -48,6 +48,8 @@ The dialog explains the failure and offers the action that fits:
 
 uniwrt is built and tested for OpenWrt 24.10 or later. A device on an older release, another distribution, or one without a release name fails with **This release isn't supported**.
 
+A device whose files name no release is taken for the release its kernel belongs to (Linux 6.6 is 24.10's, 6.12 is 25.12's). The check and the device's **Firmware** row then say, for example, *OpenWrt 24.10 (inferred from Linux 6.6.93)*. Updates still need the release the device names.
+
 To adopt it anyway, press **Adopt anyway** in the dialog (several devices: **Adopt these N anyway**; the first-run wizard: **Adopt it anyway**). The other checks still apply. Its page then shows an **Unsupported** badge next to **Firmware** in **Details**, and some features may not work on it.
 
 ## Discovered

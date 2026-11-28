@@ -58,7 +58,7 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
   };
   const adoptionPort = () =>
     props.node.role === "gateway" ? site.data?.config.adoption_port?.port : undefined;
-  const rows = createMemo(() => portsOf(props.facts, profiles()));
+  const rows = createMemo(() => portsOf(props.facts, profiles(), props.node.role));
   const [drafts, setDrafts] = createSignal<Record<string, PortDraft>>();
   const [failure, setFailure] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);

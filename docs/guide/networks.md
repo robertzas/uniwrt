@@ -278,7 +278,7 @@ The **Time server** card turns the gateway's NTP server on or off. When **Serve 
 
 ## Ethernet ports
 
-Which networks each Ethernet port carries is set per device, on the device's **Ports** tab, in the **Ethernet ports** card. A port without settings is a trunk: it carries the default network untagged and every VLAN tagged. An access port carries one network only.
+Which networks each Ethernet port carries is set per device, on the device's **Ports** tab, in the **Ethernet ports** card. A port without settings is a trunk: it carries the default network untagged and every VLAN tagged. An access port carries one network only. On an access point or a bridge, the WAN port is one more LAN port: it is listed last and bridged like the others.
 
 The card lists each port with its **Link** state and speed, the **Untagged** network, the **Tagged** networks and **Mesh backhaul**.
 

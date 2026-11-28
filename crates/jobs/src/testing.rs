@@ -132,6 +132,7 @@ impl FakeNode {
         let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
         match argv.as_slice() {
             ["cat", "/etc/openwrt_release"] => ok(self.release.lock().unwrap().as_bytes()),
+            ["uname", "-r"] => ok(b"6.6.93\n"),
             ["sh", "-c", script, "sh", line] if *script == INSTALL_KEY => {
                 let mut keys = self.authorized_keys.lock().unwrap();
                 if keys.lines().any(|known| known == *line) {

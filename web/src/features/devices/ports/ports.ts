@@ -1,5 +1,6 @@
 import type { Network } from "../../../api/gen/Network";
 import type { NodeFacts } from "../../../api/gen/NodeFacts";
+import type { NodeRole } from "../../../api/gen/NodeRole";
 import type { PortConfig } from "../../../api/gen/PortConfig";
 import type { SiteConfig } from "../../../api/gen/SiteConfig";
 import { withNode } from "../../../lib/site";
@@ -19,14 +20,23 @@ export interface PortRow {
 
 /**
  * The node's LAN ports from board.json (a swconfig switch's user ports by number, else the LAN's
- * devices), then the ports its profiles name that the board lacks.
+ * devices), then the ports its profiles name that the board lacks. An access point or a bridge
+ * bridges its WAN port like the others (network.md, APs; D-157), so it lists that port too, last.
  */
-export function portsOf(facts: NodeFacts | null, profiles: readonly PortConfig[]): PortRow[] {
+export function portsOf(
+  facts: NodeFacts | null,
+  profiles: readonly PortConfig[],
+  role: NodeRole = "gateway",
+): PortRow[] {
   const layout = facts?.board.layout;
   const sw = layout?.switch;
+  const wan = role !== "gateway";
   const names = sw
-    ? sw.lan_ports.map((n) => `${sw.name}:${n}`)
-    : (layout?.lan ?? []).filter((name) => name !== layout?.wan);
+    ? [...sw.lan_ports, ...(wan ? sw.wan_ports : [])].map((n) => `${sw.name}:${n}`)
+    : [
+        ...(layout?.lan ?? []).filter((name) => name !== layout?.wan),
+        ...(wan && layout?.wan ? [layout.wan] : []),
+      ];
   const rows: PortRow[] = names.map((port) => {
     const device = facts?.devices.find((d) => d.name === port);
     return {

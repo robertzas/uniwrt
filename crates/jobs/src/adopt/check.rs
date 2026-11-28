@@ -24,20 +24,68 @@ pub(crate) struct Unsupported {
     pub(crate) why: String,
 }
 
-/// Checks `/etc/openwrt_release`: OpenWrt at [`MIN_RELEASE`] or later, or a snapshot. Returns
-/// the release for people, such as `OpenWrt 24.10.8`.
-pub(crate) fn release(openwrt_release: &str) -> Result<String, Unsupported> {
-    let field = |name: &str| {
-        openwrt_release.lines().find_map(|line| {
+/// The default kernel of each OpenWrt release, newest first: a node that names no release is
+/// taken for the newest whose kernel its own is at least (D-157). `web/src/lib/firmware.ts` keeps
+/// the same table.
+const KERNELS: [((u32, u32), (u32, u32)); 6] = [
+    ((6, 12), (25, 12)),
+    ((6, 6), (24, 10)),
+    ((5, 15), (23, 5)),
+    ((5, 10), (22, 3)),
+    ((5, 4), (21, 2)),
+    ((4, 14), (19, 7)),
+];
+
+/// What a node says of its release, in the order adoption trusts it: `/etc/openwrt_release`,
+/// then `/usr/lib/os-release`, then the kernel (`uname -r`); each read only when the ones before
+/// it name no release.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ReleaseSources {
+    pub(crate) openwrt_release: Option<String>,
+    pub(crate) os_release: Option<String>,
+    pub(crate) kernel: Option<String>,
+}
+
+impl ReleaseSources {
+    /// The distribution and version the release files name, if one does.
+    pub(crate) fn named(&self) -> Option<(String, String)> {
+        let pair = |text: &Option<String>, id: &str, version: &str| {
+            let text = text.as_deref()?;
+            Some((field(text, id)?, field(text, version)?))
+        };
+        pair(&self.openwrt_release, "DISTRIB_ID", "DISTRIB_RELEASE")
+            .or_else(|| pair(&self.os_release, "NAME", "VERSION_ID"))
+    }
+}
+
+/// A `KEY='value'` or `KEY="value"` line's value; `None` when missing or empty.
+fn field(text: &str, name: &str) -> Option<String> {
+    text.lines()
+        .find_map(|line| {
             let value = line.strip_prefix(name)?.strip_prefix('=')?;
             Some(value.trim().trim_matches(['\'', '"']).to_owned())
         })
+        .filter(|value| !value.is_empty())
+}
+
+/// The release branch whose default kernel `kernel` (`6.6.93`) is, as [`KERNELS`] infers it.
+fn inferred(kernel: &str) -> Option<(u32, u32)> {
+    let mut parts = kernel.trim().split(['.', '-']).map(str::parse::<u32>);
+    let (Some(Ok(major)), Some(Ok(minor))) = (parts.next(), parts.next()) else {
+        return None;
     };
-    let (Some(id), Some(version)) = (field("DISTRIB_ID"), field("DISTRIB_RELEASE")) else {
-        return Err(Unsupported {
-            release: "an unknown release".to_owned(),
-            why: "The node does not say which OpenWrt release it runs".to_owned(),
-        });
+    KERNELS
+        .iter()
+        .find(|(min, _)| (major, minor) >= *min)
+        .map(|&(_, release)| release)
+}
+
+/// Checks the release: OpenWrt at [`MIN_RELEASE`] or later, or a snapshot. Returns the release
+/// for people, such as `OpenWrt 24.10.8`, or `OpenWrt 24.10 (inferred from Linux 6.6.93)` for
+/// a node whose files name none.
+pub(crate) fn release(sources: &ReleaseSources) -> Result<String, Unsupported> {
+    let Some((id, version)) = sources.named() else {
+        return from_kernel(sources.kernel.as_deref().map(str::trim));
     };
     let described = format!("{id} {version}");
     if id != "OpenWrt" {
@@ -50,6 +98,30 @@ pub(crate) fn release(openwrt_release: &str) -> Result<String, Unsupported> {
         return Err(Unsupported {
             why: format!(
                 "The node runs {described}; OpenWrt {}.{} or later is required",
+                MIN_RELEASE.0, MIN_RELEASE.1
+            ),
+            release: described,
+        });
+    }
+    Ok(described)
+}
+
+/// The release a node that names none runs, as its kernel tells.
+fn from_kernel(kernel: Option<&str>) -> Result<String, Unsupported> {
+    let unknown = || Unsupported {
+        release: "an unknown release".to_owned(),
+        why: "The node does not say which OpenWrt release it runs".to_owned(),
+    };
+    let kernel = kernel
+        .filter(|kernel| !kernel.is_empty())
+        .ok_or_else(unknown)?;
+    let (major, minor) = inferred(kernel).ok_or_else(unknown)?;
+    let described = format!("OpenWrt {major}.{minor:02} (inferred from Linux {kernel})");
+    if (major, minor) < MIN_RELEASE {
+        return Err(Unsupported {
+            why: format!(
+                "The node does not say which OpenWrt release it runs, and its kernel, Linux \
+                 {kernel}, is that of {major}.{minor:02}; OpenWrt {}.{} or later is required",
                 MIN_RELEASE.0, MIN_RELEASE.1
             ),
             release: described,
@@ -191,13 +263,19 @@ mod tests {
         node::NodeRole,
     };
 
-    use super::{identity, release, resources, role};
+    use super::{ReleaseSources, identity, release, resources, role};
+
+    fn file(id: &str, version: &str) -> ReleaseSources {
+        ReleaseSources {
+            openwrt_release: Some(format!(
+                "DISTRIB_ID='{id}'\nDISTRIB_RELEASE='{version}'\nDISTRIB_REVISION='r1'\n"
+            )),
+            ..ReleaseSources::default()
+        }
+    }
 
     #[test]
     fn releases_from_24_10_and_snapshots_are_supported() {
-        let file = |id: &str, version: &str| {
-            format!("DISTRIB_ID='{id}'\nDISTRIB_RELEASE='{version}'\nDISTRIB_REVISION='r1'\n")
-        };
         assert_eq!(
             release(&file("OpenWrt", "24.10.8")).unwrap(),
             "OpenWrt 24.10.8"
@@ -210,7 +288,50 @@ mod tests {
         assert!(old.why.contains("24.10 or later"), "{}", old.why);
         let other = release(&file("ImmortalWrt", "24.10.0")).unwrap_err();
         assert_eq!(other.release, "ImmortalWrt 24.10.0");
-        assert_eq!(release("").unwrap_err().release, "an unknown release");
+        assert_eq!(
+            release(&ReleaseSources::default()).unwrap_err().release,
+            "an unknown release"
+        );
+    }
+
+    #[test]
+    fn os_release_then_the_kernel_stand_in_for_a_missing_release_file() {
+        let os = ReleaseSources {
+            openwrt_release: Some("DISTRIB_ID=''\n".to_owned()),
+            os_release: Some("NAME=\"OpenWrt\"\nVERSION_ID=\"25.12.0\"\nID=openwrt\n".to_owned()),
+            kernel: Some("6.1.0".to_owned()),
+        };
+        assert_eq!(release(&os).unwrap(), "OpenWrt 25.12.0");
+        let kernel = |kernel: &str| ReleaseSources {
+            kernel: Some(format!("{kernel}\n")),
+            ..ReleaseSources::default()
+        };
+        assert_eq!(
+            release(&kernel("6.6.93")).unwrap(),
+            "OpenWrt 24.10 (inferred from Linux 6.6.93)"
+        );
+        assert_eq!(
+            release(&kernel("6.12.40")).unwrap(),
+            "OpenWrt 25.12 (inferred from Linux 6.12.40)"
+        );
+        // Newer than any listed: the newest branch, which a snapshot passes as.
+        assert!(
+            release(&kernel("6.18.2"))
+                .unwrap()
+                .starts_with("OpenWrt 25.12 ")
+        );
+        // Between two releases' kernels: the older release.
+        let old = release(&kernel("6.1.120")).unwrap_err();
+        assert_eq!(old.release, "OpenWrt 23.05 (inferred from Linux 6.1.120)");
+        assert!(old.why.contains("24.10 or later"), "{}", old.why);
+        assert_eq!(
+            release(&kernel("4.9.1")).unwrap_err().release,
+            "an unknown release"
+        );
+        assert_eq!(
+            release(&kernel("junk")).unwrap_err().release,
+            "an unknown release"
+        );
     }
 
     fn facts(available_mib: u64, tmp_mib: u64) -> NodeFacts {

@@ -309,6 +309,21 @@ async fn an_old_release_fails_the_check_before_any_change() {
 }
 
 #[tokio::test]
+async fn a_node_naming_no_release_is_taken_for_its_kernel_s() {
+    let setup = setup(true).await;
+    setup.node.release.lock().unwrap().clear();
+    let (job, _) = setup.adopt(setup.request(Some(PASSWORD))).await;
+    assert_eq!(job.state, JobState::Succeeded, "{:?}", job.error);
+    let check = job.steps[1].detail.as_deref().unwrap_or_default();
+    assert!(
+        check.starts_with("OpenWrt 24.10 (inferred from Linux 6.6.93) on "),
+        "{check}"
+    );
+    let commands = setup.node.commands();
+    assert_eq!(commands[..3], ["cat", "cat", "uname"], "{commands:?}");
+}
+
+#[tokio::test]
 async fn an_admin_may_adopt_an_old_release_anyway_with_a_warning() {
     let setup = setup(true).await;
     *setup.node.release.lock().unwrap() =

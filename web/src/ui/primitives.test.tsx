@@ -92,9 +92,10 @@ describe("Dialog", () => {
     ));
     const dialog = await screen.findByRole("dialog", { name: "Rename" });
     expect(dialog).toHaveAccessibleDescription("Shown on every page.");
-    expect(dialog.className).toContain("max-md:overflow-y-auto");
+    // The dialog itself scrolls: the scroll lock lets the wheel scroll only inside it (D-157).
+    expect(dialog.className.split(" ")).toContain("overflow-y-auto");
     const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
-    expect(footer.className).toContain("max-md:sticky");
+    expect(footer.className.split(" ")).toContain("sticky");
     expect(footer.className).toContain("gap-3");
     expect(footer.className.split(" ")).not.toContain("gap-2");
   });

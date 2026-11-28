@@ -25,8 +25,9 @@ const overlay =
 
 /**
  * A modal dialog: focus is trapped inside, and Escape or a click outside closes it. Below `md` it
- * is a sheet from the bottom edge (D-148): its title stays on top while the body scrolls, and a
- * `DialogFooter` keeps the actions at the bottom, in reach of a thumb.
+ * is a sheet from the bottom edge (D-148). A body taller than the screen scrolls inside the dialog
+ * (the scroll lock lets the wheel and touch scroll only the dialog's own content, D-157): its title
+ * stays on top, and a `DialogFooter` keeps the actions at the bottom, in reach of a thumb.
  */
 export function Dialog(props: DialogProps) {
   const focus = createFocusReturn();
@@ -34,15 +35,15 @@ export function Dialog(props: DialogProps) {
     <KDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <KDialog.Portal>
         <KDialog.Overlay class={overlay} />
-        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pt-[12vh] pb-[6vh] max-md:items-end max-md:overflow-hidden max-md:px-0 max-md:pt-3 max-md:pb-0">
+        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-hidden px-4 pt-[12vh] pb-[6vh] max-md:items-end max-md:px-0 max-md:pt-3 max-md:pb-0">
           <KDialog.Content
             onOpenAutoFocus={(event) => focus.open(event, props.initialFocus)}
             onCloseAutoFocus={focus.close}
             class={[
-              "relative w-full rounded-card border border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel data-expanded:animate-pop-in data-closed:animate-pop-out",
+              "relative max-h-full w-full overflow-y-auto overscroll-contain rounded-card border border-edge bg-surface shadow-overlay outline-none glass:backdrop-blur-panel data-expanded:animate-pop-in data-closed:animate-pop-out",
               { wide: "max-w-5xl", lg: "max-w-2xl", md: "max-w-lg" }[props.size ?? "md"],
-              // Below md, a sheet from the bottom edge as wide as the screen, whose body scrolls.
-              "max-md:max-h-full max-md:max-w-none max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:data-expanded:animate-sheet-in max-md:data-closed:animate-sheet-out",
+              // Below md, a sheet from the bottom edge as wide as the screen.
+              "max-md:max-w-none max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:data-expanded:animate-sheet-in max-md:data-closed:animate-sheet-out",
               props.class,
             ]}
           >
@@ -127,11 +128,11 @@ function focusInitial(event: Event, target: DialogProps["initialFocus"]) {
   }
 }
 
-/** The close button and the title, which stay on top of a sheet's scrolling body. */
+/** The close button and the title, which stay on top of a scrolling body. */
 function Header(props: DialogProps) {
   return (
     <>
-      <div class="relative z-10 max-md:sticky max-md:top-0 max-md:bg-surface max-md:glass:backdrop-blur-panel">
+      <div class="sticky top-0 z-10 bg-surface glass:backdrop-blur-panel">
         <KDialog.CloseButton
           aria-label={strings.common.close}
           class="absolute top-2.5 right-2.5 grid size-8 place-items-center rounded-control text-fg-muted hover:bg-raised hover:text-fg"
@@ -161,9 +162,9 @@ function Header(props: DialogProps) {
 }
 
 /**
- * A dialog's actions, at the end of its body (`gap-2` unless `class` names a gap). Below `md`
- * they stick to the sheet's bottom edge over the scrolling body, on the surface's color as far as
- * a body's `px-5` padding reaches.
+ * A dialog's actions, at the end of its body (`gap-2` unless `class` names a gap). They stick to
+ * the dialog's bottom edge over a scrolling body, on the surface's color as far as a body's `px-5`
+ * padding reaches.
  */
 export function DialogFooter(props: { class?: string; children: JSX.Element }) {
   return (
@@ -171,7 +172,7 @@ export function DialogFooter(props: { class?: string; children: JSX.Element }) {
       class={[
         "flex flex-wrap items-center justify-end",
         !props.class?.match(/(^|\s)gap-/) && "gap-2",
-        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:bg-surface max-md:py-3 max-md:glass:backdrop-blur-panel max-md:shadow-[0_0_0_1.25rem_var(--color-surface)] max-md:[clip-path:inset(0_-1.25rem_-1.25rem)]",
+        "sticky bottom-0 z-10 bg-surface py-3 glass:backdrop-blur-panel shadow-[0_0_0_1.25rem_var(--color-surface)] [clip-path:inset(0_-1.25rem_-1.25rem)]",
         props.class,
       ]}
     >

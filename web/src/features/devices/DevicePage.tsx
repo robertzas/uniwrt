@@ -15,7 +15,7 @@ import type { LeaseFacts } from "../../api/gen/LeaseFacts";
 import type { NodeDetail } from "../../api/gen/NodeDetail";
 import type { NodeFacts } from "../../api/gen/NodeFacts";
 import { api } from "../../lib/api";
-import { releaseSupported } from "../../lib/firmware";
+import { inferredRelease, releaseSupported } from "../../lib/firmware";
 import { formatBytes, formatCelsius, formatDuration, formatPercent, NONE } from "../../lib/format";
 import { createJobsView } from "../../lib/jobs";
 import { createNodeView, type Live, LiveContext, type NodeViewState } from "../../lib/live";
@@ -349,16 +349,25 @@ function Stats(props: { facts: NodeFacts; view: NodeViewState }) {
 function Details(props: { detail: NodeDetail; facts: NodeFacts }) {
   const t = d.details;
   const board = () => props.facts.board;
-  const supported = () => releaseSupported(board().release.distribution, board().release.version);
+  /** The release the node names, else the one its kernel suggests (D-157), as adoption takes it. */
+  const release = () => {
+    const { distribution, version } = board().release;
+    const inferred =
+      distribution === "" && version === "" ? inferredRelease(board().kernel) : undefined;
+    return inferred
+      ? { distribution: "OpenWrt", version: inferred, text: t.inferred(inferred, board().kernel) }
+      : { distribution, version, text: `${distribution} ${version}` };
+  };
+  const supported = () => releaseSupported(release().distribution, release().version);
   /** Each row's label, value, and whether the value is one uniwrt doesn't support. */
   const rows = (): [string, string, boolean?][] => [
     [t.model, board().model],
     [t.board, board().board_name],
     [
       t.firmware,
-      `${board().release.distribution} ${board().release.version}`,
+      release().text,
       // Facts not collected yet have no distribution: nothing to warn about.
-      board().release.distribution !== "" && !supported(),
+      release().distribution !== "" && !supported(),
     ],
     [t.target, board().release.target],
     [t.kernel, board().kernel],

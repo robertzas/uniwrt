@@ -1519,6 +1519,8 @@ export const strings = {
       model: "Model",
       board: "Board",
       firmware: "Firmware",
+      inferred: (release: string, kernel: string) =>
+        `OpenWrt ${release} (inferred from Linux ${kernel})`,
       target: "Target",
       kernel: "Kernel",
       cpu: "Processor",

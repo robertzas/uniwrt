@@ -42,7 +42,21 @@ describe("port profiles", () => {
       wan_cpu: null,
     };
     expect(portsOf(node, []).map((row) => row.port)).toEqual(["switch0:1", "switch0:2"]);
+    expect(portsOf(node, [], "ap").map((row) => row.port)).toEqual([
+      "switch0:1",
+      "switch0:2",
+      "switch0:5",
+    ]);
     expect(portsOf(null, [])).toEqual([]);
+  });
+
+  it("lists an access point's WAN port as one more LAN port, a gateway's not", () => {
+    const node = facts(1);
+    node.board.layout.lan = ["lan1", "lan2"];
+    node.board.layout.wan = "wan";
+    expect(portsOf(node, []).map((row) => row.port)).toEqual(["lan1", "lan2"]);
+    expect(portsOf(node, [], "ap").map((row) => row.port)).toEqual(["lan1", "lan2", "wan"]);
+    expect(portsOf(node, [], "bridge").map((row) => row.port)).toEqual(["lan1", "lan2", "wan"]);
   });
 
   it("turns rows into profiles: a trunk needs none, the native network is never tagged", () => {

@@ -10,6 +10,7 @@ import {
   defaultOffer,
   firmwareRows,
   firmwareState,
+  inferredRelease,
   installBody,
   openwrtSource,
   planBody,
@@ -200,6 +201,17 @@ describe("tightTmp", () => {
     expect(tightTmp({ image_bytes: 10 * mb, tmp_free_bytes: 27 * mb, source: "official" })).toBe(
       false,
     );
+  });
+});
+
+describe("inferredRelease", () => {
+  it("takes a kernel for the newest release whose default it is at least", () => {
+    expect(inferredRelease("6.6.93")).toBe("24.10");
+    expect(inferredRelease("6.12.40")).toBe("25.12");
+    expect(inferredRelease("6.18.1")).toBe("25.12");
+    expect(inferredRelease("6.1.120")).toBe("23.05");
+    expect(inferredRelease("4.9.0")).toBeUndefined();
+    expect(inferredRelease("")).toBeUndefined();
   });
 });
 
