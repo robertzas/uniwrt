@@ -5365,6 +5365,18 @@ export const strings = {
     },
     editor: {
       titleNew: "New network",
+      applyNote: {
+        title: "What applying it does",
+        saved:
+          "Saving changes nothing on your devices yet: it becomes the next revision, and Review shows what each device will change.",
+        rollback:
+          "Applying adds the network to the gateway and every managed access point together. A device the controller can't reach afterwards puts its old configuration back by itself, usually within two minutes.",
+        firstVlan:
+          "It is the site's first VLAN: every device's bridge starts filtering VLANs, so each device's network restarts for a few seconds.",
+        tagged: (vlan: string) =>
+          `Ports without their own settings carry VLAN ${vlan} tagged. A switch between your devices must pass it, or the devices behind that switch won't get this network (they keep the default one, and the controller still reaches them).`,
+        mgmt: "Your access points take their management address on this network, and the controller reaches them through the gateway. If it can't reach one at its new address, the whole apply rolls back.",
+      },
       title: (name: string) => `Network ${name}`,
       general: "General",
       name: "Name",

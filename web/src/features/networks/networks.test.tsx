@@ -138,6 +138,12 @@ describe("Networks", () => {
     await waitFor(() => expect(within(editor).getByLabelText("Name")).toHaveValue("Guest"));
     expect(within(editor).getByLabelText("VLAN ID")).toHaveValue("40");
     expect(within(editor).getByLabelText("Client isolation")).toBeChecked();
+    // What applying it does (D-157): the site's first VLAN, tagged on trunks.
+    const note = within(editor).getByRole("region", { name: "What applying it does" });
+    expect(note).toHaveTextContent(/puts its old configuration back by itself/);
+    expect(note).toHaveTextContent(/site's first VLAN/);
+    expect(note).toHaveTextContent(/carry VLAN 40 tagged/);
+    expect(note).not.toHaveTextContent(/management address/);
     await user.click(within(editor).getByRole("button", { name: "Save" }));
     expect(await within(editor).findByText(/Saved as revision 3/)).toBeInTheDocument();
     expect(put().message).toBe("New network Guest");

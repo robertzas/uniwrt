@@ -34,6 +34,24 @@ A network reaches Wi-Fi clients through the Wi-Fi networks you put on it (see [W
 5. Check the fields (see below), then click **Save**.
 6. Click **Review and apply** to send it to your devices.
 
+### What happens when you apply a new network
+
+The editor of a new network sums this up under **What applying it does**.
+
+- **Saving changes nothing on your devices.** It becomes the next revision. **Review** shows what each device will change before you apply.
+- **Every device changes together.** The gateway and every managed access point stage the change and check it, then apply it with a rollback timer armed. The controller then logs in to each device again; only then does it confirm them.
+- **A device the controller can't reach again rolls back by itself**, usually within two minutes, and so does every other device in that apply. You don't need to be on site. See [Automatic rollback](changes.md#automatic-rollback).
+- **The controller keeps reaching the gateway** at the address it has now: a new network adds an address on the gateway and takes none away.
+- **The site's first VLAN** makes every device's bridge filter VLANs, so each device's network restarts for a few seconds.
+- **The VLAN is tagged on trunks.** Ports without their own settings carry it tagged (see [Ethernet ports](#ethernet-ports)). A switch between your devices must pass that VLAN tagged. If it doesn't, the devices behind it don't get the new network, but they keep the default network and the controller still reaches them.
+- **A management network** gives your access points their management address on it. The controller reaches them through the gateway, so the gateway must route from the controller's network to it (it does by default). If the controller can't reach an access point at its new address, the whole apply rolls back.
+
+If something still goes wrong:
+
+1. Wait for the rollback timer that **Review** showed. The devices put their old configuration back and reload.
+2. If a device stays unreachable, restart it (unplug it for ten seconds). At startup it rolls back any change that wasn't confirmed, before its network comes up.
+3. If you can't reach the controller either, connect your computer to a LAN port of the gateway. The default network keeps its address and DHCP, so you get an address and can open the controller again. See [A change rolled back](troubleshooting.md#a-change-rolled-back).
+
 New networks start with sensible settings for their purpose: **Guest** gets **Client isolation** on and **mDNS reflection** off, **Management** gets **mDNS reflection** off, and the others get **mDNS reflection** on.
 
 ### To edit a network

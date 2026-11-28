@@ -12,6 +12,7 @@ import { FormField, INPUT } from "../../ui/FormField";
 import { RequestError } from "../../ui/JobOutcome";
 import { SavedRevision } from "../../ui/SavedRevision";
 import { TextField } from "../../ui/TextField";
+import { ApplyNote } from "./ApplyNote";
 import {
   type DraftErrors,
   draftOf,
@@ -263,6 +264,13 @@ export function NetworkEditor(props: {
               reservations={draft().reservations}
               errors={errors()}
               onChange={(reservations) => change({ reservations })}
+            />
+          </Show>
+          <Show when={props.isNew}>
+            <ApplyNote
+              purpose={draft().purpose}
+              vlan={draft().vlan}
+              firstVlan={!others().some((network) => network.vlan !== null)}
             />
           </Show>
           <Show when={failure()}>
