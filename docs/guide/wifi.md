@@ -220,13 +220,19 @@ The [Topology](dashboard-topology.md) page shows the same links on the map.
 
 ## Radios
 
-The Wi-Fi page has no per-radio controls. The radios take their settings from these places:
+The radios take their settings from these places:
 
 - **Country**: set it in Settings, on the **Site** tab (see [Settings](settings.md)). It sets the radios' regulatory domain: the channels and power they may use. A wrong country is illegal on the air. Until you set one, the radios stay on their defaults.
-- **Channel, width and power**: the RF planner chooses them (see [RF planner](#rf-planner)).
+- **Channel, width and power**: the RF planner chooses them where you leave them on **Auto** (see [RF planner](#rf-planner)). What you fix by hand, the planner keeps.
 - **Bands**: each WLAN uses the radios of the bands you ticked in it.
 
-To see what a radio runs now, open the device's page. Its **Radios** card shows each radio's band, channel, width, Wi-Fi standard, **Clients**, **Transmit power**, **Noise** and **Channel busy**, and the WLANs and mesh on it. **Restarts tonight** means a channel switch moved the radio and it restarts in the nightly window to catch up.
+The **Radios** card on this page sets each band's defaults for every device: **Channel** (**Auto** or a channel, DFS ones marked), **Width** and **Transmit power** (**Auto** or 1 to 30 dBm). Press **Edit**, change them, then **Save**. Prefer **Auto** for the channel: a fixed one puts every radio of the band on the same channel, neighbors included. The width is the widest the band's radios use; the RF plan may choose a narrower one.
+
+To set one radio, open its device's page: on the **Radios** card, **Edit** beside the radio sets **Radio on**, its **Channel**, **Width** and **Transmit power**. Each can follow the band (**As the band: …**), be left to the planner and the device (**Auto**), or be fixed. The lists offer what the radio's hardware and country allow; a DFS channel listens for radar each time the radio starts, a minute or ten on weather channels, before clients can join. A radio that carries the mesh keeps the mesh's channel.
+
+- Both cards save the site's next revision: review and apply it (see [Review and history](changes.md)). Only devices whose **Radios, Wi-Fi networks and the mesh** package is managed take them. Only admins change them.
+
+To see what a radio runs now, open the device's page. Its **Radios** card shows each radio's band, channel, width, Wi-Fi standard, **Clients**, **Transmit power**, **Noise** and **Channel busy**, and the WLANs and mesh on it. **Fixed: …** names what is fixed by hand, the radio's own setting or its band's, and **Turned off** a radio turned off there. **Restarts tonight** means a channel switch moved the radio and it restarts in the nightly window to catch up.
 
 ## RF planner
 

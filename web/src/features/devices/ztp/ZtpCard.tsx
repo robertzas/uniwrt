@@ -15,6 +15,7 @@ import { Icon } from "../../../ui/Icon";
 import { JobErrorNote, RequestError } from "../../../ui/JobOutcome";
 import { currentStep, jobProgress } from "../../../ui/JobSteps";
 import { type BenchDevice, BenchJobs, onBench } from "./BenchJobs";
+import { PortNote } from "./PortNote";
 import { SetupDialog } from "./SetupDialog";
 import { ApproveDialog, ZtpAdoptDialog } from "./ZtpDialogs";
 
@@ -106,6 +107,7 @@ export function ZtpCard(props: { jobs: JobsState; addJob: (job: Job) => void }) 
           </>
         }
       />
+      <PortNote />
       <div class="px-4">
         <RequestError text={actionError() ?? (inbox() ? undefined : error())} />
       </div>

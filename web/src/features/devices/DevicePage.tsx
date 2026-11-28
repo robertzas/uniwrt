@@ -37,7 +37,7 @@ import { Removed } from "./lifecycle/Removed";
 import { RetrustAction } from "./lifecycle/RetrustDialog";
 import { MeshTab } from "./mesh/MeshTab";
 import { PortsTab } from "./ports/PortsTab";
-import { RadiosCard } from "./RadiosCard";
+import { RadiosCard } from "./radios/RadiosCard";
 import { RebootDialog } from "./reboot/RebootDialog";
 import { canReboot, runningReboot } from "./reboot/reboot";
 import { SteeringCard } from "./SteeringCard";
@@ -231,7 +231,7 @@ function Overview(props: {
                 <Stats facts={facts()} view={props.view} />
                 <div class="grid gap-4 lg:grid-cols-3">
                   <div class="min-w-0 lg:col-span-2">
-                    <RadiosCard facts={facts()} />
+                    <RadiosCard node={props.detail.node} facts={facts()} />
                   </div>
                   <Details detail={props.detail} facts={facts()} />
                 </div>

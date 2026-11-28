@@ -1542,6 +1542,43 @@ export const strings = {
       },
       mesh: (id: string) => `Mesh ${id}`,
       uplink: (ssid: string) => `Uplink to ${ssid}`,
+      /** Its settings fixed by hand (D-155): its own, else its band's on the Wi-Fi page. */
+      fixed: (parts: string[]) => `Fixed: ${parts.join(" · ")}`,
+      fixedChannel: (channel: number) => `channel ${channel}`,
+      fixedPower: (dbm: number) => `${dbm} dBm`,
+      turnedOff: "Turned off",
+      edit: "Edit",
+      editLabel: (radio: string) => `Edit ${radio}`,
+      dialog: {
+        title: (band: string, radio: string) => `${band} radio ${radio}`,
+        description:
+          "What you fix here, the RF planner keeps. Saved as the site's next revision: review and apply it.",
+        enabled: "Radio on",
+        enabledHint: "Off, the radio broadcasts no Wi-Fi network and carries no mesh.",
+        channel: "Channel",
+        site: (what: string) => `As the band: ${what}`,
+        auto: "Auto",
+        channelAuto: "Auto: the RF planner or the device chooses",
+        channelOption: (channel: number, dfs: boolean, radar: boolean) =>
+          `${channel}${dfs ? " · DFS" : ""}${radar ? " · radar heard" : ""}`,
+        channelHint:
+          "A DFS channel listens for radar each time the radio starts (a minute, ten on weather channels) before clients can join.",
+        mesh: "This radio carries the mesh, which keeps it on the mesh's channel.",
+        width: "Width",
+        widthSite: (mhz: number) => `As the band: ${mhz} MHz, or the RF plan's`,
+        widthOption: (mhz: number) => `${mhz} MHz`,
+        power: "Transmit power",
+        powerAuto: "Auto: the most the country allows, or the RF plan's",
+        dbmHint: (max: number) =>
+          `Up to ${max} dBm. The country may allow less on some channels, which the radio then uses.`,
+        unmanaged:
+          "It applies once the device's Radios, Wi-Fi networks and the mesh package is managed (Config tab).",
+        observed: "It takes effect once the device is managed: it is in observe mode.",
+        save: "Save",
+        cancel: "Cancel",
+        message: (node: string, radio: string) => `${radio} on ${node} set by hand`,
+        messageSite: (node: string, radio: string) => `${radio} on ${node} follows the site again`,
+      },
     },
     clients: {
       title: "Wi-Fi clients",
@@ -5017,6 +5054,30 @@ export const strings = {
       save: "Save",
       cancel: "Cancel",
     },
+    /** Each band's radio defaults (D-155): channel, width and power, unless a radio sets its own. */
+    bands: {
+      title: "Radios",
+      description:
+        "Each band's channel, width and power on every device, unless a radio sets its own on its device's page. The RF planner keeps what you fix here; Auto leaves it to the planner and the devices.",
+      band: "Band",
+      channel: "Channel",
+      width: "Width",
+      power: "Transmit power",
+      auto: "Auto",
+      channelOption: (channel: number, dfs: boolean) => `${channel}${dfs ? " · DFS" : ""}`,
+      fixedChannel: (channel: number) => `Channel ${channel}`,
+      mhz: (mhz: number) => `${mhz} MHz`,
+      dbm: (dbm: number) => `${dbm} dBm`,
+      label: (field: string, band: string) => `${field}, ${band}`,
+      widthHint:
+        "A band's width is the widest its radios use: the RF plan may choose a narrower one. A radio's own width, set on its device's page, is kept.",
+      channelHint:
+        "A fixed channel puts every radio of the band on it, neighbors included: prefer Auto, or fix one radio on its device's page.",
+      edit: "Edit",
+      save: "Save",
+      cancel: "Cancel",
+      message: "Radio defaults changed",
+    },
     mesh: {
       title: "Mesh backhaul",
       description:
@@ -5755,7 +5816,41 @@ export const strings = {
       },
     },
   },
+  /** The gateway's adoption port (adoption.md, Path C; D-155), on its Ports tab. */
+  adoptionPort: {
+    title: "Adoption port",
+    description:
+      "A gateway port set aside to adopt factory-default OpenWrt routers on the bench, isolated from your networks. Plug a new router's LAN port into it, and it shows up under Devices › Waiting for adoption.",
+    none: "None",
+    current: (port: string, address: string) => `${port}, the gateway at ${address}`,
+    off: "No port is set aside. Factory-default routers can still be adopted at 192.168.1.1 from Devices.",
+    port: "Port",
+    address: "The gateway's address there",
+    addressHint: "In 192.168.1.0/24, where factory-default OpenWrt answers at 192.168.1.1.",
+    addressErrors: {
+      format: "Enter an address from 192.168.1.2 to 192.168.1.254",
+      factory: "192.168.1.1 is the factory-default router's own address: pick another",
+    },
+    noPorts:
+      "This gateway's LAN ports sit on a switch chip (swconfig), which the adoption port can't use.",
+    leaves: (port: string) =>
+      `${port} stops carrying your networks: a device plugged into it now loses its connection.`,
+    overlap:
+      "No network may use 192.168.1.0/24 while the site has an adoption port: renumber it first if one does.",
+    edit: "Edit",
+    save: "Save",
+    cancel: "Cancel",
+    message: (port: string) => `Adoption port ${port}`,
+    removed: "Adoption port removed",
+    /** On the Waiting for adoption card. */
+    setUp: "Set up an adoption port",
+    setUpHint: "to adopt factory-default routers on the bench.",
+    on: (port: string) => `Adoption port: ${port} on the gateway`,
+    open: "Ports tab",
+  },
   ports: {
+    /** The gateway's port set aside for adoptions, which carries no network. */
+    adoption: "Adoption port",
     title: "Ethernet ports",
     description:
       "Which networks each port carries. A trunk carries the default network untagged and every VLAN tagged; an access port carries one network only.",

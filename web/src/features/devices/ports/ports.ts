@@ -1,8 +1,8 @@
 import type { Network } from "../../../api/gen/Network";
-import type { NodeConfig } from "../../../api/gen/NodeConfig";
 import type { NodeFacts } from "../../../api/gen/NodeFacts";
 import type { PortConfig } from "../../../api/gen/PortConfig";
 import type { SiteConfig } from "../../../api/gen/SiteConfig";
+import { withNode } from "../../../lib/site";
 import { strings } from "../../../lib/strings";
 
 const t = strings.ports;
@@ -95,21 +95,5 @@ export function carriesOf(
 
 /** `config` with the node's port profiles replaced; a node without an entry gets one. */
 export function withPorts(config: SiteConfig, node: number, ports: PortConfig[]): SiteConfig {
-  const known = config.nodes.some((entry) => entry.node === node);
-  const blank: NodeConfig = {
-    node,
-    hostname: null,
-    managed: [],
-    radios: [],
-    ports: [],
-    raw: [],
-    reboot: { kind: "site" },
-    led_schedule: true,
-    ssh: { key_only: false, management_only: false },
-  };
-  const nodes = known ? config.nodes : [...config.nodes, blank];
-  return {
-    ...config,
-    nodes: nodes.map((entry) => (entry.node === node ? { ...entry, ports } : entry)),
-  };
+  return withNode(config, node, (entry) => ({ ...entry, ports }));
 }

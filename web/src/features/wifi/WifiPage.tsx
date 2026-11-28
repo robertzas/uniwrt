@@ -16,6 +16,7 @@ import { Card, CardHeader } from "../../ui/Card";
 import { EmptyState } from "../../ui/EmptyState";
 import { Icon } from "../../ui/Icon";
 import { RequestError } from "../../ui/JobOutcome";
+import { BandsCard } from "./BandsCard";
 import { JoinDialog } from "./JoinDialog";
 import { MeshCard } from "./MeshCard";
 import { SteeringCard } from "./SteeringCard";
@@ -189,6 +190,7 @@ export function WifiPage() {
           <>
             <SteeringCard view={view()} admin={admin()} basicWpad={steeringWpad()} />
             <MeshCard view={view()} admin={admin()} />
+            <BandsCard view={view()} admin={admin()} />
           </>
         )}
       </Show>

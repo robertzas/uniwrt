@@ -18,6 +18,7 @@ import { Icon } from "../../../ui/Icon";
 import { RequestError } from "../../../ui/JobOutcome";
 import { SavedRevision } from "../../../ui/SavedRevision";
 import { Segmented } from "../../../ui/Segmented";
+import { AdoptionPortCard } from "./AdoptionPortCard";
 import {
   carriesOf,
   type PortDraft,
@@ -55,6 +56,8 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
     const mesh = site.data?.config.mesh;
     return !!mesh && mesh.enabled && mesh.wired;
   };
+  const adoptionPort = () =>
+    props.node.role === "gateway" ? site.data?.config.adoption_port?.port : undefined;
   const rows = createMemo(() => portsOf(props.facts, profiles()));
   const [drafts, setDrafts] = createSignal<Record<string, PortDraft>>();
   const [failure, setFailure] = createSignal<string>();
@@ -98,187 +101,201 @@ export function PortsTab(props: { node: Node; facts: NodeFacts | null }) {
   };
 
   return (
-    <Card aria-label={t.title}>
-      <CardHeader
-        title={t.title}
-        description={t.description}
-        actions={
-          <Show when={admin() && site.isSuccess && rows().length > 0 && !drafts()}>
-            <Button size="sm" onClick={edit}>
-              {t.edit}
-            </Button>
-          </Show>
-        }
-      />
-      <div class="flex flex-col gap-3 px-4 pb-4">
-        <Show when={site.isSuccess && !(entry()?.managed ?? []).includes("network")}>
-          <p class="flex items-start gap-2 rounded-control border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
-            <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
-            {t.unmanaged}
-          </p>
-        </Show>
-        <Show
-          when={site.isSuccess}
-          fallback={
-            <p role="status" class="text-fg-subtle text-sm">
-              {site.isError ? errorText(site.error) : `${t.loading}…`}
-            </p>
+    <div class="flex flex-col gap-4">
+      <Card aria-label={t.title}>
+        <CardHeader
+          title={t.title}
+          description={t.description}
+          actions={
+            <Show when={admin() && site.isSuccess && rows().length > 0 && !drafts()}>
+              <Button size="sm" onClick={edit}>
+                {t.edit}
+              </Button>
+            </Show>
           }
-        >
+        />
+        <div class="flex flex-col gap-3 px-4 pb-4">
+          <Show when={site.isSuccess && !(entry()?.managed ?? []).includes("network")}>
+            <p class="flex items-start gap-2 rounded-control border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
+              <Icon icon={TriangleAlert} class="mt-0.5 size-4 shrink-0 text-warn" />
+              {t.unmanaged}
+            </p>
+          </Show>
           <Show
-            when={rows().length > 0}
-            fallback={<EmptyState icon={Cable} title={t.title} description={t.none} />}
+            when={site.isSuccess}
+            fallback={
+              <p role="status" class="text-fg-subtle text-sm">
+                {site.isError ? errorText(site.error) : `${t.loading}…`}
+              </p>
+            }
           >
-            <Show when={vlans().length === 0}>
-              <p class="text-fg-muted text-xs">{t.noVlans}</p>
-            </Show>
-            <p class="text-fg-muted text-xs">{wired() ? t.backhaulNote : t.wiredOff}</p>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead class="text-left text-fg-muted text-xs">
-                  <tr>
-                    <th class="py-1.5 pr-3 font-medium">{t.port}</th>
-                    <th class="py-1.5 pr-3 font-medium">{t.link}</th>
-                    <th class="py-1.5 pr-3 font-medium">{t.native}</th>
-                    <th class="py-1.5 pr-3 font-medium">{t.tagged}</th>
-                    <th class="py-1.5 font-medium">{t.backhaul}</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-edge">
-                  <For each={rows()} keyed={(row) => row.port}>
-                    {(row) => (
-                      <tr class="align-top" aria-label={row().port}>
-                        <td class="py-2 pr-3 font-mono text-xs leading-7">
-                          {row().port}
-                          <Show when={!row().present}>
-                            <p class="font-sans text-warn text-xs leading-4">{t.missing}</p>
-                          </Show>
-                        </td>
-                        <td class="py-2 pr-3 text-xs leading-7">
-                          <Show when={row().link} fallback={<span class="text-fg-subtle">—</span>}>
-                            {(link) => (
-                              <Badge tone={link().carrier ? "ok" : "neutral"}>
-                                {link().carrier ? t.speed(link().speed) : t.down}
-                              </Badge>
-                            )}
-                          </Show>
-                        </td>
-                        <Show
-                          when={drafts()}
-                          fallback={
-                            <>
-                              <td colspan={2} class="py-2 pr-3 text-xs leading-7">
-                                {carriesOf(draftOf(row().port), untagged(), networks())}
-                              </td>
-                              <td class="py-2 text-xs leading-7">
-                                <Show
-                                  when={!onSwitch(row().port)}
-                                  fallback={<span class="text-fg-subtle">—</span>}
-                                >
-                                  <span class={draftOf(row().port).backhaul ? "" : "text-fg-muted"}>
-                                    {draftOf(row().port).backhaul ? t.backhaulOn : t.backhaulOff}
-                                  </span>
-                                </Show>
-                              </td>
-                            </>
-                          }
-                        >
-                          <td class="py-2 pr-3">
-                            <select
-                              aria-label={`${t.native} ${row().port}`}
-                              class={[INPUT, "max-w-52 border-edge"]}
-                              value={draftOf(row().port).native}
-                              onChange={(event) =>
-                                update(row().port, { native: event.currentTarget.value })
-                              }
-                            >
-                              <option value="">{t.nativeNone}</option>
-                              <For each={networks()}>
-                                {(network) => <option value={network.id}>{network.name}</option>}
-                              </For>
-                            </select>
-                          </td>
-                          <td class="py-2 pr-3">
-                            <Show when={vlans().length > 0} fallback={<span>—</span>}>
-                              <Segmented
-                                label={`${t.tagged} ${row().port}`}
-                                value={draftOf(row().port).tagged}
-                                options={(["all", "none", "only"] as const).map((value) => ({
-                                  value,
-                                  label: t.taggedModes[value] ?? value,
-                                }))}
-                                onChange={(tagged) => update(row().port, { tagged })}
-                                class="w-fit"
-                              />
-                              <Show when={draftOf(row().port).tagged === "only"}>
-                                <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
-                                  <For
-                                    each={vlans().filter(
-                                      (n) => n.id !== draftOf(row().port).native,
-                                    )}
-                                  >
-                                    {(network) => (
-                                      <Checkbox
-                                        label={network.name}
-                                        checked={draftOf(row().port).only.includes(network.id)}
-                                        onChange={(on) => {
-                                          const only = draftOf(row().port).only.filter(
-                                            (id) => id !== network.id,
-                                          );
-                                          update(row().port, {
-                                            only: on ? [...only, network.id] : only,
-                                          });
-                                        }}
-                                      />
-                                    )}
-                                  </For>
-                                </div>
-                              </Show>
+            <Show
+              when={rows().length > 0}
+              fallback={<EmptyState icon={Cable} title={t.title} description={t.none} />}
+            >
+              <Show when={vlans().length === 0}>
+                <p class="text-fg-muted text-xs">{t.noVlans}</p>
+              </Show>
+              <p class="text-fg-muted text-xs">{wired() ? t.backhaulNote : t.wiredOff}</p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="text-left text-fg-muted text-xs">
+                    <tr>
+                      <th class="py-1.5 pr-3 font-medium">{t.port}</th>
+                      <th class="py-1.5 pr-3 font-medium">{t.link}</th>
+                      <th class="py-1.5 pr-3 font-medium">{t.native}</th>
+                      <th class="py-1.5 pr-3 font-medium">{t.tagged}</th>
+                      <th class="py-1.5 font-medium">{t.backhaul}</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-edge">
+                    <For each={rows()} keyed={(row) => row.port}>
+                      {(row) => (
+                        <tr class="align-top" aria-label={row().port}>
+                          <td class="py-2 pr-3 font-mono text-xs leading-7">
+                            {row().port}
+                            <Show when={!row().present}>
+                              <p class="font-sans text-warn text-xs leading-4">{t.missing}</p>
                             </Show>
                           </td>
-                          <td class="py-2 leading-7">
+                          <td class="py-2 pr-3 text-xs leading-7">
                             <Show
-                              when={!onSwitch(row().port)}
-                              fallback={
-                                <span class="text-fg-subtle text-xs" title={t.switchPort}>
-                                  —
-                                </span>
-                              }
+                              when={row().link}
+                              fallback={<span class="text-fg-subtle">—</span>}
                             >
-                              <Checkbox
-                                label={t.backhaulToggle(row().port)}
-                                hideLabel
-                                checked={draftOf(row().port).backhaul}
-                                onChange={(backhaul) => update(row().port, { backhaul })}
-                                class="pt-1.5"
-                              />
+                              {(link) => (
+                                <Badge tone={link().carrier ? "ok" : "neutral"}>
+                                  {link().carrier ? t.speed(link().speed) : t.down}
+                                </Badge>
+                              )}
                             </Show>
                           </td>
-                        </Show>
-                      </tr>
-                    )}
-                  </For>
-                </tbody>
-              </table>
-            </div>
-            <Show when={drafts()}>
-              <div class="flex flex-wrap justify-end gap-2">
-                <Button variant="ghost" onClick={() => setDrafts(undefined)} disabled={busy()}>
-                  {t.cancel}
-                </Button>
-                <Button variant="primary" onClick={() => void save()} disabled={busy()}>
-                  {t.save}
-                </Button>
+                          <Show
+                            when={drafts()}
+                            fallback={
+                              <>
+                                <td colspan={2} class="py-2 pr-3 text-xs leading-7">
+                                  {row().port === adoptionPort()
+                                    ? t.adoption
+                                    : carriesOf(draftOf(row().port), untagged(), networks())}
+                                </td>
+                                <td class="py-2 text-xs leading-7">
+                                  <Show
+                                    when={!onSwitch(row().port)}
+                                    fallback={<span class="text-fg-subtle">—</span>}
+                                  >
+                                    <span
+                                      class={draftOf(row().port).backhaul ? "" : "text-fg-muted"}
+                                    >
+                                      {draftOf(row().port).backhaul ? t.backhaulOn : t.backhaulOff}
+                                    </span>
+                                  </Show>
+                                </td>
+                              </>
+                            }
+                          >
+                            <td class="py-2 pr-3">
+                              <select
+                                aria-label={`${t.native} ${row().port}`}
+                                class={[INPUT, "max-w-52 border-edge"]}
+                                value={draftOf(row().port).native}
+                                onChange={(event) =>
+                                  update(row().port, { native: event.currentTarget.value })
+                                }
+                              >
+                                <option value="">{t.nativeNone}</option>
+                                <For each={networks()}>
+                                  {(network) => <option value={network.id}>{network.name}</option>}
+                                </For>
+                              </select>
+                            </td>
+                            <td class="py-2 pr-3">
+                              <Show when={vlans().length > 0} fallback={<span>—</span>}>
+                                <Segmented
+                                  label={`${t.tagged} ${row().port}`}
+                                  value={draftOf(row().port).tagged}
+                                  options={(["all", "none", "only"] as const).map((value) => ({
+                                    value,
+                                    label: t.taggedModes[value] ?? value,
+                                  }))}
+                                  onChange={(tagged) => update(row().port, { tagged })}
+                                  class="w-fit"
+                                />
+                                <Show when={draftOf(row().port).tagged === "only"}>
+                                  <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+                                    <For
+                                      each={vlans().filter(
+                                        (n) => n.id !== draftOf(row().port).native,
+                                      )}
+                                    >
+                                      {(network) => (
+                                        <Checkbox
+                                          label={network.name}
+                                          checked={draftOf(row().port).only.includes(network.id)}
+                                          onChange={(on) => {
+                                            const only = draftOf(row().port).only.filter(
+                                              (id) => id !== network.id,
+                                            );
+                                            update(row().port, {
+                                              only: on ? [...only, network.id] : only,
+                                            });
+                                          }}
+                                        />
+                                      )}
+                                    </For>
+                                  </div>
+                                </Show>
+                              </Show>
+                            </td>
+                            <td class="py-2 leading-7">
+                              <Show
+                                when={!onSwitch(row().port)}
+                                fallback={
+                                  <span class="text-fg-subtle text-xs" title={t.switchPort}>
+                                    —
+                                  </span>
+                                }
+                              >
+                                <Checkbox
+                                  label={t.backhaulToggle(row().port)}
+                                  hideLabel
+                                  checked={draftOf(row().port).backhaul}
+                                  onChange={(backhaul) => update(row().port, { backhaul })}
+                                  class="pt-1.5"
+                                />
+                              </Show>
+                            </td>
+                          </Show>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
               </div>
+              <Show when={drafts()}>
+                <div class="flex flex-wrap justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setDrafts(undefined)} disabled={busy()}>
+                    {t.cancel}
+                  </Button>
+                  <Button variant="primary" onClick={() => void save()} disabled={busy()}>
+                    {t.save}
+                  </Button>
+                </div>
+              </Show>
             </Show>
           </Show>
-        </Show>
-        <Show when={!admin()}>
-          <p class="text-fg-subtle text-xs">{t.adminOnly}</p>
-        </Show>
-        <RequestError text={failure()} />
-        <Show when={saved()}>{(revision) => <SavedRevision revision={revision()} />}</Show>
-      </div>
-    </Card>
+          <Show when={!admin()}>
+            <p class="text-fg-subtle text-xs">{t.adminOnly}</p>
+          </Show>
+          <RequestError text={failure()} />
+          <Show when={saved()}>{(revision) => <SavedRevision revision={revision()} />}</Show>
+        </div>
+      </Card>
+      <Show when={props.node.role === "gateway" && site.data}>
+        {(view) => (
+          <AdoptionPortCard node={props.node} facts={props.facts} view={view()} admin={admin()} />
+        )}
+      </Show>
+    </div>
   );
 }

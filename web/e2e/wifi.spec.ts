@@ -68,3 +68,19 @@ test("moves the mesh to another band", async ({ page }) => {
   ).toHaveAttribute("aria-pressed", "true");
   expect(errors).toEqual([]);
 });
+
+test("fixes a band's transmit power, which shows after a reload", async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.goto("/wifi");
+  const radios = region(page, "Radios");
+  // A retry meets its first attempt's save: each attempt sets another power.
+  const dbm = `${15 + info.retry} dBm`;
+  await radios.getByRole("button", { name: "Edit" }).click();
+  await radios.getByLabel("Transmit power, 5 GHz").selectOption({ label: dbm });
+  await radios.getByRole("button", { name: "Save" }).click();
+  await expectSaved(radios);
+  await page.reload();
+  await expect(region(page, "Radios").getByRole("row", { name: "5 GHz" })).toContainText(dbm);
+  expect(errors).toEqual([]);
+});

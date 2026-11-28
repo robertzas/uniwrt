@@ -1,12 +1,23 @@
-import { For, Show } from "solid-js";
-import type { Band } from "../../api/gen/Band";
-import type { NodeFacts } from "../../api/gen/NodeFacts";
-import type { RadioFacts } from "../../api/gen/RadioFacts";
-import type { WifiIfaceFacts } from "../../api/gen/WifiIfaceFacts";
-import { formatDbm, formatPercent, NONE } from "../../lib/format";
-import { strings } from "../../lib/strings";
-import { Badge } from "../../ui/Badge";
-import { Card, CardHeader } from "../../ui/Card";
+import { useQuery } from "@tanstack/solid-query";
+import { Pencil, Pin } from "lucide";
+import { createSignal, For, Show, useContext } from "solid-js";
+import type { Band } from "../../../api/gen/Band";
+import type { Node } from "../../../api/gen/Node";
+import type { NodeFacts } from "../../../api/gen/NodeFacts";
+import type { RadioFacts } from "../../../api/gen/RadioFacts";
+import type { WifiIfaceFacts } from "../../../api/gen/WifiIfaceFacts";
+import { api } from "../../../lib/api";
+import { formatDbm, formatPercent, NONE } from "../../../lib/format";
+import { LiveContext } from "../../../lib/live";
+import { SessionContext } from "../../../lib/session";
+import { strings } from "../../../lib/strings";
+import { Badge } from "../../../ui/Badge";
+import { Button } from "../../../ui/Button";
+import { Card, CardHeader } from "../../../ui/Card";
+import { Icon } from "../../../ui/Icon";
+import { SavedRevision } from "../../../ui/SavedRevision";
+import { RadioDialog } from "./RadioDialog";
+import { overrideOf, type Pins, pinsOf, policyOf } from "./radios";
 
 const r = strings.device.radios;
 
@@ -34,10 +45,46 @@ function ifaceLabel(iface: WifiIfaceFacts): string {
   return iface.ssid ?? iface.section ?? NONE;
 }
 
-/** Every radio: band, channel and width, power, noise, how busy the channel is, and its networks. */
-export function RadiosCard(props: { facts: NodeFacts }) {
+/** What the radio is fixed to, in words; `null` when nothing is. */
+function pinsText(pins: Pins): string | null {
+  if (pins.off) return r.turnedOff;
+  const parts = [
+    pins.channel !== null && r.fixedChannel(pins.channel),
+    pins.width !== null && r.width(pins.width),
+    pins.power !== null && r.fixedPower(pins.power),
+  ].filter((part): part is string => typeof part === "string");
+  return parts.length > 0 ? r.fixed(parts) : null;
+}
+
+/**
+ * Every radio: band, channel and width, power, noise, how busy the channel is, and its networks;
+ * what is fixed by hand, which admins edit (D-155).
+ */
+export function RadiosCard(props: { node: Node; facts: NodeFacts }) {
+  const live = useContext(LiveContext);
+  const session = useContext(SessionContext);
+  const admin = () => session.user.role === "admin";
+  const site = useQuery(() => ({
+    queryKey: ["site", live.config.head?.id],
+    queryFn: ({ signal }) => api.site.get(signal),
+  }));
+  const [editing, setEditing] = createSignal<RadioFacts>();
+  const [saved, setSaved] = createSignal<number>();
+  /** The radio being edited, with the site it edits. */
+  const open = () => {
+    const radio = editing();
+    const config = site.data?.config;
+    return radio && config ? { radio, config } : undefined;
+  };
+  const pins = (radio: RadioFacts) => {
+    const config = site.data?.config;
+    if (!config) return null;
+    return pinsText(
+      pinsOf(overrideOf(config, props.node.id, radio.name), policyOf(config, radio.band)),
+    );
+  };
   return (
-    <Card class="min-w-0">
+    <Card class="min-w-0" aria-label={r.title}>
       <CardHeader title={r.title} />
       <Show
         when={props.facts.radios.length > 0}
@@ -45,15 +92,49 @@ export function RadiosCard(props: { facts: NodeFacts }) {
       >
         <ul class="divide-y divide-edge">
           <For each={props.facts.radios}>
-            {(radio) => <RadioRow radio={radio} clients={clientsOf(props.facts, radio)} />}
+            {(radio) => (
+              <RadioRow
+                radio={radio}
+                clients={clientsOf(props.facts, radio)}
+                pins={pins(radio)}
+                onEdit={admin() && site.data ? () => setEditing(radio) : undefined}
+              />
+            )}
           </For>
         </ul>
+      </Show>
+      <Show when={saved()}>
+        {(revision) => (
+          <div class="px-4 pb-4">
+            <SavedRevision revision={revision()} />
+          </div>
+        )}
+      </Show>
+      <Show when={open()}>
+        {(open) => (
+          <RadioDialog
+            node={props.node}
+            facts={props.facts}
+            radio={open().radio}
+            config={open().config}
+            onClose={() => setEditing(undefined)}
+            onSaved={(revision) => {
+              setEditing(undefined);
+              setSaved(revision);
+            }}
+          />
+        )}
       </Show>
     </Card>
   );
 }
 
-function RadioRow(props: { radio: RadioFacts; clients: number }) {
+function RadioRow(props: {
+  radio: RadioFacts;
+  clients: number;
+  pins: string | null;
+  onEdit: (() => void) | undefined;
+}) {
   const radio = () => props.radio;
   const on = () => radio().up && !radio().disabled;
   /** Channel 36 · 80 MHz · Wi-Fi 6, leaving out what is unknown. */
@@ -83,6 +164,21 @@ function RadioRow(props: { radio: RadioFacts; clients: number }) {
           <Show when={radio().restart_pending}>
             <Badge tone="info">{r.restartPending}</Badge>
           </Show>
+        </Show>
+        <Show when={props.pins}>{(text) => <Badge icon={Pin}>{text()}</Badge>}</Show>
+        <Show when={props.onEdit}>
+          {(open) => (
+            <Button
+              size="sm"
+              variant="ghost"
+              class="ml-auto"
+              aria-label={r.editLabel(radio().name)}
+              onClick={open()}
+            >
+              <Icon icon={Pencil} class="size-3.5" />
+              {r.edit}
+            </Button>
+          )}
         </Show>
       </div>
       <Show when={on()}>

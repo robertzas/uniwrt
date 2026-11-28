@@ -95,7 +95,12 @@ Each approval is used once and expires after 7 days. The **Pre-approved** list s
 
 ### The adoption port
 
-If your site has an adoption port, a factory-default OpenWrt router plugged into it shows up here too, marked **On the adoption port**. The port is an isolated gateway port, so the new router's own DHCP server can't disturb your network.
+If your site has an adoption port, a factory-default OpenWrt router plugged into it shows up here too, marked **On the adoption port**. The port is an isolated gateway port, so the new router's own DHCP server can't disturb your network. The card's first line names the port, or links to where you set one up.
+
+To set up the adoption port, open the gateway's page, then its **Ports** tab. On the **Adoption port** card, press **Edit**, pick the **Port** and **The gateway's address there** (192.168.1.250 unless you pick another host of 192.168.1.0/24 but 192.168.1.1), then **Save**, review and apply. The port stops carrying your networks, and its row on **Ethernet ports** says **Adoption port**. Pick **None** to give it back.
+
+- The list offers the gateway's LAN ports. The WAN port and the ports of a switch chip (swconfig) can't be the adoption port, and neither can the backup line's port.
+- While the site has an adoption port, no network may use 192.168.1.0/24: renumber such a network first.
 
 To adopt a router on the adoption port:
 
@@ -106,7 +111,6 @@ To adopt a router on the adoption port:
 
 - One factory-default device at a time: they all answer at 192.168.1.1.
 - A device adopted this way is managed at once.
-- There is no page to set the site's adoption port yet.
 
 ## Set up a device
 
@@ -161,13 +165,14 @@ Devices restart one at a time, farthest from the gateway first and the gateway l
 
 ## Overview
 
-The **Overview** tab shows live numbers (**CPU**, **Memory**, **Temperature**, **Uptime**, **Wi-Fi clients**, **Load**), the **Radios** with their channel, width and clients, the device's **Details**, **Performance** charts, its **Wi-Fi clients**, and the clients it steered in the last 24 hours (**Steering**).
+The **Overview** tab shows live numbers (**CPU**, **Memory**, **Temperature**, **Uptime**, **Wi-Fi clients**, **Load**), the **Radios** with their channel, width and clients (admins press **Edit** beside a radio to fix its channel, width and power or turn it off; see [Radios](wifi.md#radios)), the device's **Details**, **Performance** charts, its **Wi-Fi clients**, and the clients it steered in the last 24 hours (**Steering**).
 
 ## Ports
 
 The **Ports** tab, **Ethernet ports**, shows each port's link and which networks it carries: a trunk carries the default network untagged and every VLAN tagged; an access port carries one network. It also says whether the mesh backhaul may use the port. Press **Edit** to change a port, then **Save**. See [Networks](networks.md).
 
 - Ports apply only on a device whose network package is managed. Only admins change ports.
+- The gateway's **Ports** tab also has the **Adoption port** card (see [The adoption port](#the-adoption-port)).
 
 ## Mesh
 

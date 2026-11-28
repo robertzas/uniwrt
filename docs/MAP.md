@@ -1214,18 +1214,19 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/clients/`: ClientActions.tsx, ClientOverview.tsx, ClientPage.tsx, ClientTimeline.tsx, ClientsPage.tsx, FixIpDialog.tsx, RenameDialog.tsx, SignalTab.tsx, TrafficTab.tsx, columns.tsx, history.ts, store.ts
 - `features/clients/doctor/`: DoctorChip.tsx, DoctorTab.tsx, describe.ts, query.ts
 - `features/dashboard/`: DashboardPage.tsx, ExperienceCard.tsx, GetStarted.tsx, HealthHeader.tsx, MiniMap.tsx, RecentEvents.tsx, RfCard.tsx, TopClients.tsx, WanCard.tsx, getStarted.ts, health.ts
-- `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, RadiosCard.tsx, SteeringCard.tsx, status.tsx
+- `features/devices/`: ClientsCard.tsx, DeviceCharts.tsx, DevicePage.tsx, DevicesPage.tsx, SteeringCard.tsx, status.tsx
 - `features/devices/adopt/`: AdoptDialog.tsx, BatchDialog.tsx, DiscoveredCard.tsx, HostKey.tsx, address.ts
 - `features/devices/config/`: BackupsCard.tsx, ConfigTab.tsx, DriftCard.tsx, FirmwareCard.tsx, ManagementCard.tsx, PackagesCard.tsx, RoleCard.tsx, RootPasswordCard.tsx, SchedulesCard.tsx, SshCard.tsx, WpadCard.tsx, backups.ts, packages.ts, schedules.ts, ssh.ts
 - `features/devices/lifecycle/`: AwaitingCard.tsx, LifecycleCard.tsx, RemoveDialog.tsx, Removed.tsx, ReplaceDialog.tsx, RetrustDialog.tsx
 - `features/devices/mesh/`: MeshTab.tsx, mesh.ts
-- `features/devices/ports/`: PortsTab.tsx, ports.ts
+- `features/devices/ports/`: AdoptionPortCard.tsx, PortsTab.tsx, adoption.ts, ports.ts
+- `features/devices/radios/`: RadioDialog.tsx, RadiosCard.tsx, radios.ts
 - `features/devices/reboot/`: RebootDialog.tsx, reboot.ts
 - `features/devices/software/`: CatalogDialog.tsx, ChangesDialog.tsx, SoftwareCard.tsx, software.ts
 - `features/devices/terminal/`: TerminalTab.tsx, connection.ts, session.ts, styles.ts, xterm.ts
 - `features/devices/tools/`: CaptureCard.tsx, ConntrackPanel.tsx, NeighborsPanel.tsx, OptionalTools.tsx, RoutesPanel.tsx, RunForm.tsx, RunOutput.tsx, RunsCard.tsx, TableView.tsx, TablesCard.tsx, ToolsTab.tsx, capture.ts, captureSession.ts, draft.ts, iperf3.ts, run.ts, tables.ts
 - `features/devices/uci/`: RawLine.tsx, SectionCard.tsx, SectionEditor.tsx, UciTab.tsx, draft.ts, edits.ts, uci.ts
-- `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
+- `features/devices/ztp/`: BenchJobs.tsx, ImageTab.tsx, PortNote.tsx, SetupDialog.tsx, ZtpCard.tsx, ZtpDialogs.tsx, image.ts
 - `features/events/`: EventRow.tsx, EventsPage.tsx, Toolbar.tsx, feed.ts, query.ts
 - `features/floorplans/`: DevicesPanel.tsx, FloorDialog.tsx, FloorEditor.tsx, FloorPlansPage.tsx, Markers.tsx, floors.ts, units.ts, upload.ts
 - `features/floorplans/coverage/`: CoverageCard.tsx, createCoverage.ts, footprint.ts, layers.tsx, model.ts, walls.ts
@@ -1252,8 +1253,8 @@ Files per directory. Tests sit next to the code as `*.test.ts[x]`; `test/` holds
 - `features/topology/`: DetailsPanel.tsx, Legend.tsx, ReplayBar.tsx, TopologyPage.tsx, ViewSwitch.tsx, replay.ts
 - `features/updates/`: ControllerCard.tsx, MirrorCard.tsx, MirrorSet.tsx, PlanView.tsx, RolloutDevice.tsx, RolloutDialog.tsx, RolloutView.tsx, RolloutsCard.tsx, SourceDialog.tsx, SourcesCard.tsx, UpdatesPage.tsx, UpgradeDialog.tsx, UploadsCard.tsx, install.tsx, mirror.ts
 - `features/vpn/`: PeerConfigDialog.tsx, PeerEditor.tsx, PeersCard.tsx, ServerCard.tsx, ServerEditor.tsx, TailscaleCard.tsx, TailscaleEditor.tsx, TailscaleLoginDialog.tsx, TailscalePeers.tsx, TailscaleSection.tsx, VpnPage.tsx, tailscale.ts, wireguard.ts
-- `features/wifi/`: JoinDialog.tsx, MeshCard.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, draft.ts, mesh.ts, summary.ts
-- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, help.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
+- `features/wifi/`: BandsCard.tsx, JoinDialog.tsx, MeshCard.tsx, SteeringCard.tsx, WifiPage.tsx, WlanEditor.tsx, WlanRow.tsx, WpadNote.tsx, bands.ts, draft.ts, mesh.ts, summary.ts
+- `lib/`: alerts.ts, api.ts, appearance.ts, clientList.ts, clients.ts, config.ts, controller.ts, countries.ts, download.ts, entities.ts, events.ts, firmware.ts, format.ts, help.ts, ipv4.ts, jobs.ts, live.ts, metrics.ts, names.ts, nextStep.ts, platform.ts, radio.ts, rf.ts, rollouts.ts, schedule.ts, session.ts, site.ts, steering.ts, strings.ts, ws.ts
 - `ui/`: Badge.tsx, Button.tsx, Card.tsx, Checkbox.tsx, Dialog.tsx, EmptyState.tsx, FormField.tsx, Icon.tsx, ImageBuild.tsx, JobNodes.tsx, JobOutcome.tsx, JobSteps.tsx, Kbd.tsx, PackageDiff.tsx, QrCode.tsx, RadioCards.tsx, SavedRevision.tsx, ScheduleField.tsx, Segmented.tsx, SheetHandle.tsx, Sparkline.tsx, Stat.tsx, Table.tsx, Tabs.tsx, TextField.tsx, Toast.tsx, Tooltip.tsx, Weekdays.tsx, WeeklyTimeField.tsx, Wordmark.tsx, tokens.css, uciDiff.ts
 - `viz/`: theme.ts
 - `viz/floorplan/`: Heatmap.tsx, PlanCanvas.tsx

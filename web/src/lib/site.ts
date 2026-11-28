@@ -1,4 +1,5 @@
 import type { Network } from "../api/gen/Network";
+import type { NodeConfig } from "../api/gen/NodeConfig";
 import type { SiteConfig } from "../api/gen/SiteConfig";
 import type { SiteView } from "../api/gen/SiteView";
 import { ApiError, api } from "./api";
@@ -26,6 +27,32 @@ export async function saveSite(
     if (err instanceof ApiError && err.status === 409) return once();
     throw err;
   });
+}
+
+/** A node's entry with no overrides and nothing managed, as `NodeConfig::new` makes it. */
+export function blankNode(node: number): NodeConfig {
+  return {
+    node,
+    hostname: null,
+    managed: [],
+    radios: [],
+    ports: [],
+    raw: [],
+    reboot: { kind: "site" },
+    led_schedule: true,
+    ssh: { key_only: false, management_only: false },
+  };
+}
+
+/** `config` with the node's entry edited; a node without one gets a blank one first. */
+export function withNode(
+  config: SiteConfig,
+  node: number,
+  edit: (entry: NodeConfig) => NodeConfig,
+): SiteConfig {
+  const known = config.nodes.some((entry) => entry.node === node);
+  const nodes = known ? config.nodes : [...config.nodes, blankNode(node)];
+  return { ...config, nodes: nodes.map((entry) => (entry.node === node ? edit(entry) : entry)) };
 }
 
 /** The networks in the list's order: the default one first, then by VLAN, untagged ones last. */
