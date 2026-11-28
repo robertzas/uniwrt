@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
+import { Dynamic } from "@solidjs/web";
 import { Info, LockKeyhole } from "lucide";
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { type Component, createSignal, Match, onSettled, Show, Switch } from "solid-js";
 import type { AuthState } from "../../api/gen/AuthState";
 import type { UserInfo } from "../../api/gen/UserInfo";
 import { ApiError, api } from "../../lib/api";
@@ -10,7 +11,6 @@ import { Card } from "../../ui/Card";
 import { Icon } from "../../ui/Icon";
 import { TextField } from "../../ui/TextField";
 import { Wordmark } from "../../ui/Wordmark";
-import { TrustCa } from "./TrustCa";
 
 export interface SignInProps {
   state: AuthState;
@@ -28,8 +28,16 @@ export interface SignInProps {
  * and the login form otherwise (security.md, D-040).
  */
 export function SignIn(props: SignInProps) {
+  // Loaded once the form shows, out of the initial JS (D-149).
+  const [TrustCa, setTrustCa] = createSignal<Component>();
+  onSettled(() => {
+    import("./TrustCa").then(
+      (m) => setTrustCa(() => m.TrustCa),
+      () => {},
+    );
+  });
   return (
-    <AuthFrame footer={<TrustCa />}>
+    <AuthFrame footer={<Show when={TrustCa()}>{(trust) => <Dynamic component={trust()} />}</Show>}>
       <Switch fallback={<LoginForm {...props} />}>
         <Match when={props.state.setup === "open"}>
           <SetupForm {...props} />

@@ -1,20 +1,36 @@
 import * as Popover from "@kobalte/core/popover";
+import { Dynamic } from "@solidjs/web";
 import { KeyRound, LogOut } from "lucide";
-import { createSignal, Show, useContext } from "solid-js";
-import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
+import { type Component, createSignal, Show, useContext } from "solid-js";
 import { SessionContext } from "../lib/session";
 import { strings } from "../lib/strings";
 import { Button } from "../ui/Button";
 
 /**
  * The signed-in user, with changing their password (D-153) and sign-out, in a popover from the
- * sidebar's footer.
+ * sidebar's footer. The password dialog's code loads the first time it opens (the initial JS
+ * budget, D-149).
  */
 export function AccountMenu(props: { compact?: boolean }) {
   const session = useContext(SessionContext);
   const [leaving, setLeaving] = createSignal(false);
   const [open, setOpen] = createSignal(false);
   const [changing, setChanging] = createSignal(false);
+  const [PasswordDialog, setPasswordDialog] = createSignal<Component<{ onClose: () => void }>>();
+  const change = () => {
+    setOpen(false);
+    if (PasswordDialog()) {
+      setChanging(true);
+      return;
+    }
+    import("../features/auth/ChangePasswordDialog").then(
+      (m) => {
+        setPasswordDialog(() => m.ChangePasswordDialog);
+        setChanging(true);
+      },
+      () => {},
+    );
+  };
   const initial = () => session.user.username.charAt(0).toUpperCase();
 
   return (
@@ -53,10 +69,7 @@ export function AccountMenu(props: { compact?: boolean }) {
               icon={KeyRound}
               variant="ghost"
               class="mb-1 w-full justify-start"
-              onClick={() => {
-                setOpen(false);
-                setChanging(true);
-              }}
+              onClick={change}
             >
               {strings.account.password.open}
             </Button>
@@ -74,8 +87,8 @@ export function AccountMenu(props: { compact?: boolean }) {
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
-      <Show when={changing()}>
-        <ChangePasswordDialog onClose={() => setChanging(false)} />
+      <Show when={changing() && PasswordDialog()}>
+        {(dialog) => <Dynamic component={dialog()} onClose={() => setChanging(false)} />}
       </Show>
     </>
   );
