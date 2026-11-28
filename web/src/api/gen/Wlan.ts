@@ -23,7 +23,12 @@ ssid: string, enabled: boolean,
  */
 network: string, security: WlanSecurity, 
 /**
- * Required for the PSK and SAE modes.
+ * Per-band overrides of `security` (D-157), such as WPA2 on 2.4 GHz beside WPA2/WPA3 for
+ * devices that can't join WPA3; a band left out takes `security` ([`Wlan::security_on`]).
+ */
+band_security: { [key in Band]?: WlanSecurity }, 
+/**
+ * Required where a band's mode needs one ([`Wlan::needs_passphrase`]).
  */
 passphrase: SecretRef | null, bands: Array<Band>, nodes: NodeScope, hidden: boolean, 
 /**

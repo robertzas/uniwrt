@@ -308,6 +308,7 @@ fn wlan(
         enabled: true,
         network: network.to_owned(),
         security,
+        band_security: std::collections::BTreeMap::new(),
         passphrase: passphrase.map(secret),
         bands: bands.to_vec(),
         nodes: NodeScope::All,

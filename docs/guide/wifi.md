@@ -11,7 +11,7 @@ The **Wi-Fi** page holds the site's wireless networks (WLANs), the site's client
 
 The top of the page lists every WLAN. Each row shows:
 
-- The name (SSID), an **Off** badge when it is disabled, its security mode and its bands in the band colors.
+- The name (SSID), an **Off** badge when it is disabled, its security mode and its bands in the band colors, and a band's own mode, such as *WPA2 on 2.4 GHz*.
 - **Network** and the network its clients land in, the devices that broadcast it (**All devices**, **Only …** or **All but …**), and **Hidden**, **Clients isolated** or **Up to N clients per radio** when those are set.
 - Its schedule, with **on now** or **off now**.
 - Warnings about this WLAN, if the site has any.
@@ -90,6 +90,16 @@ The three WPA modes need a **Passphrase** of 8 to 63 printable ASCII characters 
 Toggle **2.4 GHz**, **5 GHz** and **6 GHz**. Each device broadcasts the WLAN on its radios of those bands. Pick one band at least.
 
 6 GHz requires **WPA3**, **Open, encrypted (OWE)** or **Open, encrypted where possible**.
+
+### A different security mode on one band
+
+Some older and smart-home devices only join WPA2, and only on 2.4 GHz. To keep **WPA2/WPA3** for everything else, give 2.4 GHz its own mode:
+
+1. Under the band toggles, click **Different security on a band…**.
+2. For **Security on 2.4 GHz**, choose **WPA2**. Leave the other bands on **Same as the WLAN**.
+3. Click **Save**, then review and apply.
+
+The name and the passphrase stay the same on every band, and the list shows, for example, *WPA2 on 2.4 GHz*. This also lets 6 GHz run **WPA3** beside **WPA2/WPA3** on the other bands.
 
 ### Devices
 

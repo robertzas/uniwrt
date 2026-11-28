@@ -25,12 +25,34 @@ export function needsPassphrase(security: WlanSecurity): boolean {
   return security === "wpa2" || security === "wpa2_wpa3" || security === "wpa3";
 }
 
+/** A band's own security modes, overriding the WLAN's (D-157). */
+export type BandSecurity = Partial<Record<Band, WlanSecurity>>;
+
+/** The modes `bands` run, each once: a band's own, else `security`; `security` alone without bands. */
+export function modesOf(
+  security: WlanSecurity,
+  overrides: BandSecurity,
+  bands: readonly Band[],
+): WlanSecurity[] {
+  const modes = bands.length === 0 ? [security] : bands.map((band) => overrides[band] ?? security);
+  return [...new Set(modes)];
+}
+
+/** The modes a WLAN's bands run. */
+export const wlanModes = (wlan: Wlan) => modesOf(wlan.security, wlan.band_security, wlan.bands);
+
+/** The modes a draft's bands run. */
+export const draftModes = (draft: Pick<WlanDraft, "security" | "bandSecurity" | "bands">) =>
+  modesOf(draft.security, draft.bandSecurity, draft.bands);
+
 /** A WLAN as the editor holds it. */
 export interface WlanDraft {
   ssid: string;
   enabled: boolean;
   network: string;
   security: WlanSecurity;
+  /** Bands that run a mode of their own; the bands left out run `security`. */
+  bandSecurity: BandSecurity;
   /** A new passphrase; empty keeps the one the WLAN has. */
   passphrase: string;
   bands: Band[];
@@ -63,6 +85,7 @@ export function draftOf(wlan: Wlan): WlanDraft {
     enabled: wlan.enabled,
     network: wlan.network,
     security: wlan.security,
+    bandSecurity: { ...wlan.band_security },
     passphrase: "",
     bands: [...wlan.bands],
     scope: wlan.nodes.scope,
@@ -79,11 +102,11 @@ export function draftOf(wlan: Wlan): WlanDraft {
   };
 }
 
-/** Whether a WLAN of `security` fast-roams with `fast`, as the controller decides (D-085): only
- * with a passphrase, and when left to it, on for WPA2 alone. */
-export function fastRoams(security: WlanSecurity, fast: FastRoaming): boolean {
-  if (!needsPassphrase(security)) return false;
-  return fast === "auto" ? security === "wpa2" : fast === "on";
+/** Whether a WLAN whose bands run `modes` fast-roams with `fast`, as the controller decides
+ * (D-085): only with a passphrase, and when left to it, while every band runs WPA2 alone. */
+export function fastRoams(modes: readonly WlanSecurity[], fast: FastRoaming): boolean {
+  if (!modes.some(needsPassphrase)) return false;
+  return fast === "auto" ? modes.every((mode) => mode === "wpa2") : fast === "on";
 }
 
 /** A new WLAN of a preset: the main one, a guest one (open but encrypted) or one for things. */
@@ -96,6 +119,7 @@ export function presetWlan(preset: Preset, config: SiteConfig): Wlan {
     enabled: true,
     network: main,
     security: "wpa2_wpa3",
+    band_security: {},
     passphrase: null,
     bands: ["2g", "5g"],
     nodes: { scope: "all" },
@@ -131,7 +155,7 @@ export function idOf(ssid: string, taken: readonly string[]): string {
 }
 
 /** The modes 6 GHz allows. */
-const SIX_GHZ: readonly WlanSecurity[] = ["wpa3", "owe", "owe_transition"];
+export const SIX_GHZ: readonly WlanSecurity[] = ["wpa3", "owe", "owe_transition"];
 
 export const bytes = (text: string) => new TextEncoder().encode(text).length;
 
@@ -151,11 +175,12 @@ export function wlanOf(
 ): { wlan?: Wlan; secrets?: Record<string, string | null>; errors: DraftErrors } {
   const errors: DraftErrors = {};
   const ssid = draft.ssid;
-  const transition = draft.security === "owe_transition";
+  const modes = draftModes(draft);
+  const transition = modes.includes("owe_transition");
   if (ssid.length === 0 || bytes(ssid) > 32) errors.ssid = e.ssid;
   else if (transition && bytes(ssid) > 29) errors.ssid = e.ssidTransition;
   else if (others.some((other) => other.ssid === ssid)) errors.ssid = e.ssidTaken;
-  const secret = needsPassphrase(draft.security);
+  const secret = modes.some(needsPassphrase);
   if (secret) {
     if (draft.passphrase === "" && current.passphrase === null) errors.passphrase = e.passphrase;
     else if (draft.passphrase !== "" && !passphraseOk(draft.passphrase)) {
@@ -163,7 +188,10 @@ export function wlanOf(
     }
   }
   if (draft.bands.length === 0) errors.bands = e.bands;
-  else if (draft.bands.includes("6g") && !SIX_GHZ.includes(draft.security)) {
+  else if (
+    draft.bands.includes("6g") &&
+    !SIX_GHZ.includes(draft.bandSecurity["6g"] ?? draft.security)
+  ) {
     errors.bands = e.sixGhz;
   }
   if (draft.scope !== "all" && draft.nodes.length === 0) errors.nodes = e.nodes;
@@ -187,6 +215,13 @@ export function wlanOf(
     enabled: draft.enabled,
     network: draft.network,
     security: draft.security,
+    // Only the chosen bands' own modes that differ from the WLAN's.
+    band_security: Object.fromEntries(
+      BANDS.flatMap((band) => {
+        const mode = draft.bandSecurity[band];
+        return draft.bands.includes(band) && mode && mode !== draft.security ? [[band, mode]] : [];
+      }),
+    ),
     // A new value's reference is the server's to make.
     passphrase: secret ? current.passphrase : null,
     bands: BANDS.filter((band) => draft.bands.includes(band)),
@@ -225,6 +260,7 @@ const FIELDS: Record<string, keyof DraftErrors> = {
   passphrase: "passphrase",
   bands: "bands",
   security: "bands",
+  band_security: "bands",
   nodes: "nodes",
   max_clients: "maxClients",
   schedule: "schedule",
@@ -251,11 +287,14 @@ export function errorsOfIssues(
 /** What a phone's camera joins the WLAN with (the `WIFI:` scheme). */
 export function joinCode(wlan: Wlan, passphrase: string | undefined): string {
   const escaped = (text: string) => text.replace(/([\\;,":])/g, "\\$1");
-  const type = !needsPassphrase(wlan.security)
-    ? "nopass"
-    : wlan.security === "wpa3"
+  // The WLAN's own mode, else a band's that has a passphrase (D-157).
+  const type = needsPassphrase(wlan.security)
+    ? wlan.security === "wpa3"
       ? "SAE"
-      : "WPA";
+      : "WPA"
+    : wlanModes(wlan).some(needsPassphrase)
+      ? "WPA"
+      : "nopass";
   return [
     `WIFI:T:${type}`,
     `S:${escaped(wlan.ssid)}`,

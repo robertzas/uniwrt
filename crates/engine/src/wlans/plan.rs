@@ -144,6 +144,7 @@ mod tests {
             enabled: true,
             network: "lan".to_owned(),
             security: WlanSecurity::Open,
+            band_security: std::collections::BTreeMap::new(),
             passphrase: None,
             bands: vec![Band::G2, Band::G5],
             nodes: NodeScope::All,

@@ -212,6 +212,7 @@ pub fn lab(lan: Ipv4Net) -> SiteConfig {
         enabled: true,
         network: "labnet".to_owned(),
         security: WlanSecurity::Wpa2Wpa3,
+        band_security: std::collections::BTreeMap::new(),
         passphrase: Some(secret(5)),
         bands: vec![Band::G2, Band::G5],
         nodes: NodeScope::All,

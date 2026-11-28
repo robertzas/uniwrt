@@ -1,6 +1,8 @@
 //! Wi-Fi: WLANs (features/wifi.md, WLANs), the mesh backhaul (features/mesh.md) and the site's
 //! radio policy, which nodes override per radio ([`super::node::RadioOverride`]).
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use uniwrt_core::NodeId;
 
@@ -23,7 +25,11 @@ pub struct Wlan {
     /// The id of the network its clients join.
     pub network: String,
     pub security: WlanSecurity,
-    /// Required for the PSK and SAE modes.
+    /// Per-band overrides of `security` (D-157), such as WPA2 on 2.4 GHz beside WPA2/WPA3 for
+    /// devices that can't join WPA3; a band left out takes `security` ([`Wlan::security_on`]).
+    #[serde(default)]
+    pub band_security: BTreeMap<Band, WlanSecurity>,
+    /// Required where a band's mode needs one ([`Wlan::needs_passphrase`]).
     pub passphrase: Option<SecretRef>,
     pub bands: Vec<Band>,
     pub nodes: NodeScope,
@@ -74,14 +80,58 @@ impl Default for Roaming {
 }
 
 impl Wlan {
-    /// Whether it offers 802.11r: only with a passphrase (WPA2 or WPA3); on by default for
-    /// WPA2 alone, since OpenWrt 25.12's notes list clients that fail 802.11r with WPA3.
+    /// The security mode on `band`: its override, else [`Self::security`].
+    pub fn security_on(&self, band: Band) -> WlanSecurity {
+        self.band_security
+            .get(&band)
+            .copied()
+            .unwrap_or(self.security)
+    }
+
+    /// The modes its bands run, each once (`security` alone without bands).
+    pub fn securities(&self) -> Vec<WlanSecurity> {
+        let mut modes = vec![self.security];
+        if !self.bands.is_empty() {
+            modes = self
+                .bands
+                .iter()
+                .map(|&band| self.security_on(band))
+                .collect();
+        }
+        let mut seen = Vec::new();
+        modes.retain(|mode| {
+            let new = !seen.contains(mode);
+            seen.push(*mode);
+            new
+        });
+        modes
+    }
+
+    /// Whether a band's mode needs the passphrase.
+    pub fn needs_passphrase(&self) -> bool {
+        self.securities()
+            .into_iter()
+            .any(WlanSecurity::needs_passphrase)
+    }
+
+    /// Whether it offers 802.11r on some band ([`Self::fast_roams_on`]).
     pub fn fast_roams(&self) -> bool {
-        self.security.needs_passphrase()
-            && self
-                .roaming
-                .fast
-                .unwrap_or(self.security == WlanSecurity::Wpa2)
+        self.needs_passphrase() && self.fast_default()
+    }
+
+    /// Whether it offers 802.11r on `band`: only with a passphrase (WPA2 or WPA3); on by default
+    /// while every band runs WPA2 alone, since OpenWrt 25.12's notes list clients that fail
+    /// 802.11r with WPA3.
+    pub fn fast_roams_on(&self, band: Band) -> bool {
+        self.security_on(band).needs_passphrase() && self.fast_default()
+    }
+
+    fn fast_default(&self) -> bool {
+        self.roaming.fast.unwrap_or_else(|| {
+            self.securities()
+                .iter()
+                .all(|mode| *mode == WlanSecurity::Wpa2)
+        })
     }
 
     /// Its 802.11r mobility domain, the same on every node: 4 hex digits from its id (FNV-1a

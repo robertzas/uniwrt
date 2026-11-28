@@ -5,10 +5,7 @@
 //! 802.11k neighbor reports (the controller fills them in, M5.2); 802.11v BSS transition with
 //! WNM sleep, its keys left out of sleep responses for stations that would reinstall them.
 
-use uniwrt_model::{
-    facts::WifiFeature,
-    site::wireless::{Wlan, WlanSecurity},
-};
+use uniwrt_model::{facts::WifiFeature, site::wireless::Wlan, wifi::Band};
 use uniwrt_uci::{Section, Value};
 
 use crate::{Issue, ext::SectionExt, plan::Plan};
@@ -18,11 +15,12 @@ use crate::{Issue, ext::SectionExt, plan::Plan};
 const ANY_R0KH: &str = "ff:ff:ff:ff:ff:ff,*";
 const ANY_R1KH: &str = "00:00:00:00:00:00,00:00:00:00:00:00";
 
-/// `section`, a BSS of `wlan` encrypted as `encryption` (the mode render settled on), with the
-/// WLAN's roaming options.
+/// `section`, a BSS of `wlan` on `band` encrypted as `encryption` (the mode render settled on),
+/// with the WLAN's roaming options.
 pub(crate) fn options(
     plan: &mut Plan<'_>,
     wlan: &Wlan,
+    band: Band,
     encryption: &str,
     section: Section,
 ) -> Section {
@@ -34,7 +32,7 @@ pub(crate) fn options(
         wifi.contains(&WifiFeature::BssTransition),
     );
     let mut section = section;
-    if wlan.fast_roams() {
+    if wlan.fast_roams_on(band) {
         if ft {
             section = fast(plan, wlan, encryption, section, &at);
         } else {
@@ -78,10 +76,7 @@ fn fast(plan: &mut Plan<'_>, wlan: &Wlan, encryption: &str, section: Section, at
         }
         return section;
     };
-    debug_assert!(matches!(
-        wlan.security,
-        WlanSecurity::Wpa2Wpa3 | WlanSecurity::Wpa3
-    ));
+    debug_assert!(encryption.starts_with("sae"), "{encryption}");
     section
         .with("ft_psk_generate_local", "0")
         .with("r0kh", Value::List(vec![format!("{ANY_R0KH},{key}")]))

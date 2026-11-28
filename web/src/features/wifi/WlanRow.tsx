@@ -7,7 +7,7 @@ import { strings } from "../../lib/strings";
 import { Badge, type Tone } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
-import { needsPassphrase } from "./draft";
+import { needsPassphrase, wlanModes } from "./draft";
 
 const t = strings.wifi;
 
@@ -72,6 +72,16 @@ export function WlanRow(props: {
         <p class="mt-1.5 flex flex-wrap gap-x-3 text-fg-muted text-xs">
           <span>{t.network(props.networkName)}</span>
           <span>{props.scope}</span>
+          <For each={w().bands.filter((band) => w().band_security[band] !== undefined)}>
+            {(band) => (
+              <span>
+                {t.bandSecurity(
+                  t.security[w().band_security[band] ?? w().security] ?? "",
+                  strings.device.radios.band[band],
+                )}
+              </span>
+            )}
+          </For>
           <Show when={w().hidden}>
             <span>{t.hidden}</span>
           </Show>
@@ -107,7 +117,7 @@ export function WlanRow(props: {
       </span>
       <div class="flex shrink-0 gap-2">
         {/* A passphrase is shown to admins only; a network without one is anyone's to join. */}
-        <Show when={props.admin || !needsPassphrase(w().security)}>
+        <Show when={props.admin || !wlanModes(w()).some(needsPassphrase)}>
           <Button
             size="sm"
             icon={QrCode}

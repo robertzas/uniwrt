@@ -16,9 +16,11 @@ import { ScheduleField } from "../../ui/ScheduleField";
 import { Segmented } from "../../ui/Segmented";
 import { TextField } from "../../ui/TextField";
 import { TOGGLE, toggled } from "../../ui/Weekdays";
+import { BandSecurity } from "./BandSecurity";
 import {
   BANDS,
   type DraftErrors,
+  draftModes,
   draftOf,
   errorsOfIssues,
   type FastRoaming,
@@ -38,13 +40,13 @@ const PRESETS: readonly Preset[] = ["main", "guest", "iot"];
 const SCOPES: readonly NodeScope["scope"][] = ["all", "only", "except"];
 const FAST: readonly FastRoaming[] = ["auto", "on", "off"];
 
-/** What fast roaming does with this security mode, or why it can't. */
+/** What fast roaming does with the bands' security modes, or why it can't. */
 function fastHint(draft: WlanDraft): { text: string; warn: boolean } {
-  if (!needsPassphrase(draft.security)) return { text: t.fastNeedsPassphrase, warn: false };
-  const wpa3 = draft.security === "wpa3" || draft.security === "wpa2_wpa3";
+  const modes = draftModes(draft);
+  if (!modes.some(needsPassphrase)) return { text: t.fastNeedsPassphrase, warn: false };
+  const wpa3 = modes.some((mode) => mode === "wpa3" || mode === "wpa2_wpa3");
   if (draft.fast === "on" && wpa3) return { text: t.fastWpa3, warn: true };
-  if (draft.fast === "auto")
-    return { text: t.fastAuto(fastRoams(draft.security, "auto")), warn: false };
+  if (draft.fast === "auto") return { text: t.fastAuto(fastRoams(modes, "auto")), warn: false };
   return { text: draft.fast === "on" ? t.fastOn : t.fastOff, warn: false };
 }
 
@@ -219,7 +221,7 @@ export function WlanEditor(props: {
                   </For>
                 </select>
               </FormField>
-              <Show when={needsPassphrase(draft().security)}>
+              <Show when={draftModes(draft()).some(needsPassphrase)}>
                 <TextField
                   label={t.passphrase}
                   name="wlan-passphrase"
@@ -253,6 +255,12 @@ export function WlanEditor(props: {
             <p class={["text-xs", errors().bands ? "text-crit" : "text-fg-muted"]}>
               {errors().bands ?? t.bandsHint}
             </p>
+            <BandSecurity
+              bands={BANDS.filter((band) => draft().bands.includes(band))}
+              security={draft().security}
+              value={draft().bandSecurity}
+              onChange={(bandSecurity) => change({ bandSecurity })}
+            />
           </section>
           <section class="flex flex-col gap-3" aria-label={t.devices}>
             <h3 class="font-semibold text-sm">{t.devices}</h3>

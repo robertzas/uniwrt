@@ -304,6 +304,23 @@ fn transition_mode_falls_back_to_wpa2_without_sae() {
 }
 
 #[test]
+fn a_band_s_own_security_mode_renders_on_its_radios() {
+    let mut site = home_site();
+    let home = site.wlans.iter_mut().find(|w| w.id == "home").unwrap();
+    home.security = WlanSecurity::Wpa2Wpa3;
+    home.band_security = [(Band::G2, WlanSecurity::Wpa2)].into();
+    let rendered = ok(run(&site, AP, NodeRole::Ap, &gateway_facts()));
+    let wireless = &rendered.packages[&ManagedPackage::Wireless];
+    let option = |section: &str, name: &str| wireless.section(section).unwrap().option(name);
+    assert_eq!(option("uw_home_2g", "encryption"), Some("psk2"));
+    assert_eq!(option("uw_home_2g", "ieee80211w"), None);
+    assert_eq!(option("uw_home_5g", "encryption"), Some("sae-mixed"));
+    assert_eq!(option("uw_home_5g", "ieee80211w"), Some("1"));
+    // One passphrase for both.
+    assert_eq!(option("uw_home_2g", "key"), option("uw_home_5g", "key"));
+}
+
+#[test]
 fn owe_gets_an_open_companion_except_on_6ghz_and_a_client_limit() {
     let mut site = home_site();
     let guest = site.wlans.iter_mut().find(|w| w.id == "guest").unwrap();

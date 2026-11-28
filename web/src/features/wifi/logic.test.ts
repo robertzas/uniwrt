@@ -40,11 +40,14 @@ describe("WLAN drafts", () => {
 
   it("decides fast roaming as the controller does", () => {
     expect(draftOf(home()).fast).toBe("auto");
-    expect(fastRoams("wpa2", "auto")).toBe(true);
-    expect(fastRoams("wpa2_wpa3", "auto")).toBe(false);
-    expect(fastRoams("wpa3", "on")).toBe(true);
-    expect(fastRoams("wpa2", "off")).toBe(false);
-    expect(fastRoams("owe", "on")).toBe(false);
+    expect(fastRoams(["wpa2"], "auto")).toBe(true);
+    expect(fastRoams(["wpa2_wpa3"], "auto")).toBe(false);
+    // While every band runs WPA2 alone (D-157).
+    expect(fastRoams(["wpa2", "wpa2_wpa3"], "auto")).toBe(false);
+    expect(fastRoams(["wpa3"], "on")).toBe(true);
+    expect(fastRoams(["owe", "wpa2"], "on")).toBe(true);
+    expect(fastRoams(["wpa2"], "off")).toBe(false);
+    expect(fastRoams(["owe"], "on")).toBe(false);
     const on = wlanOf({ ...draftOf(home()), fast: "on" }, home(), []);
     expect(on.wlan?.roaming).toEqual({ fast: true, hints: true, steer: true });
     const auto = wlanOf(draftOf(home()), home(), []);

@@ -1,5 +1,7 @@
 //! Wi-Fi, from every node (features/wifi.md, features/mesh.md): the access points of the same
-//! SSID, network and security become one WLAN on the bands and nodes that carry it; a mesh
+//! SSID and network become one WLAN on the bands and nodes that carry it, each band with one
+//! security mode (a band that differs from the WLAN's most common mode gets an override, D-157;
+//! two modes on one band make two WLANs); a mesh
 //! point with batman-adv over it becomes the mesh; each band's most common channel, width and
 //! power become its policy, and the radios that differ get overrides; the radios' country
 //! becomes the site's.
@@ -33,8 +35,9 @@ struct Radio {
     disabled: bool,
 }
 
-/// The access points of one WLAN, the bands and nodes that carry them.
-type Group = (Ap, BTreeSet<Band>, BTreeSet<NodeId>);
+/// The access points of one WLAN: the bands that carry them, each with its security mode (an
+/// index into [`SECURITIES`]), and the nodes.
+type Group = (Ap, BTreeMap<Band, usize>, BTreeSet<NodeId>);
 
 /// What one access point broadcasts, as a WLAN would hold it.
 #[derive(Clone, PartialEq, Eq)]
@@ -42,7 +45,8 @@ type Group = (Ap, BTreeSet<Band>, BTreeSet<NodeId>);
 struct Ap {
     ssid: String,
     network: String,
-    /// The index of its [`WlanSecurity`] in [`SECURITIES`] (which isn't ordered).
+    /// The index of its [`WlanSecurity`] in [`SECURITIES`] (which isn't ordered); a group's
+    /// own lives in its bands.
     security: usize,
     key: Option<String>,
     hidden: bool,
@@ -64,13 +68,18 @@ struct Roam {
 }
 
 impl Ap {
-    /// Whether both belong to one WLAN: the same but for roaming, which the WLAN takes from any.
+    /// Whether both may belong to one WLAN: the same but for roaming, which the WLAN takes from
+    /// any, and the security mode, which may differ by band; the same passphrase where both
+    /// have one.
     fn same_wlan(&self, other: &Self) -> bool {
         let plain = |ap: &Self| Self {
             roam: Roam::default(),
+            security: 0,
+            key: None,
             ..ap.clone()
         };
         plain(self) == plain(other)
+            && (self.key.is_none() || other.key.is_none() || self.key == other.key)
     }
 }
 
@@ -156,12 +165,14 @@ pub(crate) fn import(
             let Some(ap) = ap(iface, renames, &networks) else {
                 continue;
             };
-            let roam = ap.roam;
+            let (roam, security, key) = (ap.roam, ap.security, ap.key.clone());
             let index = aps
                 .iter()
-                .position(|(a, ..)| a.same_wlan(&ap))
+                .position(|(a, bands, _)| {
+                    a.same_wlan(&ap) && bands.get(&band).is_none_or(|s| *s == security)
+                })
                 .unwrap_or_else(|| {
-                    aps.push((ap, BTreeSet::new(), BTreeSet::new()));
+                    aps.push((ap, BTreeMap::new(), BTreeSet::new()));
                     hints.push(iface.name.as_deref().and_then(hint));
                     let index = aps.len() - 1;
                     let at = previous
@@ -173,11 +184,12 @@ pub(crate) fn import(
                 });
             previous.insert(device.to_owned(), index);
             // Roaming doesn't split a WLAN: one access point with it brings it to all.
-            let merged = &mut aps[index].0.roam;
-            merged.fast |= roam.fast;
-            merged.hints |= roam.hints;
-            aps[index].1.insert(band);
-            aps[index].2.insert(source.node);
+            let group = &mut aps[index];
+            group.0.roam.fast |= roam.fast;
+            group.0.roam.hints |= roam.hints;
+            group.0.key = group.0.key.take().or(key);
+            group.1.insert(band, security);
+            group.2.insert(source.node);
         }
     }
     let mut aps: Vec<Option<_>> = aps.into_iter().zip(hints).map(Some).collect();
@@ -256,7 +268,7 @@ fn wlans(
             .filter(|s| {
                 radios
                     .iter()
-                    .any(|r| r.node == s.node && bands.contains(&r.band))
+                    .any(|r| r.node == s.node && bands.contains_key(&r.band))
             })
             .map(|s| s.node)
             .collect();
@@ -265,33 +277,54 @@ fn wlans(
         } else {
             NodeScope::Only(nodes.into_iter().collect())
         };
+        let security = main_security(&bands);
+        let band_security = bands
+            .iter()
+            .filter(|&(_, &s)| s != security)
+            .map(|(&band, &s)| (band, SECURITIES[s]))
+            .collect();
         found.push(Wlan {
             id,
             ssid: ap.ssid,
             enabled: ap.enabled,
             network: ap.network,
-            security: SECURITIES[ap.security],
+            security: SECURITIES[security],
+            band_security,
             passphrase: ap.key.as_deref().map(&mut *seal),
-            bands: bands.into_iter().collect(),
+            bands: bands.keys().copied().collect(),
             nodes: scope,
             hidden: ap.hidden,
             isolation: ap.isolation,
             max_clients: ap.max_clients,
             // Nodes keep no schedules (and an imported OWE pair stays two WLANs).
             schedule: None,
-            roaming: roaming(SECURITIES[ap.security], ap.roam),
+            roaming: roaming(&bands, ap.roam),
             multicast_to_unicast: ap.multicast_to_unicast,
         });
     }
     found
 }
 
-/// The roaming the node's access points have: 802.11r unset where it is what the security mode
-/// suggests anyway (and where it can't apply), so the site's default keeps following it.
-fn roaming(security: WlanSecurity, roam: Roam) -> Roaming {
-    let usual = security == WlanSecurity::Wpa2;
+/// The mode most of a WLAN's bands run; among equals, the highest band's (5 GHz's over 2.4's).
+fn main_security(bands: &BTreeMap<Band, usize>) -> usize {
+    let count = |security: usize| bands.values().filter(|&&s| s == security).count();
+    // `max_by_key` keeps the last of equals: bands run from 2.4 GHz up.
+    bands
+        .values()
+        .copied()
+        .max_by_key(|&s| count(s))
+        .unwrap_or_default()
+}
+
+/// The roaming the node's access points have: 802.11r unset where it is what the bands' modes
+/// suggest anyway (on while every band runs WPA2 alone; [`Wlan::fast_roams_on`]) and where it
+/// can't apply, so the site's default keeps following them.
+fn roaming(bands: &BTreeMap<Band, usize>, roam: Roam) -> Roaming {
+    let modes = || bands.values().map(|&s| SECURITIES[s]);
+    let usual = modes().all(|mode| mode == WlanSecurity::Wpa2);
     Roaming {
-        fast: (security.needs_passphrase() && roam.fast != usual).then_some(roam.fast),
+        fast: (modes().any(WlanSecurity::needs_passphrase) && roam.fast != usual)
+            .then_some(roam.fast),
         hints: roam.hints,
         steer: true,
     }

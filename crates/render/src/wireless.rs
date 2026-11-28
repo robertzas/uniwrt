@@ -304,7 +304,8 @@ fn ap_ifaces(
         return Vec::new();
     };
     let wifi = &plan.facts.capabilities.wifi;
-    let (encryption, pmf) = match wlan.security {
+    let security = wlan.security_on(radio.band);
+    let (encryption, pmf) = match security {
         WlanSecurity::Wpa2 => ("psk2", None),
         WlanSecurity::Wpa2Wpa3 if wifi.contains(&WifiFeature::Sae) => ("sae-mixed", Some("1")),
         WlanSecurity::Wpa2Wpa3 => {
@@ -327,7 +328,7 @@ fn ap_ifaces(
         }
         WlanSecurity::Open => ("none", None),
     };
-    let key = if wlan.security.needs_passphrase() {
+    let key = if security.needs_passphrase() {
         let Some(key) = plan.secret(&format!("{at}/passphrase"), wlan.passphrase.as_ref()) else {
             return Vec::new();
         };
@@ -360,7 +361,7 @@ fn ap_ifaces(
             .flag("disabled", !wlan.enabled)
     };
     // 6 GHz has no open BSS, so the encrypted one stands alone there.
-    if wlan.security == WlanSecurity::OweTransition && radio.band != Band::G6 {
+    if security == WlanSecurity::OweTransition && radio.band != Band::G6 {
         *pairs += 1;
         let (open, owe) = (format!("uw{pairs}-open"), format!("uw{pairs}-owe"));
         let open_bss = bss(format!("{name}o"), &wlan.ssid, "none")
@@ -373,13 +374,17 @@ fn ap_ifaces(
             .maybe("ieee80211w", pmf)
             .flag("hidden", true);
         return vec![
-            common(roaming::options(plan, wlan, "none", open_bss)),
-            common(roaming::options(plan, wlan, encryption, owe_bss)),
+            common(roaming::options(plan, wlan, radio.band, "none", open_bss)),
+            common(roaming::options(
+                plan, wlan, radio.band, encryption, owe_bss,
+            )),
         ];
     }
     let section = bss(name, &wlan.ssid, encryption)
         .maybe("key", key)
         .maybe("ieee80211w", pmf)
         .flag("hidden", wlan.hidden);
-    vec![common(roaming::options(plan, wlan, encryption, section))]
+    vec![common(roaming::options(
+        plan, wlan, radio.band, encryption, section,
+    ))]
 }

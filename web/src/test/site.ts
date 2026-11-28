@@ -52,6 +52,7 @@ export function siteConfig(): SiteConfig {
         enabled: true,
         network: "lan",
         security: "wpa2_wpa3",
+        band_security: {},
         passphrase: "config/00000000000000000000000000000001",
         bands: ["2g", "5g"],
         nodes: {

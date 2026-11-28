@@ -39,6 +39,7 @@ const FIXTURES: [&str; SCHEMA_VERSION as usize] = [
     include_str!("../../fixtures/site/v19.json"),
     include_str!("../../fixtures/site/v20.json"),
     include_str!("../../fixtures/site/v21.json"),
+    include_str!("../../fixtures/site/v22.json"),
 ];
 
 fn fixture(version: u32) -> Value {
@@ -483,6 +484,72 @@ fn fast_roaming_follows_the_security_mode_unless_set() {
     assert!(has(&issues, "wlans/home/roaming", Severity::Warning));
     assert!(has(&issues, "wlans/visitors/roaming", Severity::Warning));
     assert!(!has(&issues, "wlans/things/roaming", Severity::Warning));
+}
+
+#[test]
+fn a_band_may_run_its_own_security_mode() {
+    let config = upgrade(fixture(SCHEMA_VERSION)).unwrap();
+    let home = &config.wlans[0];
+    // The current fixture runs WPA2 alone on 2.4 GHz beside WPA2/WPA3 (D-157).
+    assert_eq!(home.security_on(Band::G2), WlanSecurity::Wpa2);
+    assert_eq!(home.security_on(Band::G5), WlanSecurity::Wpa2Wpa3);
+    assert_eq!(
+        home.securities(),
+        [WlanSecurity::Wpa2, WlanSecurity::Wpa2Wpa3]
+    );
+    // 802.11r is on by default only while every band runs WPA2 alone.
+    let mut unset = home.clone();
+    unset.roaming.fast = None;
+    assert!(home.needs_passphrase() && !unset.fast_roams());
+    let mut wpa2 = home.clone();
+    wpa2.security = WlanSecurity::Wpa2;
+    wpa2.roaming.fast = None;
+    assert!(wpa2.fast_roams() && wpa2.fast_roams_on(Band::G5));
+    let mut open = home.clone();
+    open.band_security.insert(Band::G2, WlanSecurity::Owe);
+    open.roaming.fast = Some(true);
+    assert!(!open.fast_roams_on(Band::G2) && open.fast_roams_on(Band::G5));
+
+    // WPA3 on 6 GHz beside WPA2/WPA3 elsewhere is one WLAN.
+    let issues = issues_after(|c| {
+        c.wlans[0].bands.push(Band::G6);
+        c.wlans[0]
+            .band_security
+            .insert(Band::G6, WlanSecurity::Wpa3);
+    });
+    assert!(
+        !issues
+            .iter()
+            .any(|(path, _)| path.starts_with("wlans/home")),
+        "{issues:?}"
+    );
+    let issues = issues_after(|c| {
+        // Not one of its bands.
+        c.wlans[1]
+            .band_security
+            .insert(Band::G5, WlanSecurity::Wpa3);
+        // 6 GHz needs WPA3 or OWE, whichever mode sets it.
+        c.wlans[2]
+            .band_security
+            .insert(Band::G6, WlanSecurity::Wpa2Wpa3);
+    });
+    assert!(has(&issues, "wlans/things/band_security", Severity::Error));
+    assert!(has(
+        &issues,
+        "wlans/visitors/band_security",
+        Severity::Error
+    ));
+    // A band with a passphrase needs one; an open band warns.
+    let issues = issues_after(|c| {
+        c.wlans[2]
+            .band_security
+            .insert(Band::G5, WlanSecurity::Wpa2);
+        c.wlans[1]
+            .band_security
+            .insert(Band::G2, WlanSecurity::Open);
+    });
+    assert!(has(&issues, "wlans/visitors/passphrase", Severity::Error));
+    assert!(has(&issues, "wlans/things/security", Severity::Warning));
 }
 
 #[test]

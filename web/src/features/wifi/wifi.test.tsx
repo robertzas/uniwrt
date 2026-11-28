@@ -7,6 +7,7 @@ import type { Issue } from "../../api/gen/Issue";
 import type { NodeSummary } from "../../api/gen/NodeSummary";
 import type { SiteConfig } from "../../api/gen/SiteConfig";
 import type { SiteSave } from "../../api/gen/SiteSave";
+import type { Wlan } from "../../api/gen/Wlan";
 import { createAppRouter } from "../../app/routes";
 import { Shell } from "../../app/Shell";
 import { client } from "../../test/clients";
@@ -181,6 +182,7 @@ describe("Wi-Fi", () => {
       enabled: true,
       network: "lan",
       security: "owe_transition",
+      band_security: {},
       passphrase: null,
       bands: ["2g", "5g"],
       nodes: { scope: "all" },
@@ -190,6 +192,35 @@ describe("Wi-Fi", () => {
       schedule: null,
       roaming: { fast: null, hints: true, steer: true },
       multicast_to_unicast: true,
+    });
+  });
+
+  it("lists a band's own security mode", async () => {
+    (config.wlans[0] as Wlan).band_security = { "2g": "wpa2" };
+    await renderWifi();
+    const row = await screen.findByRole("listitem", { name: "uniwrt-demo" });
+    expect(row).toHaveTextContent("WPA2 on 2.4 GHz");
+  });
+
+  it("gives a band its own security mode", async () => {
+    const user = userEvent.setup();
+    await renderWifi();
+    const row = await screen.findByRole("listitem", { name: "uniwrt-demo" });
+    await user.click(within(row).getByRole("button", { name: "Edit uniwrt-demo" }));
+    const editor = await screen.findByRole("dialog", { name: /uniwrt-demo/ });
+    expect(within(editor).queryByLabelText("Security on 2.4 GHz")).not.toBeInTheDocument();
+    await user.click(within(editor).getByRole("button", { name: "Different security on a band…" }));
+    const band = within(editor).getByLabelText("Security on 2.4 GHz");
+    expect(band).toHaveValue("");
+    // The WLAN's own mode isn't offered again; 6 GHz isn't one of its bands.
+    expect(within(band).queryByRole("option", { name: "WPA2/WPA3" })).not.toBeInTheDocument();
+    expect(within(editor).queryByLabelText("Security on 6 GHz")).not.toBeInTheDocument();
+    await user.selectOptions(band, "wpa2");
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+    expect(await within(editor).findByText(/Saved as revision 3/)).toBeInTheDocument();
+    expect(put().config.wlans[0]).toMatchObject({
+      security: "wpa2_wpa3",
+      band_security: { "2g": "wpa2" },
     });
   });
 

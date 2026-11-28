@@ -218,6 +218,7 @@ fn wlan(ssid: &str) -> Wlan {
         enabled: true,
         network: "lan".to_owned(),
         security: WlanSecurity::Wpa2,
+        band_security: std::collections::BTreeMap::new(),
         passphrase: None,
         bands: vec![Band::G2, Band::G5],
         nodes: NodeScope::All,

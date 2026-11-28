@@ -6,7 +6,7 @@ import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { RequestError } from "../../ui/JobOutcome";
 import { QrCode } from "../../ui/QrCode";
-import { joinCode, needsPassphrase } from "./draft";
+import { joinCode, needsPassphrase, wlanModes } from "./draft";
 
 const t = strings.wifi.qr;
 
@@ -15,7 +15,7 @@ const t = strings.wifi.qr;
  * when the dialog opens, which the audit log records.
  */
 export function JoinDialog(props: { wlan: Wlan; onClose: () => void }) {
-  const secret = () => needsPassphrase(props.wlan.security);
+  const secret = () => wlanModes(props.wlan).some(needsPassphrase);
   const [passphrase, setPassphrase] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   const ready = () => !secret() || passphrase() !== undefined;

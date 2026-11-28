@@ -57,6 +57,20 @@ pub(super) fn v19_to_v20(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// v22 (M9.6b, D-157): WLANs gain per-band security overrides, none.
+pub(super) fn v21_to_v22(value: &mut Value) -> Result<(), String> {
+    let wlans = value
+        .get_mut("wlans")
+        .and_then(Value::as_array_mut)
+        .ok_or("the document has no WLANs")?;
+    for wlan in wlans {
+        wlan.as_object_mut()
+            .ok_or("a WLAN is not an object")?
+            .insert("band_security".to_owned(), json!({}));
+    }
+    Ok(())
+}
+
 /// v21 (M9.3a2b2, D-150): nodes gain SSH hardening, off; none manages `dropbear` yet (render
 /// writes it only for nodes that opt in).
 pub(super) fn v20_to_v21(value: &mut Value) -> Result<(), String> {

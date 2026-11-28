@@ -134,6 +134,35 @@ fn the_home_site_imports_exactly() {
 }
 
 #[test]
+fn a_band_s_own_security_mode_imports_as_an_override() {
+    use uniwrt_model::site::wireless::WlanSecurity;
+    let mut site = home_site();
+    let home = site.wlans.iter_mut().find(|w| w.id == "home").unwrap();
+    home.security = WlanSecurity::Wpa2Wpa3;
+    home.band_security = [(Band::G2, WlanSecurity::Wpa2)].into();
+    let import = round_trip(
+        &site,
+        &[
+            (GATEWAY, NodeRole::Gateway, gateway_facts()),
+            (AP, NodeRole::Ap, gateway_facts()),
+        ],
+    );
+    // One WLAN, not one per mode: the 5 GHz mode is the WLAN's (the higher band wins a tie).
+    let homes: Vec<_> = import
+        .site
+        .wlans
+        .iter()
+        .filter(|w| w.ssid == site.wlans[0].ssid)
+        .collect();
+    assert_eq!(homes.len(), 1, "{homes:?}");
+    assert_eq!(homes[0].security, WlanSecurity::Wpa2Wpa3);
+    assert_eq!(
+        homes[0].band_security,
+        [(Band::G2, WlanSecurity::Wpa2)].into()
+    );
+}
+
+#[test]
 fn a_triband_mesh_imports_exactly() {
     let mut site = home_site();
     for policy in &mut site.radio.bands {

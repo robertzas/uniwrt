@@ -169,6 +169,7 @@ export function withSetup(config: SiteConfig, choices: SetupChoices): SiteConfig
           enabled: true,
           network: main?.id ?? "lan",
           security: "wpa2_wpa3" as const,
+          band_security: {},
           // The save sets the secret; its reference is the server's to make.
           passphrase: known?.passphrase ?? null,
           bands: [...choices.bands],

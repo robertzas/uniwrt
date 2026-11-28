@@ -44,7 +44,7 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
                 format!("There is no network {}", wlan.network),
             );
         }
-        if wlan.security.needs_passphrase() && wlan.passphrase.is_none() {
+        if wlan.needs_passphrase() && wlan.passphrase.is_none() {
             issues.error(
                 format!("{at}/passphrase"),
                 "This security mode needs a passphrase",
@@ -68,23 +68,7 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
                 issues.error(format!("{at}/bands"), "60 GHz is not supported");
             }
         }
-        if bands.contains(&Band::G6)
-            && !matches!(
-                wlan.security,
-                WlanSecurity::Wpa3 | WlanSecurity::Owe | WlanSecurity::OweTransition
-            )
-        {
-            issues.error(
-                format!("{at}/security"),
-                "6 GHz requires WPA3 or OWE: pick one, or leave 6 GHz out",
-            );
-        }
-        if wlan.security == WlanSecurity::Open {
-            issues.warn(
-                format!("{at}/security"),
-                "Open and unencrypted: OWE keeps an open network private",
-            );
-        }
+        security(wlan, &at, &bands, issues);
         if wlan
             .max_clients
             .is_some_and(|max| !(1..=MAX_CLIENTS).contains(&max))
@@ -92,12 +76,6 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
             issues.error(
                 format!("{at}/max_clients"),
                 format!("A radio takes 1 to {MAX_CLIENTS} clients"),
-            );
-        }
-        if wlan.security == WlanSecurity::OweTransition && wlan.ssid.len() > 29 {
-            issues.error(
-                format!("{at}/ssid"),
-                "In OWE transition mode an SSID is 29 bytes at most: the encrypted one adds OWE",
             );
         }
         roaming(wlan, &at, issues);
@@ -113,18 +91,70 @@ pub(super) fn wlans(config: &SiteConfig, nodes: &BTreeSet<NodeId>, issues: &mut 
     }
 }
 
+/// A WLAN's security modes, its own and its bands' (D-157): overrides only on its bands, 6 GHz
+/// with WPA3 or OWE, open bands warned about, OWE transition's shorter name.
+fn security(wlan: &Wlan, at: &str, bands: &BTreeSet<Band>, issues: &mut Issues) {
+    for &band in wlan.band_security.keys() {
+        if !bands.contains(&band) {
+            issues.error(
+                format!("{at}/band_security"),
+                format!(
+                    "{} has its own security mode but isn't one of the WLAN's bands",
+                    band_name(band)
+                ),
+            );
+        }
+    }
+    if bands.contains(&Band::G6)
+        && !matches!(
+            wlan.security_on(Band::G6),
+            WlanSecurity::Wpa3 | WlanSecurity::Owe | WlanSecurity::OweTransition
+        )
+    {
+        let field = if wlan.band_security.contains_key(&Band::G6) {
+            "band_security"
+        } else {
+            "security"
+        };
+        issues.error(
+            format!("{at}/{field}"),
+            "6 GHz requires WPA3 or OWE: pick one, or leave 6 GHz out",
+        );
+    }
+    let securities = wlan.securities();
+    if securities.contains(&WlanSecurity::Open) {
+        issues.warn(
+            format!("{at}/security"),
+            "Open and unencrypted: OWE keeps an open network private",
+        );
+    }
+    if securities.contains(&WlanSecurity::OweTransition) && wlan.ssid.len() > 29 {
+        issues.error(
+            format!("{at}/ssid"),
+            "In OWE transition mode an SSID is 29 bytes at most: the encrypted one adds OWE",
+        );
+    }
+}
+
 fn roaming(wlan: &Wlan, at: &str, issues: &mut Issues) {
-    match (wlan.roaming.fast, wlan.security) {
-        (Some(true), security) if !security.needs_passphrase() => issues.warn(
+    if wlan.roaming.fast != Some(true) {
+        return;
+    }
+    let securities = wlan.securities();
+    if !wlan.needs_passphrase() {
+        issues.warn(
             format!("{at}/roaming"),
             "Fast roaming (802.11r) needs a passphrase: this security mode goes without it",
-        ),
-        (Some(true), WlanSecurity::Wpa2Wpa3 | WlanSecurity::Wpa3) => issues.warn(
+        );
+    } else if securities
+        .iter()
+        .any(|mode| matches!(mode, WlanSecurity::Wpa2Wpa3 | WlanSecurity::Wpa3))
+    {
+        issues.warn(
             format!("{at}/roaming"),
             "Some clients fail to join WPA3 networks with fast roaming (802.11r): turn it off \
              if a device can't connect",
-        ),
-        _ => {}
+        );
     }
 }
 

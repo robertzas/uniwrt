@@ -5196,6 +5196,7 @@ export const strings = {
     network: (name: string) => `Network ${name}`,
     isolation: "Clients isolated",
     maxClients: (n: number) => `Up to ${n} clients per radio`,
+    bandSecurity: (mode: string, band: string) => `${mode} on ${band}`,
     clients: (n: number) => (n === 1 ? "1 client online" : `${n} clients online`),
     scope: {
       all: "All devices",
@@ -5240,6 +5241,11 @@ export const strings = {
       passphraseHint: "8 to 63 characters.",
       bands: "Bands",
       bandsHint: "Each device broadcasts it on its radios of these bands.",
+      bandSecurityShow: "Different security on a band…",
+      bandSecurityLabel: (band: string) => `Security on ${band}`,
+      bandSecuritySame: (mode: string) => `Same as the WLAN (${mode})`,
+      bandSecurityHint:
+        "For devices that can't join the WLAN's mode, such as older 2.4 GHz devices that need WPA2. The name and passphrase stay the same.",
       devices: "Devices",
       scope: "Broadcast on",
       scopes: { all: "All devices", only: "Only these", except: "All but these" } as Record<

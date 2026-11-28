@@ -39,6 +39,7 @@ fn wlan(passphrase: &SecretRef) -> Wlan {
         enabled: true,
         network: "lan".to_owned(),
         security: WlanSecurity::Wpa2Wpa3,
+        band_security: std::collections::BTreeMap::new(),
         passphrase: Some(passphrase.clone()),
         bands: vec![],
         nodes: NodeScope::All,

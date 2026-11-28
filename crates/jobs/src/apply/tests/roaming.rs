@@ -24,6 +24,7 @@ fn wlan(id: &str, security: WlanSecurity, fast: Option<bool>, passphrase: u8) ->
         enabled: true,
         network: "lan".to_owned(),
         security,
+        band_security: std::collections::BTreeMap::new(),
         passphrase: security
             .needs_passphrase()
             .then(|| SecretRef::new(format!("config/{passphrase:032x}")).unwrap()),

@@ -35,6 +35,7 @@ const STEPS: &[Step] = &[
     v18_to_v19,
     v20::v19_to_v20,
     v20::v20_to_v21,
+    v20::v21_to_v22,
 ];
 
 /// v2 (M4.1, D-075): the WAN's IPv6 becomes a mode (`ipv6: true` is DHCPv6 with delegation),
