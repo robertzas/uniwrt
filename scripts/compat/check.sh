@@ -69,11 +69,16 @@ check_notifiers() {
   compat_log "ok    $1: notifiers"
 }
 
-# The passphrase survived: the backup status says so, and a new backup is taken with it.
+# The passphrase survived: the backup status says so, and a new backup is taken with it. A
+# controller that just upgraded data may be taking its own backup (409): asked again for 30 s.
 check_backups() {
+  local tries=0
   api GET /controller/backups | jq -e .passphrase_set >/dev/null ||
     compat_fail "$1: the backup passphrase is gone"
-  api POST /controller/backups | jq -e .name >/dev/null || compat_fail "$1: no new backup"
+  until api POST /controller/backups | jq -e .name >/dev/null; do
+    ((++tries < 30)) || compat_fail "$1: no new backup"
+    sleep 1
+  done
   compat_log "ok    $1: the backup passphrase"
 }
 
